@@ -1,0 +1,14 @@
+# Node modules
+frontend/node_modules/
+backend/vendor/
+
+# Build outputs
+frontend/build/
+public/assets/
+
+# Environment files
+frontend/.env
+backend/.env
+
+# Logs
+backend/storage/logs/
