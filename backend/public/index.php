@@ -1,9 +1,9 @@
 <?php
-require __DIR__.'/../vendor/autoload.php';
+//require __DIR__.'/../vendor/autoload.php';
 
 // Debugging entry point
-echo "Reached Laravel entry point."; 
-exit;
+//echo "Reached Laravel entry point."; 
+//exit;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,13 +16,37 @@ exit;
 |
 */
 
+//$app = require_once __DIR__.'/../bootstrap/app.php';
+
+//$kernel = $app->make(Kernel::class);
+
+//$response = $kernel->handle(
+//    $request = Request::capture()
+//)->send();
+
+//$kernel->terminate($request, $response);
+
+
+/**
+ * Laravel - A PHP Framework For Web Artisans
+ *
+ * @package  Laravel
+ * @author   Taylor Otwell
+ */
+
+define('LARAVEL_START', microtime(true));
+
+require __DIR__.'/../vendor/autoload.php';
+
 $app = require_once __DIR__.'/../bootstrap/app.php';
 
-$kernel = $app->make(Kernel::class);
+$kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
 
 $response = $kernel->handle(
-    $request = Request::capture()
-)->send();
+    $request = Illuminate\Http\Request::capture()
+);
+
+$response->send();
 
 $kernel->terminate($request, $response);
 

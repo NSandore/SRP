@@ -1,16 +1,19 @@
 <?php
-// app/Http/Controllers/ScholarshipController.php
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Scholarship;
+use Illuminate\Http\JsonResponse;
 
 class ScholarshipController extends Controller
 {
     public function featured()
     {
-        $scholarships = Scholarship::orderBy('created_at', 'desc')->take(5)->get();
-        return response()->json($scholarships);
+        try {
+            $scholarships = Scholarship::orderBy('deadline', 'asc')->take(5)->get();
+            return response()->json($scholarships);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 }
