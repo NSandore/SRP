@@ -1,0 +1,24 @@
+/* src/pages/Home.css */
+.home {
+    padding: 20px;
+  }
+  
+  .home h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+  }
+  
+  .home nav ul {
+    list-style: none;
+    display: flex;
+    gap: 15px;
+  }
+  
+  .home nav ul li {
+    display: inline;
+  }
+  
+  .home section {
+    margin-top: 30px;
+  }
+  
