@@ -1,0 +1,154 @@
+/* Global Styles */
+.app-container {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f6f6f6;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+}
+
+/* Navigation Bar */
+.nav-bar {
+  display: flex;
+  align-items: center;
+  background: #0077B5; /* LinkedIn blue as example */
+  padding: 0.5rem 1rem;
+  color: #ffffff;
+  justify-content: space-between;
+  height: 60px;
+}
+
+.nav-left {
+  flex: 1;
+}
+
+.brand-title {
+  margin: 0;
+}
+
+.nav-center {
+  flex: 2;
+  display: flex;
+  justify-content: center;
+}
+
+.search-input {
+  width: 60%;
+  padding: 0.5rem;
+  border-radius: 20px;
+  border: 1px solid #ccc;
+}
+
+.nav-right {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.nav-button {
+  background: #ffffff;
+  color: #0077B5;
+  border: none;
+  border-radius: 20px;
+  padding: 0.5rem 1rem;
+  margin-left: 0.5rem;
+  cursor: pointer;
+}
+
+/* Main Content Layout */
+.main-content {
+  flex: 1;
+  display: flex;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+/* Left Sidebar */
+.left-sidebar {
+  width: 20%;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-right: 1rem;
+  height: fit-content;
+}
+
+.sidebar-title {
+  margin: 0 0 0.5rem 0;
+  font-weight: bold;
+}
+
+.sidebar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+}
+
+.sidebar-list li {
+  margin-bottom: 0.5rem;
+}
+
+/* Feed */
+.feed {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.feed h2 {
+  margin-bottom: 1rem;
+}
+
+.post-card {
+  background: #fafafa;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.post-card h3 {
+  margin-top: 0;
+}
+
+.post-card small {
+  color: #555;
+}
+
+.post-card p {
+  margin-top: 0.5rem;
+}
+
+/* Post Actions */
+.post-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-button {
+  background: #0077B5;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+/* Right Sidebar */
+.right-sidebar {
+  width: 20%;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-left: 1rem;
+  height: fit-content;
+}
+
