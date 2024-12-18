@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './SignUp.css';
 
 function SignUp({ onNext }) {
@@ -18,13 +18,28 @@ function SignUp({ onNext }) {
     isOver18: false,
   });
 
-  const schoolsFromDatabase = [
-    { name: 'Harvard University', tagline: 'Excellence in Research and Liberal Arts' },
-    { name: 'Stanford University', tagline: 'Innovation and Forward Thinking' },
-    { name: 'MIT', tagline: 'Leading in Science and Technology' },
-    { name: 'Yale University', tagline: 'Tradition, Leadership, and Scholarship' },
-    { name: 'University of Oxford', tagline: 'Global Leader in Academia' },
-  ];
+  const [schoolsFromDatabase, setSchoolsFromDatabase] = useState([]);
+
+  // Fetch universities from the backend on component mount
+  useEffect(() => {
+    async function fetchUniversities() {
+      try {
+        const response = await fetch('/api/fetch_universities.php');
+        const data = await response.json();
+  
+        if (response.ok) {
+          setSchoolsFromDatabase(data);
+        } else {
+          alert('Failed to fetch universities: ' + data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching universities:', error);
+        alert('An error occurred while fetching universities.');
+      }
+    }
+    fetchUniversities();
+  }, []);
+  
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -35,7 +50,6 @@ function SignUp({ onNext }) {
   };
 
   const handleNextStep = () => {
-    // Basic validation per step
     if (step === 1) {
       const { firstName, lastName, email, phone } = formData;
       if (!firstName || !lastName || !email || !phone) {
@@ -43,21 +57,13 @@ function SignUp({ onNext }) {
         return;
       }
     }
-    if (step === 2) {
-      if (formData.password !== formData.confirmPassword) {
-        alert('Passwords do not match!');
-        return;
-      }
+    if (step === 2 && formData.password !== formData.confirmPassword) {
+      alert('Passwords do not match!');
+      return;
     }
-    if (step === 3) {
-      if (!formData.educationStatus) {
-        alert('Please select your education status.');
-        return;
-      }
-      if (!formData.isOver18) {
-        alert('You must be over 18.');
-        return;
-      }
+    if (step === 3 && (!formData.educationStatus || !formData.isOver18)) {
+      alert('Please complete all required fields.');
+      return;
     }
     setStep(step + 1);
   };
@@ -66,19 +72,32 @@ function SignUp({ onNext }) {
     setFormData((prev) => ({ ...prev, schoolName }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Final validations:
-    if (!formData.schoolName) {
-      alert('Please select a school.');
+    if (!formData.schoolName || !formData.startDate || !formData.endDate) {
+      alert('Please fill in all required fields.');
       return;
     }
-    if (!formData.startDate || !formData.endDate) {
-      alert('Please provide start and end dates.');
-      return;
+
+    try {
+      const response = await fetch('/api/register_user.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        localStorage.setItem('user_id', data.user_id);
+        alert('User registered successfully');
+        onNext(formData);
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error registering user:', error);
+      alert('An error occurred while registering. Please try again.');
     }
-    // Once all validations pass, proceed
-    onNext(formData);
   };
 
   const filteredSchools = schoolsFromDatabase.filter((school) =>
@@ -150,28 +169,30 @@ function SignUp({ onNext }) {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-
             <div className="school-grid">
               {filteredSchools.map((school, index) => {
                 const isSelected = formData.schoolName === school.name;
+                const logoSrc = school.logo_path ? school.logo_path : 'uploads/logos/default-logo.png';
+
                 return (
                   <div
                     key={index}
                     className={`school-card ${isSelected ? 'selected' : ''}`}
                     onClick={() => handleSchoolClick(school.name)}
                   >
-                    <div className="school-logo-placeholder"></div>
+                    <img
+                      src={logoSrc}
+                      alt={`${school.name} Logo`}
+                      className="school-logo"
+                    />
                     <h3 className="school-name">{school.name}</h3>
                     <p className="school-tagline">{school.tagline}</p>
                   </div>
                 );
               })}
             </div>
-
-            {!filteredSchools.length && (
-              <p className="no-results">No matching schools found. Try another search.</p>
-            )}
-
+            {!filteredSchools.length && <p className="no-results">No matching schools found.</p>}
+            
             <div className="form-step-inline">
               <div>
                 <label>Start Date:</label>
@@ -191,5 +212,3 @@ function SignUp({ onNext }) {
     </div>
   );
 }
-
-export default SignUp;

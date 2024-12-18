@@ -104,7 +104,7 @@
 
 .school-card:hover {
   background: #fff;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
 }
 
 .school-card.selected {
@@ -112,11 +112,13 @@
   background: #eef9ff;
 }
 
-.school-logo-placeholder {
-  width: 60px;
-  height: 60px;
-  background: #ddd;
-  border-radius: 50%;
+/* Updated Logo Styles */
+.school-logo {
+  width: 120px;           /* Consistent logo size */
+  height: 120px;          /* Fixed height for uniformity */
+  object-fit: contain;    /* Maintain aspect ratio */
+  border-radius: 10px;    /* Rounded edges for uniform look */
+  background: #fff;       /* Fallback background */
   margin-bottom: 1rem;
 }
 
@@ -151,5 +153,17 @@
   .signup-container button {
     font-size: 0.9rem;
     padding: 0.6rem;
+  }
+  .school-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .school-card {
+    padding: 1rem;
+  }
+
+  .school-logo {
+    width: 100px;
+    height: 100px;
   }
 }

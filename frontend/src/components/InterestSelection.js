@@ -5,6 +5,7 @@ function InterestSelection({ onComplete }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSchools, setSelectedSchools] = useState([]);
 
+  // Simulate fetching from the database
   const schoolsFromDatabase = [
     { name: 'Columbia University', tagline: 'A New York State of Mind' },
     { name: 'Princeton University', tagline: 'Forward Thinking and Tradition' },
@@ -28,12 +29,40 @@ function InterestSelection({ onComplete }) {
     );
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (selectedSchools.length === 0) {
-      alert('Please select at least one interest.');
+      alert('Please select at least one school.');
       return;
     }
-    onComplete(selectedSchools);
+
+    const user_id = localStorage.getItem('user_id');
+    if (!user_id) {
+      alert('User not found. Please sign up first.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/update_interests.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id,
+          selected_schools: selectedSchools,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('Interests updated successfully!');
+        onComplete(selectedSchools);
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error updating interests:', error);
+      alert('An error occurred while updating interests. Please try again.');
+    }
   };
 
   return (
@@ -63,7 +92,9 @@ function InterestSelection({ onComplete }) {
               onClick={() => handleSchoolClick(school.name)}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSchoolClick(school.name); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSchoolClick(school.name);
+              }}
             >
               <div className="interest-logo-placeholder"></div>
               <h3 className="interest-name">{school.name}</h3>
