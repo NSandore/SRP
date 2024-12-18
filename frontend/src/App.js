@@ -18,6 +18,7 @@ import InterestSelection from './components/InterestSelection';
 import Login from './components/Login';
 import { RiMedalFill } from 'react-icons/ri';
 
+
 function App() {
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState(null);
@@ -89,7 +90,7 @@ function App() {
           />
           <div className="main-content">
             <LeftSidebar 
-              isCollapsed={isSidebarCollapsed} 
+              isSidebarCollapsed={isSidebarCollapsed} 
               setIsSidebarCollapsed={setIsSidebarCollapsed}
               activeSection={activeSection}
               setActiveSection={setActiveSection} 
@@ -176,6 +177,7 @@ function LeftSidebar({ isSidebarCollapsed, setIsSidebarCollapsed, activeSection,
             className="sidebar-toggle-button"
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!isSidebarCollapsed}
           >
             {isSidebarCollapsed ? <FaBars /> : <FaTimes />}
           </button>
