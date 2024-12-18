@@ -1,0 +1,97 @@
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 3rem auto;
+    background: #fff;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    text-align: center;
+  }
+  
+  .login-container h2 {
+    margin-bottom: 2rem;
+    color: #0077B5;
+    font-size: 1.8rem;
+    font-weight: 600;
+  }
+  
+  .login-container form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  
+  .login-container label {
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 0.5rem;
+    text-align: left;
+  }
+  
+  .login-container input {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    outline: none;
+    transition: border-color 0.3s ease;
+  }
+  
+  .login-container input:focus {
+    border-color: #0077B5;
+    box-shadow: 0 0 0 3px rgba(0, 119, 181, 0.2);
+  }
+  
+  .login-container button {
+    background: #0077B5;
+    color: white;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 100%;
+    font-weight: 600;
+    transition: background 0.3s ease;
+  }
+  
+  .login-container button:hover {
+    background: #005f8d;
+  }
+  
+  .not-a-member {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: #333;
+  }
+  
+  .not-a-member .sign-up-link {
+    color: #0077B5;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 0.5rem;
+    text-decoration: underline;
+  }
+  
+  .not-a-member .sign-up-link:hover {
+    color: #005f8d;
+  }
+  
+  /* Responsive */
+  @media (max-width: 600px) {
+    .login-container {
+      padding: 1.5rem;
+    }
+  
+    .login-container h2 {
+      font-size: 1.5rem;
+    }
+  
+    .login-container button {
+      font-size: 0.9rem;
+      padding: 0.6rem;
+    }
+  }
+  

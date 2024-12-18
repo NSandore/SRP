@@ -21,11 +21,29 @@
 }
 
 .nav-left {
+  display: flex;
+  align-items: center;
   flex: 1;
+}
+
+.sidebar-toggle-button {
+  background: none;
+  border: none;
+  color: #0077B5;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sidebar-toggle-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
 }
 
 .brand-title {
   margin: 0;
+  font-size: 1.5rem;
 }
 
 .nav-center {
@@ -34,17 +52,49 @@
   justify-content: center;
 }
 
-.search-input {
-  width: 60%;
-  padding: 0.5rem;
+.feed-options {
+  display: flex;
+  gap: 1rem;
+}
+
+.feed-option-button {
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
   border-radius: 20px;
-  border: 1px solid #ccc;
+  transition: background 0.3s;
+}
+
+.feed-option-button:hover,
+.feed-option-button.active {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .nav-right {
-  flex: 1;
   display: flex;
+  align-items: center;
+  flex: 1;
   justify-content: flex-end;
+  gap: 1rem;
+}
+
+.nav-icons {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nav-icon {
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.nav-icon:hover {
+  color: #d0d0d0;
 }
 
 .nav-button {
@@ -55,6 +105,12 @@
   padding: 0.5rem 1rem;
   margin-left: 0.5rem;
   cursor: pointer;
+  transition: background 0.3s, color 0.3s;
+}
+
+.nav-button:hover {
+  background: #005f8d;
+  color: #ffffff;
 }
 
 /* Main Content Layout */
@@ -63,32 +119,86 @@
   display: flex;
   padding: 1rem;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* Left Sidebar */
 .left-sidebar {
-  width: 20%;
+  width: 150px;
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1rem;
   margin-right: 1rem;
   height: fit-content;
+  transition: 
+    width 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), 
+    opacity 0.3s ease-in-out,
+    padding 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+  position: relative;
+  overflow: hidden; /* Prevents content from bleeding during transition */
 }
 
-.sidebar-title {
-  margin: 0 0 0.5rem 0;
-  font-weight: bold;
+.left-sidebar.collapsed {
+  width: 60px;
+  opacity: 0.9;
+}
+
+.left-sidebar.collapsed {
+  width: 60px;
+  opacity: 0.8;
 }
 
 .sidebar-list {
   list-style: none;
   padding: 0;
-  margin: 0 0 1rem 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Increases vertical spacing between sidebar items */
 }
 
 .sidebar-list li {
-  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: color 0.2s;
+  font-size: 1rem;
+  padding: 0.25rem 0; /* Adds some padding for easier clicking */
+}
+
+.sidebar-icon {
+  margin-right: 0.5rem;
+  min-width: 20px; /* Ensure icon takes up consistent space */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-text {
+  transition: opacity 0.3s ease;
+  opacity: 1;
+}
+
+/* Hide text when sidebar is collapsed */
+.left-sidebar.collapsed .sidebar-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+.left-sidebar.collapsed .sidebar-icon {
+  margin-right: 0;
+  text-align: center;
+  width: 100%;
+}
+
+.left-sidebar.collapsed .sidebar-toggle-container {
+  justify-content: center;
+}
+
+.left-sidebar.collapsed .sidebar-toggle-button {
+  margin-right: 0;
 }
 
 /* Feed */
@@ -99,6 +209,7 @@
   border-radius: 8px;
   padding: 1rem;
   overflow-y: auto;
+  height: calc(100vh - 80px); /* Accounts for navbar height and padding */
 }
 
 .feed h2 {
@@ -132,23 +243,106 @@
   gap: 0.5rem;
 }
 
+/* Action Buttons */
 .action-button {
   background: #0077B5;
   color: #fff;
   border: none;
   border-radius: 4px;
-  padding: 0.25rem 0.5rem;
+  padding: 0.5rem 0.75rem;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem; /* Space between icon and text */
+  /*transition: background 0.3s;*/
+  font-size: 0.9rem;
+}
+
+.action-button:hover {
+  background: #005f8d;
+}
+
+.action-icon {
+  width: 1em;
+  height: 1em;
 }
 
 /* Right Sidebar */
 .right-sidebar {
-  width: 20%;
+  width: 200px;
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1rem;
   margin-left: 1rem;
-  height: fit-content;
+  height: calc(100vh - 80px); /* Match feed height */
 }
 
+.sidebar-title {
+  margin: 0 0 0.5rem 0;
+  font-weight: bold;
+}
+
+.sidebar-list li {
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.sidebar-list li:hover {
+  color: #0077B5;
+}
+
+
+
+/* Scrollbar Styling for Feed and Right Sidebar */
+.feed::-webkit-scrollbar,
+.right-sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+
+.feed::-webkit-scrollbar-track,
+.right-sidebar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+
+.feed::-webkit-scrollbar-thumb,
+.right-sidebar::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+
+.feed::-webkit-scrollbar-thumb:hover,
+.right-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #bbb;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .left-sidebar {
+    display: none;
+  }
+
+  .left-sidebar.collapsed {
+    display: block;
+    width: 60px;
+  }
+
+  .main-content {
+    flex-direction: column;
+  }
+
+  .right-sidebar {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 1rem;
+  }
+
+  .feed {
+    max-height: none;
+  }
+}
