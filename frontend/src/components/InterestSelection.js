@@ -1,21 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './InterestSelection.css';
 
 function InterestSelection({ onComplete }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSchools, setSelectedSchools] = useState([]);
+  const [schoolsFromDatabase, setSchoolsFromDatabase] = useState([]);
 
-  // Simulate fetching from the database
-  const schoolsFromDatabase = [
-    { name: 'Columbia University', tagline: 'A New York State of Mind' },
-    { name: 'Princeton University', tagline: 'Forward Thinking and Tradition' },
-    { name: 'UC Berkeley', tagline: 'Public Research and Innovation' },
-    { name: 'University of Michigan', tagline: 'Leaders and Best' },
-    { name: 'Duke University', tagline: 'Where Innovation Meets Tradition' },
-    { name: 'University of Washington', tagline: 'Boundless Opportunities' },
-    { name: 'Carnegie Mellon University', tagline: 'Driving Innovation in Tech and Arts' },
-    { name: 'UCLA', tagline: 'Diversity and Achievement in Los Angeles' },
-  ];
+  // Fetch universities from the backend when the component mounts
+  useEffect(() => {
+    async function fetchUniversities() {
+      try {
+        const response = await fetch('/api/fetch_universities.php');
+        const data = await response.json();
+
+        if (response.ok) {
+          setSchoolsFromDatabase(data);
+        } else {
+          alert('Failed to fetch universities: ' + data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching universities:', error);
+        alert('An error occurred while fetching universities.');
+      }
+    }
+
+    fetchUniversities();
+  }, []);
 
   const filteredSchools = schoolsFromDatabase.filter((school) =>
     school.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -96,7 +106,11 @@ function InterestSelection({ onComplete }) {
                 if (e.key === 'Enter') handleSchoolClick(school.name);
               }}
             >
-              <div className="interest-logo-placeholder"></div>
+              <img
+                src={school.logo_path || '/uploads/logos/default-logo.png'}
+                alt={`${school.name} Logo`}
+                className="school-logo"
+              />
               <h3 className="interest-name">{school.name}</h3>
               <p className="interest-tagline">{school.tagline}</p>
             </div>

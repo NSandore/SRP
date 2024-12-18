@@ -192,7 +192,7 @@ function SignUp({ onNext }) {
               })}
             </div>
             {!filteredSchools.length && <p className="no-results">No matching schools found.</p>}
-            
+
             <div className="form-step-inline">
               <div>
                 <label>Start Date:</label>
@@ -212,3 +212,4 @@ function SignUp({ onNext }) {
     </div>
   );
 }
+export default SignUp;
