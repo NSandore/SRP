@@ -167,12 +167,30 @@ function NavBar({ setStep, activeFeed, setActiveFeed, activeSection, userData, a
   );
 }
 
-function LeftSidebar({ isSidebarCollapsed, setIsSidebarCollapsed }) {
+function LeftSidebar({ 
+  isSidebarCollapsed, 
+  setIsSidebarCollapsed,
+  activeSection,
+  setActiveSection, 
+  setActiveFeed 
+}) {
   const navigate = useNavigate();
 
   const handleSectionClick = (section) => {
+    setActiveSection(section);
+    setActiveFeed('yourFeed'); // Optionally reset feed when changing section
     navigate(`/${section}`);
   };
+
+  const sidebarItems = [
+    { name: 'home', icon: <TbWriting />, text: 'Home' },
+    { name: 'info', icon: <BiInfoCircle />, text: 'Information Board' },
+    { name: 'saved', icon: <FaBookmark />, text: 'Saved' },
+    { name: 'connections', icon: <FaUsers />, text: 'Connections' },
+    { name: 'groups', icon: <FaPeopleCarry />, text: 'Groups' },
+    { name: 'scholarships', icon: <RiMedalFill />, text: 'Scholarships' },
+    { name: 'communities', icon: <FaUniversity />, text: 'Universities' }
+  ];
 
   return (
     <aside className={`left-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
@@ -188,40 +206,16 @@ function LeftSidebar({ isSidebarCollapsed, setIsSidebarCollapsed }) {
           </button>
         </li>
 
-        <li className="sidebar-item" onClick={() => handleSectionClick('home')}>
-          <TbWriting className="sidebar-icon" /> 
-          <span className="sidebar-text">Home</span>
-        </li>
-
-        <li className="sidebar-item" onClick={() => handleSectionClick('info')}>
-          <BiInfoCircle className="sidebar-icon" /> 
-          <span className="sidebar-text">Information Board</span>
-        </li>
-
-        <li className="sidebar-item" onClick={() => handleSectionClick('saved')}>
-          <FaBookmark className="sidebar-icon" /> 
-          <span className="sidebar-text">Saved</span>
-        </li>
-
-        <li className="sidebar-item" onClick={() => handleSectionClick('connections')}>
-          <FaUsers className="sidebar-icon" /> 
-          <span className="sidebar-text">Connections</span>
-        </li>
-
-        <li className="sidebar-item" onClick={() => handleSectionClick('groups')}>
-          <FaPeopleCarry className="sidebar-icon" /> 
-          <span className="sidebar-text">Groups</span>
-        </li>
-
-        <li className="sidebar-item" onClick={() => handleSectionClick('scholarships')}>
-          <RiMedalFill className="sidebar-icon" /> 
-          <span className="sidebar-text">Scholarships</span>
-        </li>
-
-        <li className="sidebar-item" onClick={() => handleSectionClick('communities')}>
-          <FaUniversity className="sidebar-icon" /> 
-          <span className="sidebar-text">Universities</span>
-        </li>
+        {sidebarItems.map(item => (
+          <li 
+            key={item.name} 
+            className={`sidebar-item ${activeSection === item.name ? 'active' : ''}`}
+            onClick={() => handleSectionClick(item.name)}
+          >
+            <span className="sidebar-icon">{item.icon}</span>
+            <span className="sidebar-text">{item.text}</span>
+          </li>
+        ))}
       </ul>
     </aside>
   );
