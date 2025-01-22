@@ -20,24 +20,24 @@ function SignUp({ onNext }) {
 
   const [schoolsFromDatabase, setSchoolsFromDatabase] = useState([]);
 
-  // Fetch universities from the backend on component mount
+  // Fetch communities from the backend on component mount
   useEffect(() => {
-    async function fetchUniversities() {
+    async function fetchCommunities() {
       try {
-        const response = await fetch('/api/fetch_universities.php');
+        const response = await fetch('/api/fetch_communities.php');
         const data = await response.json();
   
         if (response.ok) {
           setSchoolsFromDatabase(data);
         } else {
-          alert('Failed to fetch universities: ' + data.error);
+          alert('Failed to fetch communities: ' + data.error);
         }
       } catch (error) {
-        console.error('Error fetching universities:', error);
-        alert('An error occurred while fetching universities.');
+        console.error('Error fetching communities:', error);
+        alert('An error occurred while fetching communities.');
       }
     }
-    fetchUniversities();
+    fetchCommunities();
   }, []);
   
 

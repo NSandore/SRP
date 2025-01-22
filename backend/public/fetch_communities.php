@@ -5,10 +5,10 @@ header('Content-Type: application/json');
 
 try {
     $db = getDB();
-    $stmt = $db->query("SELECT name, tagline, logo_path FROM universities ORDER BY name ASC");
-    $universities = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $db->query("SELECT name, tagline, logo_path FROM communities ORDER BY name ASC");
+    $communities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    echo json_encode($universities);
+    echo json_encode($communities);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);

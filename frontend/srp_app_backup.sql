@@ -24,12 +24,12 @@ DROP TABLE IF EXISTS `forums`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `forums` (
   `forum_id` int NOT NULL AUTO_INCREMENT,
-  `university_id` int NOT NULL,
+  `community_id` int NOT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`forum_id`),
-  KEY `university_id` (`university_id`),
-  CONSTRAINT `forums_ibfk_1` FOREIGN KEY (`university_id`) REFERENCES `universities` (`university_id`) ON DELETE CASCADE
+  KEY `community_id` (`community_id`),
+  CONSTRAINT `forums_ibfk_1` FOREIGN KEY (`community_id`) REFERENCES `communities` (`community_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -232,14 +232,14 @@ DROP TABLE IF EXISTS `scholarships`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `scholarships` (
   `scholarship_id` int NOT NULL AUTO_INCREMENT,
-  `university_id` int NOT NULL,
+  `community_id` int NOT NULL,
   `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `eligibility_criteria` text COLLATE utf8mb4_unicode_ci,
   `deadline` date DEFAULT NULL,
   PRIMARY KEY (`scholarship_id`),
-  KEY `university_id` (`university_id`),
-  CONSTRAINT `scholarships_ibfk_1` FOREIGN KEY (`university_id`) REFERENCES `universities` (`university_id`) ON DELETE CASCADE
+  KEY `community_id` (`community_id`),
+  CONSTRAINT `scholarships_ibfk_1` FOREIGN KEY (`community_id`) REFERENCES `communities` (`community_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -283,57 +283,57 @@ LOCK TABLES `threads` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `universities`
+-- Table structure for table `communities`
 --
 
-DROP TABLE IF EXISTS `universities`;
+DROP TABLE IF EXISTS `communities`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `universities` (
-  `university_id` int NOT NULL AUTO_INCREMENT,
+CREATE TABLE `communities` (
+  `community_id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `location` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `website` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  PRIMARY KEY (`university_id`)
+  PRIMARY KEY (`community_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `universities`
+-- Dumping data for table `communities`
 --
 
-LOCK TABLES `universities` WRITE;
-/*!40000 ALTER TABLE `universities` DISABLE KEYS */;
-/*!40000 ALTER TABLE `universities` ENABLE KEYS */;
+LOCK TABLES `communities` WRITE;
+/*!40000 ALTER TABLE `communities` DISABLE KEYS */;
+/*!40000 ALTER TABLE `communities` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
--- Table structure for table `user_follows_university`
+-- Table structure for table `user_follows_community`
 --
 
-DROP TABLE IF EXISTS `user_follows_university`;
+DROP TABLE IF EXISTS `user_follows_community`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `user_follows_university` (
+CREATE TABLE `user_follows_community` (
   `follow_id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
-  `university_id` int NOT NULL,
+  `community_id` int NOT NULL,
   `followed_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`follow_id`),
-  UNIQUE KEY `unique_follow` (`user_id`,`university_id`),
-  KEY `university_id` (`university_id`),
-  CONSTRAINT `user_follows_university_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
-  CONSTRAINT `user_follows_university_ibfk_2` FOREIGN KEY (`university_id`) REFERENCES `universities` (`university_id`) ON DELETE CASCADE
+  UNIQUE KEY `unique_follow` (`user_id`,`community_id`),
+  KEY `community_id` (`community_id`),
+  CONSTRAINT `user_follows_community_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `user_follows_community_ibfk_2` FOREIGN KEY (`community_id`) REFERENCES `communities` (`community_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `user_follows_university`
+-- Dumping data for table `user_follows_community`
 --
 
-LOCK TABLES `user_follows_university` WRITE;
-/*!40000 ALTER TABLE `user_follows_university` DISABLE KEYS */;
-/*!40000 ALTER TABLE `user_follows_university` ENABLE KEYS */;
+LOCK TABLES `user_follows_community` WRITE;
+/*!40000 ALTER TABLE `user_follows_community` DISABLE KEYS */;
+/*!40000 ALTER TABLE `user_follows_community` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -375,7 +375,7 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `user_id` int NOT NULL AUTO_INCREMENT,
   `role_id` int NOT NULL,
-  `university_id` int DEFAULT NULL,
+  `community_id` int DEFAULT NULL,
   `first_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `last_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -384,9 +384,9 @@ CREATE TABLE `users` (
   PRIMARY KEY (`user_id`),
   UNIQUE KEY `email` (`email`),
   KEY `role_id` (`role_id`),
-  KEY `university_id` (`university_id`),
+  KEY `community_id` (`community_id`),
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`) ON DELETE RESTRICT,
-  CONSTRAINT `users_ibfk_2` FOREIGN KEY (`university_id`) REFERENCES `universities` (`university_id`) ON DELETE SET NULL
+  CONSTRAINT `users_ibfk_2` FOREIGN KEY (`community_id`) REFERENCES `communities` (`community_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

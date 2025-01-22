@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './App.css';
 import {
-  FaEnvelope,
+  FaEnvelope, 
   FaBell,
   FaUserCircle,
   FaBookmark,
@@ -13,21 +15,18 @@ import {
   FaPeopleCarry
 } from 'react-icons/fa';
 import { TbWriting } from 'react-icons/tb';
+import { BiInfoCircle } from 'react-icons/bi';
 import SignUp from './components/SignUp';
 import InterestSelection from './components/InterestSelection';
 import Login from './components/Login';
 import { RiMedalFill } from 'react-icons/ri';
-
 
 function App() {
   const [step, setStep] = useState(0);
   const [userData, setUserData] = useState(null);
   const [selectedSchools, setSelectedSchools] = useState([]);
   const [activeFeed, setActiveFeed] = useState('yourFeed');
-
-  // State for active section in the sidebar
   const [activeSection, setActiveSection] = useState('home');
-
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [accountMenuVisible, setAccountMenuVisible] = useState(false);
 
@@ -35,7 +34,6 @@ function App() {
     const checkUserSession = async () => {
       try {
         const response = await axios.get('http://34.31.85.242/api/check_session.php', { withCredentials: true });
-        console.log("Check session response:", response.data);
         if (response.data && response.data.loggedIn) {
           setUserData(response.data.user);
         }
@@ -72,40 +70,46 @@ function App() {
   };
 
   return (
-    <div className="app-container">
-      {step === 1 && <SignUp onNext={handleNext} />}
-      {step === 2 && <Login onLogin={handleLogin} onGoToSignUp={() => setStep(1)} />}
-      {step === 3 && <InterestSelection onComplete={handleInterestComplete} />}
-      {step === 0 && (
-        <>
-          <NavBar 
-            setStep={setStep} 
-            activeFeed={activeFeed} 
-            setActiveFeed={setActiveFeed}
-            activeSection={activeSection} 
-            userData={userData} 
-            accountMenuVisible={accountMenuVisible}
-            setAccountMenuVisible={setAccountMenuVisible}
-            handleLogout={handleLogout}
-          />
-          <div className="main-content">
-            <LeftSidebar 
-              isSidebarCollapsed={isSidebarCollapsed} 
-              setIsSidebarCollapsed={setIsSidebarCollapsed}
-              activeSection={activeSection}
-              setActiveSection={setActiveSection} 
-              setActiveFeed={setActiveFeed}
-            />
-            <Feed 
+    <Router>
+      <div className="app-container">
+        {step === 1 && <SignUp onNext={handleNext} />}
+        {step === 2 && <Login onLogin={handleLogin} onGoToSignUp={() => setStep(1)} />}
+        {step === 3 && <InterestSelection onComplete={handleInterestComplete} />}
+        {step === 0 && (
+          <>
+            <NavBar 
+              setStep={setStep} 
               activeFeed={activeFeed} 
+              setActiveFeed={setActiveFeed}
               activeSection={activeSection} 
               userData={userData} 
+              accountMenuVisible={accountMenuVisible}
+              setAccountMenuVisible={setAccountMenuVisible}
+              handleLogout={handleLogout}
             />
-            <RightSidebar />
-          </div>
-        </>
-      )}
-    </div>
+            <div className="main-content">
+              <LeftSidebar 
+                isSidebarCollapsed={isSidebarCollapsed} 
+                setIsSidebarCollapsed={setIsSidebarCollapsed}
+                activeSection={activeSection}
+                setActiveSection={setActiveSection} 
+                setActiveFeed={setActiveFeed}
+              />
+              <Routes>
+                <Route path="/" element={<Feed activeFeed={activeFeed} activeSection="home" userData={userData} />} />
+                <Route path="/info" element={<Feed activeFeed={activeFeed} activeSection="info" userData={userData} />} />
+                <Route path="/saved" element={<Feed activeFeed={activeFeed} activeSection="saved" userData={userData} />} />
+                <Route path="/connections" element={<Feed activeFeed={activeFeed} activeSection="connections" userData={userData} />} />
+                <Route path="/groups" element={<Feed activeFeed={activeFeed} activeSection="groups" userData={userData} />} />
+                <Route path="/scholarships" element={<Feed activeFeed={activeFeed} activeSection="scholarships" userData={userData} />} />
+                <Route path="/communities" element={<Feed activeFeed={activeFeed} activeSection="communities" userData={userData} />} />
+              </Routes>
+              <RightSidebar />
+            </div>
+          </>
+        )}
+      </div>
+    </Router>
   );
 }
 
@@ -139,19 +143,21 @@ function NavBar({ setStep, activeFeed, setActiveFeed, activeSection, userData, a
         <div className="nav-icons">
           <FaEnvelope className="nav-icon" title="Messages" />
           <FaBell className="nav-icon" title="Notifications" />
-          <div className="account-settings" onClick={() => setAccountMenuVisible(!accountMenuVisible)}>
-            <FaUserCircle className="nav-icon" title="Account Settings" />
-            {accountMenuVisible && userData && (
-              <div className="account-menu">
-                <div className="account-menu-item" onClick={() => alert('Account Settings')}>
-                  Account Settings
+          {userData && (
+            <div className="account-settings" onClick={() => setAccountMenuVisible(!accountMenuVisible)}>
+              <FaUserCircle className="nav-icon" title="Account Settings" />
+              {accountMenuVisible && (
+                <div className="account-menu">
+                  <div className="account-menu-item" onClick={() => alert('Account Settings')}>
+                    Account Settings
+                  </div>
+                  <div className="account-menu-item" onClick={handleLogout}>
+                    Log Out
+                  </div>
                 </div>
-                <div className="account-menu-item" onClick={handleLogout}>
-                  Log Out
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
         {!userData && (
           <button className="nav-button" onClick={() => setStep(2)}>Login</button>
@@ -161,12 +167,11 @@ function NavBar({ setStep, activeFeed, setActiveFeed, activeSection, userData, a
   );
 }
 
-function LeftSidebar({ isSidebarCollapsed, setIsSidebarCollapsed, activeSection, setActiveSection, setActiveFeed }) {
+function LeftSidebar({ isSidebarCollapsed, setIsSidebarCollapsed }) {
+  const navigate = useNavigate();
+
   const handleSectionClick = (section) => {
-    setActiveSection(section);
-    if (section === 'home') {
-      setActiveFeed('yourFeed');
-    }
+    navigate(`/${section}`);
   };
 
   return (
@@ -182,46 +187,38 @@ function LeftSidebar({ isSidebarCollapsed, setIsSidebarCollapsed, activeSection,
             {isSidebarCollapsed ? <FaBars /> : <FaTimes />}
           </button>
         </li>
-        <li 
-          className={`sidebar-item ${activeSection === 'home' ? 'active' : ''}`} 
-          onClick={() => handleSectionClick('home')}
-        >
+
+        <li className="sidebar-item" onClick={() => handleSectionClick('home')}>
           <TbWriting className="sidebar-icon" /> 
           <span className="sidebar-text">Home</span>
         </li>
-        <li 
-          className={`sidebar-item ${activeSection === 'saved' ? 'active' : ''}`} 
-          onClick={() => handleSectionClick('saved')}
-        >
+
+        <li className="sidebar-item" onClick={() => handleSectionClick('info')}>
+          <BiInfoCircle className="sidebar-icon" /> 
+          <span className="sidebar-text">Information Board</span>
+        </li>
+
+        <li className="sidebar-item" onClick={() => handleSectionClick('saved')}>
           <FaBookmark className="sidebar-icon" /> 
           <span className="sidebar-text">Saved</span>
         </li>
-        <li 
-          className={`sidebar-item ${activeSection === 'friends' ? 'active' : ''}`} 
-          onClick={() => handleSectionClick('friends')}
-        >
+
+        <li className="sidebar-item" onClick={() => handleSectionClick('connections')}>
           <FaUsers className="sidebar-icon" /> 
-          <span className="sidebar-text">Friends</span>
+          <span className="sidebar-text">Connections</span>
         </li>
 
-        <li 
-          className={`sidebar-item ${activeSection === 'groups' ? 'active' : ''}`} 
-          onClick={() => handleSectionClick('groups')}
-        >
+        <li className="sidebar-item" onClick={() => handleSectionClick('groups')}>
           <FaPeopleCarry className="sidebar-icon" /> 
           <span className="sidebar-text">Groups</span>
         </li>
-        <li 
-          className={`sidebar-item ${activeSection === 'scholarships' ? 'active' : ''}`} 
-          onClick={() => handleSectionClick('scholarships')}
-        >
+
+        <li className="sidebar-item" onClick={() => handleSectionClick('scholarships')}>
           <RiMedalFill className="sidebar-icon" /> 
           <span className="sidebar-text">Scholarships</span>
         </li>
-        <li 
-          className={`sidebar-item ${activeSection === 'universities' ? 'active' : ''}`} 
-          onClick={() => handleSectionClick('universities')}
-        >
+
+        <li className="sidebar-item" onClick={() => handleSectionClick('communities')}>
           <FaUniversity className="sidebar-icon" /> 
           <span className="sidebar-text">Universities</span>
         </li>
@@ -230,81 +227,100 @@ function LeftSidebar({ isSidebarCollapsed, setIsSidebarCollapsed, activeSection,
   );
 }
 
+export { LeftSidebar };
+
+
 function Feed({ activeFeed, activeSection, userData }) {
-  const [followedUniversities, setFollowedUniversities] = useState([]);
-  const [allUniversities, setAllUniversities] = useState([]);
+  const [followedCommunities, setfollowedCommunities] = useState([]);
+  const [allCommunities, setAllCommunities] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoadingFollowed, setIsLoadingFollowed] = useState(false);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
+  const [forums, setForums] = useState([]);
+  const [isLoadingForums, setIsLoadingForums] = useState(false);
 
-  // Fetch followed universities (universities the user follows)
-  const fetchFollowedUniversities = async () => {
+  // Fetch followed communities (communities the user follows)
+  const fetchfollowedCommunities = async () => {
     if (!userData) return;
     setIsLoadingFollowed(true);
     try {
-      console.log("Fetching followed universities...");
-      const response = await axios.get(`/api/followed_universities.php?user_id=${userData.user_id}`);
-      console.log("Followed Universities Response:", response.data);
+      console.log("Fetching followed communities...");
+      const response = await axios.get(`/api/followed_communities.php?user_id=${userData.user_id}`);
+      console.log("Followed Communities Response:", response.data);
       if (Array.isArray(response.data)) {
-        setFollowedUniversities(response.data);
+        setfollowedCommunities(response.data);
       } else {
-        setFollowedUniversities([]);
+        setfollowedCommunities([]);
       }
     } catch (error) {
-      console.error('Error fetching followed universities:', error);
-      setFollowedUniversities([]);
+      console.error('Error fetching followed communities:', error);
+      setfollowedCommunities([]);
     } finally {
       setIsLoadingFollowed(false);
     }
   };
 
-  // Fetch all universities (paginated and searchable)
-  const fetchAllUniversities = async (page = 1, term = '') => {
+  // Fetch all communities (paginated and searchable)
+  const fetchAllCommunities = async (page = 1, term = '') => {
     if (!userData) {
-      console.error('User data is not available.');
+      // Silently return if userData is not available
       return;
     }
     setIsLoadingAll(true);
     try {
-      console.log(`Fetching all universities... page: ${page}, term: "${term}"`);
-      const response = await axios.get(`/api/fetch_all_university_data.php?user_id=${userData.user_id}&page=${page}&search=${encodeURIComponent(term)}`);
-      console.log("All Universities Response:", response.data);
+      console.log(`Fetching all communities... page: ${page}, term: "${term}"`);
+      const response = await axios.get(`/api/fetch_all_community_data.php?user_id=${userData.user_id}&page=${page}&search=${encodeURIComponent(term)}`);
+      console.log("All Communities Response:", response.data);
       
-      // Assuming the backend returns pagination info
-      if (response.data.universities) {
-        setAllUniversities(response.data.universities);
+      if (response.data.communities) {
+        setAllCommunities(response.data.communities);
         setTotalPages(response.data.total_pages || 1);
       } else {
-        // If the backend only returns an array without pagination
-        setAllUniversities(response.data);
+        setAllCommunities(response.data);
         setTotalPages(1);
       }
     } catch (error) {
-      console.error('Error fetching all universities:', error);
-      setAllUniversities([]);
+      console.error('Error fetching all communities:', error);
+      setAllCommunities([]);
       setTotalPages(1);
     } finally {
       setIsLoadingAll(false);
     }
+  };  
+
+  const fetchForums = async (communityId) => {
+    setIsLoadingForums(true);
+    try {
+      const response = await axios.get(`/api/fetch_forums.php?community_id=${communityId}`);
+      setForums(response.data || []);
+    } catch (error) {
+      console.error('Error fetching forums:', error);
+      setForums([]);
+    } finally {
+      setIsLoadingForums(false);
+    }
   };
 
   useEffect(() => {
-    if (activeSection === 'universities' && userData) {
-      console.log("Universities section active and userData available. Fetching data...");
-      fetchFollowedUniversities();
-      fetchAllUniversities(1, '');
+    if (activeSection === 'communities' && userData) {
+      console.log("Communities section active and userData available. Fetching data...");
+      fetchfollowedCommunities();
+      fetchAllCommunities(1, '');
       setCurrentPage(1);
       setSearchTerm('');
     }
-  }, [activeSection, userData]); // Trigger only when section changes to universities and userData is set
+    if (activeSection === 'info') {
+      fetchForums(3); // Forums for community_id = 3
+    }
+  }, [activeSection, userData]); // Trigger only when section changes to communities and userData is set
 
   // Handle search changes with debouncing
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      if (activeSection === 'universities') {
-        fetchAllUniversities(1, searchTerm);
+      if (activeSection === 'communities') {
+        fetchAllCommunities(1, searchTerm);
         setCurrentPage(1);
       }
     }, 300); // 300ms debounce
@@ -317,7 +333,7 @@ function Feed({ activeFeed, activeSection, userData }) {
     if (currentPage < totalPages) {
       const newPage = currentPage + 1;
       setCurrentPage(newPage);
-      fetchAllUniversities(newPage, searchTerm);
+      fetchAllCommunities(newPage, searchTerm);
     }
   };
 
@@ -325,34 +341,37 @@ function Feed({ activeFeed, activeSection, userData }) {
     if (currentPage > 1) {
       const newPage = currentPage - 1;
       setCurrentPage(newPage);
-      fetchAllUniversities(newPage, searchTerm);
+      fetchAllCommunities(newPage, searchTerm);
     }
   };
 
   // Implement Follow/Unfollow Functionality
-  const handleFollowToggle = async (universityId, isFollowed) => {
+  const handleFollowToggle = async (communityId, isFollowed) => {
     try {
       if (isFollowed) {
-        // Unfollow the university
-        await axios.post('/api/unfollow_university.php', { user_id: userData.user_id, university_id: universityId });
+        // Unfollow the community
+        await axios.post('/api/unfollow_community.php', { user_id: userData.user_id, community_id: communityId });
       } else {
-        // Follow the university
-        await axios.post('/api/follow_university.php', { user_id: userData.user_id, university_id: universityId });
+        // Follow the community
+        await axios.post('/api/follow_community.php', { user_id: userData.user_id, community_id: communityId });
       }
-      // Refresh both followed and all universities lists
-      fetchFollowedUniversities();
-      fetchAllUniversities(currentPage, searchTerm);
+      // Refresh both followed and all communities lists
+      fetchfollowedCommunities();
+      fetchAllCommunities(currentPage, searchTerm);
     } catch (error) {
       console.error('Error toggling follow status:', error);
       alert('An error occurred while updating follow status.');
     }
   };
 
-  // For non-universities sections
+  // Create a Set of followed community IDs for efficient lookup
+  const followedIds = new Set(followedCommunities.map(u => u.community_id));
+
+  // For non-communities sections
   let mockPosts = [];
   if (activeSection === 'home') {
     mockPosts = activeFeed === 'yourFeed' ? [
-      { title: 'Q&A: Admissions Advice for New Applicants', author: 'StaffMember123', content: 'Ask your questions about the admissions process at ABC University.' },
+      { title: 'Q&A: Admissions Advice for New Applicants', author: 'StaffMember123', content: 'Ask your questions about the admissions process at ABC Community.' },
       { title: 'Top Scholarship Opportunities This Month', author: 'ScholarBot', content: 'Check out these new scholarship listings available nationwide.' },
       { title: 'New Poll: Which Campus Club Should We Feature?', author: 'StudentRep', content: 'Vote on which student club you want highlighted in next week’s webinar.' }
     ] : [
@@ -362,8 +381,8 @@ function Feed({ activeFeed, activeSection, userData }) {
     ];
   } else if (activeSection === 'saved') {
     mockPosts = [{ title: 'Your Saved Posts', author: 'You', content: 'Here are your saved posts...' }];
-  } else if (activeSection === 'friends') {
-    mockPosts = [{ title: 'Friends Updates', author: 'FriendBot', content: 'Your friends are up to...' }];
+  } else if (activeSection === 'connections') {
+    mockPosts = [{ title: 'Connections Updates', author: 'ConnectionBot', content: 'Your connections are up to...' }];
   } else if (activeSection === 'groups') {
     mockPosts = [{ title: 'Group Discussions', author: 'GroupAdmin', content: 'Latest discussions in your groups...' }];
   } else if (activeSection === 'scholarships') {
@@ -377,73 +396,99 @@ function Feed({ activeFeed, activeSection, userData }) {
         {activeSection === 'home' ? (activeFeed === 'yourFeed' ? 'Your Feed' : 'Explore') 
           : activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
       </h2>
-      {activeSection === 'universities' ? (
+      {activeSection === 'info' ? (
+        isLoadingForums ? (
+          <p>Loading forums...</p>
+        ) : forums.length === 0 ? (
+          <p>No forums available.</p>
+        ) : (
+          <div className="forum-list">
+            {forums.map((forum) => (
+              <div key={forum.forum_id} className="forum-card">
+                <h3 className="forum-title">{forum.name}</h3>
+                <p className="forum-description">{forum.description}</p>
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        <p>Select a section to display relevant content.</p>
+      )}
+      {activeSection === 'communities' ? (
         <>
-          {/* Followed Universities Section */}
-          <div className="universities-section">
+          {/* Followed Communities Section */}
+          <div className="communities-section">
             <h3>Your Followed Universities</h3>
             {isLoadingFollowed ? (
               <p>Loading followed universities...</p>
-            ) : followedUniversities.length === 0 ? (
+            ) : followedCommunities.length === 0 ? (
               <p>You are not following any universities yet.</p>
             ) : (
-              <div className="university-grid">
-                {followedUniversities.map((school) => (
-                  <div key={school.university_id} className="university-card">
+              <div className="community-grid">
+                {followedCommunities.map((school) => (
+                  <div key={school.community_id} className="community-card followed">
                     <img
                       src={school.logo_path || '/uploads/logos/default-logo.png'}
                       alt={`${school.name} Logo`}
-                      className="university-logo"
+                      className="community-logo"
                     />
-                    <h4 className="university-name">{school.name}</h4>
-                    <p className="university-location">{school.location}</p>
-                    {school.tagline && <p className="university-tagline">{school.tagline}</p>}
+                    <h4 className="community-name">{school.name}</h4>
+                    <p className="community-location">{school.location}</p>
+                    {school.tagline && <p className="community-tagline">{school.tagline}</p>}
                     <p className="followers-count">{school.followers_count} Followers</p>
+                    <button 
+                      className="follow-button unfollow"
+                      onClick={() => handleFollowToggle(school.community_id, true)}
+                    >
+                      Unfollow
+                    </button>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Search Bar for Universities */}
+          {/* Search Bar for Communities */}
           <div className="search-bar-container">
             <input
               type="text"
-              placeholder="Search universities..."
+              placeholder="Search communities..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="university-search-bar"
+              className="community-search-bar"
             />
           </div>
 
-          {/* All Universities (Paginated) */}
-          <div className="universities-section">
+          {/* All Communities (Paginated) */}
+          <div className="communities-section">
             <h3>All Universities</h3>
             {isLoadingAll ? (
               <p>Loading all universities...</p>
-            ) : allUniversities.length === 0 ? (
+            ) : allCommunities.length === 0 ? (
               <p>No universities found.</p>
             ) : (
-              <div className="university-grid">
-                {allUniversities.map((uni) => (
-                  <div key={uni.university_id} className={`university-card ${uni.is_followed ? 'followed' : ''}`}>
-                    <img
-                      src={uni.logo_path || '/uploads/logos/default-logo.png'}
-                      alt={`${uni.name} Logo`}
-                      className="university-logo"
-                    />
-                    <h4 className="university-name">{uni.name}</h4>
-                    <p className="university-location">{uni.location}</p>
-                    {uni.tagline && <p className="university-tagline">{uni.tagline}</p>}
-                    <p className="followers-count">{uni.followers_count} Followers</p>
-                    <button 
-                      className={`follow-button ${uni.is_followed ? 'unfollow' : 'follow'}`}
-                      onClick={() => handleFollowToggle(uni.university_id, uni.is_followed)}
-                    >
-                      {uni.is_followed ? 'Unfollow' : 'Follow'}
-                    </button>
-                  </div>
-                ))}
+              <div className="community-grid">
+                {allCommunities
+                  .filter(community => !followedIds.has(community.community_id)) // Exclude followed communities
+                  .map((community) => (
+                    <div key={community.community_id} className="community-card">
+                      <img
+                        src={community.logo_path || '/uploads/logos/default-logo.png'}
+                        alt={`${community.name} Logo`}
+                        className="community-logo"
+                      />
+                      <h4 className="community-name">{community.name}</h4>
+                      <p className="community-location">{community.location}</p>
+                      {community.tagline && <p className="community-tagline">{community.tagline}</p>}
+                      <p className="followers-count">{community.followers_count} Followers</p>
+                      <button 
+                        className="follow-button follow"
+                        onClick={() => handleFollowToggle(community.community_id, false)}
+                      >
+                        Follow
+                      </button>
+                    </div>
+                  ))}
               </div>
             )}
             <div className="pagination-controls">

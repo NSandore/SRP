@@ -13,7 +13,7 @@ if (!isset($_GET['user_id'])) {
 $user_id = (int)$_GET['user_id'];
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$limit = 10; // Number of universities per page
+$limit = 10; // Number of communities per page
 $offset = ($page - 1) * $limit;
 
 $db = getDB();
@@ -21,27 +21,27 @@ $db = getDB();
 try {
     // Create or replace the view
     $db->exec("
-        CREATE OR REPLACE VIEW all_university_data AS
+        CREATE OR REPLACE VIEW all_community_data AS
         SELECT 
-            u.id AS university_id, 
-            u.name, 
-            u.location, 
-            u.tagline, 
-            u.logo_path, 
-            COUNT(fu.user_id) AS followers_count
-        FROM universities u
-        LEFT JOIN followed_universities fu ON fu.university_id = u.id
-        GROUP BY u.id, u.name, u.location, u.tagline, u.logo_path
+            c.id AS community_id, 
+            c.name, 
+            c.location, 
+            c.tagline, 
+            c.logo_path, 
+            COUNT(fc.user_id) AS followers_count
+        FROM communities c
+        LEFT JOIN followed_communities fc ON fc.community_id = c.id
+        GROUP BY c.id, c.name, c.location, c.tagline, c.logo_path
     ");
 
     // Prepare the main query with search and pagination
     $query = "
         SELECT 
             aud.*, 
-            CASE WHEN fu.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_followed
-        FROM all_university_data aud
-        LEFT JOIN followed_universities fu 
-            ON aud.university_id = fu.university_id AND fu.user_id = :user_id
+            CASE WHEN fc.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_followed
+        FROM all_community_data aud
+        LEFT JOIN followed_communities fc 
+            ON aud.community_id = fc.community_id AND fc.user_id = :user_id
     ";
 
     $params = [':user_id' => $user_id];
@@ -68,12 +68,12 @@ try {
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 
     $stmt->execute();
-    $universities = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $communities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Get total count for pagination
     $countQuery = "
         SELECT COUNT(*) as total
-        FROM all_university_data aud
+        FROM all_community_data aud
     ";
     if ($search !== '') {
         $countQuery .= " WHERE aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search";
@@ -85,12 +85,12 @@ try {
     }
     $countStmt->execute();
     $totalResult = $countStmt->fetch(PDO::FETCH_ASSOC);
-    $totalUniversities = $totalResult ? (int)$totalResult['total'] : 0;
-    $totalPages = ceil($totalUniversities / $limit);
+    $totalCommunities = $totalResult ? (int)$totalResult['total'] : 0;
+    $totalPages = ceil($totalCommunities / $limit);
 
     // Structure the response
     $response = [
-        'universities' => $universities,
+        'communities' => $communities,
         'total_pages' => $totalPages,
         'current_page' => $page
     ];

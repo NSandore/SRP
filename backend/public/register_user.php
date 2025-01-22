@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $inputData = json_decode(file_get_contents('php://input'), true);
 
 if (isset($inputData['action']) && $inputData['action'] === 'updateInterests') {
-    // Handle adding selected schools to followed_universities for an existing user
+    // Handle adding selected schools to followed_communities for an existing user
     if (empty($inputData['user_id']) || empty($inputData['selected_schools'])) {
         http_response_code(400);
         echo json_encode(['error' => 'user_id and selected_schools are required']);
@@ -25,29 +25,29 @@ if (isset($inputData['action']) && $inputData['action'] === 'updateInterests') {
     try {
         $db = getDB();
 
-        // For each selected school, find its ID and insert into followed_universities
+        // For each selected school, find its ID and insert into followed_communities
         foreach ($selected_schools as $schoolName) {
-            // Find university_id by school name
-            $stmt = $db->prepare("SELECT id FROM universities WHERE name = :name LIMIT 1");
+            // Find community_id by school name
+            $stmt = $db->prepare("SELECT id FROM communities WHERE name = :name LIMIT 1");
             $stmt->execute([':name' => $schoolName]);
             $univ = $stmt->fetch();
             if ($univ && isset($univ['id'])) {
-                $university_id = $univ['id'];
+                $community_id = $univ['id'];
 
                 // Check if already followed
-                $checkStmt = $db->prepare("SELECT id FROM followed_universities WHERE user_id = :user_id AND university_id = :university_id LIMIT 1");
-                $checkStmt->execute([':user_id' => $user_id, ':university_id' => $university_id]);
+                $checkStmt = $db->prepare("SELECT id FROM followed_communities WHERE user_id = :user_id AND community_id = :community_id LIMIT 1");
+                $checkStmt->execute([':user_id' => $user_id, ':community_id' => $community_id]);
                 $existing = $checkStmt->fetch();
 
                 if (!$existing) {
-                    $insertStmt = $db->prepare("INSERT INTO followed_universities (user_id, university_id) VALUES (:user_id, :university_id)");
-                    $insertStmt->execute([':user_id' => $user_id, ':university_id' => $university_id]);
+                    $insertStmt = $db->prepare("INSERT INTO followed_communities (user_id, community_id) VALUES (:user_id, :community_id)");
+                    $insertStmt->execute([':user_id' => $user_id, ':community_id' => $community_id]);
                 }
             }
         }
 
         http_response_code(200);
-        echo json_encode(['message' => 'Followed universities updated successfully.']);
+        echo json_encode(['message' => 'Followed communities updated successfully.']);
     } catch (PDOException $e) {
         http_response_code(500);
         echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
@@ -100,41 +100,41 @@ try {
 
     $user_id = $db->lastInsertId();
 
-    // If a school is selected, update recent_university_id and insert educational_experience + followed_universities
+    // If a school is selected, update recent_community_id and insert educational_experience + followed_communities
     if ($schoolName) {
-        // Find university by name
-        $uStmt = $db->prepare("SELECT id FROM universities WHERE name = :name LIMIT 1");
+        // Find community by name
+        $uStmt = $db->prepare("SELECT id FROM communities WHERE name = :name LIMIT 1");
         $uStmt->execute([':name' => $schoolName]);
         $univ = $uStmt->fetch();
         if ($univ && isset($univ['id'])) {
-            $university_id = $univ['id'];
+            $community_id = $univ['id'];
 
-            // Update user's recent_university_id
-            $updateUserStmt = $db->prepare("UPDATE users SET recent_university_id = :university_id WHERE id = :user_id");
-            $updateUserStmt->execute([':university_id' => $university_id, ':user_id' => $user_id]);
+            // Update user's recent_community_id
+            $updateUserStmt = $db->prepare("UPDATE users SET recent_community_id = :community_id WHERE id = :user_id");
+            $updateUserStmt->execute([':community_id' => $community_id, ':user_id' => $user_id]);
 
             // Insert into educational_experience if startDate and endDate are provided
             if ($startDate && $endDate) {
                 $eeStmt = $db->prepare("
-                    INSERT INTO educational_experience (user_id, university_id, start_date, end_date)
-                    VALUES (:user_id, :university_id, :start_date, :end_date)
+                    INSERT INTO educational_experience (user_id, community_id, start_date, end_date)
+                    VALUES (:user_id, :community_id, :start_date, :end_date)
                 ");
                 $eeStmt->execute([
                     ':user_id' => $user_id,
-                    ':university_id' => $university_id,
+                    ':community_id' => $community_id,
                     ':start_date' => $startDate,
                     ':end_date' => $endDate
                 ]);
             }
 
-            // Insert into followed_universities
+            // Insert into followed_communities
             $fuStmt = $db->prepare("
-                INSERT INTO followed_universities (user_id, university_id) 
-                VALUES (:user_id, :university_id)
+                INSERT INTO followed_communities (user_id, community_id) 
+                VALUES (:user_id, :community_id)
             ");
             $fuStmt->execute([
                 ':user_id' => $user_id,
-                ':university_id' => $university_id
+                ':community_id' => $community_id
             ]);
         }
     }

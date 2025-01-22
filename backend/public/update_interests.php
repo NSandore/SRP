@@ -24,30 +24,30 @@ try {
     $db = getDB();
 
     // Clear existing interests
-    $clearStmt = $db->prepare("DELETE FROM followed_universities WHERE user_id = :user_id");
+    $clearStmt = $db->prepare("DELETE FROM followed_communities WHERE user_id = :user_id");
     $clearStmt->execute([':user_id' => $user_id]);
 
     // Insert new interests
     foreach ($selected_schools as $schoolName) {
-        $stmt = $db->prepare("SELECT id FROM universities WHERE name = :name LIMIT 1");
+        $stmt = $db->prepare("SELECT id FROM communities WHERE name = :name LIMIT 1");
         $stmt->execute([':name' => $schoolName]);
-        $university = $stmt->fetch();
+        $community = $stmt->fetch();
 
-        if ($university && isset($university['id'])) {
-            $university_id = $university['id'];
+        if ($community && isset($community['id'])) {
+            $community_id = $community['id'];
 
             $insertStmt = $db->prepare(
-                "INSERT INTO followed_universities (user_id, university_id) VALUES (:user_id, :university_id)"
+                "INSERT INTO followed_communities (user_id, community_id) VALUES (:user_id, :community_id)"
             );
             $insertStmt->execute([
                 ':user_id' => $user_id,
-                ':university_id' => $university_id
+                ':community_id' => $community_id
             ]);
         }
     }
 
     http_response_code(200);
-    echo json_encode(['message' => 'Followed universities updated successfully.']);
+    echo json_encode(['message' => 'Followed communities updated successfully.']);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
