@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import { Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './App.css';
 import {
@@ -20,6 +19,9 @@ import SignUp from './components/SignUp';
 import InterestSelection from './components/InterestSelection';
 import Login from './components/Login';
 import { RiMedalFill } from 'react-icons/ri';
+import ForumView from './components/ForumView';   // New component for forum details
+import ThreadView from './components/ThreadView'; // New component for thread details
+
 
 function App() {
   const [step, setStep] = useState(0);
@@ -103,6 +105,8 @@ function App() {
                 <Route path="/groups" element={<Feed activeFeed={activeFeed} activeSection="groups" userData={userData} />} />
                 <Route path="/scholarships" element={<Feed activeFeed={activeFeed} activeSection="scholarships" userData={userData} />} />
                 <Route path="/communities" element={<Feed activeFeed={activeFeed} activeSection="communities" userData={userData} />} />
+                <Route path="/info/forum/:forum_id" element={<ForumView userData={userData} />} />
+                <Route path="/info/forum/:forum_id/thread/:thread_id" element={<ThreadView userData={userData} />} />
               </Routes>
               <RightSidebar />
             </div>
@@ -398,10 +402,15 @@ function Feed({ activeFeed, activeSection, userData }) {
         ) : (
           <div className="forum-list">
             {forums.map((forum) => (
-              <div key={forum.forum_id} className="forum-card">
+              <Link 
+                to={`/info/forum/${forum.forum_id}`} 
+                key={forum.forum_id} 
+                className="forum-card"
+                style={{ textDecoration: 'none', color: 'inherit' }}  // optional styling
+              >
                 <h3 className="forum-title">{forum.name}</h3>
                 <p className="forum-description">{forum.description}</p>
-              </div>
+              </Link>
             ))}
           </div>
         )

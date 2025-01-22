@@ -143,6 +143,7 @@
   padding: 1rem;
   box-sizing: border-box;
   overflow: hidden;
+  align-items: stretch;
 }
 
 /* Left Sidebar */
@@ -249,6 +250,7 @@
   padding: 1rem;
   overflow-y: auto;
   height: calc(100vh - 80px); /* Accounts for navbar height and padding */
+  min-height: 100%;
 }
 
 .feed h2 {
@@ -380,7 +382,7 @@
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1rem;
-  margin-left: 1rem;
+  margin-left: auto;
   height: calc(100vh - 80px); /* Match feed height */
 }
 
@@ -547,31 +549,90 @@
   flex-direction: column;
   gap: 1rem;
   margin-top: 1rem;
+  width: 100%;
+}
+
+.forum-list .forum-card {
+  display: block;
 }
 
 .forum-card {
   background: #fff;
-  padding: 1rem;
+  border: 1px solid #e1e9ee;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  transition: box-shadow 0.2s ease;
 }
 
 .forum-card:hover {
-  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.forum-card small {
+  display: block;
+  font-size: 0.85rem;
+  color: #777;
+  margin-top: 0.5rem;
+}
+
+/* Style for upvote/downvote section */
+.forum-card div {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #555;
 }
 
 .forum-title {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  color: #333;
+  margin-bottom: 0.75rem;
 }
 
 .forum-description {
-  color: #555;
   font-size: 1rem;
+  color: #333;
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
 }
 
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #0077B5;
+  color: #fff;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: bold;
+  transition: background-color 0.3s ease;
+}
+
+.back-button:hover {
+  background-color: #005f8d;
+}
+
+.back-button:focus {
+  outline: 2px solid #005f8d;
+  outline-offset: 2px;
+}
+
+.reply-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+  object-fit: cover;
+}
 
 /* Responsive Design */
 @media (max-width: 768px) {
@@ -592,6 +653,7 @@
     width: 100%;
     margin-left: 0;
     margin-top: 1rem;
+    flex-shrink: 0;
   }
 
   .feed {
