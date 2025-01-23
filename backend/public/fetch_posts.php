@@ -14,11 +14,19 @@ $thread_id = (int)$_GET['thread_id'];
 $db = getDB();
 
 try {
-    // Use correct column names matching your posts table
+    // Include reply_to in the selected columns
     $stmt = $db->prepare("
-        SELECT post_id, thread_id, user_id, content, created_at, updated_at, upvotes, downvotes 
-        FROM posts 
-        WHERE thread_id = :thread_id 
+        SELECT post_id,
+               thread_id,
+               user_id,
+               content,
+               created_at,
+               updated_at,
+               upvotes,
+               downvotes,
+               reply_to
+        FROM posts
+        WHERE thread_id = :thread_id
         ORDER BY created_at ASC
     ");
     $stmt->execute([':thread_id' => $thread_id]);
@@ -29,4 +37,3 @@ try {
     http_response_code(500);
     echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
 }
-?>
