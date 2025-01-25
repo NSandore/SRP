@@ -3,7 +3,9 @@
     "type": "project",
     "require": {
         "slim/slim": "^4.14",
-        "doctrine/orm": "^2.20"
+        "doctrine/orm": "^2.20",
+        "ezyang/htmlpurifier": "*",
+        "symfony/polyfill-php80": "^1.31"
     },
     "license": "MIT"
 }

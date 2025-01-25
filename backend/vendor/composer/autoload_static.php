@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit3c6175b1827956261432639a03f87691
+class ComposerStaticInit34070a1cabeb2cb2e952d5fcc8252fbd
 {
     public static $files = array (
         'a4a119a56e50fbb293281d9a48007e0e' => __DIR__ . '/..' . '/symfony/polyfill-php80/bootstrap.php',
@@ -16,6 +16,7 @@ class ComposerStaticInit3c6175b1827956261432639a03f87691
         '0d59ee240a4cd96ddbb4ff164fccea4d' => __DIR__ . '/..' . '/symfony/polyfill-php73/bootstrap.php',
         'b6b991a57620e2fb6b2f66f03fe9ddc2' => __DIR__ . '/..' . '/symfony/string/Resources/functions.php',
         '253c157292f75eb38082b5acb06f3f01' => __DIR__ . '/..' . '/nikic/fast-route/src/functions.php',
+        '2cffec82183ee1cea088009cef9a6fc3' => __DIR__ . '/..' . '/ezyang/htmlpurifier/library/HTMLPurifier.composer.php',
     );
 
     public static $prefixLengthsPsr4 = array (
@@ -106,13 +107,13 @@ class ComposerStaticInit3c6175b1827956261432639a03f87691
         ),
         'Psr\\Http\\Server\\' => 
         array (
-            0 => __DIR__ . '/..' . '/psr/http-server-handler/src',
-            1 => __DIR__ . '/..' . '/psr/http-server-middleware/src',
+            0 => __DIR__ . '/..' . '/psr/http-server-middleware/src',
+            1 => __DIR__ . '/..' . '/psr/http-server-handler/src',
         ),
         'Psr\\Http\\Message\\' => 
         array (
-            0 => __DIR__ . '/..' . '/psr/http-message/src',
-            1 => __DIR__ . '/..' . '/psr/http-factory/src',
+            0 => __DIR__ . '/..' . '/psr/http-factory/src',
+            1 => __DIR__ . '/..' . '/psr/http-message/src',
         ),
         'Psr\\Container\\' => 
         array (
@@ -164,8 +165,18 @@ class ComposerStaticInit3c6175b1827956261432639a03f87691
         ),
         'Doctrine\\Common\\' => 
         array (
-            0 => __DIR__ . '/..' . '/doctrine/event-manager/src',
-            1 => __DIR__ . '/..' . '/doctrine/common/src',
+            0 => __DIR__ . '/..' . '/doctrine/common/src',
+            1 => __DIR__ . '/..' . '/doctrine/event-manager/src',
+        ),
+    );
+
+    public static $prefixesPsr0 = array (
+        'H' => 
+        array (
+            'HTMLPurifier' => 
+            array (
+                0 => __DIR__ . '/..' . '/ezyang/htmlpurifier/library',
+            ),
         ),
     );
 
@@ -183,9 +194,10 @@ class ComposerStaticInit3c6175b1827956261432639a03f87691
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit3c6175b1827956261432639a03f87691::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit3c6175b1827956261432639a03f87691::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit3c6175b1827956261432639a03f87691::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit34070a1cabeb2cb2e952d5fcc8252fbd::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit34070a1cabeb2cb2e952d5fcc8252fbd::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInit34070a1cabeb2cb2e952d5fcc8252fbd::$prefixesPsr0;
+            $loader->classMap = ComposerStaticInit34070a1cabeb2cb2e952d5fcc8252fbd::$classMap;
 
         }, null, ClassLoader::class);
     }
