@@ -963,11 +963,11 @@ function Feed({ activeFeed, activeSection, userData }) {
 function RightSidebar() {
   return (
     <aside className="right-sidebar">
-      <h3>Suggested Connections</h3>
+      <h3>Trending Topics</h3>
       <ul>
-        <li>@JohnDoe - Admissions Rep</li>
-        <li>@JaneSmith - Scholarship Guru</li>
-        <li>@CampusLife - Student Events</li>
+        <li>#FinancialAid</li>
+        <li>#Admissions</li>
+        <li>#StudentResources</li>
       </ul>
     </aside>
   );
