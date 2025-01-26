@@ -1,5 +1,5 @@
 // src/components/ThreadView.js
-
+import './ThreadView.css';
 import React, { useState, useEffect } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import axios from 'axios';
@@ -20,6 +20,8 @@ import {
   FaAlignLeft,
   FaAlignCenter,
   FaAlignRight,
+  FaChevronDown,
+  FaChevronRight,
 } from 'react-icons/fa';
 
 // Tiptap imports
@@ -110,6 +112,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('bold') ? 'active' : ''}`}
         onClick={() => handleButtonClick('toggleBold')}
         title="Bold"
+        aria-label="Bold"
       >
         <FaBold />
       </button>
@@ -120,6 +123,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('italic') ? 'active' : ''}`}
         onClick={() => handleButtonClick('toggleItalic')}
         title="Italic"
+        aria-label="Italic"
       >
         <FaItalic />
       </button>
@@ -130,6 +134,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('underline') ? 'active' : ''}`}
         onClick={() => handleButtonClick('toggleUnderline')}
         title="Underline"
+        aria-label="Underline"
       >
         <FaUnderline />
       </button>
@@ -140,6 +145,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('strike') ? 'active' : ''}`}
         onClick={() => handleButtonClick('toggleStrike')}
         title="Strikethrough"
+        aria-label="Strikethrough"
       >
         <FaStrikethrough />
       </button>
@@ -150,6 +156,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('bulletList') ? 'active' : ''}`}
         onClick={() => handleButtonClick('toggleBulletList')}
         title="Bullet List"
+        aria-label="Bullet List"
       >
         <FaListUl />
       </button>
@@ -160,6 +167,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('orderedList') ? 'active' : ''}`}
         onClick={() => handleButtonClick('toggleOrderedList')}
         title="Ordered List"
+        aria-label="Ordered List"
       >
         <FaListOl />
       </button>
@@ -178,6 +186,7 @@ function EditToolbar({ editor }) {
             : '0'
         }
         title="Headings"
+        aria-label="Headings"
       >
         <option value="0">Normal</option>
         <option value="1">Heading 1</option>
@@ -191,6 +200,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('link') ? 'active' : ''}`}
         onClick={() => handleButtonClick('addLink')}
         title="Add Link"
+        aria-label="Add Link"
       >
         <FaLink />
       </button>
@@ -202,6 +212,7 @@ function EditToolbar({ editor }) {
           className="toolbar-button"
           onClick={() => handleButtonClick('unlink')}
           title="Remove Link"
+          aria-label="Remove Link"
         >
           ❌
         </button>
@@ -213,6 +224,7 @@ function EditToolbar({ editor }) {
         className="toolbar-button"
         onClick={() => handleButtonClick('addImage')}
         title="Add Image"
+        aria-label="Add Image"
       >
         <FaImage />
       </button>
@@ -223,6 +235,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('textAlign', { align: 'left' }) ? 'active' : ''}`}
         onClick={() => handleButtonClick('alignLeft')}
         title="Align Left"
+        aria-label="Align Left"
       >
         <FaAlignLeft />
       </button>
@@ -232,6 +245,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('textAlign', { align: 'center' }) ? 'active' : ''}`}
         onClick={() => handleButtonClick('alignCenter')}
         title="Align Center"
+        aria-label="Align Center"
       >
         <FaAlignCenter />
       </button>
@@ -241,6 +255,7 @@ function EditToolbar({ editor }) {
         className={`toolbar-button ${isActive('textAlign', { align: 'right' }) ? 'active' : ''}`}
         onClick={() => handleButtonClick('alignRight')}
         title="Align Right"
+        aria-label="Align Right"
       >
         <FaAlignRight />
       </button>
@@ -287,9 +302,11 @@ function PostItem({
   handleUpvoteClick,
   handleDownvoteClick,
   isRoot = false,
+  level = 1, // New prop to track the depth level
 }) {
   const [localReply, setLocalReply] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(level === 2); // Auto-collapse at level 2
 
   // Tiptap editor with same config as TextEditor.js
   const editor = useEditor({
@@ -328,19 +345,12 @@ function PostItem({
   // REPLY Logic
   const handleLocalReplyChange = (e) => setLocalReply(e.target.value);
 
-  const handleReplySubmitLocal = (e) => {
+  const handleReplySubmitLocal = async (e) => {
     e.preventDefault();
     if (!localReply.trim()) return;
-    onReplySubmit(post.post_id, localReply);
+    await onReplySubmit(post.post_id, localReply);
     setLocalReply('');
-    if (!isRoot) {
-      setExpandedReplyBox(null);
-    }
-  };
-
-  const isReplyBoxOpen = isRoot || expandedReplyBox === post.post_id;
-  const handleToggleChildReply = () => {
-    setExpandedReplyBox(isReplyBoxOpen ? null : post.post_id);
+    setExpandedReplyBox(null);
   };
 
   // EDIT Logic
@@ -372,39 +382,46 @@ function PostItem({
   const hasDownvoted = post.user_vote === 'down';
 
   const upvoteIcon = hasUpvoted ? (
-    <FaArrowAltCircleUp style={{ color: 'green', cursor: 'pointer' }} />
+    <FaArrowAltCircleUp />
   ) : (
-    <FaRegArrowAltCircleUp style={{ cursor: 'pointer' }} />
+    <FaRegArrowAltCircleUp />
   );
   const downvoteIcon = hasDownvoted ? (
-    <FaArrowAltCircleDown style={{ color: 'red', cursor: 'pointer' }} />
+    <FaArrowAltCircleDown />
   ) : (
-    <FaRegArrowAltCircleDown style={{ cursor: 'pointer' }} />
+    <FaRegArrowAltCircleDown />
   );
 
+  // Determine if the reply box for this post is open
+  const isReplyBoxOpen = expandedReplyBox === post.post_id;
+
+  const handleToggleReplyBox = () => {
+    if (isReplyBoxOpen) {
+      setExpandedReplyBox(null);
+    } else {
+      setExpandedReplyBox(post.post_id);
+    }
+  };
+
+  // Toggle collapse of replies
+  const toggleCollapse = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
   return (
-    <div className="forum-card reply-card">
+    <div className={`forum-card reply-card level-${level}`}>
       {isEditing ? (
-        <form onSubmit={confirmEdit} style={{ marginBottom: '1rem' }}>
+        <form onSubmit={confirmEdit} className="edit-form" style={{ marginBottom: '1rem' }}>
           {/* Show the same toolbar from TextEditor.js */}
           <EditToolbar editor={editor} />
           {/* Editor content */}
           <EditorContent editor={editor} className="tiptap-editor" />
 
-          <div className="edit-form-actions" style={{ marginTop: '0.5rem' }}>
-            <button
-              type="submit"
-              className="create-button"
-              style={{ backgroundColor: '#4CAF50', color: '#fff' }}
-            >
+          <div className="edit-form-actions">
+            <button type="submit" className="create-button">
               Save
             </button>
-            <button
-              type="button"
-              className="create-button"
-              style={{ backgroundColor: '#ccc', color: '#333' }}
-              onClick={cancelEditing}
-            >
+            <button type="button" className="create-button cancel-button" onClick={cancelEditing}>
               Cancel
             </button>
           </div>
@@ -416,93 +433,103 @@ function PostItem({
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
           />
           <small>
-            Posted by User {post.user_id} on{' '}
-            {new Date(post.created_at).toLocaleString()}
+            Posted by User {post.user_id} on {new Date(post.created_at).toLocaleString()}
           </small>
 
-          {/* Upvote/Downvote row */}
+          {/* Upvote/Downvote + Reply Icon row */}
           <div className="vote-row">
-            <span onClick={() => handleUpvoteClick(post.post_id)}>{upvoteIcon}</span>
-            <span>{post.upvotes}</span>
-            <span onClick={() => handleDownvoteClick(post.post_id)}>{downvoteIcon}</span>
-            <span>{post.downvotes}</span>
+            {/* Upvote Button */}
+            <button
+              type="button"
+              className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
+              onClick={() => handleUpvoteClick(post.post_id)}
+              title="Upvote"
+              aria-label="Upvote"
+            >
+              {upvoteIcon}
+            </button>
+            <span className="vote-count">{post.upvotes}</span>
+
+            {/* Downvote Button */}
+            <button
+              type="button"
+              className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
+              onClick={() => handleDownvoteClick(post.post_id)}
+              title="Downvote"
+              aria-label="Downvote"
+            >
+              {downvoteIcon}
+            </button>
+            <span className="vote-count">{post.downvotes}</span>
+
+            {/* Speech Bubble Reply Icon */}
+            <button
+              type="button"
+              className="reply-button"
+              onClick={handleToggleReplyBox}
+              title="Reply"
+              aria-label="Reply"
+            >
+              <FiMessageCircle />
+            </button>
+
+            {/* Collapse/Expand Replies Button */}
+            {post.children && post.children.length > 0 && (
+              <button
+                type="button"
+                className="collapse-button"
+                onClick={toggleCollapse}
+                title={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
+                aria-label={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
+              >
+                {isCollapsed ? <FaChevronRight /> : <FaChevronDown />}
+                <span className="collapse-text">
+                  {isCollapsed ? 'Show Replies' : 'Hide Replies'}
+                </span>
+              </button>
+            )}
           </div>
         </>
       )}
 
       {/* Edit + Delete buttons */}
-      <div className="post-actions" style={{ marginTop: '0.5rem' }}>
+      <div className="post-actions">
         {canEdit && !isEditing && (
           <button className="create-button edit-button" onClick={startEditing}>
             Edit
           </button>
         )}
         {canDelete && (
-          <button
-            className="create-button delete-button"
-            onClick={() => handleDeletePost(post.post_id)}
-          >
+          <button className="create-button delete-button" onClick={() => handleDeletePost(post.post_id)}>
             Delete
           </button>
         )}
       </div>
 
-      {/* If root => show inline reply if logged in, else child => toggle */}
-      {isRoot ? (
-        userData?.user_id && !isEditing && (
-          <form onSubmit={handleReplySubmitLocal} className="reply-form" style={{ marginTop: '1rem' }}>
-            <textarea
-              placeholder="Reply to this post..."
-              value={localReply}
-              onChange={handleLocalReplyChange}
-              rows={2}
-              required
-              className="reply-textarea"
-            />
+      {/* Reply Form */}
+      {userData?.user_id && !isEditing && isReplyBoxOpen && (
+        <form onSubmit={handleReplySubmitLocal} className="reply-form">
+          <textarea
+            placeholder="Write your reply..."
+            value={localReply}
+            onChange={handleLocalReplyChange}
+            rows={3}
+            required
+            className="reply-textarea"
+          />
+          <div className="reply-form-actions">
             <button type="submit" className="create-button reply-button">
-              Reply
+              Submit
             </button>
-          </form>
-        )
-      ) : (
-        userData?.user_id && !isEditing && (
-          <div className="child-reply-section" style={{ marginTop: '1rem' }}>
-            {!isReplyBoxOpen && (
-              <span className="reply-toggle" onClick={handleToggleChildReply}>
-                <FiMessageCircle />
-                <span className="reply-toggle-text">Reply</span>
-              </span>
-            )}
-            {isReplyBoxOpen && (
-              <form onSubmit={handleReplySubmitLocal} className="reply-form">
-                <textarea
-                  placeholder="Reply to this post..."
-                  value={localReply}
-                  onChange={handleLocalReplyChange}
-                  rows={2}
-                  required
-                  className="reply-textarea"
-                />
-                <div className="reply-form-actions">
-                  <button type="submit" className="create-button reply-button">
-                    Submit
-                  </button>
-                  <button
-                    type="button"
-                    className="create-button cancel-button"
-                    onClick={() => setExpandedReplyBox(null)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
+            <button type="button" className="create-button cancel-button" onClick={() => setExpandedReplyBox(null)}>
+              Cancel
+            </button>
           </div>
-        )
+        </form>
       )}
 
       {/* Recursively render child replies */}
-      {post.children && post.children.length > 0 && (
+      {post.children && post.children.length > 0 && !isCollapsed && (
         <div className="reply-tree-level">
           {post.children.map((child) => (
             <PostItem
@@ -517,6 +544,7 @@ function PostItem({
               handleUpvoteClick={handleUpvoteClick}
               handleDownvoteClick={handleDownvoteClick}
               isRoot={false}
+              level={level + 1} // Increment level for child replies
             />
           ))}
         </div>
@@ -565,7 +593,15 @@ function ThreadView({ userData }) {
       }
       const res = await axios.get(url);
       const data = Array.isArray(res.data) ? res.data : [];
-      const tree = buildReplyTree(data);
+
+      // Ensure upvotes and downvotes are numbers
+      const numericData = data.map((post) => ({
+        ...post,
+        upvotes: Number(post.upvotes) || 0,
+        downvotes: Number(post.downvotes) || 0,
+      }));
+
+      const tree = buildReplyTree(numericData);
       setPostTree(tree);
     } catch (err) {
       console.error('Error fetching posts:', err);
@@ -663,7 +699,42 @@ function ThreadView({ userData }) {
         user_id: userData.user_id,
         vote_type: 'up',
       });
-      fetchPosts();
+      // Update the post vote counts without refreshing
+      setPostTree((prevPostTree) => {
+        const updateVotes = (posts) =>
+          posts.map((p) => {
+            if (p.post_id === post_id) {
+              let newUpvotes = p.upvotes;
+              let newDownvotes = p.downvotes;
+              let newUserVote = p.user_vote;
+
+              if (p.user_vote === 'up') {
+                // Remove upvote
+                newUpvotes -= 1;
+                newUserVote = null;
+              } else if (p.user_vote === 'down') {
+                // Change downvote to upvote
+                newDownvotes -= 1;
+                newUpvotes += 1;
+                newUserVote = 'up';
+              } else {
+                // Add upvote
+                newUpvotes += 1;
+                newUserVote = 'up';
+              }
+              return {
+                ...p,
+                upvotes: newUpvotes,
+                downvotes: newDownvotes,
+                user_vote: newUserVote,
+              };
+            } else if (p.children && p.children.length > 0) {
+              return { ...p, children: updateVotes(p.children) };
+            }
+            return p;
+          });
+        return updateVotes(prevPostTree);
+      });
     } catch (error) {
       console.error('Error upvoting post:', error);
       setNotification({ type: 'error', message: 'Error upvoting post.' });
@@ -682,7 +753,42 @@ function ThreadView({ userData }) {
         user_id: userData.user_id,
         vote_type: 'down',
       });
-      fetchPosts();
+      // Update the post vote counts without refreshing
+      setPostTree((prevPostTree) => {
+        const updateVotes = (posts) =>
+          posts.map((p) => {
+            if (p.post_id === post_id) {
+              let newUpvotes = p.upvotes;
+              let newDownvotes = p.downvotes;
+              let newUserVote = p.user_vote;
+
+              if (p.user_vote === 'down') {
+                // Remove downvote
+                newDownvotes -= 1;
+                newUserVote = null;
+              } else if (p.user_vote === 'up') {
+                // Change upvote to downvote
+                newUpvotes -= 1;
+                newDownvotes += 1;
+                newUserVote = 'down';
+              } else {
+                // Add downvote
+                newDownvotes += 1;
+                newUserVote = 'down';
+              }
+              return {
+                ...p,
+                upvotes: newUpvotes,
+                downvotes: newDownvotes,
+                user_vote: newUserVote,
+              };
+            } else if (p.children && p.children.length > 0) {
+              return { ...p, children: updateVotes(p.children) };
+            }
+            return p;
+          });
+        return updateVotes(prevPostTree);
+      });
     } catch (error) {
       console.error('Error downvoting post:', error);
       setNotification({ type: 'error', message: 'Error downvoting post.' });
@@ -700,9 +806,7 @@ function ThreadView({ userData }) {
         ← {threadData?.forum_name || 'Forum'}
       </RouterLink>
 
-      <h2 className="forum-title">
-        {threadData?.title || `Thread ${thread_id}`}
-      </h2>
+      <h2 className="forum-title">{threadData?.title || `Thread ${thread_id}`}</h2>
 
       {postTree.length === 0 ? (
         <p>No replies found.</p>
@@ -721,6 +825,7 @@ function ThreadView({ userData }) {
               handleUpvoteClick={handleUpvoteClick}
               handleDownvoteClick={handleDownvoteClick}
               isRoot
+              level={1} // Root posts are level 1
             />
           ))}
         </div>
@@ -733,6 +838,7 @@ function ThreadView({ userData }) {
           <button
             className="notification-close"
             onClick={() => setNotification(null)}
+            aria-label="Close Notification"
           >
             X
           </button>

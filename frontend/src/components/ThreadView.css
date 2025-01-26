@@ -1,0 +1,334 @@
+/* src/components/ThreadView.css */
+
+.feed.thread-view {
+    padding: 1rem;
+    background-color: #f0f2f5;
+    min-height: 100vh;
+    box-sizing: border-box;
+  }
+  
+  .back-button {
+    display: inline-block;
+    margin-bottom: 1rem;
+    text-decoration: none;
+    font-weight: bold;
+  }
+  
+  .back-button:hover {
+    text-decoration: underline;
+  }
+  
+  .forum-title {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    color: #333;
+  }
+  
+  .forum-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .forum-card.reply-card {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #ffffff;
+    transition: background-color 0.3s ease;
+    position: relative;
+  }
+  
+  .forum-card.reply-card:hover {
+    background-color: #e9ecef;
+  }
+  
+  .forum-card.level-1 {
+    margin-left: 0;
+  }
+  
+  .forum-card.level-2 {
+    margin-left: 2rem;
+  }
+  
+  .forum-card.level-3 {
+    margin-left: 4rem;
+  }
+  
+  /* Adjust margins for deeper levels as needed */
+  .forum-card.level-4 {
+    margin-left: 6rem;
+  }
+  
+  .forum-description {
+    margin-bottom: 0.5rem;
+    color: #555;
+  }
+  
+  .vote-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* Adjust gap to control spacing */
+    margin-top: 0.5rem;
+  }
+  
+  .vote-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #555;
+    font-size: 1.2rem;
+    transition: color 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+  }
+  
+  .vote-button:hover {
+    color: #000;
+  }
+  
+  .vote-button.active {
+    color: #007bff;
+  }
+  
+  .vote-count {
+    font-size: 1rem;
+    color: #333;
+  }
+  
+  .reply-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #555;
+    font-size: 1.2rem;
+    /* Removed margin-left: auto; */
+    transition: color 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+  }
+  
+  .reply-button:hover {
+    color: #000;
+  }
+  
+  .collapse-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #555;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-left: 0.5rem;
+    font-size: 1rem;
+    transition: color 0.3s ease;
+  }
+  
+  .collapse-button:hover {
+    color: #000;
+  }
+  
+  .collapse-text {
+    font-size: 0.9rem;
+  }
+  
+  .post-actions {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .post-actions .edit-button,
+  .post-actions .delete-button {
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+  }
+  
+  .post-actions .edit-button {
+    background-color: #ffa500;
+    color: #fff;
+  }
+  
+  .post-actions .edit-button:hover {
+    background-color: #e69500;
+  }
+  
+  .post-actions .delete-button {
+    background-color: #ff6961;
+    color: #fff;
+  }
+  
+  .post-actions .delete-button:hover {
+    background-color: #ff4c4c;
+  }
+  
+  .reply-form {
+    margin-top: 1rem;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fff;
+  }
+  
+  .reply-textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    resize: vertical;
+    box-sizing: border-box;
+    margin-bottom: 0.5rem;
+  }
+  
+  .reply-form-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .reply-form-actions .reply-button,
+  .reply-form-actions .cancel-button {
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+  }
+  
+  .reply-form-actions .reply-button {
+    background-color: #007bff;
+    color: #fff;
+  }
+  
+  .reply-form-actions .cancel-button {
+    background-color: #6c757d;
+    color: #fff;
+  }
+  
+  .reply-form-actions .cancel-button:hover {
+    background-color: #5a6268;
+  }
+  
+  .edit-form {
+    margin-bottom: 1rem;
+  }
+  
+  .edit-form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  
+  .edit-form-actions .create-button,
+  .edit-form-actions .cancel-button {
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+  }
+  
+  .edit-form-actions .create-button {
+    background-color: #007bff;
+    color: #fff;
+  }
+  
+  .edit-form-actions .create-button:hover {
+    background-color: #0056b3;
+  }
+  
+  .edit-form-actions .cancel-button {
+    background-color: #6c757d;
+    color: #fff;
+  }
+  
+  .edit-form-actions .cancel-button:hover {
+    background-color: #5a6268;
+  }
+  
+  .tiptap-editor {
+    min-height: 150px;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    outline: none;
+  }
+  
+  .notification {
+    position: fixed;
+    top: 10%;
+    right: 2%;
+    padding: 1rem 1.5rem;
+    border-radius: 4px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    z-index: 1001;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    min-width: 250px;
+    box-sizing: border-box;
+  }
+  
+  .notification.success {
+    background-color: #4CAF50; /* Green */
+  }
+  
+  .notification.error {
+    background-color: #f44336; /* Red */
+  }
+  
+  .notification-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+  
+  .notification-close:hover {
+    opacity: 0.8;
+  }
+  
+  /* Styles for nested replies */
+  .reply-tree-level {
+    margin-left: 2rem;
+    margin-top: 1rem;
+  }
+  
+  /* Vote Button Styles */
+  .vote-button.upvote-button.active {
+    color: #28a745; /* Green for upvoted */
+  }
+  
+  .vote-button.downvote-button.active {
+    color: #dc3545; /* Red for downvoted */
+  }
+  
+  /* Additional Styles */
+  .level-1 {
+    /* Root post styles if needed */
+  }
+  
+  .level-2 {
+    /* First level replies styles */
+  }
+  
+  .level-3 {
+    /* Second level replies styles */
+  }
+  
+  /* Adjust as per nesting levels */
+  

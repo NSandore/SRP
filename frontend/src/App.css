@@ -251,6 +251,7 @@
   overflow-y: auto;
   height: calc(100vh - 80px); /* Accounts for navbar height and padding */
   min-height: 100%;
+  max-width: 72.5%;
 }
 
 .feed h2 {

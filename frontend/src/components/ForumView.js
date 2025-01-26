@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import TextEditor from './TextEditor'; // Import the TipTap editor component
+import TextEditor from './TextEditor'; // Ensure this matches your export in TextEditor.js
 import './ForumView.css'; // Import your CSS for styling
 
 function ForumView({ userData }) {
@@ -34,7 +34,7 @@ function ForumView({ userData }) {
 
   /**
    * **Fetch Forum Details**
-   * Retrieves details about the current forum based on `forum_id`.
+   * Retrieves details about the current forum based on forum_id.
    */
   useEffect(() => {
     const fetchForumDetails = async () => {
@@ -44,6 +44,7 @@ function ForumView({ userData }) {
       } catch (error) {
         console.error('Error fetching forum details:', error);
         setForumData(null);
+        setNotification({ type: 'error', message: 'Failed to load forum details.' });
       }
     };
     fetchForumDetails();
@@ -61,12 +62,13 @@ function ForumView({ userData }) {
     } catch (error) {
       console.error('Error fetching threads:', error);
       setThreads([]);
+      setNotification({ type: 'error', message: 'Failed to load threads.' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch threads on component mount and when `forum_id` changes
+  // Fetch threads on component mount and when forum_id changes
   useEffect(() => {
     console.log('Fetching threads for forum_id:', forum_id);
     fetchThreads();
@@ -137,10 +139,7 @@ function ForumView({ userData }) {
       }
     } catch (error) {
       console.error('Error deleting thread:', error);
-      setNotification({
-        type: 'error',
-        message: 'An error occurred while deleting the thread.',
-      });
+      setNotification({ type: 'error', message: 'An error occurred while deleting the thread.' });
     }
   };
 
@@ -205,7 +204,7 @@ function ForumView({ userData }) {
    * **JSX Render**
    */
   return (
-    <div className="forum-view">
+    <div className="feed forum-view">
       {/* Back button to the main forum listing ("/info") */}
       <Link to="/info" className="back-button">
         ← Forums
@@ -361,6 +360,7 @@ function ForumView({ userData }) {
           <button
             className="notification-close"
             onClick={() => setNotification(null)}
+            aria-label="Close Notification"
           >
             X
           </button>
