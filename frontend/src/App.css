@@ -958,10 +958,6 @@
   color: #fff;
 }
 
-.reply-button:hover {
-  background-color: #005f8d;
-}
-
 .cancel-button {
   background-color: #ccc;
   color: #333;
@@ -982,4 +978,13 @@
 
 .reply-toggle-text {
   margin-left: 0.3rem;
+}
+
+/* Add a specific background or border for authenticated items */
+.sidebar-item.authenticated {
+  background: #eef9ff; /* Light blue background */
+}
+
+.sidebar-item.authenticated:hover {
+  background: #d0f0ff; /* Slightly darker blue on hover */
 }

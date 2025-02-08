@@ -1,7 +1,8 @@
 // src/components/ThreadView.js
 import './ThreadView.css';
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
+import useOnClickOutside from '../hooks/useOnClickOutside'; // <--- import the hook
 import axios from 'axios';
 import {
   FaArrowAltCircleUp,
@@ -22,6 +23,7 @@ import {
   FaAlignRight,
   FaChevronDown,
   FaChevronRight,
+  FaEllipsisV, // add for 3-dot menu
 } from 'react-icons/fa';
 
 // Tiptap imports
@@ -302,11 +304,29 @@ function PostItem({
   handleUpvoteClick,
   handleDownvoteClick,
   isRoot = false,
-  level = 1, // New prop to track the depth level
+  level = 1,
+  // NEW: for saving posts
+  savedPosts,
+  handleToggleSavePost,
 }) {
   const [localReply, setLocalReply] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(level === 2); // Auto-collapse at level 2
+
+  // 3-dot menu
+  const [openMenu, setOpenMenu] = useState(false);
+  const menuRef = useRef(null);
+
+  const toggleMenu = () => setOpenMenu((prev) => !prev);
+
+  useOnClickOutside(menuRef, () => {
+    if (openMenu) {
+      setOpenMenu(false);
+    }
+  });
+
+  // Check if post is saved
+  const isSaved = savedPosts.some((pSaved) => Number(pSaved.post_id) === Number(post.post_id));  
 
   // Tiptap editor with same config as TextEditor.js
   const editor = useEditor({
@@ -428,6 +448,68 @@ function PostItem({
         </form>
       ) : (
         <>
+          {/* 3-dot menu */}
+          <FaEllipsisV
+            className="menu-icon"
+            onClick={() => setOpenMenu((prev) => !prev)}
+            style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
+            //onClick={toggleMenu}
+          />
+          {openMenu && (
+            <div
+              ref={menuRef}
+              className="dropdown-menu"
+              style={{
+                position: 'absolute',
+                top: '30px',
+                right: '8px',
+                backgroundColor: '#fff',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                zIndex: 10,
+                width: '120px',
+              }}
+            >
+              {userData && (
+                <button
+                  className="dropdown-item"
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    background: 'none',
+                    padding: '8px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    handleToggleSavePost(post.post_id, isSaved);
+                    setOpenMenu(false);
+                  }}
+                >
+                  {isSaved ? 'Unsave' : 'Save'}
+                </button>
+              )}
+              <button
+                className="dropdown-item"
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  background: 'none',
+                  padding: '8px',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  alert(`Report post ID: ${post.post_id}`);
+                  setOpenMenu(false);
+                }}
+              >
+                Report
+              </button>
+            </div>
+          )}
+
           <div
             className="forum-description"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
@@ -544,7 +626,9 @@ function PostItem({
               handleUpvoteClick={handleUpvoteClick}
               handleDownvoteClick={handleDownvoteClick}
               isRoot={false}
-              level={level + 1} // Increment level for child replies
+              level={level + 1}
+              savedPosts={savedPosts}
+              handleToggleSavePost={handleToggleSavePost}
             />
           ))}
         </div>
@@ -566,6 +650,48 @@ function ThreadView({ userData }) {
 
   const [notification, setNotification] = useState(null);
   const [expandedReplyBox, setExpandedReplyBox] = useState(null);
+
+  const [savedPosts, setSavedPosts] = useState([]);
+
+  // Toggle save for posts
+  const handleToggleSavePost = async (postId, alreadySaved) => {
+    if (!userData) {
+      setNotification({ type: 'error', message: 'You must be logged in to save posts.' });
+      return;
+    }
+    const url = alreadySaved ? '/api/unsave_post.php' : '/api/save_post.php';
+    try {
+      const resp = await axios.post(
+        url,
+        { user_id: userData.user_id, post_id: postId },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        await fetchSavedPosts();
+        setNotification({ type: 'success', message: alreadySaved ? 'Post unsaved!' : 'Post saved!' });
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Error saving post.' });
+      }
+    } catch (error) {
+      console.error('Error saving/unsaving post:', error);
+      setNotification({ type: 'error', message: 'Error saving/unsaving post.' });
+    }
+  };
+
+  // Fetch saved posts
+  const fetchSavedPosts = async () => {
+    if (!userData) return;
+    try {
+      const resp = await axios.get(`/api/get_saved_posts.php?user_id=${userData.user_id}`, {
+        withCredentials: true,
+      });
+      if (resp.data.success) {
+        setSavedPosts(resp.data.saved_posts || []);
+      }
+    } catch (error) {
+      console.error('Error fetching saved posts:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchThread = async () => {
@@ -612,10 +738,14 @@ function ThreadView({ userData }) {
     }
   };
 
+  // load posts + saved posts
   useEffect(() => {
     fetchPosts();
+    if (userData) {
+      fetchSavedPosts();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userData, thread_id]);
+  }, [thread_id, userData]);
 
   // handleReplySubmit for new replies
   const handleReplySubmit = async (reply_to_post_id, content) => {
@@ -825,7 +955,10 @@ function ThreadView({ userData }) {
               handleUpvoteClick={handleUpvoteClick}
               handleDownvoteClick={handleDownvoteClick}
               isRoot
-              level={1} // Root posts are level 1
+              level={1}
+              // pass savedPosts + toggle fn
+              savedPosts={savedPosts}
+              handleToggleSavePost={handleToggleSavePost}
             />
           ))}
         </div>

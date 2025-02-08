@@ -1,10 +1,18 @@
-// App.js
+// src/App.js
+
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes, Link, useNavigate } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  Link,
+  useNavigate,
+  Navigate
+} from 'react-router-dom';
 import axios from 'axios';
 import './App.css';
 import {
-  FaEnvelope, 
+  FaEnvelope,
   FaBell,
   FaUserCircle,
   FaBookmark,
@@ -12,17 +20,20 @@ import {
   FaBars,
   FaTimes,
   FaUsers,
-  FaPeopleCarry
+  FaPeopleCarry,
+  FaEllipsisV
 } from 'react-icons/fa';
 import { TbWriting } from 'react-icons/tb';
 import { BiInfoCircle } from 'react-icons/bi';
+import { RiMedalFill } from 'react-icons/ri';
 import SignUp from './components/SignUp';
 import InterestSelection from './components/InterestSelection';
 import Login from './components/Login';
-import { RiMedalFill } from 'react-icons/ri';
 import ForumView from './components/ForumView';   // Forum details + threads
 import ThreadView from './components/ThreadView'; // Thread details
-// (Optional) import CreateForumModal from './components/CreateForumModal'; // If you had a separate component
+import ProfileView from './components/ProfileView'; // Profile view
+import FollowsView from './components/FollowsView'; // Follows list view
+import DOMPurify from 'dompurify'; 
 
 function App() {
   const [step, setStep] = useState(0);
@@ -42,7 +53,6 @@ function App() {
         });
         if (response.data && response.data.loggedIn) {
           const user = response.data.user;
-          // Convert string IDs to numbers
           user.role_id = Number(user.role_id);
           user.user_id = Number(user.user_id);
           setUserData(user);
@@ -54,7 +64,7 @@ function App() {
     checkUserSession();
   }, []);
 
-  // Handlers for stepping through onboarding
+  // Onboarding steps
   const handleNext = (formData) => {
     setUserData(formData);
     setStep(3);
@@ -89,14 +99,14 @@ function App() {
       <div className="app-container">
         {step === 1 && <SignUp onNext={handleNext} />}
         {step === 2 && (
-          <Login 
-            onLogin={handleLogin} 
-            onGoToSignUp={() => setStep(1)} 
+          <Login
+            onLogin={handleLogin}
+            onGoToSignUp={() => setStep(1)}
           />
         )}
         {step === 3 && (
-          <InterestSelection 
-            onComplete={handleInterestComplete} 
+          <InterestSelection
+            onComplete={handleInterestComplete}
           />
         )}
 
@@ -119,6 +129,7 @@ function App() {
                 activeSection={activeSection}
                 setActiveSection={setActiveSection}
                 setActiveFeed={setActiveFeed}
+                userData={userData} // Passed userData as prop
               />
               <Routes>
                 <Route
@@ -154,11 +165,7 @@ function App() {
                 <Route
                   path="/connections"
                   element={
-                    <Feed
-                      activeFeed={activeFeed}
-                      activeSection="connections"
-                      userData={userData}
-                    />
+                    userData ? <FollowsView userData={userData} /> : <Navigate to="/login" />
                   }
                 />
                 <Route
@@ -191,7 +198,10 @@ function App() {
                     />
                   }
                 />
-
+                <Route
+                  path="/profile"
+                  element={userData ? <ProfileView userData={userData} /> : <Navigate to="/login" />}
+                />
                 {/* Forum + Thread routes */}
                 <Route
                   path="/info/forum/:forum_id"
@@ -202,7 +212,9 @@ function App() {
                   element={<ThreadView userData={userData} />}
                 />
               </Routes>
-              <RightSidebar />
+
+              {/* Conditionally render RightSidebar if user is on home or info */}
+              {(activeSection === 'home' || activeSection === 'info') && <RightSidebar />}
             </div>
           </>
         )}
@@ -211,9 +223,7 @@ function App() {
   );
 }
 
-/**
- * NavBar
- */
+/* =================== NavBar Component =================== */
 function NavBar({
   setStep,
   activeFeed,
@@ -261,6 +271,13 @@ function NavBar({
             <div
               className="account-settings"
               onClick={() => setAccountMenuVisible(!accountMenuVisible)}
+              tabIndex={0}
+              role="button"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') setAccountMenuVisible(!accountMenuVisible);
+              }}
+              aria-haspopup="true"
+              aria-expanded={accountMenuVisible}
             >
               <FaUserCircle className="nav-icon" title="Account Settings" />
               {accountMenuVisible && (
@@ -268,10 +285,23 @@ function NavBar({
                   <div
                     className="account-menu-item"
                     onClick={() => alert('Account Settings')}
+                    tabIndex={0}
+                    role="button"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') alert('Account Settings');
+                    }}
                   >
                     Account Settings
                   </div>
-                  <div className="account-menu-item" onClick={handleLogout}>
+                  <div
+                    className="account-menu-item"
+                    onClick={handleLogout}
+                    tabIndex={0}
+                    role="button"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') handleLogout();
+                    }}
+                  >
                     Log Out
                   </div>
                 </div>
@@ -292,38 +322,39 @@ function NavBar({
   );
 }
 
-/**
- * LeftSidebar
- */
+/* =================== LeftSidebar Component =================== */
 function LeftSidebar({
   isSidebarCollapsed,
   setIsSidebarCollapsed,
   activeSection,
   setActiveSection,
-  setActiveFeed
+  setActiveFeed,
+  userData
 }) {
   const navigate = useNavigate();
 
   const handleSectionClick = (section) => {
     setActiveSection(section);
-    setActiveFeed('yourFeed'); // optionally reset feed
+    setActiveFeed('yourFeed');
     navigate(`/${section}`);
   };
 
   const sidebarItems = [
     { name: 'home', icon: <TbWriting />, text: 'Home' },
     { name: 'info', icon: <BiInfoCircle />, text: 'Information Board' },
-    { name: 'saved', icon: <FaBookmark />, text: 'Saved' },
-    { name: 'connections', icon: <FaUsers />, text: 'Connections' },
     { name: 'groups', icon: <FaPeopleCarry />, text: 'Groups' },
     { name: 'scholarships', icon: <RiMedalFill />, text: 'Scholarships' },
     { name: 'communities', icon: <FaUniversity />, text: 'Universities' }
   ];
 
+  const authSidebarItems = [
+    { name: 'saved', icon: <FaBookmark />, text: 'Saved' },
+    { name: 'connections', icon: <FaUsers />, text: 'Connections' },
+    { name: 'profile', icon: <FaUserCircle />, text: 'My Profile' }
+  ];
+
   return (
-    <aside
-      className={`left-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}
-    >
+    <aside className={`left-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
       <ul className="sidebar-list">
         <li className="sidebar-toggle-container">
           <button
@@ -339,61 +370,166 @@ function LeftSidebar({
         {sidebarItems.map((item) => (
           <li
             key={item.name}
-            className={`sidebar-item ${
-              activeSection === item.name ? 'active' : ''
-            }`}
+            className={`sidebar-item ${activeSection === item.name ? 'active' : ''}`}
             onClick={() => handleSectionClick(item.name)}
+            tabIndex={0}
+            role="button"
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') handleSectionClick(item.name);
+            }}
           >
             <span className="sidebar-icon">{item.icon}</span>
             <span className="sidebar-text">{item.text}</span>
           </li>
         ))}
+
+        {userData &&
+          authSidebarItems.map((item) => (
+            <li
+              key={item.name}
+              className={`sidebar-item ${activeSection === item.name ? 'active' : ''}`}
+              onClick={() => handleSectionClick(item.name)}
+              tabIndex={0}
+              role="button"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') handleSectionClick(item.name);
+              }}
+            >
+              <span className="sidebar-icon">{item.icon}</span>
+              <span className="sidebar-text">{item.text}</span>
+            </li>
+          ))}
       </ul>
     </aside>
   );
 }
 
-export { LeftSidebar };
+/* =================== RightSidebar Component =================== */
+function RightSidebar() {
+  return (
+    <aside className="right-sidebar">
+      <h3>Trending Topics</h3>
+      <ul>
+        <li>#FinancialAid</li>
+        <li>#Admissions</li>
+        <li>#StudentResources</li>
+      </ul>
+    </aside>
+  );
+}
 
-/**
- * Feed Component (Handles the "Information Board" + "Communities" + other sections)
- */
+/* =================== Feed Component =================== */
 function Feed({ activeFeed, activeSection, userData }) {
-  // Followed communities
   const [followedCommunities, setFollowedCommunities] = useState([]);
   const [isLoadingFollowed, setIsLoadingFollowed] = useState(false);
 
-  // All communities
   const [allCommunities, setAllCommunities] = useState([]);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
 
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Forums
   const [forums, setForums] = useState([]);
   const [isLoadingForums, setIsLoadingForums] = useState(false);
 
-  // Create Forum Modal
   const [showCreateForumModal, setShowCreateForumModal] = useState(false);
   const [newForumName, setNewForumName] = useState('');
   const [newForumDescription, setNewForumDescription] = useState('');
   const [isCreatingForum, setIsCreatingForum] = useState(false);
 
-  // Edit / Delete Forum States
   const [editForumId, setEditForumId] = useState(null);
   const [editForumName, setEditForumName] = useState('');
   const [editForumDescription, setEditForumDescription] = useState('');
   const [isEditingForum, setIsEditingForum] = useState(false);
 
-  // Notification
   const [notification, setNotification] = useState(null);
 
-  //
-  // 1) Fetch Followed Communities
-  //
+  // For 3-dot menu
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  // ============== S A V E D ==============
+  // We’ll store arrays for savedForums, savedThreads, savedPosts
+  const [savedForums, setSavedForums] = useState([]);
+  const [savedThreads, setSavedThreads] = useState([]);
+  const [savedPosts, setSavedPosts] = useState([]);
+  // Track which saved tab is active
+  const [savedTab, setSavedTab] = useState('forums'); // 'forums' | 'threads' | 'posts'
+
+  // Helper to fetch saved items
+  const fetchSavedForums = async () => {
+    if (!userData) return;
+    try {
+      const resp = await axios.get(`/api/get_saved_forums.php?user_id=${userData.user_id}`, {
+        withCredentials: true
+      });
+      if (resp.data.success) {
+        setSavedForums(resp.data.saved_forums || []);
+      }
+    } catch (error) {
+      console.error('Error fetching saved forums:', error);
+    }
+  };
+
+  const fetchSavedThreads = async () => {
+    if (!userData) return;
+    try {
+      const resp = await axios.get(`/api/get_saved_threads.php?user_id=${userData.user_id}`, {
+        withCredentials: true
+      });
+      if (resp.data.success) {
+        setSavedThreads(resp.data.saved_threads || []);
+      }
+    } catch (error) {
+      console.error('Error fetching saved threads:', error);
+    }
+  };
+
+  const fetchSavedPosts = async () => {
+    if (!userData) return;
+    try {
+      const resp = await axios.get(`/api/get_saved_posts.php?user_id=${userData.user_id}`, {
+        withCredentials: true
+      });
+      if (resp.data.success) {
+        setSavedPosts(resp.data.saved_posts || []);
+      }
+    } catch (error) {
+      console.error('Error fetching saved posts:', error);
+    }
+  };
+
+  // Toggle Menu
+  const toggleMenu = (forumId) => {
+    setOpenMenuId(openMenuId === forumId ? null : forumId);
+  };
+
+  // Save Forum or Unsave Forum
+  // We'll add logic so that if the forum is already saved, we call unsave_forum.
+  const handleSaveForum = async (forumId, isAlreadySaved) => {
+    if (!userData) return;
+    try {
+      let url = isAlreadySaved ? '/api/unsave_forum.php' : '/api/save_forum.php';
+      const resp = await axios.post(
+        url,
+        { user_id: userData.user_id, forum_id: forumId },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        // if we’re in info or communities, re-fetch savedForums
+        await fetchSavedForums();
+        alert(isAlreadySaved ? 'Forum unsaved!' : 'Forum saved!');
+      } else {
+        alert('Error: ' + (resp.data.error || 'Unknown error.'));
+      }
+    } catch (error) {
+      console.error('Error saving/unsaving forum:', error);
+      alert('An error occurred while saving/unsaving the forum.');
+    }
+    setOpenMenuId(null);
+  };
+
+  // -------------- For Communities --------------
   const fetchFollowedCommunities = async () => {
     if (!userData) return;
     setIsLoadingFollowed(true);
@@ -401,11 +537,7 @@ function Feed({ activeFeed, activeSection, userData }) {
       const response = await axios.get(
         `/api/followed_communities.php?user_id=${userData.user_id}`
       );
-      if (Array.isArray(response.data)) {
-        setFollowedCommunities(response.data);
-      } else {
-        setFollowedCommunities([]);
-      }
+      setFollowedCommunities(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching followed communities:', error);
       setFollowedCommunities([]);
@@ -414,13 +546,8 @@ function Feed({ activeFeed, activeSection, userData }) {
     }
   };
 
-  //
-  // 2) Fetch All Communities (with search & pagination)
-  //
   const fetchAllCommunities = async (page = 1, term = '') => {
-    if (!userData) {
-      return;
-    }
+    if (!userData) return;
     setIsLoadingAll(true);
     try {
       const response = await axios.get(
@@ -457,8 +584,6 @@ function Feed({ activeFeed, activeSection, userData }) {
       setIsLoadingForums(false);
     }
   };
-
-  // Called once or on userData changes
   useEffect(() => {
     if (activeSection === 'communities' && userData) {
       fetchFollowedCommunities();
@@ -469,11 +594,20 @@ function Feed({ activeFeed, activeSection, userData }) {
     if (activeSection === 'info') {
       // For demonstration: fetch forums for community_id=3
       fetchForums(3);
+      // Also fetch saved forums so we know which ones are saved
+      fetchSavedForums();
+    }
+    if (activeSection === 'saved' && userData) {
+      // Load saved forums, threads, posts
+      fetchSavedForums();
+      fetchSavedThreads();
+      fetchSavedPosts();
+      setSavedTab('forums');
     }
   }, [activeSection, userData]);
 
-  // Handle search changes with small debounce
   useEffect(() => {
+    // Debounce search for communities
     const debounce = setTimeout(() => {
       if (activeSection === 'communities') {
         fetchAllCommunities(1, searchTerm);
@@ -483,7 +617,7 @@ function Feed({ activeFeed, activeSection, userData }) {
     return () => clearTimeout(debounce);
   }, [searchTerm, activeSection]);
 
-  // For Next/Prev page
+  // Pagination
   const handleNextPage = () => {
     if (currentPage < totalPages) {
       const newPage = currentPage + 1;
@@ -491,7 +625,6 @@ function Feed({ activeFeed, activeSection, userData }) {
       fetchAllCommunities(newPage, searchTerm);
     }
   };
-
   const handlePrevPage = () => {
     if (currentPage > 1) {
       const newPage = currentPage - 1;
@@ -500,18 +633,17 @@ function Feed({ activeFeed, activeSection, userData }) {
     }
   };
 
-  //
-  // 4) Follow / Unfollow a community
-  //
+  // Follow / Unfollow
   const handleFollowToggle = async (communityId, isFollowed) => {
+    if (!userData) return;
     try {
       if (isFollowed) {
-        await axios.post('/api/unfollow_community.php', {
+        await axios.post('/api/unfollow_communities.php', {
           user_id: userData.user_id,
           community_id: communityId
         });
       } else {
-        await axios.post('/api/follow_community.php', {
+        await axios.post('/api/follow_communities.php', {
           user_id: userData.user_id,
           community_id: communityId
         });
@@ -642,8 +774,6 @@ function Feed({ activeFeed, activeSection, userData }) {
             { title: 'Discover: Study Abroad...', author: 'TravelAdvisor', content: 'Find out...' },
             { title: 'Trending: Eco-Friendly...', author: 'GreenScholar', content: 'Learn about...' }
           ];
-  } else if (activeSection === 'saved') {
-    mockPosts = [{ title: 'Your Saved Posts', author: 'You', content: 'Here are your saved posts...' }];
   } else if (activeSection === 'connections') {
     mockPosts = [{ title: 'Connections Updates', author: 'ConnectionBot', content: 'Your connections are up to...' }];
   } else if (activeSection === 'groups') {
@@ -662,19 +792,17 @@ function Feed({ activeFeed, activeSection, userData }) {
           : activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
       </h2>
 
-      {activeSection === 'info' ? (
+      {/* 1) INFO SECTION */}
+      {activeSection === 'info' && (
         <>
-          {/* Show Create Forum Button if user is role_id=3 */}
+          {/* Admin create forum */}
           {userData?.role_id === 3 && (
-            <button
-              className="create-button"
-              onClick={() => setShowCreateForumModal(true)}
-            >
+            <button className="create-button" onClick={() => setShowCreateForumModal(true)}>
               Create Forum
             </button>
           )}
 
-          {/* Create Forum Modal */}
+          {/* CREATE MODAL */}
           {showCreateForumModal && (
             <div className="modal-overlay">
               <div className="modal-content">
@@ -700,16 +828,10 @@ function Feed({ activeFeed, activeSection, userData }) {
                     />
                   </div>
                   <div className="form-actions">
-                    <button
-                      type="submit"
-                      disabled={isCreatingForum}
-                    >
+                    <button type="submit" disabled={isCreatingForum}>
                       {isCreatingForum ? 'Creating...' : 'Create'}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowCreateForumModal(false)}
-                    >
+                    <button type="button" onClick={() => setShowCreateForumModal(false)}>
                       Cancel
                     </button>
                   </div>
@@ -718,7 +840,7 @@ function Feed({ activeFeed, activeSection, userData }) {
             </div>
           )}
 
-          {/* Edit Forum Modal */}
+          {/* EDIT MODAL */}
           {isEditingForum && (
             <div className="modal-overlay">
               <div className="modal-content">
@@ -745,10 +867,7 @@ function Feed({ activeFeed, activeSection, userData }) {
                   </div>
                   <div className="form-actions">
                     <button type="submit">Save</button>
-                    <button
-                      type="button"
-                      onClick={cancelEditingForum}
-                    >
+                    <button type="button" onClick={() => setIsEditingForum(false)}>
                       Cancel
                     </button>
                   </div>
@@ -765,23 +884,73 @@ function Feed({ activeFeed, activeSection, userData }) {
           ) : (
             <div className="forum-list">
               {forums.map((forum) => {
-                // Only Admins (role_id=3) can see Edit/Delete
                 const canEditDeleteForum = userData?.role_id === 3;
+                // Check if forum is saved
+                const isSaved = savedForums.some((sf) => sf.forum_id === forum.forum_id);
 
                 return (
-                  <div key={forum.forum_id} className="forum-card" style={{ marginBottom: '1rem' }}>
-                    {/* Link to the actual forum view */}
-                    <Link
-                      to={`/info/forum/${forum.forum_id}`}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
+                  <div key={forum.forum_id} className="forum-card" style={{ marginBottom: '1rem', position: 'relative' }}>
+                    {/* 3-dot icon */}
+                    <FaEllipsisV
+                      className="menu-icon"
+                      style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
+                      onClick={() => toggleMenu(forum.forum_id)}
+                    />
+                    {openMenuId === forum.forum_id && (
+                      <div
+                        className="dropdown-menu"
+                        style={{
+                          position: 'absolute',
+                          top: '30px',
+                          right: '8px',
+                          backgroundColor: '#fff',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          zIndex: 10,
+                          width: '120px'
+                        }}
+                      >
+                        {userData && (
+                          <button
+                            className="dropdown-item"
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              background: 'none',
+                              padding: '8px',
+                              textAlign: 'left',
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => handleSaveForum(forum.forum_id, isSaved)}
+                          >
+                            {isSaved ? 'Unsave' : 'Save'}
+                          </button>
+                        )}
+                        <button
+                          className="dropdown-item"
+                          style={{
+                            width: '100%',
+                            border: 'none',
+                            background: 'none',
+                            padding: '8px',
+                            textAlign: 'left',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => alert(`Report forum with ID ${forum.forum_id}`)}
+                        >
+                          Report
+                        </button>
+                      </div>
+                    )}
+
+                    <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                       <h3 className="forum-title">{forum.name}</h3>
                       <p className="forum-description">{forum.description}</p>
                     </Link>
 
                     {canEditDeleteForum && (
                       <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
-                        {/* Edit */}
                         <button
                           style={{
                             backgroundColor: '#ffa500',
@@ -795,8 +964,6 @@ function Feed({ activeFeed, activeSection, userData }) {
                         >
                           Edit
                         </button>
-
-                        {/* Delete */}
                         <button
                           style={{
                             backgroundColor: '#ff6961',
@@ -818,13 +985,11 @@ function Feed({ activeFeed, activeSection, userData }) {
             </div>
           )}
         </>
-      ) : (
-        <p>Select a section to display relevant content.</p>
       )}
 
+      {/* 2) COMMUNITIES SECTION */}
       {activeSection === 'communities' && (
         <>
-          {/* Followed Communities */}
           <div className="communities-section">
             <h3>Your Followed Universities</h3>
             {isLoadingFollowed ? (
@@ -856,7 +1021,6 @@ function Feed({ activeFeed, activeSection, userData }) {
             )}
           </div>
 
-          {/* Search Bar */}
           <div className="search-bar-container">
             <label htmlFor="community-search" className="visually-hidden">
               Search Communities
@@ -871,7 +1035,6 @@ function Feed({ activeFeed, activeSection, userData }) {
             />
           </div>
 
-          {/* All Communities */}
           <div className="communities-section">
             <h3>All Universities</h3>
             {isLoadingAll ? (
@@ -881,7 +1044,6 @@ function Feed({ activeFeed, activeSection, userData }) {
             ) : (
               <div className="community-grid">
                 {allCommunities
-                  // Exclude ones user already follows
                   .filter((community) => !followedIds.has(community.community_id))
                   .map((community) => (
                     <div key={community.community_id} className="community-card">
@@ -893,9 +1055,7 @@ function Feed({ activeFeed, activeSection, userData }) {
                       />
                       <h4 className="community-name">{community.name}</h4>
                       <p className="community-location">{community.location}</p>
-                      {community.tagline && (
-                        <p className="community-tagline">{community.tagline}</p>
-                      )}
+                      {community.tagline && <p className="community-tagline">{community.tagline}</p>}
                       <p className="followers-count">{community.followers_count} Followers</p>
                       <button
                         className="follow-button follow"
@@ -930,18 +1090,160 @@ function Feed({ activeFeed, activeSection, userData }) {
         </>
       )}
 
-      {/* If we’re not in "info" or "communities," we render mockPosts: */}
-      {(activeSection !== 'info' && activeSection !== 'communities') &&
-        mockPosts.map((post, i) => (
-          <div key={i} className="post-card">
-            <h3>{post.title}</h3>
-            <small>Posted by {post.author}</small>
-            <p>{post.content}</p>
+      {/* 3) SAVED SECTION */}
+      {activeSection === 'saved' && userData && (
+        <>
+          <div style={{ marginBottom: '1rem' }}>
+            <button
+              style={{ marginRight: '0.5rem' }}
+              onClick={() => setSavedTab('forums')}
+            >
+              Saved Forums
+            </button>
+            <button
+              style={{ marginRight: '0.5rem' }}
+              onClick={() => setSavedTab('threads')}
+            >
+              Saved Threads
+            </button>
+            <button
+              onClick={() => setSavedTab('posts')}
+            >
+              Saved Posts
+            </button>
           </div>
-        ))
-      }
 
-      {/* Notifications */}
+          {/* Show the relevant list based on savedTab */}
+          {savedTab === 'forums' && (
+            <>
+              <h3>Saved Forums</h3>
+              {savedForums.length === 0 ? (
+                <p>You have no saved forums.</p>
+              ) : (
+                savedForums.map((f) => (
+                  <div key={f.forum_id} className="forum-card" style={{ marginBottom: '1rem' }}>
+                    <Link
+                      to={`/info/forum/${f.forum_id}`}
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <h4>{f.name}</h4>
+                      <p>{f.description}</p>
+                    </Link>
+                    <button
+                      style={{
+                        backgroundColor: '#ccc',
+                        color: '#333',
+                        border: 'none',
+                        padding: '0.4rem 0.8rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => handleSaveForum(f.forum_id, true)} // true = unsave
+                    >
+                      Unsave
+                    </button>
+                  </div>
+                ))
+              )}
+            </>
+          )}
+
+          {savedTab === 'threads' && (
+            <>
+              <h3>Saved Threads</h3>
+              {savedThreads.length === 0 ? (
+                <p>You have no saved threads.</p>
+              ) : (
+                savedThreads.map((t) => (
+                  <div key={t.thread_id} className="forum-card" style={{ marginBottom: '1rem' }}>
+                    {/* Link to thread details if you have a route like /info/forum/x/thread/y */}
+                    <Link
+                      to={`/info/forum/0/thread/${t.thread_id}`} 
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <h4>{t.title}</h4>
+                    </Link>
+                    <button
+                      style={{
+                        backgroundColor: '#ccc',
+                        color: '#333',
+                        border: 'none',
+                        padding: '0.4rem 0.8rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => {
+                        // call /api/unsave_thread.php
+                        // or handle logic to unsave
+                        // for demonstration:
+                        alert(`Unsave thread: ${t.thread_id}`);
+                      }}
+                    >
+                      Unsave
+                    </button>
+                  </div>
+                ))
+              )}
+            </>
+          )}
+
+          {savedTab === 'posts' && (
+            <>
+              <h3>Saved Posts</h3>
+              {savedPosts.length === 0 ? (
+                <p>You have no saved posts.</p>
+              ) : (
+                savedPosts.map((p) => (
+                  <div key={p.post_id} className="forum-card" style={{ marginBottom: '1rem' }}>
+                    <h4>Post #{p.post_id}</h4>
+                    {/* 
+                      Render the HTML content properly instead of just {p.content}.
+                      We can sanitize it with DOMPurify if needed:
+                    */}
+                    <div
+                      dangerouslySetInnerHTML={{
+                        __html: DOMPurify ? DOMPurify.sanitize(p.content) : p.content
+                      }}
+                    />
+                    <br></br>
+                    <button
+                      style={{
+                        backgroundColor: '#ccc',
+                        color: '#333',
+                        border: 'none',
+                        padding: '0.4rem 0.8rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => {
+                        // call /api/unsave_post.php
+                        // for demonstration:
+                        alert(`Unsave post: ${p.post_id}`);
+                      }}
+                    >
+                      Unsave
+                    </button>
+                  </div>
+                ))
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* Render "mock posts" for any other sections */}
+      {['home', 'connections', 'groups', 'scholarships'].includes(activeSection) && (
+        (activeSection !== 'info' && activeSection !== 'communities' && activeSection !== 'saved') &&
+          mockPosts.map((post, i) => (
+            <div key={i} className="post-card">
+              <h3>{post.title}</h3>
+              <small>Posted by {post.author}</small>
+              <p>{post.content}</p>
+            </div>
+          ))
+      )}
+
+      {/* Notification */}
       {notification && (
         <div className={`notification ${notification.type}`}>
           {notification.message}
@@ -954,22 +1256,6 @@ function Feed({ activeFeed, activeSection, userData }) {
         </div>
       )}
     </main>
-  );
-}
-
-/**
- * RightSidebar
- */
-function RightSidebar() {
-  return (
-    <aside className="right-sidebar">
-      <h3>Trending Topics</h3>
-      <ul>
-        <li>#FinancialAid</li>
-        <li>#Admissions</li>
-        <li>#StudentResources</li>
-      </ul>
-    </aside>
   );
 }
 

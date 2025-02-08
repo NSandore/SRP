@@ -3,39 +3,213 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import TextEditor from './TextEditor'; // Ensure this matches your export in TextEditor.js
-import './ForumView.css'; // Import your CSS for styling
+import TextEditor from './TextEditor';
+import './ForumView.css';
+import useOnClickOutside from '../hooks/useOnClickOutside';
+import { FaEllipsisV } from 'react-icons/fa';
 
+/**
+ * ThreadCard sub-component:
+ * Renders an individual thread card, including the 3-dot menu,
+ * and calls hooks (useRef, useOnClickOutside) at the top level.
+ */
+function ThreadCard({
+  thread,
+  userData,
+  forum_id,
+  openMenuThreadId,
+  setOpenMenuThreadId,
+  toggleMenu,
+  menuRef,
+  isThreadSaved,
+  handleToggleSaveThread,
+  handleDeleteThread,
+  startEditingThread,
+}) {
+  // useOnClickOutside hook to close the menu if a click is outside
+  useOnClickOutside(menuRef, () => {
+    if (openMenuThreadId === thread.thread_id) {
+      setOpenMenuThreadId(null);
+    }
+  });
+
+  // Check if user can delete/edit
+  const canDeleteOrEdit =
+    userData &&
+    (Number(userData.role_id) === 3 || Number(userData.user_id) === Number(thread.user_id));
+
+  return (
+    <div className="forum-card" style={{ position: 'relative' }}>
+      {/* 3-dot icon */}
+      <FaEllipsisV
+        className="menu-icon"
+        style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
+        onClick={() => toggleMenu(thread.thread_id)}
+      />
+
+      {/* Dropdown menu (conditional) */}
+      {openMenuThreadId === thread.thread_id && (
+        <div
+          ref={menuRef}
+          className="dropdown-menu"
+          style={{
+            position: 'absolute',
+            top: '30px',
+            right: '8px',
+            backgroundColor: '#fff',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            zIndex: 10,
+            width: '120px',
+          }}
+        >
+          {userData && (
+            <button
+              className="dropdown-item"
+              style={{
+                width: '100%',
+                border: 'none',
+                background: 'none',
+                padding: '8px',
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+              onClick={() => handleToggleSaveThread(thread.thread_id)}
+            >
+              {isThreadSaved(thread.thread_id) ? 'Unsave' : 'Save'}
+            </button>
+          )}
+          <button
+            className="dropdown-item"
+            style={{
+              width: '100%',
+              border: 'none',
+              background: 'none',
+              padding: '8px',
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+            onClick={() => {
+              alert(`Report thread ${thread.thread_id}`);
+              setOpenMenuThreadId(null);
+            }}
+          >
+            Report
+          </button>
+        </div>
+      )}
+
+      {/* Thread link to open */}
+      <Link to={`/info/forum/${forum_id}/thread/${thread.thread_id}`} className="thread-link">
+        <h3 className="thread-title">{thread.title}</h3>
+        <p className="thread-description">
+          Started by User {thread.user_id} on {new Date(thread.created_at).toLocaleString()}
+        </p>
+      </Link>
+
+      {/* Edit / Delete actions */}
+      {canDeleteOrEdit && (
+        <div className="thread-actions">
+          <button className="edit-button" onClick={() => startEditingThread(thread)}>
+            Edit
+          </button>
+          <button className="delete-button" onClick={() => handleDeleteThread(thread.thread_id)}>
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Main ForumView component
+ */
 function ForumView({ userData }) {
   const { forum_id } = useParams();
 
-  // **State Management**
-
   // Forum details
   const [forumData, setForumData] = useState(null);
-
-  // Threads in this forum
   const [threads, setThreads] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // State for creating a new thread (including first post)
+  // Create thread states
   const [showCreateThreadModal, setShowCreateThreadModal] = useState(false);
   const [threadTitle, setThreadTitle] = useState('');
   const [firstPostContent, setFirstPostContent] = useState('');
   const [isCreatingThread, setIsCreatingThread] = useState(false);
 
-  // Thread editing states
-  const [editThreadId, setEditThreadId] = useState(null); // ID of thread being edited
+  // Edit thread states
+  const [editThreadId, setEditThreadId] = useState(null);
   const [editThreadTitle, setEditThreadTitle] = useState('');
   const [isEditingThread, setIsEditingThread] = useState(false);
 
-  // Notification state
+  // Notification
   const [notification, setNotification] = useState(null);
 
-  /**
-   * **Fetch Forum Details**
-   * Retrieves details about the current forum based on forum_id.
-   */
+  // Saved threads
+  const [savedThreads, setSavedThreads] = useState([]);
+
+  // Which thread has an open 3-dot menu
+  const [openMenuThreadId, setOpenMenuThreadId] = useState(null);
+
+  // Helper: determine if thread is saved
+  const isThreadSaved = (threadId) =>
+    savedThreads.some((t) => Number(t.thread_id) === Number(threadId));
+
+  // Toggle 3-dot menu
+  const toggleMenu = (threadId) => {
+    setOpenMenuThreadId((prev) => (prev === threadId ? null : threadId));
+  };
+
+  // Save/un-save a thread
+  const handleToggleSaveThread = async (threadId) => {
+    if (!userData) {
+      setNotification({ type: 'error', message: 'You must be logged in to save threads.' });
+      return;
+    }
+
+    const alreadySaved = isThreadSaved(threadId);
+    const url = alreadySaved ? '/api/unsave_thread.php' : '/api/save_thread.php';
+    try {
+      const resp = await axios.post(
+        url,
+        { user_id: userData.user_id, thread_id: threadId },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        fetchSavedThreads();
+        setNotification({
+          type: 'success',
+          message: alreadySaved ? 'Thread unsaved!' : 'Thread saved!',
+        });
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Error saving thread.' });
+      }
+    } catch (error) {
+      console.error('Error saving/unsaving thread:', error);
+      setNotification({ type: 'error', message: 'Error saving/unsaving thread.' });
+    }
+    setOpenMenuThreadId(null);
+  };
+
+  // Fetch saved threads
+  const fetchSavedThreads = async () => {
+    if (!userData) return;
+    try {
+      const resp = await axios.get(`/api/get_saved_threads.php?user_id=${userData.user_id}`, {
+        withCredentials: true,
+      });
+      if (resp.data.success) {
+        setSavedThreads(resp.data.saved_threads || []);
+      }
+    } catch (error) {
+      console.error('Error fetching saved threads:', error);
+    }
+  };
+
+  // Fetch forum details
   useEffect(() => {
     const fetchForumDetails = async () => {
       try {
@@ -50,10 +224,7 @@ function ForumView({ userData }) {
     fetchForumDetails();
   }, [forum_id]);
 
-  /**
-   * **Fetch Threads**
-   * Retrieves all threads associated with the current forum.
-   */
+  // Fetch threads
   const fetchThreads = async () => {
     setIsLoading(true);
     try {
@@ -68,17 +239,16 @@ function ForumView({ userData }) {
     }
   };
 
-  // Fetch threads on component mount and when forum_id changes
+  // On mount or when user changes
   useEffect(() => {
-    console.log('Fetching threads for forum_id:', forum_id);
     fetchThreads();
+    if (userData) {
+      fetchSavedThreads();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [forum_id]);
+  }, [forum_id, userData]);
 
-  /**
-   * **Handle Create Thread Submission**
-   * Submits a new thread along with its first post content to the backend.
-   */
+  // Create new thread
   const handleCreateThreadSubmit = async (e) => {
     e.preventDefault();
     if (!userData) {
@@ -92,19 +262,14 @@ function ForumView({ userData }) {
         forum_id: Number(forum_id),
         user_id: userData.user_id,
         title: threadTitle,
-        firstPostContent: firstPostContent, // TipTap HTML content
+        firstPostContent: firstPostContent,
       });
 
       if (response.data.success) {
-        // Reset form fields
         setThreadTitle('');
         setFirstPostContent('');
         setShowCreateThreadModal(false);
-
-        // Refresh thread list
         fetchThreads();
-
-        // Notify user of success
         setNotification({ type: 'success', message: 'Thread created successfully!' });
       } else {
         const errMsg = response.data.error || 'Unknown error creating thread.';
@@ -118,10 +283,7 @@ function ForumView({ userData }) {
     }
   };
 
-  /**
-   * **Handle Delete Thread**
-   * Deletes a thread if the user is authorized (owner or admin).
-   */
+  // Delete thread
   const handleDeleteThread = async (thread_id) => {
     if (!userData) {
       setNotification({ type: 'error', message: 'You must be logged in to delete a thread.' });
@@ -143,30 +305,19 @@ function ForumView({ userData }) {
     }
   };
 
-  /**
-   * **Start Editing Thread**
-   * Initializes the editing state for a specific thread.
-   */
+  // Edit thread
   const startEditingThread = (thread) => {
     setEditThreadId(thread.thread_id);
     setEditThreadTitle(thread.title);
     setIsEditingThread(true);
   };
 
-  /**
-   * **Cancel Editing Thread**
-   * Resets the editing state.
-   */
   const cancelEditingThread = () => {
     setEditThreadId(null);
     setEditThreadTitle('');
     setIsEditingThread(false);
   };
 
-  /**
-   * **Handle Edit Thread Submission**
-   * Submits the edited thread title to the backend.
-   */
   const handleEditThreadSubmit = async (e) => {
     e.preventDefault();
     if (!userData) {
@@ -179,7 +330,6 @@ function ForumView({ userData }) {
         new_title: editThreadTitle,
       });
       if (response.data.success) {
-        // Refresh the threads
         fetchThreads();
         setNotification({ type: 'success', message: 'Thread updated successfully!' });
       } else {
@@ -193,45 +343,31 @@ function ForumView({ userData }) {
         message: 'An error occurred while editing the thread.',
       });
     } finally {
-      // Close the edit form
       setIsEditingThread(false);
       setEditThreadId(null);
       setEditThreadTitle('');
     }
   };
 
-  /**
-   * **JSX Render**
-   */
   return (
     <div className="feed forum-view">
-      {/* Back button to the main forum listing ("/info") */}
       <Link to="/info" className="back-button">
         ← Forums
       </Link>
+      <h2 className="forum-title">{forumData?.name ? forumData.name : `Forum ${forum_id}`}</h2>
 
-      {/* Display the forum title */}
-      <h2 className="forum-title">
-        {forumData?.name ? forumData.name : `Forum ${forum_id}`}
-      </h2>
-
-      {/* If user is logged in, show a "Create Thread" button */}
       {userData && (
-        <button
-          className="create-button"
-          onClick={() => setShowCreateThreadModal(true)}
-        >
+        <button className="create-button" onClick={() => setShowCreateThreadModal(true)}>
           Create Thread
         </button>
       )}
 
-      {/* Modal for creating a new thread */}
+      {/* Create Thread Modal */}
       {showCreateThreadModal && (
         <div className="modal-overlay">
           <div className="modal-content">
             <h3>Create a New Thread</h3>
             <form onSubmit={handleCreateThreadSubmit}>
-              {/* Thread Title Input */}
               <div className="form-group">
                 <label htmlFor="thread-title">Thread Title:</label>
                 <input
@@ -243,16 +379,11 @@ function ForumView({ userData }) {
                 />
               </div>
 
-              {/* First Post Content (TipTap Editor) */}
               <div className="form-group">
                 <label htmlFor="first-post-content">First Post Content:</label>
-                <TextEditor
-                  value={firstPostContent}
-                  onChange={(content) => setFirstPostContent(content)}
-                />
+                <TextEditor value={firstPostContent} onChange={(c) => setFirstPostContent(c)} />
               </div>
 
-              {/* Form Actions */}
               <div className="form-actions">
                 <button type="submit" disabled={isCreatingThread}>
                   {isCreatingThread ? 'Creating...' : 'Create'}
@@ -262,7 +393,7 @@ function ForumView({ userData }) {
                   onClick={() => {
                     setShowCreateThreadModal(false);
                     setThreadTitle('');
-                    setFirstPostContent(''); // Reset editor content
+                    setFirstPostContent('');
                   }}
                 >
                   Cancel
@@ -273,7 +404,7 @@ function ForumView({ userData }) {
         </div>
       )}
 
-      {/* Modal for editing a thread title */}
+      {/* Edit Thread Modal */}
       {isEditingThread && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -300,7 +431,7 @@ function ForumView({ userData }) {
         </div>
       )}
 
-      {/* Display threads or loading state */}
+      {/* Display threads */}
       {isLoading ? (
         <p>Loading threads...</p>
       ) : threads.length === 0 ? (
@@ -308,46 +439,25 @@ function ForumView({ userData }) {
       ) : (
         <div className="forum-list">
           {threads.map((thread) => {
-            const canDeleteOrEdit =
-              userData &&
-              (Number(userData.role_id) === 3 ||
-                Number(userData.user_id) === Number(thread.user_id));
+            // We create a ref for the drop-down menu in the ThreadCard
+            // but we do NOT call hooks inside map
+            const menuRef = React.createRef();
 
             return (
-              <div key={thread.thread_id} className="forum-card">
-                {/* Thread Title / Info => clickable link to thread detail */}
-                <Link
-                  to={`/info/forum/${forum_id}/thread/${thread.thread_id}`}
-                  className="thread-link"
-                >
-                  <h3 className="thread-title">{thread.title}</h3>
-                  <p className="thread-description">
-                    Started by User {thread.user_id} on{' '}
-                    {new Date(thread.created_at).toLocaleString()}
-                  </p>
-                </Link>
-
-                {/* Edit + Delete Buttons => only if user is admin or thread owner */}
-                {canDeleteOrEdit && (
-                  <div className="thread-actions">
-                    {/* Edit Button */}
-                    <button
-                      className="edit-button"
-                      onClick={() => startEditingThread(thread)}
-                    >
-                      Edit
-                    </button>
-
-                    {/* Delete Button */}
-                    <button
-                      className="delete-button"
-                      onClick={() => handleDeleteThread(thread.thread_id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </div>
+              <ThreadCard
+                key={thread.thread_id}
+                thread={thread}
+                userData={userData}
+                forum_id={forum_id}
+                openMenuThreadId={openMenuThreadId}
+                setOpenMenuThreadId={setOpenMenuThreadId}
+                toggleMenu={toggleMenu}
+                menuRef={menuRef}
+                isThreadSaved={isThreadSaved}
+                handleToggleSaveThread={handleToggleSaveThread}
+                handleDeleteThread={handleDeleteThread}
+                startEditingThread={startEditingThread}
+              />
             );
           })}
         </div>

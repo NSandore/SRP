@@ -215,10 +215,6 @@
   color: #fff;
 }
 
-.reply-button:hover {
-  background-color: #005f8d;
-}
-
 .cancel-button {
   background-color: #ccc; /* Gray */
   color: #333;

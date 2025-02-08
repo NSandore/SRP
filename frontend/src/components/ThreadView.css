@@ -32,15 +32,10 @@
   
   .forum-card.reply-card {
     padding: 1rem;
-    border: 1px solid #ccc;
     border-radius: 4px;
     background-color: #ffffff;
     transition: background-color 0.3s ease;
     position: relative;
-  }
-  
-  .forum-card.reply-card:hover {
-    background-color: #e9ecef;
   }
   
   .forum-card.level-1 {
@@ -110,10 +105,6 @@
     align-items: center;
     justify-content: center;
     padding: 0.4rem;
-  }
-  
-  .reply-button:hover {
-    color: #000;
   }
   
   .collapse-button {
