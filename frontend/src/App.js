@@ -31,9 +31,11 @@ import InterestSelection from './components/InterestSelection';
 import Login from './components/Login';
 import ForumView from './components/ForumView';   // Forum details + threads
 import ThreadView from './components/ThreadView'; // Thread details
-import ProfileView from './components/ProfileView'; // Profile view
+import SelfProfileView from './components/SelfProfileView'; // Profile view
 import FollowsView from './components/FollowsView'; // Follows list view
 import DOMPurify from 'dompurify'; 
+import UserProfileView from './components/UserProfileView'; // New: Public user profile view
+
 
 function App() {
   const [step, setStep] = useState(0);
@@ -200,7 +202,7 @@ function App() {
                 />
                 <Route
                   path="/profile"
-                  element={userData ? <ProfileView userData={userData} /> : <Navigate to="/login" />}
+                  element={userData ? <SelfProfileView userData={userData} /> : <Navigate to="/login" />}
                 />
                 {/* Forum + Thread routes */}
                 <Route
@@ -211,6 +213,8 @@ function App() {
                   path="/info/forum/:forum_id/thread/:thread_id"
                   element={<ThreadView userData={userData} />}
                 />
+                <Route path="/user/:user_id" element={<UserProfileView />} />
+                
               </Routes>
 
               {/* Conditionally render RightSidebar if user is on home or info */}
@@ -460,7 +464,7 @@ function Feed({ activeFeed, activeSection, userData }) {
   const fetchSavedForums = async () => {
     if (!userData) return;
     try {
-      const resp = await axios.get(`/api/get_saved_forums.php?user_id=${userData.user_id}`, {
+      const resp = await axios.get(`/api/fetch_saved_forums.php?user_id=${userData.user_id}`, {
         withCredentials: true
       });
       if (resp.data.success) {
@@ -474,7 +478,7 @@ function Feed({ activeFeed, activeSection, userData }) {
   const fetchSavedThreads = async () => {
     if (!userData) return;
     try {
-      const resp = await axios.get(`/api/get_saved_threads.php?user_id=${userData.user_id}`, {
+      const resp = await axios.get(`/api/fetch_saved_threads.php?user_id=${userData.user_id}`, {
         withCredentials: true
       });
       if (resp.data.success) {
@@ -488,7 +492,7 @@ function Feed({ activeFeed, activeSection, userData }) {
   const fetchSavedPosts = async () => {
     if (!userData) return;
     try {
-      const resp = await axios.get(`/api/get_saved_posts.php?user_id=${userData.user_id}`, {
+      const resp = await axios.get(`/api/fetch_saved_posts.php?user_id=${userData.user_id}`, {
         withCredentials: true
       });
       if (resp.data.success) {
@@ -576,14 +580,25 @@ function Feed({ activeFeed, activeSection, userData }) {
     setIsLoadingForums(true);
     try {
       const resp = await axios.get(`/api/fetch_forums.php?community_id=${communityId}`);
-      setForums(resp.data || []);
+      console.log("Fetched forums response:", resp.data);
+      // Adjust extraction based on response structure:
+      // Use resp.data.forums if it exists; otherwise assume resp.data is the array.
+      const forumsData = resp.data.forums || resp.data;
+      if (Array.isArray(forumsData)) {
+        setForums(forumsData);
+      } else {
+        console.warn("Expected an array but got:", forumsData);
+        setForums([]);
+      }
     } catch (error) {
-      console.error('Error fetching forums:', error);
+      console.error("Error fetching forums:", error);
       setForums([]);
     } finally {
       setIsLoadingForums(false);
     }
   };
+
+  
   useEffect(() => {
     if (activeSection === 'communities' && userData) {
       fetchFollowedCommunities();

@@ -44,8 +44,10 @@
 
 .ProseMirror {
   padding: 1rem;
-  min-height: 200px;
   outline: none;
+  overflow-y: auto;
+  height: 50vh;
+  max-height: 50vh;
 }
 
 /* Tiptap Editor Styles */

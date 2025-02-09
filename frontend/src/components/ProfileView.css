@@ -1,128 +1,237 @@
 /* src/components/ProfileView.css */
 
+/* Define CSS custom properties with defaults */
+:root {
+  --primary-color: #0077B5;
+  --secondary-color: #005f8d;
+  --light-bg: #ffffff;
+  --light-border: #e1e9ee;
+  --text-color: #333;
+  --subtext-color: #555;
+  --muted-color: #777;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  --transition-speed: 0.3s;
+}
+
+/* Apply the user’s custom colors via inline style in SelfProfileView.js
+   (e.g. style={{ '--primary-color': primaryColor, '--secondary-color': secondaryColor }}) */
+
+/* Main Profile Container */
 .profile-view {
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 2rem;
-    width: 90%;
-    margin-left: auto;
-    margin-right: auto;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  }
-  
+  background: var(--light-bg);
+  border: 1px solid var(--light-border);
+  border-radius: 10px;
+  padding: 2rem;
+  width: 90%;
+  margin: 2rem auto;
+  box-shadow: var(--shadow);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Banner Section */
+.profile-banner {
+  position: relative;
+  margin-bottom: 2rem;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.profile-banner-img {
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+  display: block;
+  filter: brightness(0.85);
+  transition: filter var(--transition-speed);
+}
+.profile-banner-img:hover {
+  filter: brightness(1);
+}
+
+/* Profile Header & Avatar */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+.avatar-container {
+  position: relative;
+}
+.profile-avatar {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid var(--primary-color);
+  transition: border-color var(--transition-speed);
+}
+.profile-avatar:hover {
+  border-color: var(--secondary-color);
+}
+.avatar-upload-section {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+/* Profile Info */
+.profile-info {
+  flex: 1;
+  min-width: 250px;
+}
+.profile-name {
+  margin: 0;
+  font-size: 2.5rem;
+  color: var(--text-color);
+  font-weight: 600;
+}
+.profile-headline {
+  margin: 0.5rem 0;
+  font-size: 1.3rem;
+  color: var(--subtext-color);
+}
+
+/* Edit/Save Button */
+.edit-button-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.edit-button,
+.save-button {
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 0.7rem 1.2rem;
+  cursor: pointer;
+  transition: background var(--transition-speed);
+  font-size: 1rem;
+}
+.edit-button:hover,
+.save-button:hover {
+  background: var(--secondary-color);
+}
+
+/* Profile Sections */
+.profile-section {
+  margin-bottom: 2rem;
+}
+.profile-section h3 {
+  border-bottom: 3px solid var(--primary-color);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  color: var(--primary-color);
+  font-size: 1.8rem;
+}
+
+/* Experience & Education Items */
+.experience-item,
+.education-item {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: #f9f9f9;
+  border-left: 4px solid var(--primary-color);
+  border-radius: 6px;
+}
+.experience-item h4,
+.education-item h4 {
+  margin: 0;
+  font-size: 1.3rem;
+  color: var(--text-color);
+}
+.experience-duration,
+.education-duration {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--muted-color);
+  margin-top: 0.2rem;
+}
+.education-institution {
+  font-weight: 600;
+  color: var(--subtext-color);
+}
+
+/* Skills List */
+.skills-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.skill-item {
+  background: #eef9ff;
+  color: var(--primary-color);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  transition: background var(--transition-speed);
+}
+.skill-item:hover {
+  background: var(--secondary-color);
+  color: #fff;
+}
+
+/* Color Picker Container */
+.color-picker-container {
+  margin-top: 1rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+.color-picker-container label {
+  font-size: 1rem;
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* Input & Textarea Styling for Edit Mode */
+.edit-name-input,
+.edit-headline-input,
+.profile-section textarea,
+.color-picker-container input[type="color"],
+.profile-section input[type="text"] {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.7rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  transition: border-color var(--transition-speed);
+}
+.edit-name-input:focus,
+.edit-headline-input:focus,
+.profile-section textarea:focus,
+.profile-section input[type="text"]:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
   .profile-header {
-    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 2rem;
-    margin-bottom: 2rem;
+    text-align: center;
   }
-  
   .profile-avatar {
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid #0077B5;
+    width: 120px;
+    height: 120px;
   }
-  
   .profile-info {
-    flex: 1;
+    width: 100%;
   }
-  
-  .profile-name {
-    margin: 0;
-    font-size: 2rem;
-    color: #333;
+  .profile-view {
+    padding: 1rem;
+    margin: 1rem;
   }
-  
-  .profile-headline {
-    margin: 0.5rem 0;
-    font-size: 1.2rem;
-    color: #555;
-  }
-  
-  .profile-connections {
-    font-size: 1rem;
-    color: #777;
-  }
-  
-  .profile-section {
-    margin-bottom: 2rem;
-  }
-  
-  .profile-section h3 {
-    border-bottom: 2px solid #0077B5;
-    padding-bottom: 0.5rem;
-    margin-bottom: 1rem;
-    color: #0077B5;
-  }
-  
-  .experience-item,
-  .education-item {
-    margin-bottom: 1rem;
-  }
-  
-  .experience-item h4,
-  .education-item h4 {
-    margin: 0;
-    font-size: 1.2rem;
-    color: #333;
-  }
-  
-  .experience-duration,
-  .education-duration {
-    display: block;
-    font-size: 0.9rem;
-    color: #777;
-    margin-bottom: 0.5rem;
-  }
-  
-  .experience-duration {
-    font-style: italic;
-  }
-  
-  .education-institution {
-    font-weight: bold;
-    color: #555;
-  }
-  
-  .skills-list {
-    list-style: none;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  
-  .skill-item {
-    background: #eef9ff;
-    color: #0077B5;
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    font-size: 0.9rem;
-  }
-  
-  /* Responsive Design */
-  @media (max-width: 768px) {
-    .profile-header {
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-    }
-  
-    .profile-avatar {
-      width: 120px;
-      height: 120px;
-    }
-  
-    .profile-info {
-      width: 100%;
-    }
-  
-    .profile-view {
-      padding: 1rem;
-      margin: 0.5rem;
-    }
-  }
-  
+}

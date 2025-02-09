@@ -198,7 +198,7 @@ function ForumView({ userData }) {
   const fetchSavedThreads = async () => {
     if (!userData) return;
     try {
-      const resp = await axios.get(`/api/get_saved_threads.php?user_id=${userData.user_id}`, {
+      const resp = await axios.get(`/api/fetch_saved_threads.php?user_id=${userData.user_id}`, {
         withCredentials: true,
       });
       if (resp.data.success) {
