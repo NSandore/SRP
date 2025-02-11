@@ -14,10 +14,11 @@ $user_id = (int)$_GET['user_id'];
 $db = getDB();
 
 try {
-    // Fetch all followed communities with full data
+    // Fetch all followed communities with full data, including community_type
     $stmt = $db->prepare("
         SELECT 
             c.id AS community_id, 
+            c.community_type,  -- Include community_type
             c.name, 
             c.location, 
             c.tagline, 
@@ -27,7 +28,7 @@ try {
         JOIN communities c ON fc.community_id = c.id
         LEFT JOIN followed_communities fc_count ON c.id = fc_count.community_id
         WHERE fc.user_id = :user_id
-        GROUP BY c.id, c.name, c.location, c.tagline, c.logo_path
+        GROUP BY c.id, c.community_type, c.name, c.location, c.tagline, c.logo_path
         ORDER BY c.name ASC
     ");
 

@@ -19,11 +19,12 @@ $offset = ($page - 1) * $limit;
 $db = getDB();
 
 try {
-    // Create or replace the view
+    // Create or replace the view to include community_type
     $db->exec("
         CREATE OR REPLACE VIEW all_community_data AS
         SELECT 
             c.id AS community_id, 
+            c.community_type,  -- Include community_type
             c.name, 
             c.location, 
             c.tagline, 
@@ -31,10 +32,10 @@ try {
             COUNT(fc.user_id) AS followers_count
         FROM communities c
         LEFT JOIN followed_communities fc ON fc.community_id = c.id
-        GROUP BY c.id, c.name, c.location, c.tagline, c.logo_path
+        GROUP BY c.id, c.community_type, c.name, c.location, c.tagline, c.logo_path
     ");
 
-    // Prepare the main query with search and pagination
+    // Prepare the main query with search, filtering by community_type = 'university', and pagination
     $query = "
         SELECT 
             aud.*, 
@@ -42,13 +43,14 @@ try {
         FROM all_community_data aud
         LEFT JOIN followed_communities fc 
             ON aud.community_id = fc.community_id AND fc.user_id = :user_id
+        WHERE aud.community_type = 'university'
     ";
 
     $params = [':user_id' => $user_id];
 
-    // Add search condition if search term is provided
+    // Add search condition if a search term is provided
     if ($search !== '') {
-        $query .= " WHERE aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search";
+        $query .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search)";
         $params[':search'] = '%' . $search . '%';
     }
 
@@ -56,13 +58,10 @@ try {
 
     $stmt = $db->prepare($query);
 
-    // Bind parameters
+    // Bind the parameters (note: :limit and :offset are bound separately below)
     foreach ($params as $key => &$val) {
-        if ($key === ':limit' || $key === ':offset') {
-            $stmt->bindParam($key, $val, PDO::PARAM_INT);
-        } else {
-            $stmt->bindParam($key, $val, PDO::PARAM_STR);
-        }
+        // For non-limit/offset parameters, bind as string
+        $stmt->bindParam($key, $val, PDO::PARAM_STR);
     }
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -70,13 +69,19 @@ try {
     $stmt->execute();
     $communities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get total count for pagination
+    // Ensure $communities is an array
+    if (!is_array($communities)) {
+        $communities = [];
+    }
+
+    // Get total count for pagination (only universities)
     $countQuery = "
         SELECT COUNT(*) as total
         FROM all_community_data aud
+        WHERE aud.community_type = 'university'
     ";
     if ($search !== '') {
-        $countQuery .= " WHERE aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search";
+        $countQuery .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search)";
     }
 
     $countStmt = $db->prepare($countQuery);
@@ -88,7 +93,6 @@ try {
     $totalCommunities = $totalResult ? (int)$totalResult['total'] : 0;
     $totalPages = ceil($totalCommunities / $limit);
 
-    // Structure the response
     $response = [
         'communities' => $communities,
         'total_pages' => $totalPages,

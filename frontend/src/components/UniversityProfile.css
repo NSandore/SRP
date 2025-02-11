@@ -1,0 +1,190 @@
+:root {
+  --primary-color: #0077B5; /* Default primary color */
+  --secondary-color: #005f8d; /* Default secondary color */
+  --text-color: #333;
+  --subtext-color: #777;
+  --background-color: #fff;
+  --light-background: #f7f7f7;
+  --border-radius: 8px;
+  --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --transition-speed: 0.3s;
+  --font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+.university-profile {
+  width: 100%;
+  background-color: var(--background-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  overflow: auto;
+  font-family: var(--font-family);
+  margin: 2rem 0;
+}
+
+.university-banner {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+}
+
+.university-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.university-banner img:hover {
+  transform: scale(1.05);
+}
+
+.university-info {
+  position: relative;
+  padding: 1rem 2rem 2rem;
+  text-align: center;
+  background-color: var(--light-background);
+}
+
+.university-logo {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 4px solid var(--background-color);
+  background: var(--background-color);
+  position: relative;
+  margin: 0 auto 1rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.university-name {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: var(--text-color);
+  margin: 0.5rem 0;
+}
+
+.university-tagline {
+  font-size: 1.3rem;
+  font-style: italic;
+  color: var(--subtext-color);
+  margin: 0.5rem 0;
+}
+
+.university-location {
+  font-size: 1.1rem;
+  color: var(--subtext-color);
+  margin: 0.5rem 0;
+}
+
+.university-info a {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--primary-color);
+  color: #fff;
+  text-decoration: none;
+  border-radius: var(--border-radius);
+  transition: background var(--transition-speed) ease;
+}
+
+.university-info a:hover {
+  background-color: var(--secondary-color);
+}
+
+/* ---------- Edit Mode Styles ---------- */
+
+.university-edit-form .university-info {
+  background-color: var(--light-background);
+  padding: 2rem;
+}
+
+.university-edit-form .edit-input {
+  width: 100%;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+  border: 1px solid #ccc;
+  border-radius: var(--border-radius);
+}
+
+.university-edit-form .color-picker-group {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.university-edit-form .color-picker-group label {
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+.logo-section {
+  margin-bottom: 1rem;
+}
+
+.logo-section input[type="file"] {
+  margin-top: 0.5rem;
+}
+
+.banner-upload-section {
+  margin-top: 1rem;
+}
+
+.banner-upload-section input[type="file"] {
+  margin-top: 0.5rem;
+}
+
+.edit-buttons {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.save-button,
+.cancel-button,
+.edit-university-button {
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: background var(--transition-speed) ease;
+  font-size: 1rem;
+}
+
+.save-button:hover,
+.edit-university-button:hover {
+  background-color: var(--secondary-color);
+}
+
+.cancel-button {
+  background-color: #ccc;
+  color: #333;
+}
+
+.cancel-button:hover {
+  background-color: #aaa;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .university-banner {
+    height: 200px;
+  }
+  .university-logo {
+    width: 100px;
+    height: 100px;
+  }
+  .university-name {
+    font-size: 2rem;
+  }
+  .university-tagline {
+    font-size: 1rem;
+  }
+  .university-location {
+    font-size: 0.9rem;
+  }
+}

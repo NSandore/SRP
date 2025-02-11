@@ -1,0 +1,56 @@
+/* src/components/Messages.css */
+:root {
+    --primary-color: #0077B5;
+    --secondary-color: #005f8d;
+    --background-color: #fff;
+    --text-color: #333;
+    --border-radius: 8px;
+    --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --transition-speed: 0.3s;
+  }
+  
+  .messages-container {
+    /* max-width: 800px; */
+    width: 69.5vw;
+    padding: 1rem;
+    background-color: var(--background-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    font-family: Arial, sans-serif;
+  }
+  
+  .messages-container h1 {
+    text-align: center;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+  }
+  
+  .messages-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .message-item {
+    padding: 1rem;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    transition: background var(--transition-speed) ease;
+  }
+  
+  .message-item:hover {
+    background: #f7f7f7;
+  }
+  
+  .message-sender {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+  }
+  
+  .message-text {
+    color: var(--subtext-color);
+    font-size: 1rem;
+  }
+  

@@ -1,6 +1,6 @@
 // src/App.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   BrowserRouter as Router,
   Route,
@@ -35,6 +35,10 @@ import SelfProfileView from './components/SelfProfileView'; // Profile view
 import FollowsView from './components/FollowsView'; // Follows list view
 import DOMPurify from 'dompurify'; 
 import UserProfileView from './components/UserProfileView'; // New: Public user profile view
+import UniversityProfile from './components/UniversityProfile';
+import GroupProfile from './components/GroupProfile';
+import Messages from './components/Messages'; // New Messages component
+import useOnClickOutside from './hooks/useOnClickOutside';  // Hook to close popups when clicking outside
 
 
 function App() {
@@ -46,25 +50,65 @@ function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [accountMenuVisible, setAccountMenuVisible] = useState(false);
 
-  // Check user session on initial mount
+  const [notifications, setNotifications] = useState([]);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  const notificationRef = useRef(null); // Ref to handle click outside notifications
+  useOnClickOutside(notificationRef, () => setIsNotificationsOpen(false));
+
   useEffect(() => {
     const checkUserSession = async () => {
       try {
         const response = await axios.get('http://34.31.85.242/api/check_session.php', {
           withCredentials: true
         });
-        if (response.data && response.data.loggedIn) {
+        if (response.data?.loggedIn) {
           const user = response.data.user;
           user.role_id = Number(user.role_id);
           user.user_id = Number(user.user_id);
           setUserData(user);
+          fetchNotifications(user.user_id);
         }
       } catch (err) {
         console.error('Error checking session:', err);
       }
     };
+  
     checkUserSession();
-  }, []);
+  }, []);  
+
+  const fetchNotifications = async (user_id) => {
+    try {
+      const response = await axios.get(`http://34.31.85.242/api/fetch_notifications.php?user_id=${user_id}`, {
+        withCredentials: true
+      });
+
+      if (response.data.success) {
+        setNotifications(response.data.notifications || []);
+      }
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    }
+  };
+
+  // Toggle Notification Pop-up
+  const toggleNotifications = () => {
+    setIsNotificationsOpen((prev) => !prev);
+  };
+
+  // Mark Notifications as Read
+  const markAllAsRead = async () => {
+    try {
+      await axios.post('http://34.31.85.242/api/mark_notifications_read.php', { user_id: userData.user_id }, {
+        withCredentials: true
+      });
+
+      // Refresh notifications
+      fetchNotifications(userData.user_id);
+    } catch (err) {
+      console.error('Error marking notifications as read:', err);
+    }
+  };
 
   // Onboarding steps
   const handleNext = (formData) => {
@@ -107,23 +151,27 @@ function App() {
           />
         )}
         {step === 3 && (
-          <InterestSelection
-            onComplete={handleInterestComplete}
-          />
+          <InterestSelection onComplete={handleInterestComplete} />
         )}
 
         {step === 0 && (
           <>
             <NavBar
-              setStep={setStep}
               activeFeed={activeFeed}
+              setStep={setStep}
               setActiveFeed={setActiveFeed}
               activeSection={activeSection}
               userData={userData}
               accountMenuVisible={accountMenuVisible}
               setAccountMenuVisible={setAccountMenuVisible}
               handleLogout={handleLogout}
+              toggleNotifications={toggleNotifications}
+              notifications={notifications}
+              isNotificationsOpen={isNotificationsOpen}
+              notificationRef={notificationRef}
+              markAllAsRead={markAllAsRead}
             />
+
             <div className="main-content">
               <LeftSidebar
                 isSidebarCollapsed={isSidebarCollapsed}
@@ -131,8 +179,9 @@ function App() {
                 activeSection={activeSection}
                 setActiveSection={setActiveSection}
                 setActiveFeed={setActiveFeed}
-                userData={userData} // Passed userData as prop
+                userData={userData}
               />
+
               <Routes>
                 <Route
                   path="/"
@@ -214,7 +263,10 @@ function App() {
                   element={<ThreadView userData={userData} />}
                 />
                 <Route path="/user/:user_id" element={<UserProfileView />} />
-                
+                {/* New routes for universities and groups */}
+                <Route path="/university/:id" element={<UniversityProfile userData={userData} />} />
+                <Route path="/group/:id" element={<GroupProfile userData={userData} />} />
+                <Route path="/messages" element={<Messages userData={userData} />} />
               </Routes>
 
               {/* Conditionally render RightSidebar if user is on home or info */}
@@ -236,8 +288,15 @@ function NavBar({
   userData,
   accountMenuVisible,
   setAccountMenuVisible,
-  handleLogout
+  handleLogout,
+  toggleNotifications, 
+  notifications, 
+  isNotificationsOpen, 
+  notificationRef,
+  markAllAsRead
 }) {
+  const unreadCount = notifications.filter(n => parseInt(n.is_read, 10) === 0).length;
+
   return (
     <nav className="nav-bar">
       <div className="nav-left">
@@ -248,17 +307,13 @@ function NavBar({
         {activeSection === 'home' && (
           <div className="feed-options">
             <button
-              className={`feed-option-button ${
-                activeFeed === 'yourFeed' ? 'active' : ''
-              }`}
+              className={`feed-option-button ${activeFeed === 'yourFeed' ? 'active' : ''}`}
               onClick={() => setActiveFeed('yourFeed')}
             >
               Your Feed
             </button>
             <button
-              className={`feed-option-button ${
-                activeFeed === 'suggested' ? 'active' : ''
-              }`}
+              className={`feed-option-button ${activeFeed === 'suggested' ? 'active' : ''}`}
               onClick={() => setActiveFeed('suggested')}
             >
               Explore
@@ -269,8 +324,49 @@ function NavBar({
 
       <div className="nav-right">
         <div className="nav-icons">
-          <FaEnvelope className="nav-icon" title="Messages" />
-          <FaBell className="nav-icon" title="Notifications" />
+          {/* Messages link */}
+          <Link to="/messages">
+            <FaEnvelope className="nav-icon" title="Messages" />
+          </Link>
+
+          {/* Notifications */}
+          <div className="notification-container" ref={notificationRef}>
+            <FaBell
+              className="nav-icon"
+              title="Notifications"
+              onClick={toggleNotifications}
+            />
+            {unreadCount > 0 && (
+              <span className="notification-badge">{unreadCount}</span>
+            )}
+
+            {isNotificationsOpen && (
+              <div className="notifications-dropdown">
+                <h4>Notifications</h4>
+                {notifications.length === 0 ? (
+                  <p>No notifications</p>
+                ) : (
+                  <>
+                    <ul>
+                      {notifications.map((notif) => (
+                        <li
+                          key={notif.notification_id}
+                          className={`notification-item ${notif.is_read === "0" ? 'unread' : ''}`}
+                        >
+                          <p dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notif.message) }} />
+                          <small>{new Date(notif.created_at).toLocaleString()}</small>
+                        </li>
+                      ))}
+                    </ul>
+                    <button className="mark-read-button" onClick={markAllAsRead}>
+                      Mark All as Read
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           {userData && (
             <div
               className="account-settings"
@@ -314,10 +410,7 @@ function NavBar({
           )}
         </div>
         {!userData && (
-          <button
-            className="nav-button"
-            onClick={() => setStep(2)}
-          >
+          <button className="nav-button" onClick={() => setStep(2)}>
             Login
           </button>
         )}
@@ -555,7 +648,7 @@ function Feed({ activeFeed, activeSection, userData }) {
     setIsLoadingAll(true);
     try {
       const response = await axios.get(
-        `/api/fetch_all_community_data.php?user_id=${userData.user_id}&page=${page}&search=${encodeURIComponent(term)}`
+        `/api/fetch_all_university_data.php?user_id=${userData.user_id}&page=${page}&search=${encodeURIComponent(term)}`
       );
       if (response.data.communities) {
         setAllCommunities(response.data.communities);
@@ -1020,7 +1113,13 @@ function Feed({ activeFeed, activeSection, userData }) {
                       alt={`${school.name} Logo`}
                       className="community-logo"
                     />
-                    <h4 className="community-name">{school.name}</h4>
+                    {/* Ensure the link uses the correct `community_type` */}
+                    <Link
+                      to={`/${school.community_type}/${school.community_id}`}
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <h4 className="community-name">{school.name}</h4>
+                    </Link>
                     <p className="community-location">{school.location}</p>
                     {school.tagline && <p className="community-tagline">{school.tagline}</p>}
                     <p className="followers-count">{school.followers_count} Followers</p>
@@ -1035,7 +1134,6 @@ function Feed({ activeFeed, activeSection, userData }) {
               </div>
             )}
           </div>
-
           <div className="search-bar-container">
             <label htmlFor="community-search" className="visually-hidden">
               Search Communities
@@ -1052,11 +1150,9 @@ function Feed({ activeFeed, activeSection, userData }) {
 
           <div className="communities-section">
             <h3>All Universities</h3>
-            {isLoadingAll ? (
+            {isLoadingAll || !allCommunities ? (
               <p>Loading all universities...</p>
-            ) : allCommunities.length === 0 ? (
-              <p>No universities found.</p>
-            ) : (
+            ) : allCommunities.length > 0 ? (
               <div className="community-grid">
                 {allCommunities
                   .filter((community) => !followedIds.has(community.community_id))
@@ -1068,7 +1164,12 @@ function Feed({ activeFeed, activeSection, userData }) {
                         className="community-logo"
                         loading="lazy"
                       />
-                      <h4 className="community-name">{community.name}</h4>
+                      <Link
+                        to={`/${community.community_type}/${community.community_id}`}
+                        style={{ textDecoration: 'none', color: 'inherit' }}
+                      >
+                        <h4 className="community-name">{community.name}</h4>
+                      </Link>
                       <p className="community-location">{community.location}</p>
                       {community.tagline && <p className="community-tagline">{community.tagline}</p>}
                       <p className="followers-count">{community.followers_count} Followers</p>
@@ -1081,6 +1182,8 @@ function Feed({ activeFeed, activeSection, userData }) {
                     </div>
                   ))}
               </div>
+            ) : (
+              <p>No universities found.</p>
             )}
             <div className="pagination-controls">
               <button

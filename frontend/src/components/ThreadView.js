@@ -758,21 +758,34 @@ function ThreadView({ userData }) {
       setNotification({ type: 'error', message: 'You must be logged in to reply.' });
       return;
     }
+  
     try {
-      await axios.post('/api/create_reply.php', {
+      const response = await axios.post('/api/create_reply.php', {
         thread_id: Number(thread_id),
         user_id: userData.user_id,
         content,
         reply_to: reply_to_post_id,
       });
-      fetchPosts();
-      setExpandedReplyBox(null);
-      setNotification({ type: 'success', message: 'Reply created successfully.' });
+  
+      if (response.data.success) {
+        fetchPosts();
+        setExpandedReplyBox(null);
+        setNotification({ type: 'success', message: 'Reply created successfully.' });
+  
+        // Notify the original poster
+        await axios.post('/api/add_reply_notification.php', {
+          post_id: reply_to_post_id,
+          replier_id: userData.user_id,
+        });
+  
+      } else {
+        setNotification({ type: 'error', message: response.data.error || 'Error submitting reply.' });
+      }
     } catch (error) {
       console.error('Error creating reply:', error);
       setNotification({ type: 'error', message: 'An error occurred while creating the reply.' });
     }
-  };
+  };  
 
   // handleDeletePost
   const handleDeletePost = async (post_id) => {
