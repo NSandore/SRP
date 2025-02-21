@@ -6,7 +6,33 @@ import axios from 'axios';
 import TextEditor from './TextEditor';
 import './ForumView.css';
 import useOnClickOutside from '../hooks/useOnClickOutside';
-import { FaEllipsisV } from 'react-icons/fa';
+import { 
+  FaEllipsisV,
+  FaArrowAltCircleUp,
+  FaRegArrowAltCircleUp,
+  FaArrowAltCircleDown,
+  FaRegArrowAltCircleDown
+} from 'react-icons/fa';
+
+/**
+ * Sorting function for threads
+ */
+const sortItems = (items, criteria) => {
+  const sorted = [...items]; // Copy to avoid mutating state
+
+  if (criteria === "popularity") {
+    sorted.sort((a, b) => 
+      (parseInt(b.upvotes, 10) + parseInt(b.downvotes, 10)) -
+      (parseInt(a.upvotes, 10) + parseInt(a.downvotes, 10))
+    );
+  } else if (criteria === "mostUpvoted") {
+    sorted.sort((a, b) => parseInt(b.upvotes, 10) - parseInt(a.upvotes, 10));
+  } else if (criteria === "mostRecent") {
+    sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }
+
+  return sorted;
+};
 
 /**
  * ThreadCard sub-component:
@@ -25,6 +51,9 @@ function ThreadCard({
   handleToggleSaveThread,
   handleDeleteThread,
   startEditingThread,
+  handleVoteThread,
+  handleUpvoteClick={handleUpvoteClick},  // ✅ Add this
+  handleDownvoteClick={handleDownvoteClick}  // ✅ Add this
 }) {
   // useOnClickOutside hook to close the menu if a click is outside
   useOnClickOutside(menuRef, () => {
@@ -32,6 +61,10 @@ function ThreadCard({
       setOpenMenuThreadId(null);
     }
   });
+
+  // Check user vote status
+  const hasUpvoted = thread.vote_type === 'up';
+  const hasDownvoted = thread.vote_type === 'down';
 
   // Check if user can delete/edit
   const canDeleteOrEdit =
@@ -100,13 +133,37 @@ function ThreadCard({
         </div>
       )}
 
-      {/* Thread link to open */}
+      {/* Thread link */}
       <Link to={`/info/forum/${forum_id}/thread/${thread.thread_id}`} className="thread-link">
         <h3 className="thread-title">{thread.title}</h3>
+        <p className="thread-post-count">{thread.post_count || 0} Posts</p>
         <p className="thread-description">
           Started by User {thread.user_id} on {new Date(thread.created_at).toLocaleString()}
         </p>
       </Link>
+
+      {/* Upvote/Downvote Buttons */}
+      <div className="vote-row">
+        <button
+          type="button"
+          className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
+          onClick={() => handleUpvoteClick(thread.thread_id)}
+          title="Upvote"
+        >
+          {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+        </button>
+        <span className="vote-count">{thread.upvotes}</span>
+
+        <button
+          type="button"
+          className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
+          onClick={() => handleDownvoteClick(thread.thread_id)}
+          title="Downvote"
+        >
+          {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+        </button>
+        <span className="vote-count">{thread.downvotes}</span>
+      </div>
 
       {/* Edit / Delete actions */}
       {canDeleteOrEdit && (
@@ -133,6 +190,9 @@ function ForumView({ userData }) {
   const [forumData, setForumData] = useState(null);
   const [threads, setThreads] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // State for sorting
+  const [sortBy, setSortBy] = useState("mostRecent"); // Default to most recent
 
   // Create thread states
   const [showCreateThreadModal, setShowCreateThreadModal] = useState(false);
@@ -208,6 +268,28 @@ function ForumView({ userData }) {
       console.error('Error fetching saved threads:', error);
     }
   };
+  
+  // Upvote a thread
+  const handleUpvoteClick = async (thread_id) => {
+    if (!userData) return alert('You must be logged in to vote.');
+    try {
+      await axios.post('/api/vote_thread.php', { thread_id, user_id: userData.user_id, vote_type: 'up' });
+      fetchThreads();
+    } catch (error) {
+      console.error('Error upvoting thread:', error);
+    }
+  };
+
+  // Downvote a thread
+  const handleDownvoteClick = async (thread_id) => {
+    if (!userData) return alert('You must be logged in to vote.');
+    try {
+      await axios.post('/api/vote_thread.php', { thread_id, user_id: userData.user_id, vote_type: 'down' });
+      fetchThreads();
+    } catch (error) {
+      console.error('Error downvoting thread:', error);
+    }
+  };
 
   // Fetch forum details
   useEffect(() => {
@@ -228,7 +310,7 @@ function ForumView({ userData }) {
   const fetchThreads = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`/api/fetch_threads.php?forum_id=${forum_id}`);
+      const response = await axios.get(`/api/fetch_threads.php?forum_id=${forum_id}&user_id=${userData ? userData.user_id : 0}`);
       setThreads(response.data || []);
     } catch (error) {
       console.error('Error fetching threads:', error);
@@ -237,8 +319,28 @@ function ForumView({ userData }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  };  
 
+  // Vote on a thread
+  const handleVoteThread = async (thread_id, vote_type) => {
+    if (!userData) {
+      alert('You must be logged in to vote.');
+      return;
+    }
+
+    try {
+      await axios.post('/api/vote_thread.php', {
+        thread_id,
+        user_id: userData.user_id,
+        vote_type
+      });
+
+      fetchThreads();
+    } catch (error) {
+      console.error('Error voting on thread:', error);
+    }
+  };
+  
   // On mount or when user changes
   useEffect(() => {
     fetchThreads();
@@ -248,6 +350,9 @@ function ForumView({ userData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forum_id, userData]);
 
+  // Apply sorting
+  const sortedThreads = sortItems(threads, sortBy);
+  
   // Create new thread
   const handleCreateThreadSubmit = async (e) => {
     e.preventDefault();
@@ -356,6 +461,20 @@ function ForumView({ userData }) {
       </Link>
       <h2 className="forum-title">{forumData?.name ? forumData.name : `Forum ${forum_id}`}</h2>
 
+      {/* Sort Dropdown */}
+      <div className="sort-container" style={{ marginBottom: '1rem' }}>
+        <label htmlFor="sort-by">Sort by: </label>
+        <select
+          id="sort-by"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+        >
+          <option value="mostRecent">Most Recent</option>
+          <option value="popularity">Popularity</option>
+          <option value="mostUpvoted">Most Upvoted</option>
+        </select>
+      </div>
+
       {userData && (
         <button className="create-button" onClick={() => setShowCreateThreadModal(true)}>
           Create Thread
@@ -434,32 +553,39 @@ function ForumView({ userData }) {
       {/* Display threads */}
       {isLoading ? (
         <p>Loading threads...</p>
-      ) : threads.length === 0 ? (
+      ) : sortedThreads.length === 0 ? (
         <p>No threads available.</p>
       ) : (
         <div className="forum-list">
-          {threads.map((thread) => {
-            // We create a ref for the drop-down menu in the ThreadCard
-            // but we do NOT call hooks inside map
-            const menuRef = React.createRef();
-
-            return (
-              <ThreadCard
-                key={thread.thread_id}
-                thread={thread}
-                userData={userData}
-                forum_id={forum_id}
-                openMenuThreadId={openMenuThreadId}
-                setOpenMenuThreadId={setOpenMenuThreadId}
-                toggleMenu={toggleMenu}
-                menuRef={menuRef}
-                isThreadSaved={isThreadSaved}
-                handleToggleSaveThread={handleToggleSaveThread}
-                handleDeleteThread={handleDeleteThread}
-                startEditingThread={startEditingThread}
-              />
-            );
-          })}
+          {sortedThreads.map((thread) => (
+            <div key={thread.thread_id} className="forum-card">
+              <Link to={`/info/forum/${forum_id}/thread/${thread.thread_id}`} className="thread-link">
+                <h3 className="thread-title">{thread.title}</h3>
+                <p className="thread-post-count">{thread.post_count || 0} Posts</p>
+                <p className="thread-description">
+                  Started by User {thread.user_id} on {new Date(thread.created_at).toLocaleString()}
+                </p>
+              </Link>
+              <div className="vote-row">
+                <button
+                  type="button"
+                  className={`vote-button upvote-button ${thread.vote_type === 'up' ? 'active' : ''}`}
+                  title="Upvote"
+                >
+                  {thread.vote_type === 'up' ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+                </button>
+                <span className="vote-count">{thread.upvotes}</span>
+                <button
+                  type="button"
+                  className={`vote-button downvote-button ${thread.vote_type === 'down' ? 'active' : ''}`}
+                  title="Downvote"
+                >
+                  {thread.vote_type === 'down' ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+                </button>
+                <span className="vote-count">{thread.downvotes}</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

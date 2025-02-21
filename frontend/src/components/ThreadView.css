@@ -37,6 +37,11 @@
     transition: background-color 0.3s ease;
     position: relative;
   }
+  .reply-count {
+    font-size: 1rem;
+    color: #333;
+    margin-left: 4px; /* Adjust space as needed */
+  }
   
   .forum-card.level-1 {
     margin-left: 0;

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './ProfileView.css';
 import DOMPurify from 'dompurify';
+import { FaCheckCircle } from 'react-icons/fa'; // Import verification badge icon
 
 function SelfProfileView({ userData }) {
   // 1) Full profile data from fetch_user.php
@@ -25,7 +26,7 @@ function SelfProfileView({ userData }) {
   const [about, setAbout] = useState('');
   const [skills, setSkills] = useState('');
 
-  // 4) Avatar + Banner paths (default values provided)
+  // 4) Avatar + Banner paths
   const [avatarPath, setAvatarPath] = useState('/uploads/avatars/default-avatar.png');
   const [bannerPath, setBannerPath] = useState('/uploads/banners/default-banner.jpg');
 
@@ -33,15 +34,20 @@ function SelfProfileView({ userData }) {
   const [avatarFile, setAvatarFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
 
-  // 6) New: Primary and Secondary color states
+  // 6) Primary and Secondary color states
   const [primaryColor, setPrimaryColor] = useState('#0077B5');
   const [secondaryColor, setSecondaryColor] = useState('#005f8d');
 
-  // ------------------------------------------------------------------------------
+  // 7) Verification-related states
+  const [verified, setVerified] = useState(false);
+  const [verifiedCommunityName, setVerifiedCommunityName] = useState('');
+
+  // --------------------------------------------------------------------------
   // Fetch full profile from fetch_user.php
-  // ------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   useEffect(() => {
     if (!userData) return;
+
     const fetchUserProfile = async () => {
       try {
         const response = await axios.get(`/api/fetch_user.php?user_id=${userData.user_id}`, {
@@ -59,9 +65,9 @@ function SelfProfileView({ userData }) {
     fetchUserProfile();
   }, [userData]);
 
-  // ------------------------------------------------------------------------------
-  // Initialize form fields, avatar/banner, and colors from loaded profile data
-  // ------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // Once we have profile, populate local states
+  // --------------------------------------------------------------------------
   useEffect(() => {
     if (profile) {
       setFirstName(profile.first_name || '');
@@ -73,12 +79,34 @@ function SelfProfileView({ userData }) {
       setBannerPath(profile.banner_path || '/uploads/banners/default-banner.jpg');
       setPrimaryColor(profile.primary_color || '#0077B5');
       setSecondaryColor(profile.secondary_color || '#005f8d');
+      setVerified(profile.verified === '1' || profile.verified === 1); // handle both number/string
     }
   }, [profile]);
 
-  // ------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // Fetch the name of the verifying community if user is verified
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    const fetchVerificationCommunity = async (communityId) => {
+      try {
+        const res = await axios.get(`/api/fetch_university.php?community_id=${communityId}`);
+        if (res.data.success && res.data.university) {
+          // Adjust to match whatever field in 'communities' table holds the name
+          setVerifiedCommunityName(res.data.university.name);
+        }
+      } catch (err) {
+        console.error('Error fetching verification community name:', err);
+      }
+    };
+
+    if (verified && profile && profile.verified_community_id) {
+      fetchVerificationCommunity(profile.verified_community_id);
+    }
+  }, [verified, profile]);
+
+  // --------------------------------------------------------------------------
   // Fetch experience and education data
-  // ------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   useEffect(() => {
     if (!userData) {
       setExperience([]);
@@ -87,6 +115,7 @@ function SelfProfileView({ userData }) {
       setLoadingEdu(false);
       return;
     }
+
     setLoadingExp(true);
     axios
       .get(`/api/user_experience.php?user_id=${userData.user_id}`, { withCredentials: true })
@@ -99,6 +128,7 @@ function SelfProfileView({ userData }) {
         setErrorExp('Error fetching experience');
         setLoadingExp(false);
       });
+
     setLoadingEdu(true);
     axios
       .get(`/api/user_education.php?user_id=${userData.user_id}`, { withCredentials: true })
@@ -113,21 +143,20 @@ function SelfProfileView({ userData }) {
       });
   }, [userData]);
 
-  // ------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Handler: Toggle edit mode
-  // ------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   const handleToggleEdit = () => {
     setIsEditing(!isEditing);
   };
 
-  // ------------------------------------------------------------------------------
-  // Handler: Submit profile updates (includes file uploads and color updates)
-  // ------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // Handler: Submit profile updates (file uploads, colors, etc.)
+  // --------------------------------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!userData) return;
 
-    // Initialize new paths with the current ones
     let newAvatarPath = avatarPath;
     let newBannerPath = bannerPath;
 
@@ -179,7 +208,7 @@ function SelfProfileView({ userData }) {
       }
     }
 
-    // Build the payload for updating profile data, including color fields
+    // Build the payload for updating profile data
     const updatedData = {
       user_id: userData.user_id,
       first_name: firstName,
@@ -200,7 +229,7 @@ function SelfProfileView({ userData }) {
       if (response.data.success) {
         alert('Profile updated successfully!');
         setIsEditing(false);
-        // Refresh profile data
+        // Refresh the profile
         const updatedRes = await axios.get(`/api/fetch_user.php?user_id=${userData.user_id}`, {
           withCredentials: true,
         });
@@ -216,9 +245,9 @@ function SelfProfileView({ userData }) {
     }
   };
 
-  // ------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Derived display variables
-  // ------------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   const fullName =
     (profile && profile.first_name && profile.last_name)
       ? `${profile.first_name} ${profile.last_name}`
@@ -230,7 +259,7 @@ function SelfProfileView({ userData }) {
   const displayAbout = profile ? profile.about || 'No about information provided yet.' : '';
   const displaySkills = profile && profile.skills ? profile.skills : '';
 
-  // Apply the user’s preferred colors as CSS variables on the container.
+  // Apply the user’s preferred colors as CSS variables on the container
   const profileStyle = {
     '--primary-color': primaryColor,
     '--secondary-color': secondaryColor,
@@ -247,7 +276,7 @@ function SelfProfileView({ userData }) {
             <img src={bannerPath} alt="Profile Banner" className="profile-banner-img" />
           </div>
 
-          {/* Profile Header with Avatar and Basic Info */}
+          {/* Profile Header */}
           <div className="profile-header">
             <div className="avatar-container">
               <img src={avatarPath} alt={`${fullName} Avatar`} className="profile-avatar" />
@@ -277,7 +306,8 @@ function SelfProfileView({ userData }) {
                     placeholder="Headline"
                     className="edit-headline-input"
                   />
-                  {/* Color pickers for Primary and Secondary colors */}
+
+                  {/* Color pickers */}
                   <div className="color-picker-container">
                     <label>
                       Primary Color:
@@ -299,7 +329,18 @@ function SelfProfileView({ userData }) {
                 </>
               ) : (
                 <>
-                  <h2 className="profile-name">{fullName}</h2>
+                  <h2 className="profile-name">
+                    {fullName}{' '}
+                    {/* Show verification badge if verified */}
+                    {verified && (
+                      <span
+                        className="verified-badge"
+                        title={`Verified from ${verifiedCommunityName}`}
+                      >
+                        <FaCheckCircle />
+                      </span>
+                    )}
+                  </h2>
                   <p className="profile-headline">{displayHeadline}</p>
                 </>
               )}
@@ -343,7 +384,9 @@ function SelfProfileView({ userData }) {
             ) : experience.length > 0 ? (
               experience.map((exp, index) => (
                 <div key={index} className="experience-item">
-                  <h4>{exp.title} at {exp.company}</h4>
+                  <h4>
+                    {exp.title} at {exp.company}
+                  </h4>
                   <span className="experience-duration">{exp.duration}</span>
                   <p>{exp.description}</p>
                 </div>
@@ -386,7 +429,9 @@ function SelfProfileView({ userData }) {
             ) : displaySkills ? (
               <ul className="skills-list">
                 {displaySkills.split(',').map((skill, index) => (
-                  <li key={index} className="skill-item">{skill.trim()}</li>
+                  <li key={index} className="skill-item">
+                    {skill.trim()}
+                  </li>
                 ))}
               </ul>
             ) : (

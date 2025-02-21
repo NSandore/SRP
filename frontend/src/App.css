@@ -798,6 +798,76 @@
   box-shadow: none;
 }
 
+.forum-thread-count {
+  font-size: 0.9rem;
+  color: #777;
+  margin: 0.5rem 0;
+}
+
+/* ========================= */
+/* Forum Vote Button Styles */
+/* ========================= */
+
+.forum-card .vote-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Base Styles for Vote Buttons */
+.forum-card .vote-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  transition: color 0.3s ease;
+  outline: none;
+}
+
+.forum-card .vote-button:hover {
+  color: #000;
+}
+
+/* Upvote Button */
+.forum-card .vote-button.upvote-button {
+  color: #6c757d; /* Default gray */
+}
+
+.forum-card .vote-button.upvote-button.active {
+  color: #28a745 !important; /* Green when upvoted */
+}
+
+/* Downvote Button */
+.forum-card .vote-button.downvote-button {
+  color: #6c757d; /* Default gray */
+}
+
+.forum-card .vote-button.downvote-button.active {
+  color: #dc3545 !important; /* Red when downvoted */
+}
+
+/* Vote Count */
+.forum-card .vote-count {
+  font-size: 1rem;
+  color: #333;
+  margin-left: 0.25rem;
+  font-weight: bold;
+}
+
+/* Additional styles to ensure a clean layout */
+.forum-card .vote-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: flex-start;
+  margin-top: 0.5rem;
+}
+
 .notification-container {
   position: relative;
   display: inline-block;

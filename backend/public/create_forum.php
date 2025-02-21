@@ -30,8 +30,8 @@ if ($community_id <= 0 || empty($name)) {
 try {
     $db = getDB();
     $stmt = $db->prepare("
-        INSERT INTO forums (community_id, name, description)
-        VALUES (:cid, :name, :desc)
+        INSERT INTO forums (community_id, name, description, created_at)
+        VALUES (:cid, :name, :desc, NOW())
     ");
     $stmt->execute([
         ':cid' => $community_id,
@@ -41,7 +41,8 @@ try {
 
     echo json_encode([
         'success' => true,
-        'forum_id' => $db->lastInsertId()
+        'forum_id' => $db->lastInsertId(),
+        'created_at' => date('Y-m-d H:i:s') // Return the created_at timestamp
     ]);
 } catch (PDOException $e) {
     http_response_code(500); // Internal Server Error

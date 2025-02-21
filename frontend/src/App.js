@@ -21,7 +21,11 @@ import {
   FaTimes,
   FaUsers,
   FaPeopleCarry,
-  FaEllipsisV
+  FaEllipsisV,
+  FaArrowAltCircleUp,
+  FaRegArrowAltCircleUp,
+  FaArrowAltCircleDown,
+  FaRegArrowAltCircleDown
 } from 'react-icons/fa';
 import { TbWriting } from 'react-icons/tb';
 import { BiInfoCircle } from 'react-icons/bi';
@@ -39,7 +43,138 @@ import UniversityProfile from './components/UniversityProfile';
 import GroupProfile from './components/GroupProfile';
 import Messages from './components/Messages'; // New Messages component
 import useOnClickOutside from './hooks/useOnClickOutside';  // Hook to close popups when clicking outside
+function ForumCard({
+  forum,
+  userData,
+  openMenuId,
+  setOpenMenuId,
+  toggleMenu,
+  isForumSaved,
+  handleSaveForum,
+  handleDeleteForum,
+  handleUpvoteClick,
+  handleDownvoteClick,
+  startEditingForum
+}) {
+  // Determine vote status for this forum
+  const hasUpvoted = forum.vote_type === 'up';
+  const hasDownvoted = forum.vote_type === 'down';
 
+  // Only admins can edit/delete forums (for this example)
+  const canEditOrDelete = userData && Number(userData.role_id) === 3;
+
+  return (
+    <div className="forum-card" style={{ position: 'relative' }}>
+      {/* 3-dot menu icon */}
+      <FaEllipsisV
+        className="menu-icon"
+        style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
+        onClick={() => toggleMenu(forum.forum_id)}
+      />
+      {openMenuId === forum.forum_id && (
+        <div
+          className="dropdown-menu"
+          style={{
+            position: 'absolute',
+            top: '30px',
+            right: '8px',
+            backgroundColor: '#fff',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            zIndex: 10,
+            width: '120px'
+          }}
+        >
+          {userData && (
+            <button
+              className="dropdown-item"
+              style={{
+                width: '100%',
+                border: 'none',
+                background: 'none',
+                padding: '8px',
+                textAlign: 'left',
+                cursor: 'pointer'
+              }}
+              onClick={() => handleSaveForum(forum.forum_id, isForumSaved(forum.forum_id))}
+            >
+              {isForumSaved(forum.forum_id) ? 'Unsave' : 'Save'}
+            </button>
+          )}
+          <button
+            className="dropdown-item"
+            style={{
+              width: '100%',
+              border: 'none',
+              background: 'none',
+              padding: '8px',
+              textAlign: 'left',
+              cursor: 'pointer'
+            }}
+            onClick={() => {
+              alert(`Report forum with ID ${forum.forum_id}`);
+              setOpenMenuId(null);
+            }}
+          >
+            Report
+          </button>
+        </div>
+      )}
+
+      {/* Vote Row */}
+      <div className="vote-row">
+        <button
+          type="button"
+          className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
+          onClick={() => handleUpvoteClick(forum.forum_id)}
+          title="Upvote"
+          aria-label="Upvote"
+        >
+          {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+        </button>
+        <span className="vote-count">{forum.upvotes}</span>
+        <button
+          type="button"
+          className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
+          onClick={() => handleDownvoteClick(forum.forum_id)}
+          title="Downvote"
+          aria-label="Downvote"
+        >
+          {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+        </button>
+        <span className="vote-count">{forum.downvotes}</span>
+      </div>
+
+      {/* Forum Details Link */}
+      <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+        <h3 className="forum-title">{forum.name}</h3>
+        <p className="forum-thread-count">{forum.thread_count || 0} Threads</p>
+        <p className="forum-description">{forum.description}</p>
+      </Link>
+
+      {/* Edit/Delete actions */}
+      {canEditOrDelete && (
+        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+          <button
+            className="edit-button"
+            style={{ backgroundColor: '#ffa500', color: '#fff', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer' }}
+            onClick={() => startEditingForum(forum)}
+          >
+            Edit
+          </button>
+          <button
+            className="delete-button"
+            style={{ backgroundColor: '#ff6961', color: '#fff', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer' }}
+            onClick={() => handleDeleteForum(forum.forum_id)}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function App() {
   const [step, setStep] = useState(0);
@@ -184,7 +319,7 @@ function App() {
 
               <Routes>
                 <Route
-                  path="/"
+                  path="/home"
                   element={
                     <Feed
                       activeFeed={activeFeed}
@@ -517,6 +652,8 @@ function RightSidebar() {
 
 /* =================== Feed Component =================== */
 function Feed({ activeFeed, activeSection, userData }) {
+  const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted"
+
   const [followedCommunities, setFollowedCommunities] = useState([]);
   const [isLoadingFollowed, setIsLoadingFollowed] = useState(false);
 
@@ -672,7 +809,7 @@ function Feed({ activeFeed, activeSection, userData }) {
   const fetchForums = async (communityId) => {
     setIsLoadingForums(true);
     try {
-      const resp = await axios.get(`/api/fetch_forums.php?community_id=${communityId}`);
+      const resp = await axios.get(`/api/fetch_forums.php?community_id=${communityId}&user_id=${userData.user_id}`);
       console.log("Fetched forums response:", resp.data);
       // Adjust extraction based on response structure:
       // Use resp.data.forums if it exists; otherwise assume resp.data is the array.
@@ -690,6 +827,64 @@ function Feed({ activeFeed, activeSection, userData }) {
       setIsLoadingForums(false);
     }
   };
+
+  // A helper function to sort items
+  const sortItems = (items, criteria) => {
+    const sorted = [...items]; // Create a shallow copy to avoid mutating the original array
+  
+    if (criteria === "popularity") {
+      // Sort by total votes (upvotes + downvotes), descending
+      sorted.sort((a, b) => 
+        (parseInt(b.upvotes, 10) + parseInt(b.downvotes, 10)) -
+        (parseInt(a.upvotes, 10) + parseInt(a.downvotes, 10))
+      );
+    } else if (criteria === "mostUpvoted") {
+      // Sort by upvotes only, descending
+      sorted.sort((a, b) => parseInt(b.upvotes, 10) - parseInt(a.upvotes, 10));
+    } else if (criteria === "mostRecent") {
+      // Sort by newest created_at timestamp, descending
+      sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+  
+    return sorted;
+  };
+  
+  // Apply sorting if sortBy is set, otherwise use default order
+  const sortedForums = sortBy === "default" ? forums : sortItems(forums, sortBy);
+
+  // Handles voting actions (upvote/downvote)
+  const handleVoteClick = async (forumId, voteType) => {
+    if (!userData) {
+      alert("You must be logged in to vote.");
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        "/api/vote_forum.php",
+        {
+          forum_id: forumId,
+          user_id: userData.user_id,
+          vote_type: voteType
+        },
+        { withCredentials: true }
+      );
+
+      if (response.data.success) {
+        // Refresh forums after voting
+        fetchForums(3);
+      } else {
+        alert(response.data.error || "An error occurred.");
+      }
+    } catch (error) {
+      console.error("Error voting:", error);
+      alert("An error occurred while voting.");
+    }
+  };
+
+  // Click handlers for upvote and downvote
+  const handleUpvoteClick = (forumId) => handleVoteClick(forumId, "up");
+  const handleDownvoteClick = (forumId) => handleVoteClick(forumId, "down");
 
   
   useEffect(() => {
@@ -984,6 +1179,20 @@ function Feed({ activeFeed, activeSection, userData }) {
             </div>
           )}
 
+          {/* Sorting Dropdown */}
+          <div className="sort-container" style={{ marginBottom: '1rem' }}>
+            <label htmlFor="sort-by">Sort by: </label>
+            <select
+              id="sort-by"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="popularity">Popularity</option>
+              <option value="mostUpvoted">Most Upvoted</option>
+              <option value="mostRecent">Most Recent</option> {/* New option */}
+            </select>
+          </div>
+
           <h2 className="forum-title">Forums</h2>
           {isLoadingForums ? (
             <p>Loading forums...</p>
@@ -991,14 +1200,15 @@ function Feed({ activeFeed, activeSection, userData }) {
             <p>No forums available.</p>
           ) : (
             <div className="forum-list">
-              {forums.map((forum) => {
+              {sortedForums.map((forum) => {
                 const canEditDeleteForum = userData?.role_id === 3;
-                // Check if forum is saved
                 const isSaved = savedForums.some((sf) => sf.forum_id === forum.forum_id);
+                const hasUpvoted = forum.user_vote === 'up';
+                const hasDownvoted = forum.user_vote === 'down';
 
                 return (
                   <div key={forum.forum_id} className="forum-card" style={{ marginBottom: '1rem', position: 'relative' }}>
-                    {/* 3-dot icon */}
+                    {/* 3-dot menu icon */}
                     <FaEllipsisV
                       className="menu-icon"
                       style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
@@ -1052,11 +1262,38 @@ function Feed({ activeFeed, activeSection, userData }) {
                       </div>
                     )}
 
+                    {/* Forum Link */}
                     <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                       <h3 className="forum-title">{forum.name}</h3>
+                      <p className="forum-thread-count">{forum.thread_count || 0} Threads</p>
                       <p className="forum-description">{forum.description}</p>
                     </Link>
 
+                    {/* Upvote/Downvote Buttons */}
+                    <div className="vote-row">
+                      <button
+                        type="button"
+                        className={`vote-button upvote-button ${forum.user_vote === 'up' ? 'active' : ''}`}
+                        onClick={() => handleUpvoteClick(forum.forum_id)}
+                        title="Upvote"
+                        aria-label="Upvote"
+                      >
+                        {forum.user_vote === 'up' ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+                      </button>
+                      <span className="vote-count">{forum.upvotes}</span>
+                      <button
+                        type="button"
+                        className={`vote-button downvote-button ${forum.user_vote === 'down' ? 'active' : ''}`}
+                        onClick={() => handleDownvoteClick(forum.forum_id)}
+                        title="Downvote"
+                        aria-label="Downvote"
+                      >
+                        {forum.user_vote === 'down' ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+                      </button>
+                      <span className="vote-count">{forum.downvotes}</span>
+                    </div>
+                    
+                    {/* Admin Edit/Delete Buttons */}
                     {canEditDeleteForum && (
                       <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
                         <button
@@ -1135,9 +1372,6 @@ function Feed({ activeFeed, activeSection, userData }) {
             )}
           </div>
           <div className="search-bar-container">
-            <label htmlFor="community-search" className="visually-hidden">
-              Search Communities
-            </label>
             <input
               id="community-search"
               type="text"

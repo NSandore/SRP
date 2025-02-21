@@ -43,7 +43,9 @@ try {
                 avatar_path,
                 banner_path,
                 primary_color,
-                secondary_color
+                secondary_color,
+                verified,
+                verified_community_id
               FROM users
               WHERE user_id = :user_id";
 

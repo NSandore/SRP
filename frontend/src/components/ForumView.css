@@ -119,6 +119,12 @@
   background-color: #f1f1f1;
 }
 
+.thread-post-count {
+  font-size: 0.9rem;
+  color: #777;
+  margin: 0.5rem 0;
+}
+
 .thread-link {
   text-decoration: none;
   color: inherit;
@@ -168,3 +174,49 @@
   background-color: #ff4c4c;
  }
 
+/* Vote Button Styles */
+.vote-button.upvote-button {
+  color: #6c757d; /* Default gray */
+}
+.vote-button.upvote-button.active {
+  color: #28a745 !important; /* Green when upvoted */
+}
+
+.vote-button.downvote-button {
+  color: #6c757d; /* Default gray */
+}
+.vote-button.downvote-button.active {
+  color: #dc3545 !important; /* Red when downvoted */
+}
+
+/* Vote Row Layout */
+.vote-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Vote Button Base Styles */
+.vote-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  transition: color 0.3s ease;
+}
+
+.vote-button:hover {
+  color: #000;
+}
+
+/* Vote Count Display */
+.vote-count {
+  font-size: 1rem;
+  color: #333;
+  margin-left: 0.25rem;
+}
