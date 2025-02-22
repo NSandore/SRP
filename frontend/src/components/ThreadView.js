@@ -268,12 +268,12 @@ function EditToolbar({ editor }) {
 /* --------------------------------------------------------------------------
    Build the nested tree of posts
 -------------------------------------------------------------------------- */
+// Build the reply tree
 function buildReplyTree(posts) {
   const map = {};
   posts.forEach((p) => {
     map[p.post_id] = { ...p, children: [] };
   });
-
   const roots = [];
   posts.forEach((p) => {
     if (p.reply_to) {
@@ -286,8 +286,63 @@ function buildReplyTree(posts) {
       roots.push(map[p.post_id]);
     }
   });
-
+  function markVerified(node) {
+    let verified = Number(node.verified) === 1;
+    if (node.children && node.children.length > 0) {
+      node.children.forEach((child) => {
+        verified = verified || markVerified(child);
+      });
+    }
+    node.hasVerified = verified;
+    return verified;
+  }
+  roots.forEach(markVerified);
   return roots;
+}
+
+// Sort replies by splitting verified vs non-verified then applying the chosen criteria.
+function sortReplyNodes(nodes, criteria) {
+  const verifiedNodes = nodes.filter((n) => Number(n.hasVerified));
+  const nonVerifiedNodes = nodes.filter((n) => !n.hasVerified);
+
+  let sortFn;
+  switch (criteria) {
+    case 'mostRecent':
+      sortFn = (a, b) => new Date(b.created_at) - new Date(a.created_at);
+      break;
+    case 'mostUpvoted':
+      sortFn = (a, b) => b.upvotes - a.upvotes;
+      break;
+    case 'mostPopular':
+      sortFn = (a, b) => (b.upvotes + b.downvotes) - (a.upvotes + a.downvotes);
+      break;
+    default:
+      sortFn = (a, b) => new Date(b.created_at) - new Date(a.created_at);
+  }
+  verifiedNodes.sort(sortFn);
+  nonVerifiedNodes.sort(sortFn);
+  const sortedNodes = [...verifiedNodes, ...nonVerifiedNodes];
+  sortedNodes.forEach((node) => {
+    if (node.children && node.children.length > 0) {
+      node.children = sortReplyNodes(node.children, criteria);
+    }
+  });
+  return sortedNodes;
+}
+
+// Recursive sort function to sort children arrays
+function sortTree(nodes) {
+  nodes.sort((a, b) => {
+    if (a.hasVerified === b.hasVerified) {
+      return new Date(a.created_at) - new Date(b.created_at);
+    }
+    return a.hasVerified ? -1 : 1;
+  });
+  nodes.forEach((node) => {
+    if (node.children && node.children.length > 0) {
+      sortTree(node.children);
+    }
+  });
 }
 
 /* --------------------------------------------------------------------------
@@ -308,14 +363,20 @@ function PostItem({
   // NEW: for saving posts
   savedPosts,
   handleToggleSavePost,
+  handleVerifyPost, // NEW prop for verifying posts
 }) {
   const [localReply, setLocalReply] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(level === 2); // Auto-collapse at level 2
 
   // 3-dot menu
   const [openMenu, setOpenMenu] = useState(false);
   const menuRef = useRef(null);
+
+  const shouldAutoExpand = !isRoot && (Number(post.verified) !== 1 && Number(post.hasVerified) === 1);
+  const [isCollapsed, setIsCollapsed] = useState(isRoot ? false : !shouldAutoExpand);
+
+  
+
 
   const toggleMenu = () => setOpenMenu((prev) => !prev);
 
@@ -361,6 +422,9 @@ function PostItem({
     // Only allow editing the root post if user is either admin or post owner
     canEdit = isRoot && canDelete;
   }
+
+  console.log("UserData:", userData);
+  console.log("Post Verification Status:", post.verified);
 
   // REPLY Logic
   const handleLocalReplyChange = (e) => setLocalReply(e.target.value);
@@ -428,8 +492,10 @@ function PostItem({
     setIsCollapsed(!isCollapsed);
   };
 
+  const computedClassName = `forum-card reply-card level-${level} ${Number(post.verified) === 1 ? 'verified' : ''}`;
+
   return (
-    <div className={`forum-card reply-card level-${level}`}>
+    <div className={computedClassName}>
       {isEditing ? (
         <form onSubmit={confirmEdit} className="edit-form" style={{ marginBottom: '1rem' }}>
           {/* Show the same toolbar from TextEditor.js */}
@@ -575,6 +641,19 @@ function PostItem({
                 </span>
               </button>
             )}
+            {/* NEW: Verify Answer button for admins */}
+            {userData && Number(userData.role_id) <= 5 && post.verified === 0 && (
+              console.log(`Rendering Verify Button for post: ${post.post_id}`),
+              <button
+                type="button"
+                className="verify-button"
+                onClick={() => handleVerifyPost(post.post_id)}
+                title="Verify Answer"
+                aria-label="Verify Answer"
+              >
+                Verify Answer
+              </button>
+            )}
           </div>
         </>
       )}
@@ -634,6 +713,7 @@ function PostItem({
               level={level + 1}
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
+              handleVerifyPost={handleVerifyPost}  // pass the verify function down
             />
           ))}
         </div>
@@ -656,6 +736,7 @@ function ThreadView({ userData }) {
   const [notification, setNotification] = useState(null);
   const [expandedReplyBox, setExpandedReplyBox] = useState(null);
 
+  const [replySortCriteria, setReplySortCriteria] = useState('mostRecent');
   const [savedPosts, setSavedPosts] = useState([]);
 
   // Toggle save for posts
@@ -698,6 +779,29 @@ function ThreadView({ userData }) {
     }
   };
 
+  // NEW: Function to verify a post
+  const handleVerifyPost = async (post_id) => {
+    if (!userData || Number(userData.role_id) < 5) {
+      setNotification({ type: 'error', message: 'You are not authorized to verify posts.' });
+      return;
+    }
+    try {
+      const response = await axios.post('/api/verify_post.php', {
+        post_id,
+        user_id: userData.user_id,
+      }, { withCredentials: true });
+      if (response.data.success) {
+        setNotification({ type: 'success', message: 'Post verified successfully!' });
+        fetchPosts();
+      } else {
+        setNotification({ type: 'error', message: response.data.error || 'Error verifying post.' });
+      }
+    } catch (error) {
+      console.error('Error verifying post:', error);
+      setNotification({ type: 'error', message: 'An error occurred while verifying the post.' });
+    }
+  };
+
   useEffect(() => {
     const fetchThread = async () => {
       try {
@@ -719,23 +823,22 @@ function ThreadView({ userData }) {
     try {
       let url = `/api/fetch_posts.php?thread_id=${thread_id}`;
       if (userData?.user_id) {
-        // Append user_id for the post_votes LEFT JOIN
         url += `&user_id=${userData.user_id}`;
       }
       const res = await axios.get(url);
       const data = Array.isArray(res.data) ? res.data : [];
-
-      // Ensure upvotes and downvotes are numbers
+      console.log("Fetched Posts:", data);
       const numericData = data.map((post) => ({
         ...post,
         upvotes: Number(post.upvotes) || 0,
         downvotes: Number(post.downvotes) || 0,
+        verified: Number(post.verified) || 0,
       }));
-
-      const tree = buildReplyTree(numericData);
+      let tree = buildReplyTree(numericData);
+      tree = sortReplyNodes(tree, replySortCriteria);
       setPostTree(tree);
     } catch (err) {
-      console.error('Error fetching posts:', err);
+      console.error("Error fetching posts:", err);
       setPostTree([]);
       setNotification({ type: 'error', message: 'Failed to load posts.' });
     } finally {
@@ -743,16 +846,19 @@ function ThreadView({ userData }) {
     }
   };
 
-  // load posts + saved posts
   useEffect(() => {
     fetchPosts();
     if (userData) {
       fetchSavedPosts();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread_id, userData]);
 
-  // handleReplySubmit for new replies
+  // Re-sort the reply tree when sort criteria changes.
+  useEffect(() => {
+    setPostTree((prevTree) => sortReplyNodes([...prevTree], replySortCriteria));
+  }, [replySortCriteria]);
+
+
   const handleReplySubmit = async (reply_to_post_id, content) => {
     if (!userData) {
       setNotification({ type: 'error', message: 'You must be logged in to reply.' });
@@ -888,7 +994,7 @@ function ThreadView({ userData }) {
       setNotification({ type: 'error', message: 'Error upvoting post.' });
     }
   };
-
+  
   // Downvote
   const handleDownvoteClick = async (post_id) => {
     if (!userData) {
@@ -956,6 +1062,15 @@ function ThreadView({ userData }) {
 
       <h2 className="forum-title">{threadData?.title || `Thread ${thread_id}`}</h2>
 
+      <div className="reply-sort-options">
+        <label htmlFor="replySort">Sort Replies: </label>
+        <select id="replySort" value={replySortCriteria} onChange={(e) => setReplySortCriteria(e.target.value)}>
+          <option value="mostRecent">Most Recent</option>
+          <option value="mostUpvoted">Most Upvoted</option>
+          <option value="mostPopular">Most Popular</option>
+        </select>
+      </div>
+
       {postTree.length === 0 ? (
         <p>No replies found.</p>
       ) : (
@@ -977,6 +1092,7 @@ function ThreadView({ userData }) {
               // pass savedPosts + toggle fn
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
+              handleVerifyPost={handleVerifyPost} // Pass down our new verify function
             />
           ))}
         </div>

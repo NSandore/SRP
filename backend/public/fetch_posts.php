@@ -17,7 +17,7 @@ $user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
 $db = getDB();
 
 try {
-    // We'll left join post_votes to get a per-post user_vote
+    // Left join post_votes to get a per-post user_vote
     $stmt = $db->prepare("
         SELECT 
             p.post_id,
@@ -28,6 +28,9 @@ try {
             p.upvotes,
             p.downvotes,
             p.reply_to,
+            p.verified,
+            p.verified_by,
+            p.verified_at,
             v.vote_type AS user_vote
         FROM posts p
         LEFT JOIN post_votes v
@@ -47,3 +50,4 @@ try {
     http_response_code(500);
     echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
 }
+?>

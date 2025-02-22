@@ -97,6 +97,24 @@
     font-size: 1rem;
     color: #333;
   }
+
+  .verify-button {
+    display: inline-block !important;
+    background-color: green !important;
+    color: white !important;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+  }  
+  .forum-card.reply-card.verified {
+    border: 2px solid green !important;
+    /* Optionally, add a slight background tint to help visualize it */
+    background-color: rgba(0, 255, 0, 0.05);
+  }
+
+  .verified {
+    border: 2px solid green;
+  }  
   
   .reply-button {
     background: none;
