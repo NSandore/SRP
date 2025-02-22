@@ -69,7 +69,7 @@ function ThreadCard({
   // Check if user can delete/edit
   const canDeleteOrEdit =
     userData &&
-    (Number(userData.role_id) === 3 || Number(userData.user_id) === Number(thread.user_id));
+    (Number(userData.role_id) === 7 || Number(userData.user_id) === Number(thread.user_id));
 
   return (
     <div className="forum-card" style={{ position: 'relative' }}>

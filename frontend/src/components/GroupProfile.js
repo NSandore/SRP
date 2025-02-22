@@ -5,11 +5,12 @@ import axios from 'axios';
 import './GroupProfile.css';
 
 function GroupProfile({ userData }) {
-  const { id } = useParams(); // community id for group
+  const { id } = useParams(); // group community id
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Fetch group details on mount (or when id changes)
   useEffect(() => {
     const fetchGroup = async () => {
       try {
@@ -33,13 +34,22 @@ function GroupProfile({ userData }) {
   if (!group) return <p>No group found.</p>;
 
   return (
-    <div className="group-profile">
+    <div
+      className="group-profile"
+      style={{
+        // Optional: dynamically apply the group’s colors if available
+        '--primary-color': group.primary_color || '#0077B5',
+        '--secondary-color': group.secondary_color || '#005f8d',
+      }}
+    >
+      {/* Group Banner */}
       <div className="group-banner">
         <img
-          src={group.banner_path || '/uploads/banners/default-banner.jpg'}
+          src={group.banner_path || '/uploads/banners/default-banner.jpeg'}
           alt="Group Banner"
         />
       </div>
+
       <div className="group-info">
         <img
           src={group.logo_path || '/uploads/logos/default-logo.png'}
@@ -53,6 +63,12 @@ function GroupProfile({ userData }) {
           <a href={group.website} target="_blank" rel="noopener noreferrer">
             Visit Website
           </a>
+        )}
+        {/* Optionally, add an edit button if needed, similar to UniversityProfile */}
+        {userData && userData.role_id === 7 && (
+          <button className="edit-group-button" onClick={() => alert('Edit group functionality coming soon!')}>
+            Edit Group
+          </button>
         )}
       </div>
     </div>

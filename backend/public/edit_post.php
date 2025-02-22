@@ -79,7 +79,7 @@ try {
     }
 
     // **11. Check User Permissions (Admin or Post Owner)**
-    if ($role_id_session !== 3 && (int)$postRow['user_id'] !== $user_id_session) {
+    if ($role_id_session !== 7 && (int)$postRow['user_id'] !== $user_id_session) {
         http_response_code(403); // Forbidden
         echo json_encode(['error' => 'You do not have permission to edit this post.']);
         exit;

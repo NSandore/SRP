@@ -1,56 +1,128 @@
-/* src/components/GroupProfile.css */
+:root {
+  --primary-color: #0077B5; /* Default primary color */
+  --secondary-color: #005f8d; /* Default secondary color */
+  --text-color: #333;
+  --subtext-color: #777;
+  --background-color: #fff;
+  --light-background: #f7f7f7;
+  --border-radius: 8px;
+  --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --transition-speed: 0.3s;
+  --font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
 .group-profile {
-    max-width: 800px;
-    margin: 2rem auto;
-    padding: 1rem;
-    font-family: Arial, sans-serif;
+  width: 100%;
+  background-color: var(--background-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  overflow: auto;
+  font-family: var(--font-family);
+  margin: 2rem 0;
+}
+
+.group-banner {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+}
+
+.group-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-speed) ease;
+}
+
+.group-banner img:hover {
+  transform: scale(1.05);
+}
+
+.group-info {
+  position: relative;
+  padding: 1rem 2rem 2rem;
+  text-align: center;
+  background-color: var(--light-background);
+}
+
+.group-logo {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 4px solid var(--background-color);
+  background: var(--background-color);
+  margin: 0 auto 1rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.group-name {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: var(--text-color);
+  margin: 0.5rem 0;
+}
+
+.group-tagline {
+  font-size: 1.3rem;
+  font-style: italic;
+  color: var(--subtext-color);
+  margin: 0.5rem 0;
+}
+
+.group-location {
+  font-size: 1.1rem;
+  color: var(--subtext-color);
+  margin: 0.5rem 0;
+}
+
+.group-info a {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--primary-color);
+  color: #fff;
+  text-decoration: none;
+  border-radius: var(--border-radius);
+  transition: background var(--transition-speed) ease;
+}
+
+.group-info a:hover {
+  background-color: var(--secondary-color);
+}
+
+.edit-group-button {
+  margin-top: 1rem;
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: background var(--transition-speed) ease;
+  font-size: 1rem;
+}
+
+.edit-group-button:hover {
+  background-color: var(--secondary-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .group-banner {
+    height: 200px;
   }
-  
-  .group-banner img {
-    width: 100%;
-    height: 300px;
-    object-fit: cover;
-    border-radius: 8px;
-  }
-  
-  .group-info {
-    text-align: center;
-    margin-top: -50px;
-  }
-  
   .group-logo {
     width: 100px;
     height: 100px;
-    border-radius: 50%;
-    border: 3px solid #fff;
-    background: #fff;
-    margin-bottom: 1rem;
   }
-  
   .group-name {
     font-size: 2rem;
-    margin: 0.5rem 0;
-    color: #333;
   }
-  
   .group-tagline {
-    font-size: 1.2rem;
-    color: #555;
-    margin: 0.5rem 0;
-  }
-  
-  .group-location {
     font-size: 1rem;
-    color: #777;
   }
-  
-  .group-info a {
-    display: inline-block;
-    margin-top: 1rem;
-    padding: 0.5rem 1rem;
-    background: #0077B5;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 4px;
+  .group-location {
+    font-size: 0.9rem;
   }
-  
+}

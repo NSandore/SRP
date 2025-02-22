@@ -216,7 +216,7 @@ function UniversityProfile({ userData }) {
               Visit Website
             </a>
           )}
-          {userData && userData.role_id === 3 && (
+          {userData && userData.role_id === 7 && (
             <button className="edit-university-button" onClick={handleToggleEdit}>
               Edit University
             </button>

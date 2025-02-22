@@ -45,8 +45,8 @@ try {
 
     $thread_owner_id = (int) $threadRow['user_id'];
 
-    // 4. Check permission: user must be admin (role_id=3) or thread owner
-    if ($role_id_session !== 3 && $thread_owner_id !== $user_id_session) {
+    // 4. Check permission: user must be admin (role_id=7) or thread owner
+    if ($role_id_session !== 7 && $thread_owner_id !== $user_id_session) {
         http_response_code(403); // Forbidden
         echo json_encode(['error' => 'No permission to edit this thread.']);
         exit;

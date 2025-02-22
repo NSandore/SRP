@@ -24,7 +24,7 @@ try {
         CREATE OR REPLACE VIEW all_community_data AS
         SELECT 
             c.id AS community_id, 
-            c.community_type,  -- Include community_type
+            c.community_type, 
             c.name, 
             c.location, 
             c.tagline, 
@@ -35,7 +35,7 @@ try {
         GROUP BY c.id, c.community_type, c.name, c.location, c.tagline, c.logo_path
     ");
 
-    // Prepare the main query with search, filtering by community_type = 'community', and pagination
+    // Prepare the main query with search, filtering by community_type = 'group', and pagination
     $query = "
         SELECT 
             aud.*, 
@@ -43,7 +43,7 @@ try {
         FROM all_community_data aud
         LEFT JOIN followed_communities fc 
             ON aud.community_id = fc.community_id AND fc.user_id = :user_id
-        WHERE aud.community_type = 'university'
+        WHERE aud.community_type = 'group'
     ";
 
     $params = [':user_id' => $user_id];
@@ -60,11 +60,7 @@ try {
 
     // Bind parameters
     foreach ($params as $key => &$val) {
-        if ($key === ':limit' || $key === ':offset') {
-            $stmt->bindParam($key, $val, PDO::PARAM_INT);
-        } else {
-            $stmt->bindParam($key, $val, PDO::PARAM_STR);
-        }
+        $stmt->bindParam($key, $val, PDO::PARAM_STR);
     }
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -72,7 +68,12 @@ try {
     $stmt->execute();
     $communities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get total count for pagination (only universities)
+    // Ensure $communities is an array
+    if (!is_array($communities)) {
+        $communities = [];
+    }
+
+    // Get total count for pagination (only groups)
     $countQuery = "
         SELECT COUNT(*) as total
         FROM all_community_data aud
@@ -91,7 +92,6 @@ try {
     $totalCommunities = $totalResult ? (int)$totalResult['total'] : 0;
     $totalPages = ceil($totalCommunities / $limit);
 
-    // Structure the response
     $response = [
         'communities' => $communities,
         'total_pages' => $totalPages,

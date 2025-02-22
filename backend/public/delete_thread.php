@@ -49,10 +49,10 @@ try {
         exit;
     }
 
-    // 4. Check if session user is thread owner OR role_id = 3
+    // 4. Check if session user is thread owner OR role_id = 7
     $thread_owner_id = (int) $thread['user_id'];
 
-    if ($role_id_session !== 3 && $thread_owner_id !== $user_id_session) {
+    if ($role_id_session !== 7 && $thread_owner_id !== $user_id_session) {
         // No permission
         http_response_code(403); // Forbidden
         echo json_encode(['error' => 'You do not have permission to delete this thread.']);

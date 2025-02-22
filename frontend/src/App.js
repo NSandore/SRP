@@ -61,7 +61,7 @@ function ForumCard({
   const hasDownvoted = forum.vote_type === 'down';
 
   // Only admins can edit/delete forums (for this example)
-  const canEditOrDelete = userData && Number(userData.role_id) === 3;
+  const canEditOrDelete = userData && Number(userData.role_id) === 7;
 
   return (
     <div className="forum-card" style={{ position: 'relative' }}>
@@ -355,16 +355,6 @@ function App() {
                   }
                 />
                 <Route
-                  path="/groups"
-                  element={
-                    <Feed
-                      activeFeed={activeFeed}
-                      activeSection="groups"
-                      userData={userData}
-                    />
-                  }
-                />
-                <Route
                   path="/scholarships"
                   element={
                     <Feed
@@ -574,9 +564,8 @@ function LeftSidebar({
   const sidebarItems = [
     { name: 'home', icon: <TbWriting />, text: 'Home' },
     { name: 'info', icon: <BiInfoCircle />, text: 'Information Board' },
-    { name: 'groups', icon: <FaPeopleCarry />, text: 'Groups' },
     { name: 'scholarships', icon: <RiMedalFill />, text: 'Scholarships' },
-    { name: 'communities', icon: <FaUniversity />, text: 'Universities' }
+    { name: 'communities', icon: <FaUniversity />, text: 'Communities' }
   ];
 
   const authSidebarItems = [
@@ -653,6 +642,8 @@ function RightSidebar() {
 /* =================== Feed Component =================== */
 function Feed({ activeFeed, activeSection, userData }) {
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted"
+  const [communityFilter, setCommunityFilter] = useState('All'); // Options: "All", "Followed", "Unfollowed"
+  const [selectedCommunityTab, setSelectedCommunityTab] = useState("university");
 
   const [followedCommunities, setFollowedCommunities] = useState([]);
   const [isLoadingFollowed, setIsLoadingFollowed] = useState(false);
@@ -780,20 +771,22 @@ function Feed({ activeFeed, activeSection, userData }) {
     }
   };
 
-  const fetchAllCommunities = async (page = 1, term = '') => {
+  const fetchAllCommunitiesData = async (page = 1, term = '') => {
     if (!userData) return;
     setIsLoadingAll(true);
     try {
+      // Select the correct endpoint based on the selected community tab
+      const endpoint =
+        selectedCommunityTab === "university"
+          ? "/api/fetch_all_university_data.php"
+          : "/api/fetch_all_group_data.php";
       const response = await axios.get(
-        `/api/fetch_all_university_data.php?user_id=${userData.user_id}&page=${page}&search=${encodeURIComponent(term)}`
+        `${endpoint}?user_id=${userData.user_id}&page=${page}&search=${encodeURIComponent(term)}`
       );
-      if (response.data.communities) {
-        setAllCommunities(response.data.communities);
-        setTotalPages(response.data.total_pages || 1);
-      } else {
-        setAllCommunities(response.data);
-        setTotalPages(1);
-      }
+      // Ensure that communities is an array
+      const communities = response.data.communities;
+      setAllCommunities(Array.isArray(communities) ? communities : []);
+      setTotalPages(response.data.total_pages || 1);
     } catch (error) {
       console.error('Error fetching all communities:', error);
       setAllCommunities([]);
@@ -802,7 +795,7 @@ function Feed({ activeFeed, activeSection, userData }) {
       setIsLoadingAll(false);
     }
   };
-
+  
   //
   // 3) Fetch Forums (e.g., community_id=3 for "info")
   //
@@ -890,7 +883,7 @@ function Feed({ activeFeed, activeSection, userData }) {
   useEffect(() => {
     if (activeSection === 'communities' && userData) {
       fetchFollowedCommunities();
-      fetchAllCommunities(1, '');
+      fetchAllCommunitiesData(1, '');
       setCurrentPage(1);
       setSearchTerm('');
     }
@@ -907,52 +900,52 @@ function Feed({ activeFeed, activeSection, userData }) {
       fetchSavedPosts();
       setSavedTab('forums');
     }
-  }, [activeSection, userData]);
+  }, [activeSection, userData, selectedCommunityTab]);  
 
   useEffect(() => {
-    // Debounce search for communities
     const debounce = setTimeout(() => {
       if (activeSection === 'communities') {
-        fetchAllCommunities(1, searchTerm);
+        fetchAllCommunitiesData(1, searchTerm);
         setCurrentPage(1);
       }
     }, 300);
     return () => clearTimeout(debounce);
-  }, [searchTerm, activeSection]);
+  }, [searchTerm, activeSection, selectedCommunityTab]);  
 
   // Pagination
   const handleNextPage = () => {
     if (currentPage < totalPages) {
       const newPage = currentPage + 1;
       setCurrentPage(newPage);
-      fetchAllCommunities(newPage, searchTerm);
+      fetchAllCommunitiesData(newPage, searchTerm);
     }
   };
+  
   const handlePrevPage = () => {
     if (currentPage > 1) {
       const newPage = currentPage - 1;
       setCurrentPage(newPage);
-      fetchAllCommunities(newPage, searchTerm);
+      fetchAllCommunitiesData(newPage, searchTerm);
     }
-  };
+  };  
 
   // Follow / Unfollow
   const handleFollowToggle = async (communityId, isFollowed) => {
     if (!userData) return;
     try {
       if (isFollowed) {
-        await axios.post('/api/unfollow_communities.php', {
+        await axios.post('/api/unfollow_community.php', {
           user_id: userData.user_id,
           community_id: communityId
         });
       } else {
-        await axios.post('/api/follow_communities.php', {
+        await axios.post('/api/follow_community.php', {
           user_id: userData.user_id,
           community_id: communityId
         });
       }
       fetchFollowedCommunities();
-      fetchAllCommunities(currentPage, searchTerm);
+      fetchAllCommunitiesData(currentPage, searchTerm);
     } catch (error) {
       console.error('Error toggling follow status:', error);
       alert('An error occurred while updating follow status.');
@@ -960,7 +953,7 @@ function Feed({ activeFeed, activeSection, userData }) {
   };
 
   // Create a set for quick lookup
-  const followedIds = new Set(followedCommunities.map((c) => c.community_id));
+  //const followedIds = new Set(followedCommunities.map((c) => c.community_id));
 
   //
   // 5) Create Forum
@@ -1079,11 +1072,26 @@ function Feed({ activeFeed, activeSection, userData }) {
           ];
   } else if (activeSection === 'connections') {
     mockPosts = [{ title: 'Connections Updates', author: 'ConnectionBot', content: 'Your connections are up to...' }];
-  } else if (activeSection === 'groups') {
-    mockPosts = [{ title: 'Group Discussions', author: 'GroupAdmin', content: 'Latest discussions in your groups...' }];
   } else if (activeSection === 'scholarships') {
     mockPosts = [{ title: 'Scholarship Board', author: 'ScholarBot', content: 'Available scholarships...' }];
   }
+
+  // Create a set for quick lookup of followed community IDs.
+  const followedIds = new Set(followedCommunities.map((c) => c.community_id));
+
+  // Filter communities by selected type and then by the Followed/Unfollowed/All filter.
+  const filteredCommunities = allCommunities.filter((community) => {
+    // First, ensure the community is of the selected type.
+    if (community.community_type !== selectedCommunityTab) return false;
+
+    // Then apply the followed filter.
+    if (communityFilter === 'Followed') {
+      return followedIds.has(community.community_id);
+    } else if (communityFilter === 'Unfollowed') {
+      return !followedIds.has(community.community_id);
+    }
+    return true; // For "All", include every community of the selected type.
+  });
 
   return (
     <main className="feed">
@@ -1099,7 +1107,7 @@ function Feed({ activeFeed, activeSection, userData }) {
       {activeSection === 'info' && (
         <>
           {/* Admin create forum */}
-          {userData?.role_id === 3 && (
+          {userData?.role_id === 7 && (
             <button className="create-button" onClick={() => setShowCreateForumModal(true)}>
               Create Forum
             </button>
@@ -1201,7 +1209,7 @@ function Feed({ activeFeed, activeSection, userData }) {
           ) : (
             <div className="forum-list">
               {sortedForums.map((forum) => {
-                const canEditDeleteForum = userData?.role_id === 3;
+                const canEditDeleteForum = userData?.role_id === 7;
                 const isSaved = savedForums.some((sf) => sf.forum_id === forum.forum_id);
                 const hasUpvoted = forum.user_vote === 'up';
                 const hasDownvoted = forum.user_vote === 'down';
@@ -1336,62 +1344,73 @@ function Feed({ activeFeed, activeSection, userData }) {
       {activeSection === 'communities' && (
         <>
           <div className="communities-section">
-            <h3>Your Followed Universities</h3>
-            {isLoadingFollowed ? (
-              <p>Loading followed universities...</p>
-            ) : followedCommunities.length === 0 ? (
-              <p>You are not following any universities yet.</p>
-            ) : (
-              <div className="community-grid">
-                {followedCommunities.map((school) => (
-                  <div key={school.community_id} className="community-card followed">
-                    <img
-                      src={school.logo_path || '/uploads/logos/default-logo.png'}
-                      alt={`${school.name} Logo`}
-                      className="community-logo"
-                    />
-                    {/* Ensure the link uses the correct `community_type` */}
-                    <Link
-                      to={`/${school.community_type}/${school.community_id}`}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
-                      <h4 className="community-name">{school.name}</h4>
-                    </Link>
-                    <p className="community-location">{school.location}</p>
-                    {school.tagline && <p className="community-tagline">{school.tagline}</p>}
-                    <p className="followers-count">{school.followers_count} Followers</p>
-                    <button
-                      className="follow-button unfollow"
-                      onClick={() => handleFollowToggle(school.community_id, true)}
-                    >
-                      Unfollow
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="search-bar-container">
-            <input
-              id="community-search"
-              type="text"
-              placeholder="Search communities..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="community-search-bar"
-            />
-          </div>
+            {/* Community Type Tabs */}
+            <div className="community-tab">
+              <button
+                onClick={() => setSelectedCommunityTab("university")}
+                className={selectedCommunityTab === "university" ? "active" : ""}
+              >
+                Communities
+              </button>
+              <button
+                onClick={() => setSelectedCommunityTab("group")}
+                className={selectedCommunityTab === "group" ? "active" : ""}
+              >
+                Groups
+              </button>
+            </div>
 
-          <div className="communities-section">
-            <h3>All Universities</h3>
-            {isLoadingAll || !allCommunities ? (
-              <p>Loading all universities...</p>
-            ) : allCommunities.length > 0 ? (
-              <div className="community-grid">
-                {allCommunities
-                  .filter((community) => !followedIds.has(community.community_id))
-                  .map((community) => (
-                    <div key={community.community_id} className="community-card">
+            {/* Filter Controls for Followed/Unfollowed/All */}
+            <div className="filter-buttons">
+              <button
+                onClick={() => setCommunityFilter('All')}
+                className={communityFilter === 'All' ? 'active' : ''}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setCommunityFilter('Followed')}
+                className={communityFilter === 'Followed' ? 'active' : ''}
+              >
+                Followed
+              </button>
+              <button
+                onClick={() => setCommunityFilter('Unfollowed')}
+                className={communityFilter === 'Unfollowed' ? 'active' : ''}
+              >
+                Unfollowed
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="search-bar-container">
+              <input
+                id="community-search"
+                type="text"
+                placeholder="Search communities..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="community-search-bar"
+              />
+            </div>
+
+            {/* Display Filtered Communities */}
+            <div className="communities-section">
+              {isLoadingAll ? (
+                <p>Loading communities...</p>
+              ) : filteredCommunities.length > 0 ? (
+                <div className="community-grid">
+                  {filteredCommunities.map((community) => (
+                    <div
+                      key={community.community_id}
+                      className="community-card"
+                      // If in "All" mode and the community is followed, outline in green.
+                      style={
+                        communityFilter === 'All' && followedIds.has(community.community_id)
+                          ? { border: '2px solid green' }
+                          : {}
+                      }
+                    >
                       <img
                         src={community.logo_path || '/uploads/logos/default-logo.png'}
                         alt={`${community.name} Logo`}
@@ -1408,35 +1427,31 @@ function Feed({ activeFeed, activeSection, userData }) {
                       {community.tagline && <p className="community-tagline">{community.tagline}</p>}
                       <p className="followers-count">{community.followers_count} Followers</p>
                       <button
-                        className="follow-button follow"
-                        onClick={() => handleFollowToggle(community.community_id, false)}
+                        className={`follow-button ${followedIds.has(community.community_id) ? 'unfollow' : 'follow'}`}
+                        onClick={() =>
+                          handleFollowToggle(community.community_id, followedIds.has(community.community_id))
+                        }
                       >
-                        Follow
+                        {followedIds.has(community.community_id) ? 'Unfollow' : 'Follow'}
                       </button>
                     </div>
                   ))}
+                </div>
+              ) : (
+                <p>No {selectedCommunityTab === "university" ? "universities" : "groups"} found.</p>
+              )}
+              {/* Pagination Controls */}
+              <div className="pagination-controls">
+                <button onClick={handlePrevPage} disabled={currentPage === 1} className="pagination-button">
+                  Previous
+                </button>
+                <span className="pagination-info">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button onClick={handleNextPage} disabled={currentPage === totalPages} className="pagination-button">
+                  Next
+                </button>
               </div>
-            ) : (
-              <p>No universities found.</p>
-            )}
-            <div className="pagination-controls">
-              <button
-                onClick={handlePrevPage}
-                disabled={currentPage === 1}
-                className="pagination-button"
-              >
-                Previous
-              </button>
-              <span className="pagination-info">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-                className="pagination-button"
-              >
-                Next
-              </button>
             </div>
           </div>
         </>
@@ -1584,7 +1599,7 @@ function Feed({ activeFeed, activeSection, userData }) {
       )}
 
       {/* Render "mock posts" for any other sections */}
-      {['home', 'connections', 'groups', 'scholarships'].includes(activeSection) && (
+      {['home', 'connections', 'scholarships'].includes(activeSection) && (
         (activeSection !== 'info' && activeSection !== 'communities' && activeSection !== 'saved') &&
           mockPosts.map((post, i) => (
             <div key={i} className="post-card">

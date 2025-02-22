@@ -11,8 +11,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// OPTIONAL: If only users with role_id = 3 can create posts, uncomment:
-// if ($_SESSION['role_id'] != 3) {
+// OPTIONAL: If only users with role_id = 7 can create posts, uncomment:
+// if ($_SESSION['role_id'] != 7) {
 //     http_response_code(403);
 //     echo json_encode(['error' => 'You do not have permission to create posts.']);
 //     exit;

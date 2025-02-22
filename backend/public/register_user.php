@@ -82,7 +82,7 @@ try {
     $db = getDB();
 
     // Insert user
-    // role_id = 2 as default (e.g. student)
+    // role_id = 2 as default (e.g. prospective student)
     $stmt = $db->prepare("
         INSERT INTO users (role_id, first_name, last_name, email, phone, password_hash, education_status, is_over_18)
         VALUES (:role_id, :first_name, :last_name, :email, :phone, :password_hash, :education_status, :is_over_18)

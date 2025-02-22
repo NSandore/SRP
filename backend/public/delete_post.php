@@ -48,8 +48,8 @@ try {
         exit;
     }
 
-    // 6. Check if session user is post owner OR role_id=3
-    if ($role_id_session !== 3 && $post['user_id'] != $user_id_session) {
+    // 6. Check if session user is post owner OR role_id=7
+    if ($role_id_session !== 7 && $post['user_id'] != $user_id_session) {
         // No permission
         http_response_code(403); // Forbidden
         echo json_encode(['error' => 'You do not have permission to delete this post.']);

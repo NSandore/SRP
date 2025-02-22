@@ -5,8 +5,8 @@ require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
 // Check if the user is logged in and has the appropriate role_id
-// Assuming role_id = 3 corresponds to users who can create threads
-if (!isset($_SESSION['role_id']) || $_SESSION['role_id'] != 3) {
+// Assuming role_id = 7 corresponds to users who can create threads
+if (!isset($_SESSION['role_id']) || $_SESSION['role_id'] != 7) {
     echo json_encode(['error' => 'You do not have permission to create threads.']);
     exit;
 }

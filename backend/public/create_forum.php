@@ -14,7 +14,7 @@ $name = trim($data['name'] ?? '');
 $description = trim($data['description'] ?? '');
 
 // **Validate User Role**
-if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 3) {
+if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 7) {
     http_response_code(403); // Forbidden
     echo json_encode(['error' => 'You do not have permission to create forums.']);
     exit;
