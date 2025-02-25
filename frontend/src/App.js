@@ -29,6 +29,7 @@ import {
 } from 'react-icons/fa';
 import { TbWriting } from 'react-icons/tb';
 import { BiInfoCircle } from 'react-icons/bi';
+import Connections from './components/Connections';
 import { RiMedalFill } from 'react-icons/ri';
 import SignUp from './components/SignUp';
 import InterestSelection from './components/InterestSelection';
@@ -63,8 +64,32 @@ function ForumCard({
   // Only admins can edit/delete forums (for this example)
   const canEditOrDelete = userData && Number(userData.role_id) === 7;
 
+  // State for ambassador submenu
+  const [ambassadorCommunities, setAmbassadorCommunities] = useState([]);
+  const [submenuForumId, setSubmenuForumId] = useState(null);
+
+  // Fetch ambassador communities when the component mounts (if the user is an ambassador)
+  useEffect(() => {
+    if (userData && userData.is_ambassador === "1") {
+      axios
+        .get(`/api/fetch_ambassador_communities.php?user_id=${userData.user_id}`, {
+          withCredentials: true,
+        })
+        .then(response => {
+          if (response.data.success) {
+            setAmbassadorCommunities(response.data.communities);
+          } else {
+            console.error("Error fetching ambassador communities:", response.data.error);
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching ambassador communities:", error);
+        });
+    }
+  }, [userData]);
+
   return (
-    <div className="forum-card" style={{ position: 'relative' }}>
+    <div key={forum.forum_id} className="forum-card" style={{ marginBottom: '1rem', position: 'relative' }}>
       {/* 3-dot menu icon */}
       <FaEllipsisV
         className="menu-icon"
@@ -83,9 +108,75 @@ function ForumCard({
             borderRadius: '4px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             zIndex: 10,
-            width: '120px'
+            width: '180px'
           }}
         >
+          {/* Ambassador submenu: only show if the user is an ambassador */}
+          {userData && userData.is_ambassador === "1" && (
+            <div className="dropdown-item submenu-container">
+              <div
+                className="submenu-title"
+                style={{ cursor: 'pointer', padding: '8px' }}
+                onMouseEnter={() => setSubmenuForumId(forum.forum_id)}
+                onMouseLeave={() => setSubmenuForumId(null)}
+              >
+                Add to University Feed
+              </div>
+              {submenuForumId === forum.forum_id && (
+                <ul
+                  className="submenu-list"
+                  style={{ listStyle: 'none', padding: '0', margin: '0' }}
+                >
+                  {ambassadorCommunities.length > 0 ? (
+                    ambassadorCommunities.map((community) => (
+                      <li
+                        key={community.community_id}
+                        className="submenu-item"
+                        style={{
+                          padding: '6px 8px',
+                          cursor: 'pointer',
+                          borderTop: '1px solid #eee'
+                        }}
+                        onClick={() => {
+                          console.log(
+                            "Pinning forum", forum.forum_id,
+                            "to community", community.community_id
+                          );
+                          axios
+                            .post(
+                              '/api/pin_to_community.php',
+                              {
+                                community_id: community.community_id,
+                                item_id: forum.forum_id,
+                                item_type: 'forum'
+                              },
+                              { withCredentials: true }
+                            )
+                            .then(response => {
+                              if (response.data.success) {
+                                alert('Forum pinned to community successfully!');
+                                setOpenMenuId(null);
+                                setSubmenuForumId(null);
+                              } else {
+                                alert('Error: ' + response.data.error);
+                              }
+                            })
+                            .catch(error => {
+                              console.error("Error pinning forum:", error);
+                              alert('Error pinning forum');
+                            });
+                        }}
+                      >
+                        {community.name}
+                      </li>
+                    ))
+                  ) : (
+                    <li style={{ padding: '6px 8px' }}>No communities found</li>
+                  )}
+                </ul>
+              )}
+            </div>
+          )}
           {userData && (
             <button
               className="dropdown-item"
@@ -97,9 +188,11 @@ function ForumCard({
                 textAlign: 'left',
                 cursor: 'pointer'
               }}
-              onClick={() => handleSaveForum(forum.forum_id, isForumSaved(forum.forum_id))}
+              onClick={() => {
+                handleSaveForum(forum.forum_id, forum.saved);
+              }}
             >
-              {isForumSaved(forum.forum_id) ? 'Unsave' : 'Save'}
+              {forum.saved ? 'Unsave' : 'Save'}
             </button>
           )}
           <button
@@ -197,6 +290,7 @@ function App() {
         const response = await axios.get('http://34.31.85.242/api/check_session.php', {
           withCredentials: true
         });
+        console.log("Session Data:", response.data); // Logs the $_SESSION data sent from PHP
         if (response.data?.loggedIn) {
           const user = response.data.user;
           user.role_id = Number(user.role_id);
@@ -214,7 +308,7 @@ function App() {
 
   const fetchNotifications = async (user_id) => {
     try {
-      const response = await axios.get(`http://34.31.85.242/api/fetch_notifications.php?user_id=${user_id}`, {
+      const response = await axios.get('http://34.31.85.242/api/fetch_notifications.php?user_id=${user_id}', {
         withCredentials: true
       });
 
@@ -350,9 +444,7 @@ function App() {
                 />
                 <Route
                   path="/connections"
-                  element={
-                    userData ? <FollowsView userData={userData} /> : <Navigate to="/login" />
-                  }
+                  element={userData ? <Connections userData={userData} /> : <Navigate to="/login" />}
                 />
                 <Route
                   path="/scholarships"
@@ -387,7 +479,7 @@ function App() {
                   path="/info/forum/:forum_id/thread/:thread_id"
                   element={<ThreadView userData={userData} />}
                 />
-                <Route path="/user/:user_id" element={<UserProfileView />} />
+                <Route path="/user/:user_id" element={<UserProfileView userData={userData} />} />
                 {/* New routes for universities and groups */}
                 <Route path="/university/:id" element={<UniversityProfile userData={userData} />} />
                 <Route path="/group/:id" element={<GroupProfile userData={userData} />} />
@@ -800,12 +892,14 @@ function Feed({ activeFeed, activeSection, userData }) {
   // 3) Fetch Forums (e.g., community_id=3 for "info")
   //
   const fetchForums = async (communityId) => {
+    if (!userData) {
+      setIsLoadingForums(false);
+      return;
+    }
     setIsLoadingForums(true);
     try {
       const resp = await axios.get(`/api/fetch_forums.php?community_id=${communityId}&user_id=${userData.user_id}`);
       console.log("Fetched forums response:", resp.data);
-      // Adjust extraction based on response structure:
-      // Use resp.data.forums if it exists; otherwise assume resp.data is the array.
       const forumsData = resp.data.forums || resp.data;
       if (Array.isArray(forumsData)) {
         setForums(forumsData);
@@ -819,7 +913,7 @@ function Feed({ activeFeed, activeSection, userData }) {
     } finally {
       setIsLoadingForums(false);
     }
-  };
+  };  
 
   // A helper function to sort items
   const sortItems = (items, criteria) => {
@@ -1237,6 +1331,41 @@ function Feed({ activeFeed, activeSection, userData }) {
                           width: '120px'
                         }}
                       >
+                        {userData && userData.is_ambassador === "1" && (
+                          <button
+                            className="dropdown-item"
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              background: 'none',
+                              padding: '8px',
+                              textAlign: 'left',
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => {
+                              console.log("Add to University button clicked");
+                              // Assume the forum object has a community_id field which is the community to pin to.
+                              axios.post('/api/pin_to_community.php', {
+                                community_id: forum.community_id, // The community that the ambassador represents
+                                item_id: forum.forum_id,           // The forum to be pinned
+                                item_type: 'forum'
+                              }, { withCredentials: true })
+                              .then(response => {
+                                if (response.data.success) {
+                                  alert('Forum pinned to community successfully!');
+                                } else {
+                                  alert('Error: ' + response.data.error);
+                                }
+                              })
+                              .catch(error => {
+                                console.error("Error pinning forum:", error);
+                                alert('Error pinning forum');
+                              });
+                            }}
+                          >
+                            Add to University Feed
+                          </button>
+                        )}
                         {userData && (
                           <button
                             className="dropdown-item"
@@ -1248,9 +1377,14 @@ function Feed({ activeFeed, activeSection, userData }) {
                               textAlign: 'left',
                               cursor: 'pointer'
                             }}
-                            onClick={() => handleSaveForum(forum.forum_id, isSaved)}
+                            onClick={() => {
+                              console.log(
+                                'Save/Unsave button clicked for forum_id: ${forum.forum_id}, currently saved: ${forum.saved}'
+                              );
+                              handleSaveForum(forum.forum_id, forum.saved);
+                            }}
                           >
-                            {isSaved ? 'Unsave' : 'Save'}
+                            {forum.saved ? 'Unsave' : 'Save'}
                           </button>
                         )}
                         <button
@@ -1263,12 +1397,17 @@ function Feed({ activeFeed, activeSection, userData }) {
                             textAlign: 'left',
                             cursor: 'pointer'
                           }}
-                          onClick={() => alert(`Report forum with ID ${forum.forum_id}`)}
+                          onClick={() => {
+                            console.log(`Report button clicked for forum_id: ${forum.forum_id}`);
+                            alert('Report forum with ID ${forum.forum_id}');
+                            setOpenMenuId(null);
+                          }}
                         >
                           Report
                         </button>
                       </div>
                     )}
+
 
                     {/* Forum Link */}
                     <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -1350,7 +1489,7 @@ function Feed({ activeFeed, activeSection, userData }) {
                 onClick={() => setSelectedCommunityTab("university")}
                 className={selectedCommunityTab === "university" ? "active" : ""}
               >
-                Communities
+                Universities
               </button>
               <button
                 onClick={() => setSelectedCommunityTab("group")}

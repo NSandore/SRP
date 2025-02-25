@@ -575,7 +575,11 @@ function PostItem({
               </button>
             </div>
           )}
-
+          {Number(post.verified) === 1 && post.verified_at && (
+            <div className="verified-info">
+              Verified Answer on {new Date(post.verified_at).toLocaleString()}
+            </div>
+          )}
           <div
             className="forum-description"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
@@ -588,6 +592,7 @@ function PostItem({
             </RouterLink>{' '}
             on {new Date(post.created_at).toLocaleString()}
           </small>
+          
 
           {/* Upvote/Downvote + Reply Icon row */}
           <div className="vote-row">
@@ -642,7 +647,7 @@ function PostItem({
               </button>
             )}
             {/* NEW: Verify Answer button for admins */}
-            {userData && Number(userData.role_id) <= 5 && post.verified === 0 && (
+            {userData && [5, 6, 7].includes(Number(userData.role_id)) && post.verified === 0 && (
               console.log(`Rendering Verify Button for post: ${post.post_id}`),
               <button
                 type="button"

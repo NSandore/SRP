@@ -10,7 +10,9 @@ if (isset($_SESSION['user_id'])) {
             "first_name" => $_SESSION['first_name'],
             "last_name" => $_SESSION['last_name'],
             "email" => $_SESSION['email'],
-            "role_id" => $_SESSION['role_id']
+            "role_id" => $_SESSION['role_id'],
+            "avatar_path" => $_SESSION['avatar_path'],
+            "is_ambassador" => $_SESSION['is_ambassador']
         ]
     ]);
 } else {

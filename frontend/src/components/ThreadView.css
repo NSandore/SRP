@@ -115,6 +115,12 @@
   .verified {
     border: 2px solid green;
   }  
+
+  .verified-info {
+    font-size: 0.9rem;
+    color: green;
+    margin-top: 0.25rem;
+  }  
   
   .reply-button {
     background: none;

@@ -45,16 +45,40 @@
   background-color: var(--light-background);
 }
 
+/* New: Separate University Logo Container */
+.university-logo-container {
+  display: flex;
+  justify-content: center;
+  margin-top: -75px; /* Adjust this value as needed */
+  position: relative;
+  z-index: 2;
+}
+
 .university-logo {
   width: 150px;
   height: 150px;
   border-radius: 50%;
   border: 4px solid var(--background-color);
-  background: var(--background-color);
-  position: relative;
-  margin: 0 auto 1rem;
+  background: transparent; /* Ensures no background */
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
+
+/* Fix "Visit Website" button color */
+.university-info a {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  color: #fff;
+  background-color: var(--primary-color);
+  text-decoration: none;
+  border-radius: var(--border-radius);
+  transition: background var(--transition-speed) ease;
+}
+
+.university-info a:hover {
+  background-color: var(--secondary-color);
+}
+
 
 .university-name {
   font-size: 2.5rem;
@@ -74,21 +98,6 @@
   font-size: 1.1rem;
   color: var(--subtext-color);
   margin: 0.5rem 0;
-}
-
-.university-info a {
-  display: inline-block;
-  margin-top: 1.5rem;
-  padding: 0.75rem 1.5rem;
-  background-color: var(--primary-color);
-  color: #fff;
-  text-decoration: none;
-  border-radius: var(--border-radius);
-  transition: background var(--transition-speed) ease;
-}
-
-.university-info a:hover {
-  background-color: var(--secondary-color);
 }
 
 /* ---------- Edit Mode Styles ---------- */
@@ -187,4 +196,114 @@
   .university-location {
     font-size: 0.9rem;
   }
+}
+/* Ambassador Overlay Styles */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent dark background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.overlay-content {
+  background-color: #fff;
+  padding: 2rem;
+  width: 90%;
+  max-width: 600px;
+  border-radius: 8px;
+  max-height: 80%;
+  overflow-y: auto; /* Makes the list scrollable */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+}
+
+/* Ambassador List */
+.ambassador-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ambassador-item {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.ambassador-item:last-child {
+  border-bottom: none;
+}
+
+/* Ambassador Avatar */
+.ambassador-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 1rem;
+}
+
+/* Ambassador Info */
+.ambassador-info {
+  flex: 1;
+}
+
+.ambassador-name {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+/* Override link styling for ambassador names */
+.ambassador-name a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.ambassador-name a:hover {
+  text-decoration: none;
+  color: inherit;
+}
+
+.ambassador-headline {
+  font-size: 0.9rem;
+  color: #777;
+  margin: 0.25rem 0 0;
+}
+
+/* Message Button */
+.message-button {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+}
+
+.message-button:hover {
+  background-color: #0056b3;
+}
+
+/* Optional: Style the close button inside the overlay */
+.overlay .overlay-content button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #ccc;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.overlay .overlay-content button:hover {
+  background-color: #bbb;
 }

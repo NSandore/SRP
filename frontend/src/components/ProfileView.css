@@ -13,9 +13,6 @@
   --transition-speed: 0.3s;
 }
 
-/* Apply the user’s custom colors via inline style in SelfProfileView.js
-   (e.g. style={{ '--primary-color': primaryColor, '--secondary-color': secondaryColor }}) */
-
 /* Main Profile Container */
 .profile-view {
   background: var(--light-bg);
@@ -96,26 +93,52 @@
   color: var(--subtext-color);
 }
 
-/* Edit/Save Button */
-.edit-button-container {
+/* Profile Actions (Follow/Unfollow & Message Buttons) */
+.profile-actions {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  gap: 10px;
+  margin-top: 10px;
 }
-.edit-button,
-.save-button {
-  background: var(--primary-color);
-  color: #fff;
-  border: none;
-  border-radius: 20px;
-  padding: 0.7rem 1.2rem;
+.follow-button,
+.message-button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
   cursor: pointer;
-  transition: background var(--transition-speed);
-  font-size: 1rem;
+  border: none;
+  transition: background-color 0.3s ease-in-out;
 }
-.edit-button:hover,
-.save-button:hover {
-  background: var(--secondary-color);
+.follow-button.follow {
+  background-color: var(--primary-color);
+  color: #fff;
+}
+.follow-button.unfollow {
+  background-color: #ccc;
+  color: #333;
+}
+.follow-button:hover {
+  opacity: 0.8;
+}
+.message-button {
+  background-color: #28a745;
+  color: #fff;
+}
+.message-button:hover {
+  background-color: #218838;
+}
+
+/* Ambassador Logos */
+.ambassador-logos {
+  display: inline-flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.community-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ccc;
 }
 
 /* Profile Sections */
@@ -128,33 +151,6 @@
   margin-bottom: 1rem;
   color: var(--primary-color);
   font-size: 1.8rem;
-}
-
-/* Experience & Education Items */
-.experience-item,
-.education-item {
-  margin-bottom: 1rem;
-  padding: 1rem;
-  background: #f9f9f9;
-  border-left: 4px solid var(--primary-color);
-  border-radius: 6px;
-}
-.experience-item h4,
-.education-item h4 {
-  margin: 0;
-  font-size: 1.3rem;
-  color: var(--text-color);
-}
-.experience-duration,
-.education-duration {
-  display: block;
-  font-size: 0.9rem;
-  color: var(--muted-color);
-  margin-top: 0.2rem;
-}
-.education-institution {
-  font-weight: 600;
-  color: var(--subtext-color);
 }
 
 /* Skills List */

@@ -24,31 +24,8 @@ try {
     // Call getDB() to get the PDO connection
     $db = getDB();
 
-    // Prepare and execute the query
-    $query = "SELECT 
-                user_id,
-                role_id,
-                recent_university_id,
-                first_name,
-                last_name,
-                email,
-                phone,
-                education_status,
-                is_over_18,
-                created_at,
-                updated_at,
-                headline,
-                about,
-                skills,
-                avatar_path,
-                banner_path,
-                primary_color,
-                secondary_color,
-                verified,
-                verified_community_id
-              FROM users
-              WHERE user_id = :user_id";
-
+    // Fetch user data from the `user_profiles` view instead of `users`
+    $query = "SELECT * FROM user_profiles WHERE user_id = :user_id";
     $stmt = $db->prepare($query);
     $stmt->execute([':user_id' => $user_id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -60,6 +37,13 @@ try {
             'error' => 'User not found'
         ]);
         exit;
+    }
+
+    // Decode JSON field (community_ambassador_of) if it's not null
+    if (!empty($user['community_ambassador_of'])) {
+        $user['community_ambassador_of'] = json_decode($user['community_ambassador_of'], true);
+    } else {
+        $user['community_ambassador_of'] = [];
     }
 
     // Return the user data
@@ -83,3 +67,4 @@ try {
     ]);
     exit;
 }
+?>

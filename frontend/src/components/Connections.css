@@ -1,0 +1,193 @@
+/* Connections.css */
+:root {
+    --primary-color: #0077B5;
+    --secondary-color: #005f8d;
+    --text-color: #333;
+    --subtext-color: #777;
+    --background-color: #fff;
+    --light-background: #f7f7f7;
+    --border-radius: 8px;
+    --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --transition-speed: 0.3s;
+    --font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  
+  .connections-container {
+    width: 100%;
+    max-width: 72.5%;
+    margin: auto;
+    padding: 1.5rem;
+    background: var(--background-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    font-family: var(--font-family);
+  }
+  
+  .connections-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #ddd;
+  }
+  
+  .connections-header h2 {
+    font-size: 1.5rem;
+    margin: 0;
+    color: var(--text-color);
+  }
+  
+  /* Toggle buttons */
+  .toggle-buttons {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .toggle-button {
+    background: #e0e0e0;
+    border: none;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 1rem;
+    border-radius: 5px;
+    transition: background var(--transition-speed), color var(--transition-speed);
+  }
+  
+  .toggle-button.active {
+    background: var(--primary-color);
+    color: white;
+  }
+  
+  /* Scrollable connections list */
+  .connections-list {
+    max-height: 350px;
+    overflow-y: auto;
+    margin-top: 1rem;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    padding: 10px;
+    background: var(--light-background);
+  }
+  
+  .connections-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .connections-list li {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background: white;
+    margin-bottom: 5px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    transition: transform 0.2s;
+  }
+  
+  .connections-list li:hover {
+
+  }
+  
+  /* Avatar */
+  .connection-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 15px;
+  }
+  
+  /* User Info */
+  .connection-info {
+    flex: 1;
+  }
+  
+  .connection-name {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin: 0;
+    color: var(--text-color);
+  }
+  
+  .connection-name a {
+    text-decoration: none;
+    color: inherit;
+  }
+  
+  .connection-name a:hover {
+    text-decoration: underline;
+  }
+  
+  .connection-headline {
+    font-size: 0.9rem;
+    color: var(--subtext-color);
+    margin: 0.25rem 0 0;
+  }
+  
+  /* Follow/Unfollow and Message Buttons */
+  .follow-button,
+  .message-button {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    transition: background var(--transition-speed);
+  }
+  
+  .follow-button {
+    background-color: var(--primary-color);
+    color: white;
+  }
+  
+  .follow-button.unfollow {
+    background-color: #ff4d4d;
+  }
+  
+  .follow-button:hover {
+    background-color: var(--secondary-color);
+  }
+  
+  .follow-button.unfollow:hover {
+    background-color: #cc0000;
+  }
+  
+  .message-button {
+    background-color: #007bff;
+    color: #fff;
+    margin-left: 10px;
+  }
+  
+  .message-button:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .connections-container {
+      max-width: 100%;
+      padding: 1rem;
+    }
+  
+    .connection-avatar {
+      width: 40px;
+      height: 40px;
+    }
+  
+    .connection-name {
+      font-size: 1rem;
+    }
+  
+    .connection-headline {
+      font-size: 0.85rem;
+    }
+  
+    .follow-button,
+    .message-button {
+      font-size: 0.8rem;
+      padding: 5px 10px;
+    }
+  }
+  
