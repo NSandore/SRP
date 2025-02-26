@@ -4,7 +4,7 @@ import './ProfileView.css';
 import DOMPurify from 'dompurify';
 import { FaCheckCircle } from 'react-icons/fa';
 
-function SelfProfileView({ userData }) {
+function SelfProfileView({ userData, onProfileUpdate }) {
   // 1) Full profile data from fetch_user.php
   const [profile, setProfile] = useState(null);
 
@@ -85,9 +85,7 @@ function SelfProfileView({ userData }) {
   useEffect(() => {
     const fetchVerificationCommunity = async (communityId) => {
       try {
-        const res = await axios.get(
-          `/api/fetch_university.php?community_id=${communityId}`
-        );
+        const res = await axios.get(`/api/fetch_university.php?community_id=${communityId}`);
         if (res.data.success && res.data.university) {
           setVerifiedCommunityName(res.data.university.name);
         }
@@ -163,7 +161,6 @@ function SelfProfileView({ userData }) {
         }
       );
       if (res.data.success) {
-        // Update the local state and return the new path
         if (type === 'avatar') {
           setAvatarPath(res.data.avatar_path);
           setAvatarFile(null);
@@ -190,7 +187,7 @@ function SelfProfileView({ userData }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!userData) return;
-    // First, upload any new files
+    // Upload files first if they were changed
     let updatedAvatarPath = avatarPath;
     let updatedBannerPath = bannerPath;
     if (avatarFile) {
@@ -224,12 +221,14 @@ function SelfProfileView({ userData }) {
       if (response.data.success) {
         alert('Profile updated successfully!');
         setIsEditing(false);
-        const updatedRes = await axios.get(
-          `/api/fetch_user.php?user_id=${userData.user_id}`,
-          { withCredentials: true }
-        );
+        // Option 1: Refetch the session data
+        const updatedRes = await axios.get(`/api/fetch_user.php?user_id=${userData.user_id}`, { withCredentials: true });
         if (updatedRes.data.success) {
           setProfile(updatedRes.data.user);
+          if (onProfileUpdate) {
+            onProfileUpdate(updatedRes.data.user); // Update the global state (e.g., for nav icons)
+          }
+          window.location.reload();
         }
       } else {
         alert('Error updating profile: ' + response.data.error);
@@ -271,10 +270,7 @@ function SelfProfileView({ userData }) {
               <div className="banner-upload-container">
                 <label className="banner-upload">
                   Choose Banner
-                  <input
-                    type="file"
-                    onChange={(e) => setBannerFile(e.target.files[0])}
-                  />
+                  <input type="file" onChange={(e) => setBannerFile(e.target.files[0])} />
                 </label>
               </div>
             )}
@@ -288,10 +284,7 @@ function SelfProfileView({ userData }) {
                 <div className="avatar-upload-container">
                   <label className="avatar-upload">
                     Choose Avatar
-                    <input
-                      type="file"
-                      onChange={(e) => setAvatarFile(e.target.files[0])}
-                    />
+                    <input type="file" onChange={(e) => setAvatarFile(e.target.files[0])} />
                   </label>
                 </div>
               )}

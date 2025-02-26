@@ -1,4 +1,5 @@
 <?php
+session_start(); // Start the session
 
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -45,7 +46,7 @@ if (isset($input['skills'])) {
     $skills = null;
 }
 
-// Prepare the UPDATE query. Make sure your "users" table contains the columns: first_name, last_name, headline, about, and skills.
+// Prepare the UPDATE query.
 $query = "UPDATE users 
           SET first_name = :first_name, 
               last_name = :last_name, 
@@ -78,10 +79,20 @@ $stmt->bindParam(':secondary_color', $secondary_color);
 $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
 
 if ($stmt->execute()) {
+    // Update the session with new profile data
+    $_SESSION['first_name'] = $first_name;
+    $_SESSION['last_name'] = $last_name;
+    $_SESSION['headline'] = $headline;
+    $_SESSION['about'] = $about;
+    $_SESSION['skills'] = $skills;
+    $_SESSION['avatar_path'] = $avatar_path;          // Update this key
+    $_SESSION['banner_path'] = $banner_path;          // And this key
+    $_SESSION['primary_color'] = $primary_color;
+    $_SESSION['secondary_color'] = $secondary_color;
+    
     echo json_encode(['success' => true]);
 } else {
     http_response_code(500);
-    // Log the error for debugging
     error_log("Execute failed: " . implode(" - ", $stmt->errorInfo()));
     echo json_encode(['success' => false, 'error' => 'Update failed: ' . implode(" - ", $stmt->errorInfo())]);
 }
