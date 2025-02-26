@@ -1,5 +1,3 @@
-/* src/components/ProfileView.css */
-
 /* Define CSS custom properties with defaults */
 :root {
   --primary-color: #0077B5;
@@ -23,82 +21,125 @@
   margin: 2rem auto;
   box-shadow: var(--shadow);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  position: relative;
 }
 
-/* Banner Section */
-.profile-banner {
-  position: relative;
-  margin-bottom: 2rem;
-  overflow: hidden;
-  border-radius: 10px;
-}
+/* ===================== */
+/* Banner Section        */
+/* ===================== */
 .profile-banner-img {
   width: 100%;
-  height: 250px;
+  max-height: 250px; /* Force max-height of 250px */
   object-fit: cover;
   display: block;
   filter: brightness(0.85);
   transition: filter var(--transition-speed);
+  border-radius: 10px;
+  padding-bottom: 20px;
 }
+
 .profile-banner-img:hover {
   filter: brightness(1);
 }
 
+/* Container for Banner Upload Button */
+.banner-upload-container {
+  display: flex;
+  justify-content: center;
+  margin: 20px;
+}
+
+/* Upload button styles (for both avatar and banner) */
+.avatar-upload,
+.banner-upload {
+  background: var(--primary-color);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background var(--transition-speed);
+  white-space: nowrap;
+}
+
+.avatar-upload:hover,
+.banner-upload:hover {
+  background: var(--secondary-color);
+}
+
+.avatar-upload input,
+.banner-upload input {
+  display: none;
+}
+
+/* ===================== */
 /* Profile Header & Avatar */
+/* ===================== */
 .profile-header {
   display: flex;
   align-items: center;
-  gap: 2rem;
+  gap: 1.5rem;
   margin-bottom: 2rem;
   flex-wrap: wrap;
 }
+
 .avatar-container {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
+
 .profile-avatar {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%; /* Circle shape */
   object-fit: cover;
   border: 4px solid var(--primary-color);
   transition: border-color var(--transition-speed);
+  margin-bottom: 0.5rem; /* Space between avatar and its upload button */
 }
+
 .profile-avatar:hover {
   border-color: var(--secondary-color);
 }
-.avatar-upload-section {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 0.5rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
+
+/* Show upload button below avatar when editing */
+.avatar-upload-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
-/* Profile Info */
+/* ===================== */
+/* Profile Info          */
+/* ===================== */
 .profile-info {
   flex: 1;
   min-width: 250px;
 }
+
 .profile-name {
   margin: 0;
   font-size: 2.5rem;
   color: var(--text-color);
   font-weight: 600;
 }
+
 .profile-headline {
   margin: 0.5rem 0;
   font-size: 1.3rem;
   color: var(--subtext-color);
 }
 
+/* ===================== */
 /* Profile Actions (Follow/Unfollow & Message Buttons) */
+/* ===================== */
 .profile-actions {
   display: flex;
   gap: 10px;
   margin-top: 10px;
 }
+
 .follow-button,
 .message-button {
   padding: 8px 16px;
@@ -108,31 +149,39 @@
   border: none;
   transition: background-color 0.3s ease-in-out;
 }
+
 .follow-button.follow {
   background-color: var(--primary-color);
   color: #fff;
 }
+
 .follow-button.unfollow {
   background-color: #ccc;
   color: #333;
 }
+
 .follow-button:hover {
   opacity: 0.8;
 }
+
 .message-button {
   background-color: #28a745;
   color: #fff;
 }
+
 .message-button:hover {
   background-color: #218838;
 }
 
-/* Ambassador Logos */
+/* ===================== */
+/* Ambassador Logos      */
+/* ===================== */
 .ambassador-logos {
   display: inline-flex;
   gap: 8px;
   margin-top: 10px;
 }
+
 .community-logo {
   width: 24px;
   height: 24px;
@@ -141,10 +190,13 @@
   border: 2px solid #ccc;
 }
 
-/* Profile Sections */
+/* ===================== */
+/* Profile Sections      */
+/* ===================== */
 .profile-section {
   margin-bottom: 2rem;
 }
+
 .profile-section h3 {
   border-bottom: 3px solid var(--primary-color);
   padding-bottom: 0.5rem;
@@ -153,7 +205,9 @@
   font-size: 1.8rem;
 }
 
-/* Skills List */
+/* ===================== */
+/* Skills List           */
+/* ===================== */
 .skills-list {
   list-style: none;
   padding: 0;
@@ -161,6 +215,7 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
 .skill-item {
   background: #eef9ff;
   color: var(--primary-color);
@@ -169,18 +224,22 @@
   font-size: 0.9rem;
   transition: background var(--transition-speed);
 }
+
 .skill-item:hover {
   background: var(--secondary-color);
   color: #fff;
 }
 
-/* Color Picker Container */
+/* ===================== */
+/* Color Picker Container*/
+/* ===================== */
 .color-picker-container {
   margin-top: 1rem;
   display: flex;
   gap: 1.5rem;
   align-items: center;
 }
+
 .color-picker-container label {
   font-size: 1rem;
   color: var(--text-color);
@@ -189,7 +248,9 @@
   gap: 0.3rem;
 }
 
-/* Input & Textarea Styling for Edit Mode */
+/* ===================== */
+/* Input & Textarea      */
+/* ===================== */
 .edit-name-input,
 .edit-headline-input,
 .profile-section textarea,
@@ -204,6 +265,7 @@
   box-sizing: border-box;
   transition: border-color var(--transition-speed);
 }
+
 .edit-name-input:focus,
 .edit-headline-input:focus,
 .profile-section textarea:focus,
@@ -212,22 +274,35 @@
   outline: none;
 }
 
-/* Responsive Design */
+/* ===================== */
+/* Responsive Design     */
+/* ===================== */
 @media (max-width: 768px) {
   .profile-header {
     flex-direction: column;
     align-items: center;
     text-align: center;
   }
+  
   .profile-avatar {
-    width: 120px;
-    height: 120px;
+    width: 100px;
+    height: 100px;
   }
+  
   .profile-info {
     width: 100%;
   }
+  
   .profile-view {
     padding: 1rem;
     margin: 1rem;
+  }
+  
+  /* For smaller screens, upload buttons appear below the avatar */
+  .avatar-upload-container {
+    position: static;
+    transform: none;
+    margin-top: 0.5rem;
+    justify-content: center;
   }
 }

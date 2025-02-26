@@ -1,10 +1,8 @@
-// src/components/SelfProfileView.js
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './ProfileView.css';
 import DOMPurify from 'dompurify';
-import { FaCheckCircle } from 'react-icons/fa'; // Import verification badge icon
+import { FaCheckCircle } from 'react-icons/fa';
 
 function SelfProfileView({ userData }) {
   // 1) Full profile data from fetch_user.php
@@ -26,33 +24,31 @@ function SelfProfileView({ userData }) {
   const [about, setAbout] = useState('');
   const [skills, setSkills] = useState('');
 
-  // 4) Avatar + Banner paths
+  // Avatar & Banner
   const [avatarPath, setAvatarPath] = useState('/uploads/avatars/default-avatar.png');
   const [bannerPath, setBannerPath] = useState('/uploads/banners/default-banner.jpg');
-
-  // 5) File upload state for avatar/banner
   const [avatarFile, setAvatarFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
 
-  // 6) Primary and Secondary color states
+  // 4) Primary & Secondary color states
   const [primaryColor, setPrimaryColor] = useState('#0077B5');
   const [secondaryColor, setSecondaryColor] = useState('#005f8d');
 
-  // 7) Verification-related states
+  // 5) Verification-related states
   const [verified, setVerified] = useState(false);
   const [verifiedCommunityName, setVerifiedCommunityName] = useState('');
 
   // --------------------------------------------------------------------------
-  // Fetch full profile from fetch_user.php
+  // Fetch full profile from /api/fetch_user.php
   // --------------------------------------------------------------------------
   useEffect(() => {
     if (!userData) return;
-
     const fetchUserProfile = async () => {
       try {
-        const response = await axios.get(`/api/fetch_user.php?user_id=${userData.user_id}`, {
-          withCredentials: true,
-        });
+        const response = await axios.get(
+          `/api/fetch_user.php?user_id=${userData.user_id}`,
+          { withCredentials: true }
+        );
         if (response.data.success) {
           setProfile(response.data.user);
         } else {
@@ -66,7 +62,7 @@ function SelfProfileView({ userData }) {
   }, [userData]);
 
   // --------------------------------------------------------------------------
-  // Once we have profile, populate local states
+  // Populate local state from profile
   // --------------------------------------------------------------------------
   useEffect(() => {
     if (profile) {
@@ -79,33 +75,33 @@ function SelfProfileView({ userData }) {
       setBannerPath(profile.banner_path || '/uploads/banners/default-banner.jpg');
       setPrimaryColor(profile.primary_color || '#0077B5');
       setSecondaryColor(profile.secondary_color || '#005f8d');
-      setVerified(profile.verified === '1' || profile.verified === 1); // handle both number/string
+      setVerified(profile.verified === '1' || profile.verified === 1);
     }
   }, [profile]);
 
   // --------------------------------------------------------------------------
-  // Fetch the name of the verifying community if user is verified
+  // Fetch verifying community name (if verified)
   // --------------------------------------------------------------------------
   useEffect(() => {
     const fetchVerificationCommunity = async (communityId) => {
       try {
-        const res = await axios.get(`/api/fetch_university.php?community_id=${communityId}`);
+        const res = await axios.get(
+          `/api/fetch_university.php?community_id=${communityId}`
+        );
         if (res.data.success && res.data.university) {
-          // Adjust to match whatever field in 'communities' table holds the name
           setVerifiedCommunityName(res.data.university.name);
         }
       } catch (err) {
         console.error('Error fetching verification community name:', err);
       }
     };
-
     if (verified && profile && profile.verified_community_id) {
       fetchVerificationCommunity(profile.verified_community_id);
     }
   }, [verified, profile]);
 
   // --------------------------------------------------------------------------
-  // Fetch experience and education data
+  // Fetch experience & education data
   // --------------------------------------------------------------------------
   useEffect(() => {
     if (!userData) {
@@ -115,7 +111,6 @@ function SelfProfileView({ userData }) {
       setLoadingEdu(false);
       return;
     }
-
     setLoadingExp(true);
     axios
       .get(`/api/user_experience.php?user_id=${userData.user_id}`, { withCredentials: true })
@@ -151,64 +146,65 @@ function SelfProfileView({ userData }) {
   };
 
   // --------------------------------------------------------------------------
-  // Handler: Submit profile updates (file uploads, colors, etc.)
+  // Handler: Upload file for avatar or banner, returning new path
+  // --------------------------------------------------------------------------
+  const handleFileUpload = async (file, type) => {
+    if (!file || !userData) return null;
+    const formData = new FormData();
+    formData.append('user_id', userData.user_id);
+    formData.append(type, file);
+    try {
+      const res = await axios.post(
+        `/api/upload_${type}.php`,
+        formData,
+        {
+          withCredentials: true,
+          headers: { 'Content-Type': 'multipart/form-data' },
+        }
+      );
+      if (res.data.success) {
+        // Update the local state and return the new path
+        if (type === 'avatar') {
+          setAvatarPath(res.data.avatar_path);
+          setAvatarFile(null);
+          return res.data.avatar_path;
+        } else if (type === 'banner') {
+          setBannerPath(res.data.banner_path);
+          setBannerFile(null);
+          return res.data.banner_path;
+        }
+      } else {
+        alert(`Error uploading ${type}: ${res.data.error}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`Error uploading ${type}:`, error);
+      alert(`An error occurred while uploading the ${type}.`);
+      return null;
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // Handler: Submit profile updates
   // --------------------------------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!userData) return;
-
-    let newAvatarPath = avatarPath;
-    let newBannerPath = bannerPath;
-
-    // If a new avatar file was chosen, upload it.
+    // First, upload any new files
+    let updatedAvatarPath = avatarPath;
+    let updatedBannerPath = bannerPath;
     if (avatarFile) {
-      const avatarFormData = new FormData();
-      avatarFormData.append('user_id', userData.user_id);
-      avatarFormData.append('avatar', avatarFile);
-      try {
-        const avatarResp = await axios.post('/api/upload_avatar.php', avatarFormData, {
-          withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        if (avatarResp.data.success) {
-          newAvatarPath = avatarResp.data.avatar_path;
-          setAvatarPath(newAvatarPath);
-        } else {
-          alert('Error uploading avatar: ' + avatarResp.data.error);
-          return;
-        }
-      } catch (error) {
-        console.error('Error uploading avatar:', error);
-        alert('An error occurred while uploading the avatar.');
-        return;
+      const newAvatarPath = await handleFileUpload(avatarFile, 'avatar');
+      if (newAvatarPath) {
+        updatedAvatarPath = newAvatarPath;
       }
     }
-
-    // If a new banner file was chosen, upload it.
     if (bannerFile) {
-      const bannerFormData = new FormData();
-      bannerFormData.append('user_id', userData.user_id);
-      bannerFormData.append('banner', bannerFile);
-      try {
-        const bannerResp = await axios.post('/api/upload_banner.php', bannerFormData, {
-          withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        if (bannerResp.data.success) {
-          newBannerPath = bannerResp.data.banner_path;
-          setBannerPath(newBannerPath);
-        } else {
-          alert('Error uploading banner: ' + bannerResp.data.error);
-          return;
-        }
-      } catch (error) {
-        console.error('Error uploading banner:', error);
-        alert('An error occurred while uploading the banner.');
-        return;
+      const newBannerPath = await handleFileUpload(bannerFile, 'banner');
+      if (newBannerPath) {
+        updatedBannerPath = newBannerPath;
       }
     }
-
-    // Build the payload for updating profile data
     const updatedData = {
       user_id: userData.user_id,
       first_name: firstName,
@@ -216,12 +212,11 @@ function SelfProfileView({ userData }) {
       headline,
       about,
       skills: skills.split(',').map((s) => s.trim()),
-      avatar_path: newAvatarPath,
-      banner_path: newBannerPath,
+      avatar_path: updatedAvatarPath,
+      banner_path: updatedBannerPath,
       primary_color: primaryColor,
       secondary_color: secondaryColor,
     };
-
     try {
       const response = await axios.post('/api/update_profile.php', updatedData, {
         withCredentials: true,
@@ -229,10 +224,10 @@ function SelfProfileView({ userData }) {
       if (response.data.success) {
         alert('Profile updated successfully!');
         setIsEditing(false);
-        // Refresh the profile
-        const updatedRes = await axios.get(`/api/fetch_user.php?user_id=${userData.user_id}`, {
-          withCredentials: true,
-        });
+        const updatedRes = await axios.get(
+          `/api/fetch_user.php?user_id=${userData.user_id}`,
+          { withCredentials: true }
+        );
         if (updatedRes.data.success) {
           setProfile(updatedRes.data.user);
         }
@@ -248,57 +243,78 @@ function SelfProfileView({ userData }) {
   // --------------------------------------------------------------------------
   // Derived display variables
   // --------------------------------------------------------------------------
-  const fullName =
-    (profile && profile.first_name && profile.last_name)
-      ? `${profile.first_name} ${profile.last_name}`
-      : userData
-      ? `${userData.first_name} ${userData.last_name}`
-      : '';
-
+  const fullName = profile
+    ? `${profile.first_name} ${profile.last_name}`
+    : userData
+    ? `${userData.first_name} ${userData.last_name}`
+    : '';
   const displayHeadline = profile ? profile.headline || 'Student at Your University' : '';
   const displayAbout = profile ? profile.about || 'No about information provided yet.' : '';
   const displaySkills = profile && profile.skills ? profile.skills : '';
 
-  // Apply the user’s preferred colors as CSS variables on the container
+  // Inline style for primary/secondary colors
   const profileStyle = {
     '--primary-color': primaryColor,
     '--secondary-color': secondaryColor,
   };
 
   return (
-    <div className="profile-view" style={profileStyle}>
+    <div className={`profile-view ${isEditing ? 'editing' : ''}`} style={profileStyle}>
       {!userData ? (
         <p>Please log in to view your profile.</p>
       ) : (
         <>
           {/* Banner Section */}
-          <div className="profile-banner">
+          <div className="banner-section">
             <img src={bannerPath} alt="Profile Banner" className="profile-banner-img" />
+            {isEditing && (
+              <div className="banner-upload-container">
+                <label className="banner-upload">
+                  Choose Banner
+                  <input
+                    type="file"
+                    onChange={(e) => setBannerFile(e.target.files[0])}
+                  />
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Profile Header */}
           <div className="profile-header">
             <div className="avatar-container">
-              <img src={avatarPath} alt={`${fullName} Avatar`} className="profile-avatar" />
+              <img src={avatarPath} alt="Profile Avatar" className="profile-avatar" />
+              {isEditing && (
+                <div className="avatar-upload-container">
+                  <label className="avatar-upload">
+                    Choose Avatar
+                    <input
+                      type="file"
+                      onChange={(e) => setAvatarFile(e.target.files[0])}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
-
             <div className="profile-info">
               {isEditing ? (
-                <>
-                  <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="First Name"
-                    className="edit-name-input"
-                  />
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    placeholder="Last Name"
-                    className="edit-name-input"
-                  />
+                <div className="edit-fields">
+                  <div className="name-row">
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="First Name"
+                      className="edit-name-input"
+                    />
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Last Name"
+                      className="edit-name-input"
+                    />
+                  </div>
                   <input
                     type="text"
                     value={headline}
@@ -306,8 +322,6 @@ function SelfProfileView({ userData }) {
                     placeholder="Headline"
                     className="edit-headline-input"
                   />
-
-                  {/* Color pickers */}
                   <div className="color-picker-container">
                     <label>
                       Primary Color:
@@ -326,17 +340,13 @@ function SelfProfileView({ userData }) {
                       />
                     </label>
                   </div>
-                </>
+                </div>
               ) : (
                 <>
                   <h2 className="profile-name">
                     {fullName}{' '}
-                    {/* Show verification badge if verified */}
                     {verified && (
-                      <span
-                        className="verified-badge"
-                        title={`Verified from ${verifiedCommunityName}`}
-                      >
+                      <span className="verified-badge" title={`Verified from ${verifiedCommunityName}`}>
                         <FaCheckCircle />
                       </span>
                     )}
@@ -345,19 +355,19 @@ function SelfProfileView({ userData }) {
                 </>
               )}
             </div>
+          </div>
 
-            {/* Edit/Save Button */}
-            <div className="edit-button-container">
-              {isEditing ? (
-                <button className="save-button" onClick={handleSubmit}>
-                  Save Profile
-                </button>
-              ) : (
-                <button className="edit-button" onClick={handleToggleEdit}>
-                  Edit Profile
-                </button>
-              )}
-            </div>
+          {/* Edit/Save Button */}
+          <div className="edit-button-container">
+            {isEditing ? (
+              <button className="save-button" onClick={handleSubmit}>
+                Save Profile
+              </button>
+            ) : (
+              <button className="edit-button" onClick={handleToggleEdit}>
+                Edit Profile
+              </button>
+            )}
           </div>
 
           {/* About Section */}
