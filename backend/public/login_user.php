@@ -16,7 +16,7 @@ if (empty($email) || empty($password)) {
 try {
     $db = getDB();
 
-    $query = "SELECT user_id, first_name, last_name, email, password_hash, role_id, avatar_path, is_ambassador FROM users WHERE email = :email LIMIT 1";
+    $query = "SELECT user_id, first_name, last_name, email, password_hash, role_id, avatar_path, is_ambassador, login_count FROM users WHERE email = :email LIMIT 1";
     $stmt = $db->prepare($query);
     $stmt->bindParam(':email', $email, PDO::PARAM_STR);
     $stmt->execute();
@@ -24,6 +24,10 @@ try {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user && password_verify($password, $user['password_hash'])) {
+        // Increment login_count by 1
+        $updateStmt = $db->prepare("UPDATE users SET login_count = login_count + 1 WHERE user_id = :user_id");
+        $updateStmt->execute([':user_id' => $user['user_id']]);
+
         unset($user['password_hash']); // Remove sensitive data
 
         // Set session variables
@@ -34,6 +38,7 @@ try {
         $_SESSION['role_id'] = $user['role_id'];
         $_SESSION['avatar_path'] = $user['avatar_path'];
         $_SESSION['is_ambassador'] = $user['is_ambassador'];
+        $_SESSION['login_count'] = $user['login_count'];
 
         echo json_encode([
             "success" => true,

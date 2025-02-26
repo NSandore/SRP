@@ -277,9 +277,18 @@ function App() {
   const [activeSection, setActiveSection] = useState('home');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [accountMenuVisible, setAccountMenuVisible] = useState(false);
+  const [showAmbassadorOverlay, setShowAmbassadorOverlay] = useState(false);
+  const [ambassadors, setAmbassadors] = useState([]);
+  const [loadingAmbassadors, setLoadingAmbassadors] = useState(false);
+  const [errorAmbassadors, setErrorAmbassadors] = useState(null);
+
+
+  const [followingAmbassadors, setFollowingAmbassadors] = useState([]);
 
   const [notifications, setNotifications] = useState([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const notificationRef = useRef(null); // Ref to handle click outside notifications
   useOnClickOutside(notificationRef, () => setIsNotificationsOpen(false));
@@ -305,6 +314,22 @@ function App() {
   
     checkUserSession();
   }, []);  
+  
+
+  // Inside your App component
+  useEffect(() => {
+    console.log('User data changed:', userData);
+    if (userData) {
+      console.log('login_count:', userData.login_count);
+      if (Number(userData.login_count) === 0) {
+        console.log('login_count is 0, showing welcome overlay');
+        setShowWelcome(true);
+        // Auto-dismiss after 3 seconds (optional)
+      } else {
+        console.log('login_count is not 0, welcome overlay will not be shown');
+      }
+    }
+  }, [userData]);
 
   const fetchNotifications = async (user_id) => {
     try {
@@ -369,9 +394,155 @@ function App() {
     }
   };
 
+  const fetchAmbassadors = async () => {
+    if (!userData) return;
+    setLoadingAmbassadors(true);
+    setErrorAmbassadors(null);
+  
+    try {
+      const response = await axios.get(
+        `http://34.31.85.242/api/fetch_all_community_ambassadors.php?user_id=${userData.user_id}`,
+        { withCredentials: true }
+      );
+  
+      if (response.data.success) {
+        setAmbassadors(response.data.ambassadors);
+      } else {
+        setErrorAmbassadors(response.data.error || "Failed to load ambassadors.");
+      }
+    } catch (error) {
+      console.error("Error fetching ambassadors:", error);
+      setErrorAmbassadors("An error occurred while loading ambassadors.");
+    } finally {
+      setLoadingAmbassadors(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userData) {
+      axios.get(`http://34.31.85.242/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
+        withCredentials: true
+      })
+      .then(response => {
+        console.log("Connections Response:", response.data);
+        if (response.data.success) {
+          setFollowingAmbassadors(response.data.following || []);
+        } else {
+          console.error("Error fetching connections:", response.data.error || "No error message in response");
+        }
+      })
+      .catch(error => {
+        console.error("Network or server error fetching connections:", error);
+      });
+    }
+  }, [userData]);  
+  
+  const handleFollowAmbassador = async (ambassadorId) => {
+    if (!userData) {
+      alert("You must be logged in to follow an ambassador.");
+      return;
+    }
+  
+    const isFollowing = followingAmbassadors.includes(ambassadorId);
+    const endpoint = isFollowing ? "/api/unfollow_user.php" : "/api/follow_user.php";
+  
+    try {
+      const response = await axios.post(endpoint, {
+        follower_id: userData.user_id,
+        followed_user_id: ambassadorId
+      }, { withCredentials: true });
+  
+      if (response.data.success) {
+        // Refetch the connections list to update following state
+        axios.get(`http://34.31.85.242/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
+          withCredentials: true
+        }).then(res => {
+          if (res.data.success) {
+            setFollowingAmbassadors(res.data.following || []);
+          }
+        });
+      } else {
+        alert("Error: " + response.data.error);
+      }
+    } catch (error) {
+      console.error("Error following/unfollowing ambassador:", error);
+    }
+  };  
+  
   return (
     <Router>
       <div className="app-container">
+        {/* Welcome Overlay */}
+        {showWelcome && (
+          <div className="welcome-overlay">
+            <div className="welcome-message">
+              <h1>Welcome to StudentSphere!</h1>
+              <p>Start your journey by following ambassadors who can guide you.</p>
+              <button
+                className="get-started-button"
+                onClick={() => {
+                  setShowWelcome(false);  // Close welcome overlay
+                  setShowAmbassadorOverlay(true); // Show ambassador overlay
+                  fetchAmbassadors();
+                }}
+              >
+                Get Started
+              </button>
+              <button onClick={() => setShowWelcome(false)}>Close</button>
+            </div>
+          </div>
+        )}
+        
+        {/* Ambassador Overlay */}
+        {showAmbassadorOverlay && (
+          <div className="overlay">
+            <div className="overlay-content">
+              <h2>Ambassador List</h2>
+              {loadingAmbassadors ? (
+                <p>Loading ambassadors...</p>
+              ) : errorAmbassadors ? (
+                <p>{errorAmbassadors}</p>
+              ) : (
+                <ul className="ambassador-list">
+                  {ambassadors.map((amb) => {
+                    const isFollowing = followingAmbassadors.includes(amb.user_id);
+                    return (
+                      <li key={amb.id} className="ambassador-item">
+                        <img
+                          src={amb.avatar_path || "/uploads/avatars/default-avatar.png"}
+                          alt={`${amb.first_name} ${amb.last_name}`}
+                          className="ambassador-avatar"
+                        />
+                        <div className="ambassador-info">
+                          <p className="ambassador-name">
+                            <Link to={`/user/${amb.user_id}`}>
+                              {amb.first_name} {amb.last_name}
+                            </Link>
+                          </p>
+                          <p className="ambassador-headline">{amb.headline}</p>
+                        </div>
+
+                        {/* Dynamic Follow/Unfollow Button */}
+                        <button
+                          className={`follow-button ${isFollowing ? "unfollow" : "follow"}`}
+                          onClick={() => handleFollowAmbassador(amb.user_id)}
+                        >
+                          {isFollowing ? "Unfollow" : "Follow"}
+                        </button>
+
+                        <button className="message-button" onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}>
+                          Message
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <button onClick={() => setShowAmbassadorOverlay(false)}>Close</button>
+            </div>
+          </div>
+        )}
+
         {step === 1 && <SignUp onNext={handleNext} />}
         {step === 2 && (
           <Login
@@ -596,7 +767,16 @@ function NavBar({
               aria-haspopup="true"
               aria-expanded={accountMenuVisible}
             >
-              <FaUserCircle className="nav-icon" title="Account Settings" />
+              {userData.avatar_path ? (
+                <img
+                  src={`http://34.31.85.242${userData.avatar_path}`} // Ensure the base URL is correct
+                  alt="User Avatar"
+                  className="user-avatar"
+                  onClick={() => setAccountMenuVisible(!accountMenuVisible)}
+                />
+              ) : (
+                <FaUserCircle className="nav-icon" title="Account Settings" onClick={() => setAccountMenuVisible(!accountMenuVisible)} />
+              )}
               {accountMenuVisible && (
                 <div className="account-menu">
                   <div
@@ -773,6 +953,66 @@ function Feed({ activeFeed, activeSection, userData }) {
   // Track which saved tab is active
   const [savedTab, setSavedTab] = useState('forums'); // 'forums' | 'threads' | 'posts'
 
+  const [feedPosts, setFeedPosts] = useState([]);
+  const [feedThreads, setFeedThreads] = useState([]);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(false);
+
+  // Handler for voting on threads:
+  const handleThreadVoteClick = async (threadId, voteType) => {
+    if (!userData) {
+      alert("You must be logged in to vote.");
+      return;
+    }
+    try {
+      const response = await axios.post(
+        "/api/vote_thread.php",
+        {
+          thread_id: threadId,
+          user_id: userData.user_id,
+          vote_type: voteType,
+        },
+        { withCredentials: true }
+      );
+      if (response.data.success) {
+        // Refresh the feed threads after voting
+        fetchFeedThreads();
+      } else {
+        alert(response.data.error || "An error occurred.");
+      }
+    } catch (error) {
+      console.error("Error voting on thread:", error);
+      alert("An error occurred while voting on thread.");
+    }
+  };
+
+  const handleThreadUpvoteClick = (threadId) =>
+    handleThreadVoteClick(threadId, "up");
+  const handleThreadDownvoteClick = (threadId) =>
+    handleThreadVoteClick(threadId, "down");
+
+  const fetchFeedThreads = () => {
+    if (activeSection === "home" && activeFeed === "yourFeed" && userData) {
+      setIsLoadingFeed(true);
+      axios
+        .get(`/api/fetch_feed.php?user_id=${userData.user_id}`, {
+          withCredentials: true,
+        })
+        .then((response) => {
+          if (response.data.success) {
+            setFeedThreads(response.data.threads);
+          } else {
+            console.error("Error fetching feed:", response.data.error);
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching feed:", error);
+        })
+        .finally(() => {
+          setIsLoadingFeed(false);
+        });
+    }
+  };
+  
   // Helper to fetch saved items
   const fetchSavedForums = async () => {
     if (!userData) return;
@@ -1151,24 +1391,109 @@ function Feed({ activeFeed, activeSection, userData }) {
   // If the user is NOT in "info" or "communities," we might show mock content:
   //
   let mockPosts = [];
-  if (activeSection === 'home') {
-    mockPosts =
-      activeFeed === 'yourFeed'
-        ? [
-            { title: 'Q&A: Admissions Advice...', author: 'StaffMember123', content: 'Ask your questions...' },
-            { title: 'Top Scholarship Opportunities...', author: 'ScholarBot', content: 'Check out these...' },
-            { title: 'New Poll: Which Club...', author: 'StudentRep', content: 'Vote on which club...' }
-          ]
-        : [
-            { title: 'Explore: Upcoming Tech Webinars', author: 'TechGuru', content: 'Join us...' },
-            { title: 'Discover: Study Abroad...', author: 'TravelAdvisor', content: 'Find out...' },
-            { title: 'Trending: Eco-Friendly...', author: 'GreenScholar', content: 'Learn about...' }
-          ];
-  } else if (activeSection === 'connections') {
-    mockPosts = [{ title: 'Connections Updates', author: 'ConnectionBot', content: 'Your connections are up to...' }];
-  } else if (activeSection === 'scholarships') {
-    mockPosts = [{ title: 'Scholarship Board', author: 'ScholarBot', content: 'Available scholarships...' }];
-  }
+  useEffect(() => {
+    if (activeSection === 'home' && activeFeed === 'yourFeed' && userData) {
+      setIsLoadingFeed(true);
+      axios
+        .get(`/api/fetch_feed.php?user_id=${userData.user_id}`, { withCredentials: true })
+        .then(response => {
+          if (response.data.success) {
+            setFeedThreads(response.data.threads); // Use threads here
+          } else {
+            console.error("Error fetching feed:", response.data.error);
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching feed:", error);
+        })
+        .finally(() => {
+          setIsLoadingFeed(false);
+        });
+    }
+  }, [activeSection, activeFeed, userData]);  
+  
+  // In your return statement inside Feed, add a conditional for the "Your Feed" view:
+  if (activeSection === 'home' && activeFeed === 'yourFeed') {
+    return (
+      <main className="feed">
+        <h2>Your Feed</h2>
+        {isLoadingFeed ? (
+          <p>Loading feed...</p>
+        ) : feedThreads.length === 0 ? (
+          <p>No threads in your feed.</p>
+        ) : (
+          feedThreads.map((thread) => (
+            <div
+              key={thread.thread_id}
+              className="feed-thread-card"
+              style={{
+                marginBottom: "1rem",
+                padding: "1rem",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+              }}
+            >
+              <div className="thread-header">
+                {/* Thread Link */}
+                <Link
+                  to={`/info/forum/${thread.forum_id}/thread/${thread.thread_id}`}
+                  className="thread-link"
+                >
+                  {/* New line for Community Name */}
+                  <small className="thread-community">
+                    {" "}
+                    <Link
+                      to={`/${thread.community_type}/${thread.community_id}`}
+                      style={{ textDecoration: "none", color: "inherit" }}
+                    >
+                      {thread.community_name}
+                    </Link>
+                  </small>
+                  <h3 className="thread-title">{thread.title}</h3>
+                  <small>
+                    Posted by{" "}
+                    <Link to={`/user/${thread.user_id}`} style={{ textDecoration: "none" }}>
+                      {thread.first_name} {thread.last_name ? thread.last_name.charAt(0) + "." : ""}
+                    </Link>{" "}
+                    on {new Date(thread.created_at).toLocaleString()}
+                  </small>
+                </Link>
+              </div>
+              {/* Vote Row */}
+              <div className="vote-row">
+                <button
+                  type="button"
+                  className="vote-button upvote-button"
+                  title="Upvote"
+                  onClick={() => handleThreadUpvoteClick(thread.thread_id)}
+                >
+                  {thread.user_vote === "up" ? (
+                    <FaArrowAltCircleUp style={{ color: "green" }} />
+                  ) : (
+                    <FaRegArrowAltCircleUp style={{ color: "gray" }} />
+                  )}
+                </button>
+                <span className="vote-count">{thread.upvotes}</span>
+                <button
+                  type="button"
+                  className="vote-button downvote-button"
+                  title="Downvote"
+                  onClick={() => handleThreadDownvoteClick(thread.thread_id)}
+                >
+                  {thread.user_vote === "down" ? (
+                    <FaArrowAltCircleDown style={{ color: "red" }} />
+                  ) : (
+                    <FaRegArrowAltCircleDown style={{ color: "gray" }} />
+                  )}
+                </button>
+                <span className="vote-count">{thread.downvotes}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </main>
+    );
+  }    
 
   // Create a set for quick lookup of followed community IDs.
   const followedIds = new Set(followedCommunities.map((c) => c.community_id));

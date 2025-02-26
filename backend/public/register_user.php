@@ -100,7 +100,6 @@ try {
 
     $user_id = $db->lastInsertId();
 
-    // If a school is selected, update recent_community_id and insert educational_experience + followed_communities
     if ($schoolName) {
         // Find community by name
         $uStmt = $db->prepare("SELECT id FROM communities WHERE name = :name LIMIT 1");
@@ -108,11 +107,11 @@ try {
         $univ = $uStmt->fetch();
         if ($univ && isset($univ['id'])) {
             $community_id = $univ['id'];
-
-            // Update user's recent_community_id
-            $updateUserStmt = $db->prepare("UPDATE users SET recent_community_id = :community_id WHERE id = :user_id");
+    
+            // Update user's recent_university_id using the correct column name 'user_id'
+            $updateUserStmt = $db->prepare("UPDATE users SET recent_university_id = :community_id WHERE user_id = :user_id");
             $updateUserStmt->execute([':community_id' => $community_id, ':user_id' => $user_id]);
-
+    
             // Insert into educational_experience if startDate and endDate are provided
             if ($startDate && $endDate) {
                 $eeStmt = $db->prepare("
@@ -126,7 +125,7 @@ try {
                     ':end_date' => $endDate
                 ]);
             }
-
+    
             // Insert into followed_communities
             $fuStmt = $db->prepare("
                 INSERT INTO followed_communities (user_id, community_id) 
@@ -137,7 +136,7 @@ try {
                 ':community_id' => $community_id
             ]);
         }
-    }
+    }    
 
     http_response_code(201);
     echo json_encode(['message' => 'User registered successfully', 'user_id' => $user_id]);
