@@ -117,6 +117,33 @@
 
 
 /* Navigation Bar */
+
+/* Example for the horizontal nav menu */
+.nav-menu ul {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 1rem; /* spacing between menu items */
+}
+
+.nav-menu li {
+  cursor: pointer;
+  transition: color 0.2s;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+.nav-menu li:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.nav-menu li.active {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+
 .nav-bar {
   display: flex;
   align-items: center;
@@ -162,22 +189,21 @@
 .feed-options {
   display: flex;
   gap: 1rem;
+  margin-bottom: 1rem; /* or whatever spacing you like */
 }
 
 .feed-option-button {
   background: none;
-  border: none;
-  color: #ffffff;
-  font-size: 1rem;
-  cursor: pointer;
+  border: 1px solid #ccc;
+  border-radius: 4px;
   padding: 0.5rem 1rem;
-  border-radius: 20px;
-  transition: background 0.3s;
+  cursor: pointer;
 }
 
-.feed-option-button:hover,
 .feed-option-button.active {
-  background: rgba(255, 255, 255, 0.2);
+  background-color: #0077B5;
+  color: #fff;
+  border-color: #0077B5;
 }
 
 .nav-right {

@@ -559,8 +559,9 @@ function App() {
             <NavBar
               activeFeed={activeFeed}
               setStep={setStep}
-              setActiveFeed={setActiveFeed}
+              setActiveFeed={setActiveFeed}  // This prop is passed down
               activeSection={activeSection}
+              setActiveSection={setActiveSection}
               userData={userData}
               accountMenuVisible={accountMenuVisible}
               setAccountMenuVisible={setAccountMenuVisible}
@@ -571,16 +572,15 @@ function App() {
               notificationRef={notificationRef}
               markAllAsRead={markAllAsRead}
             />
-
             <div className="main-content">
-              <LeftSidebar
+              {/*<LeftSidebar
                 isSidebarCollapsed={isSidebarCollapsed}
                 setIsSidebarCollapsed={setIsSidebarCollapsed}
                 activeSection={activeSection}
                 setActiveSection={setActiveSection}
                 setActiveFeed={setActiveFeed}
                 userData={userData}
-              />
+              /> */}
 
               <Routes>
                 <Route
@@ -588,6 +588,7 @@ function App() {
                   element={
                     <Feed
                       activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
                       activeSection="home"
                       userData={userData}
                     />
@@ -598,6 +599,7 @@ function App() {
                   element={
                     <Feed
                       activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
                       activeSection="info"
                       userData={userData}
                     />
@@ -608,6 +610,7 @@ function App() {
                   element={
                     <Feed
                       activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
                       activeSection="saved"
                       userData={userData}
                     />
@@ -622,6 +625,7 @@ function App() {
                   element={
                     <Feed
                       activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
                       activeSection="scholarships"
                       userData={userData}
                     />
@@ -632,6 +636,7 @@ function App() {
                   element={
                     <Feed
                       activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
                       activeSection="communities"
                       userData={userData}
                     />
@@ -675,23 +680,86 @@ function NavBar({
   activeSection,
   userData,
   accountMenuVisible,
+  setActiveSection, // Now available!
   setAccountMenuVisible,
   handleLogout,
   toggleNotifications, 
   notifications, 
   isNotificationsOpen, 
   notificationRef,
-  markAllAsRead
+  markAllAsRead,
 }) {
+  const navigate = useNavigate();
   const unreadCount = notifications.filter(n => parseInt(n.is_read, 10) === 0).length;
+
+  const handleSectionClick = (section) => {
+    setActiveSection(section);
+    setActiveFeed('yourFeed');
+    navigate(`/${section}`);
+  };  
 
   return (
     <nav className="nav-bar">
+      {/* Left side: brand */}
       <div className="nav-left">
         <h2 className="brand-title">StudentSphere</h2>
       </div>
 
-      <div className="nav-center">
+      {/* Center: Horizontal Menu */}
+      <div className="nav-menu">
+        <ul>
+          <li 
+            className={activeSection === 'home' ? 'active' : ''}
+            onClick={() => handleSectionClick('home')}
+          >
+            Home
+          </li>
+          <li 
+            className={activeSection === 'info' ? 'active' : ''}
+            onClick={() => handleSectionClick('info')}
+          >
+            Info Board
+          </li>
+          <li 
+            className={activeSection === 'scholarships' ? 'active' : ''}
+            onClick={() => handleSectionClick('scholarships')}
+          >
+            Scholarships
+          </li>
+          <li 
+            className={activeSection === 'communities' ? 'active' : ''}
+            onClick={() => handleSectionClick('communities')}
+          >
+            Communities
+          </li>
+
+          {/* Only show saved/connections/profile if logged in */}
+          {userData && (
+            <>
+              <li 
+                className={activeSection === 'saved' ? 'active' : ''}
+                onClick={() => handleSectionClick('saved')}
+              >
+                Saved
+              </li>
+              <li 
+                className={activeSection === 'connections' ? 'active' : ''}
+                onClick={() => handleSectionClick('connections')}
+              >
+                Connections
+              </li>
+              <li 
+                className={activeSection === 'profile' ? 'active' : ''}
+                onClick={() => handleSectionClick('profile')}
+              >
+                My Profile
+              </li>
+            </>
+          )}
+        </ul>
+      </div>
+
+      {/*<div className="nav-center">
         {activeSection === 'home' && (
           <div className="feed-options">
             <button
@@ -708,7 +776,7 @@ function NavBar({
             </button>
           </div>
         )}
-      </div>
+      </div>*/}
 
       <div className="nav-right">
         <div className="nav-icons">
@@ -912,7 +980,7 @@ function RightSidebar() {
 }
 
 /* =================== Feed Component =================== */
-function Feed({ activeFeed, activeSection, userData }) {
+function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted"
   const [communityFilter, setCommunityFilter] = useState('All'); // Options: "All", "Followed", "Unfollowed"
   const [selectedCommunityTab, setSelectedCommunityTab] = useState("university");
@@ -1413,10 +1481,31 @@ function Feed({ activeFeed, activeSection, userData }) {
   }, [activeSection, activeFeed, userData]);  
   
   // In your return statement inside Feed, add a conditional for the "Your Feed" view:
-  if (activeSection === 'home' && activeFeed === 'yourFeed') {
+  if (activeSection === 'home') {
     return (
       <main className="feed">
-        <h2>Your Feed</h2>
+        {/* Show the feed-option buttons if we are on home */}
+        <div className="feed-options" style={{ marginBottom: '1rem' }}>
+          <button
+            className={`feed-option-button ${activeFeed === 'yourFeed' ? 'active' : ''}`}
+            onClick={() => setActiveFeed('yourFeed')}
+          >
+            Your Feed
+          </button>
+          <button
+            className={`feed-option-button ${activeFeed === 'suggested' ? 'active' : ''}`}
+            onClick={() => setActiveFeed('suggested')}
+          >
+            Explore
+          </button>
+        </div>
+        <h2>
+          {activeSection === 'home'
+            ? activeFeed === 'yourFeed'
+              ? 'Your Feed'
+              : 'Explore'
+            : activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
+        </h2>
         {isLoadingFeed ? (
           <p>Loading feed...</p>
         ) : feedThreads.length === 0 ? (
