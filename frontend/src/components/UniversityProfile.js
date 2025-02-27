@@ -415,48 +415,62 @@ function UniversityProfile({ userData }) {
                 {combinedAmbassadors.map((amb) => (
                   <li key={amb.id} className="ambassador-item">
                     <img
-                      src={
-                        amb.avatar_path || "/uploads/avatars/default-avatar.png"
-                      }
+                      src={amb.avatar_path || "/uploads/avatars/default-avatar.png"}
                       alt={`${amb.first_name} ${amb.last_name}`}
                       className="ambassador-avatar"
                     />
-                    <div className="ambassador-info">
+                    <div className="ambassador-info" style={{ textAlign: 'left' }}>
                       <p className="ambassador-name">
                         <RouterLink to={`/user/${amb.user_id}`}>
                           {amb.first_name} {amb.last_name}
                         </RouterLink>
-                        {connections.followers &&
-                          connections.followers.includes(amb.user_id) && (
-                            <span className="follows-you"> (Follows you)</span>
-                          )}
+                        {(() => {
+                          if (userData && Number(userData.user_id) === Number(amb.user_id)) {
+                            console.log("This ambassador is the logged-in user:", amb);
+                            return <span><small> (Me!)</small></span>;
+                          }
+                          return null;
+                        })()}
+                        {(() => {
+                          if (
+                            connections.followers &&
+                            connections.followers.includes(Number(amb.user_id))
+                          ) {
+                            console.log("This ambassador follows you:", amb);
+                            return <span className="follows-you"> (Follows you)</span>;
+                          }
+                          return null;
+                        })()}
                       </p>
                       <p className="ambassador-headline">{amb.headline}</p>
                     </div>
-                    {connections.following &&
-                    connections.following.includes(amb.user_id) ? (
-                      <button
-                        className="follow-button unfollow"
-                        onClick={() => handleFollowAmbassador(amb.user_id)}
-                      >
-                        Unfollow
-                      </button>
-                    ) : (
-                      <button
-                        className="follow-button follow"
-                        onClick={() => handleFollowAmbassador(amb.user_id)}
-                      >
-                        Follow
-                      </button>
+                    {/* Only show follow/message buttons if this ambassador isn’t the logged-in user */}
+                    {userData && Number(userData.user_id) !== Number(amb.user_id) && (
+                      <>
+                        {connections.following &&
+                        connections.following.includes(Number(amb.user_id)) ? (
+                          <button
+                            className="follow-button unfollow"
+                            onClick={() => handleFollowAmbassador(amb.user_id)}
+                          >
+                            Unfollow
+                          </button>
+                        ) : (
+                          <button
+                            className="follow-button follow"
+                            onClick={() => handleFollowAmbassador(amb.user_id)}
+                          >
+                            Follow
+                          </button>
+                        )}
+                        <button
+                          className="message-button"
+                          onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}
+                        >
+                          Message
+                        </button>
+                      </>
                     )}
-                    <button
-                      className="message-button"
-                      onClick={() =>
-                        alert(`Message ${amb.first_name} ${amb.last_name}`)
-                      }
-                    >
-                      Message
-                    </button>
                   </li>
                 ))}
               </ul>

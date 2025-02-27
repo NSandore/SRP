@@ -2,11 +2,11 @@
 .app-container {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: #f6f6f6;
-  height: 100vh;
+  height: 93.5vh;
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding: 0;
+  padding-top: 60px; /* This pushes content below the fixed nav bar */
 }
 
 .user-avatar {
@@ -145,19 +145,51 @@
 
 
 .nav-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000; /* Make sure it stays above other content */
+  background: #FFFFFF; /* Ensure the background is set */
+  /* keep your existing padding, height, etc. */
+  padding: 0.5rem 1rem;
+  height: 60px;
   display: flex;
   align-items: center;
-  background: #0077B5; /* LinkedIn blue as example */
-  padding: 0.5rem 1rem;
-  color: #ffffff;
   justify-content: space-between;
-  height: 60px;
+  color: #666666;
 }
+
 
 .nav-left {
   display: flex;
   align-items: center;
   flex: 1;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.nav-item-icon {
+  font-size: 1.5rem;
+}
+
+.nav-item:hover .nav-item-icon {
+  color: #191919;
+}
+
+.nav-item-label {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* Active state styling */
+.nav-menu li.active .nav-item-icon,
+.nav-menu li.active .nav-item-label {
+  color: #191919;
 }
 
 .sidebar-toggle-button {
@@ -186,6 +218,27 @@
   justify-content: center;
 }
 
+/* Feed.css or App.css */
+.feed-container {
+  padding-top: 1rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-bottom: 1.5rem;
+  background: var(--background-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  font-family: var(--font-family);
+  margin-bottom: 2rem; /* optional spacing */
+}
+
+.feed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #ddd;
+  margin-bottom: 1rem;
+}
+
 .feed-options {
   display: flex;
   gap: 1rem;
@@ -195,7 +248,7 @@
 .feed-option-button {
   background: none;
   border: 1px solid #ccc;
-  border-radius: 4px;
+  border-radius: 20px;
   padding: 0.5rem 1rem;
   cursor: pointer;
 }
@@ -204,6 +257,40 @@
   background-color: #0077B5;
   color: #fff;
   border-color: #0077B5;
+}
+
+.feed-toggle-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.feed-toggle-button {
+  background: #e0e0e0;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 1rem;
+  border-radius: 20px;
+  transition: background var(--transition-speed), color var(--transition-speed);
+}
+
+.feed-toggle-button.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+.non-togglable-button {
+  background-color: #0077B5; /* Blue */
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.non-togglable-button:hover {
+  background-color: #005f8d;
 }
 
 .nav-right {
@@ -224,10 +311,11 @@
   font-size: 1.2rem;
   cursor: pointer;
   transition: color 0.3s;
+  color: #666666;
 }
 
 .nav-icon:hover {
-  color: #d0d0d0;
+  color: #191919;
 }
 
 .account-menu {
@@ -271,29 +359,34 @@
 
 /* Main Content Layout */
 .main-content {
-  flex: 1;
-  display: flex;
-  padding: 1rem;
+  display: grid;
+  grid-template-columns: 15vw 40vw 15vw;
+  gap: 3vw;
+  width: 76vw;
+  margin-top: 30px;
+  margin-right: auto;
+  margin-left: auto;
+  align-items: start;
   box-sizing: border-box;
-  overflow: hidden;
-  align-items: stretch;
+  /* Remove the old margin-top if any and set height/scrolling */
+  height: calc(100vh - 60px); /* total viewport height minus nav bar height */
+  overflow-y: auto; /* enable vertical scrolling */
 }
+
 
 /* Left Sidebar */
 .left-sidebar {
-  width: 150px;
+  /* The grid column already forces the width to 15vw, but we add this for clarity */
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1rem;
-  margin-right: 1rem;
+  margin: 0; /* Remove any extra margin */
   height: fit-content;
-  transition: 
-    width 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), 
-    opacity 0.3s ease-in-out,
-    padding 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition: width 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease-in-out,
+              padding 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
   position: relative;
-  overflow: hidden; /* Prevents content from bleeding during transition */
+  overflow: hidden;
 }
 
 .left-sidebar.collapsed {
@@ -381,11 +474,14 @@
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1rem;
+  margin-bottom: 20px;
+  /* Remove these lines:
   overflow-y: auto;
-  height: calc(100vh - 80px); /* Accounts for navbar height and padding */
-  min-height: 100%;
-  max-width: 72.5%;
+  height: calc(100vh - 80px);
+  max-height: 80vh;
+  */
 }
+
 
 .feed h2 {
   margin-bottom: 1rem;
@@ -479,20 +575,26 @@
 
 .community-tab {
   display: flex;
-  gap: 1rem;
+  gap: 7px;
   margin-bottom: 1rem;
 }
 
 .community-tab button {
-  padding: 0.5rem 1rem;
   border: none;
-  background-color: #eee;
+  padding: 0.5rem 1rem;
   cursor: pointer;
+  font-size: 1rem;
+  background: none;
+  border-radius: 20px;
+  border: 1px solid #ccc;
+  transition: background var(--transition-speed), color var(--transition-speed);
 }
 
+/* Active state for community tab buttons */
 .community-tab button.active {
-  background-color: #ddd;
-  font-weight: bold;
+  background-color: #0077B5;
+  color: #fff;
+  border-color: #0077B5;
 }
 
 /* Pagination Controls */
@@ -529,13 +631,12 @@
 
 /* Right Sidebar */
 .right-sidebar {
-  width: 200px;
+  /* Force the width to 15vw */
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1rem;
-  margin-left: auto;
-  height: calc(100vh - 80px); /* Match feed height */
+  margin: 0; /* Remove extra margins so spacing comes from the grid gap */
 }
 
 .sidebar-title {
@@ -1064,24 +1165,14 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .left-sidebar {
-    display: none;
-  }
-
-  .left-sidebar.collapsed {
-    display: block;
-    width: 60px;
-  }
-
   .main-content {
+    display: flex;
     flex-direction: column;
   }
-
-  .right-sidebar {
+  .right-sidebar,
+  .left-sidebar {
     width: 100%;
-    margin-left: 0;
-    margin-top: 1rem;
-    flex-shrink: 0;
+    margin: 0;
   }
 
   .feed {
@@ -1255,14 +1346,17 @@
 }
 
 .filter-buttons button {
-  margin-right: 0.5rem;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid #ccc;
-  background-color: #f9f9f9;
+  border: none;
+  margin-right: 7px;
+  padding: 8px 16px;
   cursor: pointer;
+  font-size: 1rem;
+  border-radius: 20px;
+  transition: background var(--transition-speed), color var(--transition-speed);
 }
 
+/* Active state for filter buttons */
 .filter-buttons button.active {
-  background-color: #e0e0e0;
-  border-color: #888;
+  background: var(--primary-color);
+  color: #fff;
 }

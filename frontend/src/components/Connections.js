@@ -88,17 +88,17 @@ function Connections({ userData }) {
 
   return (
     <div className="connections-container">
-      <div className="connections-header">
+      <div className="feed-header">
         <h2>Connections</h2>
-        <div className="toggle-buttons">
+        <div className="feed-toggle-buttons">
           <button
-            className={`toggle-button ${activeTab === 'following' ? 'active' : ''}`}
+            className={`feed-option-button ${activeTab === 'following' ? 'active' : ''}`}
             onClick={() => setActiveTab('following')}
           >
             Following
           </button>
           <button
-            className={`toggle-button ${activeTab === 'followers' ? 'active' : ''}`}
+            className={`feed-option-button ${activeTab === 'followers' ? 'active' : ''}`}
             onClick={() => setActiveTab('followers')}
           >
             Followers
@@ -130,15 +130,15 @@ function Connections({ userData }) {
                         </p>
                         <p className="connection-headline">{user.headline || 'No headline'}</p>
                       </div>
-                      <button
-                        className="follow-button unfollow"
-                        onClick={() => handleFollowToggle(userId, true)}
-                      >
-                        Unfollow
-                      </button>
-                      <button className="message-button">
-                        Message
-                      </button>
+                      <div className="connection-actions">
+                        <button
+                          className="follow-button unfollow"
+                          onClick={() => handleFollowToggle(userId, true)}
+                        >
+                          Unfollow
+                        </button>
+                        <button className="message-button">Message</button>
+                      </div>
                     </li>
                   );
                 })}

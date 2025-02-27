@@ -18,10 +18,11 @@
   border-radius: 10px;
   padding: 2rem;
   width: 90%;
-  margin: 2rem auto;
   box-shadow: var(--shadow);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   position: relative;
+  overflow-y: auto;
+  max-height: 80vh;
 }
 
 /* ===================== */
@@ -32,14 +33,8 @@
   max-height: 250px; /* Force max-height of 250px */
   object-fit: cover;
   display: block;
-  filter: brightness(0.85);
-  transition: filter var(--transition-speed);
   border-radius: 10px;
   padding-bottom: 20px;
-}
-
-.profile-banner-img:hover {
-  filter: brightness(1);
 }
 
 /* Container for Banner Upload Button */

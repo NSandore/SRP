@@ -34,10 +34,6 @@
   object-fit: cover;
 }
 
-.university-banner img:hover {
-  transform: scale(1.05);
-}
-
 .university-info {
   position: relative;
   padding: 1rem 2rem 2rem;
@@ -59,7 +55,7 @@
   height: 150px;
   border-radius: 50%;
   border: 4px solid var(--background-color);
-  background: transparent; /* Ensures no background */
+  background: white; /* Ensures no background */
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 

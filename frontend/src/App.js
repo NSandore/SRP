@@ -20,6 +20,7 @@ import {
   FaBars,
   FaTimes,
   FaUsers,
+  FaHome,
   FaPeopleCarry,
   FaEllipsisV,
   FaArrowAltCircleUp,
@@ -44,6 +45,10 @@ import UniversityProfile from './components/UniversityProfile';
 import GroupProfile from './components/GroupProfile';
 import Messages from './components/Messages'; // New Messages component
 import useOnClickOutside from './hooks/useOnClickOutside';  // Hook to close popups when clicking outside
+import RightSidebar from './components/RightSidebar';
+import LeftSidebar from './components/LeftSidebar';
+
+
 function ForumCard({
   forum,
   userData,
@@ -573,15 +578,7 @@ function App() {
               markAllAsRead={markAllAsRead}
             />
             <div className="main-content">
-              {/*<LeftSidebar
-                isSidebarCollapsed={isSidebarCollapsed}
-                setIsSidebarCollapsed={setIsSidebarCollapsed}
-                activeSection={activeSection}
-                setActiveSection={setActiveSection}
-                setActiveFeed={setActiveFeed}
-                userData={userData}
-              /> */}
-
+              <LeftSidebar />
               <Routes>
                 <Route
                   path="/home"
@@ -621,7 +618,7 @@ function App() {
                   element={userData ? <Connections userData={userData} /> : <Navigate to="/login" />}
                 />
                 <Route
-                  path="/scholarships"
+                  path="/funding"
                   element={
                     <Feed
                       activeFeed={activeFeed}
@@ -661,14 +658,23 @@ function App() {
                 <Route path="/group/:id" element={<GroupProfile userData={userData} />} />
                 <Route path="/messages" element={<Messages userData={userData} />} />
               </Routes>
-
-              {/* Conditionally render RightSidebar if user is on home or info */}
-              {(activeSection === 'home' || activeSection === 'info') && <RightSidebar />}
+              <RightSidebar />
             </div>
           </>
         )}
       </div>
     </Router>
+  );
+}
+
+function NavItem({ active, label, Icon, onClick }) {
+  return (
+    <li className={active ? 'active' : ''} onClick={onClick}>
+      <div className="nav-item">
+        <Icon className="nav-item-icon" />
+        <span className="nav-item-label">{label}</span>
+      </div>
+    </li>
   );
 }
 
@@ -694,90 +700,71 @@ function NavBar({
 
   const handleSectionClick = (section) => {
     setActiveSection(section);
-    setActiveFeed('yourFeed');
+    if (section === 'info') {
+      setActiveFeed('info');
+    } else {
+      setActiveFeed('yourFeed');
+    }
     navigate(`/${section}`);
-  };  
+  };
 
   return (
     <nav className="nav-bar">
-      {/* Left side: brand */}
       <div className="nav-left">
         <h2 className="brand-title">StudentSphere</h2>
       </div>
 
-      {/* Center: Horizontal Menu */}
       <div className="nav-menu">
         <ul>
-          <li 
-            className={activeSection === 'home' ? 'active' : ''}
-            onClick={() => handleSectionClick('home')}
-          >
-            Home
-          </li>
-          <li 
-            className={activeSection === 'info' ? 'active' : ''}
-            onClick={() => handleSectionClick('info')}
-          >
-            Info Board
-          </li>
-          <li 
-            className={activeSection === 'scholarships' ? 'active' : ''}
-            onClick={() => handleSectionClick('scholarships')}
-          >
-            Scholarships
-          </li>
-          <li 
-            className={activeSection === 'communities' ? 'active' : ''}
-            onClick={() => handleSectionClick('communities')}
-          >
-            Communities
-          </li>
+          <NavItem 
+            active={activeSection === 'home'} 
+            label="Home" 
+            Icon={FaHome} 
+            onClick={() => handleSectionClick('home')} 
+          />
+          <NavItem 
+            active={activeSection === 'info'} 
+            label="Info Board" 
+            Icon={BiInfoCircle} 
+            onClick={() => handleSectionClick('info')} 
+          />
+          <NavItem 
+            active={activeSection === 'scholarships'} 
+            label="Funding" 
+            Icon={RiMedalFill} 
+            onClick={() => handleSectionClick('scholarships')} 
+          />
+          <NavItem 
+            active={activeSection === 'communities'} 
+            label="Communities" 
+            Icon={FaUsers} 
+            onClick={() => handleSectionClick('communities')} 
+          />
 
-          {/* Only show saved/connections/profile if logged in */}
           {userData && (
             <>
-              <li 
-                className={activeSection === 'saved' ? 'active' : ''}
-                onClick={() => handleSectionClick('saved')}
-              >
-                Saved
-              </li>
-              <li 
-                className={activeSection === 'connections' ? 'active' : ''}
-                onClick={() => handleSectionClick('connections')}
-              >
-                Connections
-              </li>
-              <li 
-                className={activeSection === 'profile' ? 'active' : ''}
-                onClick={() => handleSectionClick('profile')}
-              >
-                My Profile
-              </li>
+              <NavItem 
+                active={activeSection === 'saved'} 
+                label="Saved" 
+                Icon={FaBookmark} 
+                onClick={() => handleSectionClick('saved')} 
+              />
+              <NavItem 
+                active={activeSection === 'connections'} 
+                label="Connections" 
+                Icon={FaPeopleCarry} 
+                onClick={() => handleSectionClick('connections')} 
+              />
+              <NavItem 
+                active={activeSection === 'profile'} 
+                label="My Profile" 
+                Icon={FaUserCircle} 
+                onClick={() => handleSectionClick('profile')} 
+              />
             </>
           )}
         </ul>
       </div>
-
-      {/*<div className="nav-center">
-        {activeSection === 'home' && (
-          <div className="feed-options">
-            <button
-              className={`feed-option-button ${activeFeed === 'yourFeed' ? 'active' : ''}`}
-              onClick={() => setActiveFeed('yourFeed')}
-            >
-              Your Feed
-            </button>
-            <button
-              className={`feed-option-button ${activeFeed === 'suggested' ? 'active' : ''}`}
-              onClick={() => setActiveFeed('suggested')}
-            >
-              Explore
-            </button>
-          </div>
-        )}
-      </div>*/}
-
       <div className="nav-right">
         <div className="nav-icons">
           {/* Messages link */}
@@ -881,101 +868,6 @@ function NavBar({
         )}
       </div>
     </nav>
-  );
-}
-
-/* =================== LeftSidebar Component =================== */
-function LeftSidebar({
-  isSidebarCollapsed,
-  setIsSidebarCollapsed,
-  activeSection,
-  setActiveSection,
-  setActiveFeed,
-  userData
-}) {
-  const navigate = useNavigate();
-
-  const handleSectionClick = (section) => {
-    setActiveSection(section);
-    setActiveFeed('yourFeed');
-    navigate(`/${section}`);
-  };
-
-  const sidebarItems = [
-    { name: 'home', icon: <TbWriting />, text: 'Home' },
-    { name: 'info', icon: <BiInfoCircle />, text: 'Information Board' },
-    { name: 'scholarships', icon: <RiMedalFill />, text: 'Scholarships' },
-    { name: 'communities', icon: <FaUniversity />, text: 'Communities' }
-  ];
-
-  const authSidebarItems = [
-    { name: 'saved', icon: <FaBookmark />, text: 'Saved' },
-    { name: 'connections', icon: <FaUsers />, text: 'Connections' },
-    { name: 'profile', icon: <FaUserCircle />, text: 'My Profile' }
-  ];
-
-  return (
-    <aside className={`left-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
-      <ul className="sidebar-list">
-        <li className="sidebar-toggle-container">
-          <button
-            className="sidebar-toggle-button"
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-expanded={!isSidebarCollapsed}
-          >
-            {isSidebarCollapsed ? <FaBars /> : <FaTimes />}
-          </button>
-        </li>
-
-        {sidebarItems.map((item) => (
-          <li
-            key={item.name}
-            className={`sidebar-item ${activeSection === item.name ? 'active' : ''}`}
-            onClick={() => handleSectionClick(item.name)}
-            tabIndex={0}
-            role="button"
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') handleSectionClick(item.name);
-            }}
-          >
-            <span className="sidebar-icon">{item.icon}</span>
-            <span className="sidebar-text">{item.text}</span>
-          </li>
-        ))}
-
-        {userData &&
-          authSidebarItems.map((item) => (
-            <li
-              key={item.name}
-              className={`sidebar-item ${activeSection === item.name ? 'active' : ''}`}
-              onClick={() => handleSectionClick(item.name)}
-              tabIndex={0}
-              role="button"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') handleSectionClick(item.name);
-              }}
-            >
-              <span className="sidebar-icon">{item.icon}</span>
-              <span className="sidebar-text">{item.text}</span>
-            </li>
-          ))}
-      </ul>
-    </aside>
-  );
-}
-
-/* =================== RightSidebar Component =================== */
-function RightSidebar() {
-  return (
-    <aside className="right-sidebar">
-      <h3>Trending Topics</h3>
-      <ul>
-        <li>#FinancialAid</li>
-        <li>#Admissions</li>
-        <li>#StudentResources</li>
-      </ul>
-    </aside>
   );
 }
 
@@ -1480,110 +1372,116 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     }
   }, [activeSection, activeFeed, userData]);  
   
-  // In your return statement inside Feed, add a conditional for the "Your Feed" view:
   if (activeSection === 'home') {
     return (
-      <main className="feed">
-        {/* Show the feed-option buttons if we are on home */}
-        <div className="feed-options" style={{ marginBottom: '1rem' }}>
-          <button
-            className={`feed-option-button ${activeFeed === 'yourFeed' ? 'active' : ''}`}
-            onClick={() => setActiveFeed('yourFeed')}
-          >
-            Your Feed
-          </button>
-          <button
-            className={`feed-option-button ${activeFeed === 'suggested' ? 'active' : ''}`}
-            onClick={() => setActiveFeed('suggested')}
-          >
-            Explore
-          </button>
-        </div>
-        <h2>
-          {activeSection === 'home'
-            ? activeFeed === 'yourFeed'
-              ? 'Your Feed'
-              : 'Explore'
-            : activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
-        </h2>
-        {isLoadingFeed ? (
-          <p>Loading feed...</p>
-        ) : feedThreads.length === 0 ? (
-          <p>No threads in your feed.</p>
-        ) : (
-          feedThreads.map((thread) => (
-            <div
-              key={thread.thread_id}
-              className="feed-thread-card"
-              style={{
-                marginBottom: "1rem",
-                padding: "1rem",
-                border: "1px solid #ddd",
-                borderRadius: "8px",
-              }}
-            >
-              <div className="thread-header">
-                {/* Thread Link */}
-                <Link
-                  to={`/info/forum/${thread.forum_id}/thread/${thread.thread_id}`}
-                  className="thread-link"
-                >
-                  {/* New line for Community Name */}
-                  <small className="thread-community">
-                    {" "}
-                    <Link
-                      to={`/${thread.community_type}/${thread.community_id}`}
-                      style={{ textDecoration: "none", color: "inherit" }}
-                    >
-                      {thread.community_name}
-                    </Link>
-                  </small>
-                  <h3 className="thread-title">{thread.title}</h3>
-                  <small>
-                    Posted by{" "}
-                    <Link to={`/user/${thread.user_id}`} style={{ textDecoration: "none" }}>
-                      {thread.first_name} {thread.last_name ? thread.last_name.charAt(0) + "." : ""}
-                    </Link>{" "}
-                    on {new Date(thread.created_at).toLocaleString()}
-                  </small>
-                </Link>
-              </div>
-              {/* Vote Row */}
-              <div className="vote-row">
-                <button
-                  type="button"
-                  className="vote-button upvote-button"
-                  title="Upvote"
-                  onClick={() => handleThreadUpvoteClick(thread.thread_id)}
-                >
-                  {thread.user_vote === "up" ? (
-                    <FaArrowAltCircleUp style={{ color: "green" }} />
-                  ) : (
-                    <FaRegArrowAltCircleUp style={{ color: "gray" }} />
-                  )}
-                </button>
-                <span className="vote-count">{thread.upvotes}</span>
-                <button
-                  type="button"
-                  className="vote-button downvote-button"
-                  title="Downvote"
-                  onClick={() => handleThreadDownvoteClick(thread.thread_id)}
-                >
-                  {thread.user_vote === "down" ? (
-                    <FaArrowAltCircleDown style={{ color: "red" }} />
-                  ) : (
-                    <FaRegArrowAltCircleDown style={{ color: "gray" }} />
-                  )}
-                </button>
-                <span className="vote-count">{thread.downvotes}</span>
-              </div>
+      <main>
+        <div className="feed-container">
+          <div className="feed-header">
+            <h2>{activeFeed === 'yourFeed' ? 'Your Feed' : 'Explore'}</h2>
+            <div className="feed-toggle-buttons">
+              <button
+                className={`feed-option-button ${activeFeed === 'yourFeed' ? 'active' : ''}`}
+                onClick={() => setActiveFeed('yourFeed')}
+              >
+                Your Feed
+              </button>
+              <button
+                className={`feed-option-button ${activeFeed === 'suggested' ? 'active' : ''}`}
+                onClick={() => setActiveFeed('suggested')}
+              >
+                Explore
+              </button>
             </div>
-          ))
-        )}
+          </div>
+  
+          {/* Render content based on the activeFeed value */}
+          {activeFeed === 'yourFeed' ? (
+            isLoadingFeed ? (
+              <p>Loading feed...</p>
+            ) : feedThreads.length === 0 ? (
+              <p>No threads in your feed.</p>
+            ) : (
+              feedThreads.map((thread) => (
+                <div
+                  key={thread.thread_id}
+                  className="feed-thread-card"
+                  style={{
+                    marginBottom: "1rem",
+                    padding: "1rem",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div className="thread-header">
+                    <Link
+                      to={`/info/forum/${thread.forum_id}/thread/${thread.thread_id}`}
+                      className="thread-link"
+                    >
+                      <small className="thread-community">
+                        <Link
+                          to={`/${thread.community_type}/${thread.community_id}`}
+                          style={{ textDecoration: "none", color: "inherit" }}
+                        >
+                          {thread.community_name}
+                        </Link>
+                      </small>
+                      <h3 className="thread-title">{thread.title}</h3>
+                      <small>
+                        Posted by{" "}
+                        <Link
+                          to={`/user/${thread.user_id}`}
+                          style={{ textDecoration: "none" }}
+                        >
+                          {thread.first_name}{" "}
+                          {thread.last_name ? thread.last_name.charAt(0) + "." : ""}
+                        </Link>{" "}
+                        on {new Date(thread.created_at).toLocaleString()}
+                      </small>
+                    </Link>
+                  </div>
+                  <div className="vote-row">
+                    <button
+                      type="button"
+                      className="vote-button upvote-button"
+                      title="Upvote"
+                      onClick={() => handleThreadUpvoteClick(thread.thread_id)}
+                    >
+                      {thread.user_vote === "up" ? (
+                        <FaArrowAltCircleUp style={{ color: "green" }} />
+                      ) : (
+                        <FaRegArrowAltCircleUp style={{ color: "gray" }} />
+                      )}
+                    </button>
+                    <span className="vote-count">{thread.upvotes}</span>
+                    <button
+                      type="button"
+                      className="vote-button downvote-button"
+                      title="Downvote"
+                      onClick={() => handleThreadDownvoteClick(thread.thread_id)}
+                    >
+                      {thread.user_vote === "down" ? (
+                        <FaArrowAltCircleDown style={{ color: "red" }} />
+                      ) : (
+                        <FaRegArrowAltCircleDown style={{ color: "gray" }} />
+                      )}
+                    </button>
+                    <span className="vote-count">{thread.downvotes}</span>
+                  </div>
+                </div>
+              ))
+            )
+          ) : (
+            // Render dummy Explore data here
+            <div className="explore-dummy">
+              <p>This is some dummy explore content!</p>
+              {/* Add more dummy content as needed */}
+            </div>
+          )}
+        </div>
       </main>
     );
-  }    
-
+  }  
+  
   // Create a set for quick lookup of followed community IDs.
   const followedIds = new Set(followedCommunities.map((c) => c.community_id));
 
@@ -1602,25 +1500,28 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   });
 
   return (
-    <main className="feed">
-      <h2>
-        {activeSection === 'home'
-          ? activeFeed === 'yourFeed'
-            ? 'Your Feed'
-            : 'Explore'
-          : activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
-      </h2>
-
+    <main>
       {/* 1) INFO SECTION */}
       {activeSection === 'info' && (
-        <>
+      <div className="feed-container">
+        <div className="feed-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>
+            {activeFeed === 'info'
+              ? 'General Information'
+              : activeFeed === 'yourFeed'
+              ? 'Your Feed'
+              : 'Explore'}
+          </h2>
           {/* Admin create forum */}
           {userData?.role_id === 7 && (
-            <button className="create-button" onClick={() => setShowCreateForumModal(true)}>
-              Create Forum
+            <button
+              className="non-togglable-button"
+              onClick={() => setShowCreateForumModal(true)}
+            >
+              + Create Forum
             </button>
           )}
-
+          </div>
           {/* CREATE MODAL */}
           {showCreateForumModal && (
             <div className="modal-overlay">
@@ -1658,7 +1559,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
               </div>
             </div>
           )}
-
+  
           {/* EDIT MODAL */}
           {isEditingForum && (
             <div className="modal-overlay">
@@ -1694,7 +1595,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
               </div>
             </div>
           )}
-
+  
           {/* Sorting Dropdown */}
           <div className="sort-container" style={{ marginBottom: '1rem' }}>
             <label htmlFor="sort-by">Sort by: </label>
@@ -1708,7 +1609,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
               <option value="mostRecent">Most Recent</option> {/* New option */}
             </select>
           </div>
-
+  
           <h2 className="forum-title">Forums</h2>
           {isLoadingForums ? (
             <p>Loading forums...</p>
@@ -1721,9 +1622,13 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
                 const isSaved = savedForums.some((sf) => sf.forum_id === forum.forum_id);
                 const hasUpvoted = forum.user_vote === 'up';
                 const hasDownvoted = forum.user_vote === 'down';
-
+  
                 return (
-                  <div key={forum.forum_id} className="forum-card" style={{ marginBottom: '1rem', position: 'relative' }}>
+                  <div
+                    key={forum.forum_id}
+                    className="forum-card"
+                    style={{ marginBottom: '1rem', position: 'relative' }}
+                  >
                     {/* 3-dot menu icon */}
                     <FaEllipsisV
                       className="menu-icon"
@@ -1760,8 +1665,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
                               console.log("Add to University button clicked");
                               // Assume the forum object has a community_id field which is the community to pin to.
                               axios.post('/api/pin_to_community.php', {
-                                community_id: forum.community_id, // The community that the ambassador represents
-                                item_id: forum.forum_id,           // The forum to be pinned
+                                community_id: forum.community_id,
+                                item_id: forum.forum_id,
                                 item_type: 'forum'
                               }, { withCredentials: true })
                               .then(response => {
@@ -1821,15 +1726,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
                         </button>
                       </div>
                     )}
-
-
+  
                     {/* Forum Link */}
                     <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                       <h3 className="forum-title">{forum.name}</h3>
                       <p className="forum-thread-count">{forum.thread_count || 0} Threads</p>
                       <p className="forum-description">{forum.description}</p>
                     </Link>
-
+  
                     {/* Upvote/Downvote Buttons */}
                     <div className="vote-row">
                       <button
@@ -1890,265 +1794,268 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
               })}
             </div>
           )}
-        </>
+        </div>
       )}
-
-      {/* 2) COMMUNITIES SECTION */}
+  
       {activeSection === 'communities' && (
-        <>
-          <div className="communities-section">
-            {/* Community Type Tabs */}
-            <div className="community-tab">
-              <button
-                onClick={() => setSelectedCommunityTab("university")}
-                className={selectedCommunityTab === "university" ? "active" : ""}
-              >
-                Universities
-              </button>
-              <button
-                onClick={() => setSelectedCommunityTab("group")}
-                className={selectedCommunityTab === "group" ? "active" : ""}
-              >
-                Groups
-              </button>
-            </div>
-
-            {/* Filter Controls for Followed/Unfollowed/All */}
-            <div className="filter-buttons">
-              <button
-                onClick={() => setCommunityFilter('All')}
-                className={communityFilter === 'All' ? 'active' : ''}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setCommunityFilter('Followed')}
-                className={communityFilter === 'Followed' ? 'active' : ''}
-              >
-                Followed
-              </button>
-              <button
-                onClick={() => setCommunityFilter('Unfollowed')}
-                className={communityFilter === 'Unfollowed' ? 'active' : ''}
-              >
-                Unfollowed
-              </button>
-            </div>
-
-            {/* Search Bar */}
-            <div className="search-bar-container">
-              <input
-                id="community-search"
-                type="text"
-                placeholder="Search communities..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="community-search-bar"
-              />
-            </div>
-
-            {/* Display Filtered Communities */}
-            <div className="communities-section">
-              {isLoadingAll ? (
-                <p>Loading communities...</p>
-              ) : filteredCommunities.length > 0 ? (
-                <div className="community-grid">
-                  {filteredCommunities.map((community) => (
-                    <div
-                      key={community.community_id}
-                      className="community-card"
-                      // If in "All" mode and the community is followed, outline in green.
-                      style={
-                        communityFilter === 'All' && followedIds.has(community.community_id)
-                          ? { border: '2px solid green' }
-                          : {}
-                      }
-                    >
-                      <img
-                        src={community.logo_path || '/uploads/logos/default-logo.png'}
-                        alt={`${community.name} Logo`}
-                        className="community-logo"
-                        loading="lazy"
-                      />
-                      <Link
-                        to={`/${community.community_type}/${community.community_id}`}
-                        style={{ textDecoration: 'none', color: 'inherit' }}
-                      >
-                        <h4 className="community-name">{community.name}</h4>
-                      </Link>
-                      <p className="community-location">{community.location}</p>
-                      {community.tagline && <p className="community-tagline">{community.tagline}</p>}
-                      <p className="followers-count">{community.followers_count} Followers</p>
-                      <button
-                        className={`follow-button ${followedIds.has(community.community_id) ? 'unfollow' : 'follow'}`}
-                        onClick={() =>
-                          handleFollowToggle(community.community_id, followedIds.has(community.community_id))
-                        }
-                      >
-                        {followedIds.has(community.community_id) ? 'Unfollow' : 'Follow'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p>No {selectedCommunityTab === "university" ? "universities" : "groups"} found.</p>
-              )}
-              {/* Pagination Controls */}
-              <div className="pagination-controls">
-                <button onClick={handlePrevPage} disabled={currentPage === 1} className="pagination-button">
-                  Previous
-                </button>
-                <span className="pagination-info">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button onClick={handleNextPage} disabled={currentPage === totalPages} className="pagination-button">
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* 3) SAVED SECTION */}
-      {activeSection === 'saved' && userData && (
-        <>
-          <div style={{ marginBottom: '1rem' }}>
+        <div className="feed-container">
+          {/* Header with Communities title and filter buttons */}
+          <div
+            className="communities-header"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderBottom: '2px solid #ddd',
+              marginBottom: '1rem'
+            }}
+          >
+          <h2>Communities</h2>
+          <div className="feed-toggle-buttons">
             <button
-              style={{ marginRight: '0.5rem' }}
+              className={`feed-option-button ${communityFilter === 'All' ? 'active' : ''}`}
+              onClick={() => setCommunityFilter('All')}
+            >
+              All
+            </button>
+            <button
+              className={`feed-option-button ${communityFilter === 'Followed' ? 'active' : ''}`}
+              onClick={() => setCommunityFilter('Followed')}
+            >
+              Followed
+            </button>
+            <button
+              className={`feed-option-button ${communityFilter === 'Unfollowed' ? 'active' : ''}`}
+              onClick={() => setCommunityFilter('Unfollowed')}
+            >
+              Unfollowed
+            </button>
+          </div>
+        </div>
+
+        {/* Community Type Tabs */}
+        <div className="community-tab" style={{ marginBottom: '1rem' }}>
+          <button
+            onClick={() => setSelectedCommunityTab("university")}
+            className={selectedCommunityTab === "university" ? "active" : ""}
+          >
+            Universities
+          </button>
+          <button
+            onClick={() => setSelectedCommunityTab("group")}
+            className={selectedCommunityTab === "group" ? "active" : ""}
+          >
+            Groups
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="search-bar-container">
+          <input
+            id="community-search"
+            type="text"
+            placeholder="Search communities..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="community-search-bar"
+          />
+        </div>
+
+        {/* Display Filtered Communities */}
+        <div className="communities-section">
+          {isLoadingAll ? (
+            <p>Loading communities...</p>
+          ) : filteredCommunities.length > 0 ? (
+            <div className="community-grid">
+              {filteredCommunities.map((community) => (
+                <div
+                  key={community.community_id}
+                  className="community-card"
+                  // If in "All" mode and the community is followed, outline in green.
+                  style={
+                    communityFilter === 'All' && followedIds.has(community.community_id)
+                      ? { border: '2px solid green' }
+                      : {}
+                  }
+                >
+                  <img
+                    src={community.logo_path || '/uploads/logos/default-logo.png'}
+                    alt={`${community.name} Logo`}
+                    className="community-logo"
+                    loading="lazy"
+                  />
+                  <Link
+                    to={`/${community.community_type}/${community.community_id}`}
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <h4 className="community-name">{community.name}</h4>
+                  </Link>
+                  <p className="community-location">{community.location}</p>
+                  {community.tagline && <p className="community-tagline">{community.tagline}</p>}
+                  <p className="followers-count">{community.followers_count} Followers</p>
+                  <button
+                    className={`follow-button ${followedIds.has(community.community_id) ? 'unfollow' : 'follow'}`}
+                    onClick={() =>
+                      handleFollowToggle(community.community_id, followedIds.has(community.community_id))
+                    }
+                  >
+                    {followedIds.has(community.community_id) ? 'Unfollow' : 'Follow'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>No {selectedCommunityTab === "university" ? "universities" : "groups"} found.</p>
+          )}
+          {/* Pagination Controls */}
+          <div className="pagination-controls">
+            <button onClick={handlePrevPage} disabled={currentPage === 1} className="pagination-button">
+              Previous
+            </button>
+            <span className="pagination-info">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button onClick={handleNextPage} disabled={currentPage === totalPages} className="pagination-button">
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* 3) SAVED SECTION */}
+    {activeSection === 'saved' && userData && (
+      <div className="feed-container">
+        <div className="feed-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>Saved</h2>
+          <div className="feed-toggle-buttons">
+            <button
+              className={`feed-option-button ${savedTab === 'forums' ? 'active' : ''}`}
               onClick={() => setSavedTab('forums')}
             >
-              Saved Forums
+              Forums
             </button>
             <button
-              style={{ marginRight: '0.5rem' }}
+              className={`feed-option-button ${savedTab === 'threads' ? 'active' : ''}`}
               onClick={() => setSavedTab('threads')}
             >
-              Saved Threads
+              Threads
             </button>
             <button
+              className={`feed-option-button ${savedTab === 'posts' ? 'active' : ''}`}
               onClick={() => setSavedTab('posts')}
             >
-              Saved Posts
+              Posts
             </button>
           </div>
+        </div>
 
-          {/* Show the relevant list based on savedTab */}
-          {savedTab === 'forums' && (
-            <>
-              <h3>Saved Forums</h3>
-              {savedForums.length === 0 ? (
-                <p>You have no saved forums.</p>
-              ) : (
-                savedForums.map((f) => (
-                  <div key={f.forum_id} className="forum-card" style={{ marginBottom: '1rem' }}>
-                    <Link
-                      to={`/info/forum/${f.forum_id}`}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
-                      <h4>{f.name}</h4>
-                      <p>{f.description}</p>
-                    </Link>
-                    <button
-                      style={{
-                        backgroundColor: '#ccc',
-                        color: '#333',
-                        border: 'none',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => handleSaveForum(f.forum_id, true)} // true = unsave
-                    >
-                      Unsave
-                    </button>
+        {/* Show the relevant list based on savedTab */}
+        {savedTab === 'forums' && (
+          <>
+            {savedForums.length === 0 ? (
+              <p>You have no saved forums.</p>
+            ) : (
+              savedForums.map((f) => (
+                <div key={f.forum_id} className="forum-card" style={{ marginBottom: '1rem' }}>
+                  <Link
+                    to={`/info/forum/${f.forum_id}`}
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <h4>{f.name}</h4>
+                    <p>{f.description}</p>
+                  </Link>
+                  <button
+                    style={{
+                      backgroundColor: '#ccc',
+                      color: '#333',
+                      border: 'none',
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleSaveForum(f.forum_id, true)} // true = unsave
+                  >
+                    Unsave
+                  </button>
+                </div>
+              ))
+            )}
+          </>
+        )}
+
+        {savedTab === 'threads' && (
+          <>
+            {savedThreads.length === 0 ? (
+              <p>You have no saved threads.</p>
+            ) : (
+              savedThreads.map((t) => (
+                <div key={t.thread_id} className="forum-card" style={{ marginBottom: '1rem' }}>
+                  {/* Link to thread details if you have a route like /info/forum/x/thread/y */}
+                  <Link
+                    to={`/info/forum/0/thread/${t.thread_id}`} 
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <h4>{t.title}</h4>
+                  </Link>
+                  <button
+                    style={{
+                      backgroundColor: '#ccc',
+                      color: '#333',
+                      border: 'none',
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => {
+                      // call /api/unsave_thread.php
+                      alert(`Unsave thread: ${t.thread_id}`);
+                    }}
+                  >
+                    Unsave
+                  </button>
+                </div>
+              ))
+            )}
+          </>
+        )}
+
+        {savedTab === 'posts' && (
+          <>
+            {savedPosts.length === 0 ? (
+              <p>You have no saved posts.</p>
+            ) : (
+              savedPosts.map((p) => (
+                <div key={p.post_id} className="forum-card" style={{ marginBottom: '1rem' }}>
+                  <h4>Post #{p.post_id}</h4>
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: DOMPurify ? DOMPurify.sanitize(p.content) : p.content
+                    }}
+                  />
+                  <br />
+                  <button
+                    style={{
+                      backgroundColor: '#ccc',
+                      color: '#333',
+                      border: 'none',
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => {
+                      // call /api/unsave_post.php
+                      alert(`Unsave post: ${p.post_id}`);
+                    }}
+                  >
+                    Unsave
+                  </button>
                   </div>
                 ))
               )}
             </>
           )}
-
-          {savedTab === 'threads' && (
-            <>
-              <h3>Saved Threads</h3>
-              {savedThreads.length === 0 ? (
-                <p>You have no saved threads.</p>
-              ) : (
-                savedThreads.map((t) => (
-                  <div key={t.thread_id} className="forum-card" style={{ marginBottom: '1rem' }}>
-                    {/* Link to thread details if you have a route like /info/forum/x/thread/y */}
-                    <Link
-                      to={`/info/forum/0/thread/${t.thread_id}`} 
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
-                      <h4>{t.title}</h4>
-                    </Link>
-                    <button
-                      style={{
-                        backgroundColor: '#ccc',
-                        color: '#333',
-                        border: 'none',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        // call /api/unsave_thread.php
-                        // or handle logic to unsave
-                        // for demonstration:
-                        alert(`Unsave thread: ${t.thread_id}`);
-                      }}
-                    >
-                      Unsave
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
-
-          {savedTab === 'posts' && (
-            <>
-              <h3>Saved Posts</h3>
-              {savedPosts.length === 0 ? (
-                <p>You have no saved posts.</p>
-              ) : (
-                savedPosts.map((p) => (
-                  <div key={p.post_id} className="forum-card" style={{ marginBottom: '1rem' }}>
-                    <h4>Post #{p.post_id}</h4>
-                    {/* 
-                      Render the HTML content properly instead of just {p.content}.
-                      We can sanitize it with DOMPurify if needed:
-                    */}
-                    <div
-                      dangerouslySetInnerHTML={{
-                        __html: DOMPurify ? DOMPurify.sanitize(p.content) : p.content
-                      }}
-                    />
-                    <br></br>
-                    <button
-                      style={{
-                        backgroundColor: '#ccc',
-                        color: '#333',
-                        border: 'none',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        // call /api/unsave_post.php
-                        // for demonstration:
-                        alert(`Unsave post: ${p.post_id}`);
-                      }}
-                    >
-                      Unsave
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
-        </>
+        </div>
       )}
 
       {/* Render "mock posts" for any other sections */}
