@@ -10,8 +10,6 @@
   }
   
   .messages-container {
-    /* max-width: 800px; */
-    width: 69.5vw;
     padding: 1rem;
     background-color: var(--background-color);
     border-radius: var(--border-radius);
