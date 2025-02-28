@@ -1,7 +1,7 @@
 /* Global Styles */
 .app-container {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #f6f6f6;
+  background: #f5f2ef;
   height: 93.5vh;
   display: flex;
   flex-direction: column;
@@ -104,7 +104,7 @@
   color: white;
   border: none;
   padding: 5px 10px;
-  border-radius: 5px;
+  border-radius: 20px;
   cursor: pointer;
   font-size: 0.9rem;
   margin-left: 5px;
@@ -141,6 +141,7 @@
 .nav-menu li.active {
   font-weight: bold;
   text-decoration: underline;
+  text-decoration-color: #acacac;
 }
 
 
@@ -150,14 +151,14 @@
   left: 0;
   right: 0;
   z-index: 1000; /* Make sure it stays above other content */
-  background: #FFFFFF; /* Ensure the background is set */
+  background: #0277b5; /* Ensure the background is set */
   /* keep your existing padding, height, etc. */
   padding: 0.5rem 1rem;
   height: 60px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #666666;
+  color: white;
 }
 
 
@@ -178,7 +179,7 @@
 }
 
 .nav-item:hover .nav-item-icon {
-  color: #191919;
+  color: #acacac;
 }
 
 .nav-item-label {
@@ -189,7 +190,7 @@
 /* Active state styling */
 .nav-menu li.active .nav-item-icon,
 .nav-menu li.active .nav-item-label {
-  color: #191919;
+  color: #acacac;
 }
 
 .sidebar-toggle-button {
@@ -311,11 +312,11 @@
   font-size: 1.2rem;
   cursor: pointer;
   transition: color 0.3s;
-  color: #666666;
+  color: #f4f2ef;
 }
 
 .nav-icon:hover {
-  color: #191919;
+  color: #acacac;
 }
 
 .account-menu {
@@ -373,6 +374,17 @@
   overflow-y: auto; /* enable vertical scrolling */
 }
 
+.profile-page-main-content {
+  display: grid;
+  /* 60vw for the profile, 15vw for the right sidebar */
+  grid-template-columns: 60vw 15vw;
+  gap: 6vw;
+  margin: 30px auto 0; /* Center horizontally */
+  align-items: start;
+  height: calc(100vh - 60px); /* viewport minus nav height */
+  overflow-y: auto;
+  box-sizing: border-box;
+}
 
 /* Left Sidebar */
 .left-sidebar {
@@ -382,7 +394,7 @@
   border-radius: 8px;
   padding: 1rem;
   margin: 0; /* Remove any extra margin */
-  height: fit-content;
+  height: 60vh;
   transition: width 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease-in-out,
               padding 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
   position: relative;
@@ -631,7 +643,7 @@
 
 /* Right Sidebar */
 .right-sidebar {
-  /* Force the width to 15vw */
+  height: 45vh;
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 8px;

@@ -25,6 +25,12 @@
   max-height: 80vh;
 }
 
+/* Only if you'd like to ensure EXACT 60vw width for .profile-view: */
+.profile-page-main-content .profile-view {
+  width: 60vw !important;
+}
+
+
 /* ===================== */
 /* Banner Section        */
 /* ===================== */
@@ -130,19 +136,21 @@
 /* Profile Actions (Follow/Unfollow & Message Buttons) */
 /* ===================== */
 .profile-actions {
-  display: flex;
   gap: 10px;
   margin-top: 10px;
 }
 
+
+
 .follow-button,
 .message-button {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
+  background: #e0e0e0;
   border: none;
-  transition: background-color 0.3s ease-in-out;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 1rem;
+  border-radius: 20px;
+  transition: background var(--transition-speed), color var(--transition-speed);
 }
 
 .follow-button.follow {
@@ -153,6 +161,7 @@
 .follow-button.unfollow {
   background-color: #ccc;
   color: #333;
+  padding: 8px 16px;
 }
 
 .follow-button:hover {
@@ -268,6 +277,64 @@
   border-color: var(--primary-color);
   outline: none;
 }
+/* ----------------------- */
+/* Experience Item Styles  */
+/* ----------------------- */
+.experience-item {
+  border-bottom: 1px solid var(--light-border);
+}
+.experience-dates {
+  font-size: 0.9rem;
+  color: var(--muted-color);
+  margin-bottom: 0.5rem;
+}
+.experience-meta {
+  font-size: 0.9rem;
+  color: var(--subtext-color);
+  margin-bottom: 0.5rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.responsibilities-list {
+  list-style: disc;
+  margin-left: 1.5rem;
+  padding: 0.5rem 0;
+}
+
+/* ----------------------- */
+/* Education Item Styles   */
+/* ----------------------- */
+.education-item {
+  border-bottom: 1px solid var(--light-border);
+}
+.education-institution,
+.education-dates,
+.education-gpa,
+.education-honors,
+.education-activities {
+  font-size: 0.9rem;
+  color: var(--muted-color);
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.achievements-list {
+  list-style: disc;
+  margin-left: 1.5rem;
+  padding: 0.5rem 0;
+}
+
+/* ----------------------- */
+/* Responsive adjustments */
+/* ----------------------- */
+@media (max-width: 768px) {
+  .experience-meta,
+  .education-item {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
 
 /* ===================== */
 /* Responsive Design     */

@@ -187,7 +187,6 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!userData) return;
-    // Upload files first if they were changed
     let updatedAvatarPath = avatarPath;
     let updatedBannerPath = bannerPath;
     if (avatarFile) {
@@ -221,12 +220,11 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       if (response.data.success) {
         alert('Profile updated successfully!');
         setIsEditing(false);
-        // Option 1: Refetch the session data
         const updatedRes = await axios.get(`/api/fetch_user.php?user_id=${userData.user_id}`, { withCredentials: true });
         if (updatedRes.data.success) {
           setProfile(updatedRes.data.user);
           if (onProfileUpdate) {
-            onProfileUpdate(updatedRes.data.user); // Update the global state (e.g., for nav icons)
+            onProfileUpdate(updatedRes.data.user);
           }
           window.location.reload();
         }
@@ -251,7 +249,6 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const displayAbout = profile ? profile.about || 'No about information provided yet.' : '';
   const displaySkills = profile && profile.skills ? profile.skills : '';
 
-  // Inline style for primary/secondary colors
   const profileStyle = {
     '--primary-color': primaryColor,
     '--secondary-color': secondaryColor,
@@ -387,11 +384,25 @@ function SelfProfileView({ userData, onProfileUpdate }) {
             ) : experience.length > 0 ? (
               experience.map((exp, index) => (
                 <div key={index} className="experience-item">
-                  <h4>
-                    {exp.title} at {exp.company}
-                  </h4>
-                  <span className="experience-duration">{exp.duration}</span>
+                  <h4>{exp.title} at {exp.company}</h4>
+                  <div className="experience-dates">
+                    {exp.start_date} - {exp.end_date ? exp.end_date : "Present"}
+                  </div>
+                  <div className="experience-meta">
+                    {/*<span className="experience-industry">{exp.industry}</span>*/}
+                    <span className="experience-type">{exp.employment_type}</span>
+                    <span className="experience-location">
+                      {exp.location_city}, {exp.location_state}
+                    </span>
+                  </div>
                   <p>{exp.description}</p>
+                  {exp.responsibilities && exp.responsibilities.length > 0 && (
+                    <ul className="responsibilities-list">
+                      {exp.responsibilities.map((resp, idx) => (
+                        <li key={idx}>{resp}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ))
             ) : (
@@ -409,9 +420,25 @@ function SelfProfileView({ userData, onProfileUpdate }) {
             ) : education.length > 0 ? (
               education.map((edu, index) => (
                 <div key={index} className="education-item">
-                  <h4>{edu.degree}</h4>
-                  <span className="education-institution">{edu.institution}</span>
-                  <span className="education-duration">{edu.duration}</span>
+                  <h4>{edu.degree} in {edu.field_of_study}</h4>
+                  <div className="education-institution">{edu.institution}</div>
+                  <div className="education-dates">
+                    {edu.start_date} - {edu.end_date ? edu.end_date : "Present"}
+                  </div>
+                  {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
+                  {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
+                  {edu.activities_societies && (
+                    <div className="education-activities">
+                      Activities: {edu.activities_societies}
+                    </div>
+                  )}
+                  {edu.achievements && edu.achievements.length > 0 && (
+                    <ul className="achievements-list">
+                      {edu.achievements.map((ach, idx) => (
+                        <li key={idx}>{ach}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ))
             ) : (

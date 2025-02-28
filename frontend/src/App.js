@@ -558,13 +558,12 @@ function App() {
         {step === 3 && (
           <InterestSelection onComplete={handleInterestComplete} />
         )}
-
         {step === 0 && (
           <>
             <NavBar
               activeFeed={activeFeed}
               setStep={setStep}
-              setActiveFeed={setActiveFeed}  // This prop is passed down
+              setActiveFeed={setActiveFeed}
               activeSection={activeSection}
               setActiveSection={setActiveSection}
               userData={userData}
@@ -577,89 +576,71 @@ function App() {
               notificationRef={notificationRef}
               markAllAsRead={markAllAsRead}
             />
-            <div className="main-content">
-              <LeftSidebar />
-              <Routes>
-                <Route
-                  path="/home"
-                  element={
-                    <Feed
-                      activeFeed={activeFeed}
-                      setActiveFeed={setActiveFeed}
-                      activeSection="home"
-                      userData={userData}
-                    />
-                  }
-                />
-                <Route
-                  path="/info"
-                  element={
-                    <Feed
-                      activeFeed={activeFeed}
-                      setActiveFeed={setActiveFeed}
-                      activeSection="info"
-                      userData={userData}
-                    />
-                  }
-                />
-                <Route
-                  path="/saved"
-                  element={
-                    <Feed
-                      activeFeed={activeFeed}
-                      setActiveFeed={setActiveFeed}
-                      activeSection="saved"
-                      userData={userData}
-                    />
-                  }
-                />
-                <Route
-                  path="/connections"
-                  element={userData ? <Connections userData={userData} /> : <Navigate to="/login" />}
-                />
-                <Route
-                  path="/funding"
-                  element={
-                    <Feed
-                      activeFeed={activeFeed}
-                      setActiveFeed={setActiveFeed}
-                      activeSection="scholarships"
-                      userData={userData}
-                    />
-                  }
-                />
-                <Route
-                  path="/communities"
-                  element={
-                    <Feed
-                      activeFeed={activeFeed}
-                      setActiveFeed={setActiveFeed}
-                      activeSection="communities"
-                      userData={userData}
-                    />
-                  }
-                />
-                <Route
-                  path="/profile"
-                  element={userData ? <SelfProfileView userData={userData} /> : <Navigate to="/login" />}
-                />
-                {/* Forum + Thread routes */}
-                <Route
-                  path="/info/forum/:forum_id"
-                  element={<ForumView userData={userData} />}
-                />
-                <Route
-                  path="/info/forum/:forum_id/thread/:thread_id"
-                  element={<ThreadView userData={userData} />}
-                />
-                <Route path="/user/:user_id" element={<UserProfileView userData={userData} />} />
-                {/* New routes for universities and groups */}
-                <Route path="/university/:id" element={<UniversityProfile userData={userData} />} />
-                <Route path="/group/:id" element={<GroupProfile userData={userData} />} />
-                <Route path="/messages" element={<Messages userData={userData} />} />
-              </Routes>
-              <RightSidebar />
-            </div>
+
+            <Routes>
+              {/* Profile and User Profile Views (2-column layout) */}
+              <Route
+                path="/profile"
+                element={
+                  <div className="profile-page-main-content">
+                    {userData ? <SelfProfileView userData={userData} /> : <Navigate to="/login" />}
+                    <RightSidebar />
+                  </div>
+                }
+              />
+              
+              <Route
+                path="/user/:user_id"
+                element={
+                  <div className="profile-page-main-content">
+                    <UserProfileView userData={userData} />
+                    <RightSidebar />
+                  </div>
+                }
+              />
+
+              {/* Default layout for all other routes */}
+              <Route
+                path="*"
+                element={
+                  <div className="main-content">
+                    <LeftSidebar />
+                    <Routes>
+                      <Route
+                        path="/home"
+                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="home" userData={userData} />}
+                      />
+                      <Route
+                        path="/info"
+                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="info" userData={userData} />}
+                      />
+                      <Route
+                        path="/saved"
+                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="saved" userData={userData} />}
+                      />
+                      <Route
+                        path="/connections"
+                        element={userData ? <Connections userData={userData} /> : <Navigate to="/login" />}
+                      />
+                      <Route
+                        path="/funding"
+                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="funding" userData={userData} />}
+                      />
+                      <Route
+                        path="/communities"
+                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="communities" userData={userData} />}
+                      />
+                      <Route path="/info/forum/:forum_id" element={<ForumView userData={userData} />} />
+                      <Route path="/info/forum/:forum_id/thread/:thread_id" element={<ThreadView userData={userData} />} />
+                      <Route path="/university/:id" element={<UniversityProfile userData={userData} />} />
+                      <Route path="/group/:id" element={<GroupProfile userData={userData} />} />
+                      <Route path="/messages" element={<Messages userData={userData} />} />
+                    </Routes>
+                    <RightSidebar />
+                  </div>
+                }
+              />
+            </Routes>
           </>
         )}
       </div>
@@ -711,7 +692,7 @@ function NavBar({
   return (
     <nav className="nav-bar">
       <div className="nav-left">
-        <h2 className="brand-title">StudentSphere</h2>
+        <h2 className="brand-title">{/*StudentSphere*/}</h2>
       </div>
 
       <div className="nav-menu">
@@ -729,10 +710,10 @@ function NavBar({
             onClick={() => handleSectionClick('info')} 
           />
           <NavItem 
-            active={activeSection === 'scholarships'} 
+            active={activeSection === 'funding'} 
             label="Funding" 
             Icon={RiMedalFill} 
-            onClick={() => handleSectionClick('scholarships')} 
+            onClick={() => handleSectionClick('funding')} 
           />
           <NavItem 
             active={activeSection === 'communities'} 
@@ -873,6 +854,7 @@ function NavBar({
 
 /* =================== Feed Component =================== */
 function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
+
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted"
   const [communityFilter, setCommunityFilter] = useState('All'); // Options: "All", "Followed", "Unfollowed"
   const [selectedCommunityTab, setSelectedCommunityTab] = useState("university");
@@ -917,6 +899,10 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   const [feedThreads, setFeedThreads] = useState([]);
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
 
+  useEffect(() => {
+    console.log("Active Section:", activeSection);
+  }, [activeSection]);
+
   // Handler for voting on threads:
   const handleThreadVoteClick = async (threadId, voteType) => {
     if (!userData) {
@@ -944,7 +930,19 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
       alert("An error occurred while voting on thread.");
     }
   };
-
+  // Funding view as a variable
+  let fundingView = null;
+  if (activeSection === "funding") {
+    fundingView = (
+      <div className="feed-container">
+        <div className="feed-header">
+          <h2>Funding</h2>
+        </div>
+        <p>More coming soon...</p>
+      </div>
+    );
+  }
+  
   const handleThreadUpvoteClick = (threadId) =>
     handleThreadVoteClick(threadId, "up");
   const handleThreadDownvoteClick = (threadId) =>
@@ -972,7 +970,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
         });
     }
   };
-  
+
   // Helper to fetch saved items
   const fetchSavedForums = async () => {
     if (!userData) return;
@@ -1371,7 +1369,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
         });
     }
   }, [activeSection, activeFeed, userData]);  
-  
   if (activeSection === 'home') {
     return (
       <main>
@@ -1498,9 +1495,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     }
     return true; // For "All", include every community of the selected type.
   });
-
+  
   return (
     <main>
+      {activeSection === "funding" && (
+        <div className="feed-container">
+          <div className="feed-header">
+            <h2>Funding</h2>
+          </div>
+          <p>More coming soon...</p>
+        </div>
+      )}
+
       {/* 1) INFO SECTION */}
       {activeSection === 'info' && (
       <div className="feed-container">
@@ -1922,7 +1928,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
         </div>
       </div>
     )}
-
     {/* 3) SAVED SECTION */}
     {activeSection === 'saved' && userData && (
       <div className="feed-container">
@@ -2059,7 +2064,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
       )}
 
       {/* Render "mock posts" for any other sections */}
-      {['home', 'connections', 'scholarships'].includes(activeSection) && (
+      {['home', 'connections', 'funding'].includes(activeSection) && (
         (activeSection !== 'info' && activeSection !== 'communities' && activeSection !== 'saved') &&
           mockPosts.map((post, i) => (
             <div key={i} className="post-card">

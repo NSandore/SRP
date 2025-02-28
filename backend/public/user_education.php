@@ -1,30 +1,44 @@
 <?php
-// /api/user_education.php
-
+require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
-// Include your database connection file
-require_once '../db_connection.php';
+// Retrieve user ID from GET or JSON body
+$contentType = isset($_SERVER["CONTENT_TYPE"]) ? trim($_SERVER["CONTENT_TYPE"]) : '';
 
-if (!isset($_GET['user_id'])) {
-  http_response_code(400);
-  echo json_encode(["error" => "Missing user_id"]);
-  exit;
+if (strpos($contentType, 'application/json') !== false) {
+    $data = json_decode(file_get_contents("php://input"), true);
+    $user_id = isset($data['user_id']) ? (int)$data['user_id'] : 0;
+} else {
+    $user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
 }
 
-$user_id = intval($_GET['user_id']);
-
-// Query to fetch the user's education entries
-$query = "SELECT degree, institution, duration FROM user_education WHERE user_id = ?";
-$stmt = $db->prepare($query);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$education = [];
-while ($row = $result->fetch_assoc()) {
-  $education[] = $row;
+// Validate parameters
+if (!$user_id) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Missing or invalid user_id']);
+    exit;
 }
 
-echo json_encode($education);
+$db = getDB(); // Ensure this function exists in db_connection.php
+
+try {
+    $query = "SELECT education_id, degree, field_of_study, institution, start_date, end_date, gpa, honors, activities_societies, achievements 
+              FROM user_education 
+              WHERE user_id = :user_id";
+    $stmt = $db->prepare($query);
+    $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $education = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        // Decode JSON achievements
+        $row['achievements'] = json_decode($row['achievements'], true) ?? [];
+        $education[] = $row;
+    }
+
+    echo json_encode($education);
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+}
 ?>
