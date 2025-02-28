@@ -48,6 +48,7 @@
   margin-top: -75px; /* Adjust this value as needed */
   position: relative;
   z-index: 2;
+  background-color: #f7f7f7;
 }
 
 .university-logo {
@@ -67,7 +68,7 @@
   color: #fff;
   background-color: var(--primary-color);
   text-decoration: none;
-  border-radius: var(--border-radius);
+  border-radius: 20px;
   transition: background var(--transition-speed) ease;
 }
 
@@ -154,7 +155,7 @@
   color: #fff;
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: var(--border-radius);
+  border-radius: 20px;
   cursor: pointer;
   transition: background var(--transition-speed) ease;
   font-size: 1rem;
@@ -274,6 +275,20 @@
   margin: 0.25rem 0 0;
 }
 
+.ambassador-button {
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background var(--transition-speed) ease;
+  font-size: 1rem;
+}
+
+.ambassador-button:hover {
+  background-color: var(--secondary-color);
+}
 /* Message Button */
 .message-button {
   background-color: #007bff;

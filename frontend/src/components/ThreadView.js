@@ -674,8 +674,7 @@ function PostItem({
         )}
         {canDelete && (
           <button
-            className="create-button delete-button"
-            onClick={() => handleDeletePost(post.post_id)}
+            className="create-button delete-button" onClick={() => handleDeletePost(post.post_id)}
           >
             Delete
           </button>
@@ -1067,17 +1066,22 @@ function ThreadView({ userData }) {
     return <p>Loading thread and posts...</p>;
   }
 
-  // In the return() at the bottom of ThreadView:
+  // Final return block
   return (
-    <div className="thread-view-container">
-      {/* Back button */}
-      <RouterLink to={`/info/forum/${threadData?.forum_id || ''}`} className="back-button">
-        ← {threadData?.forum_name || 'Forum'}
-      </RouterLink>
-
-      {/* Thread Title */}
-      <h2 className="thread-title">{threadData?.title || `Thread ${thread_id}`}</h2>
-
+    <div className="feed-container thread-view">
+      {/* Header Row */}
+      <div className="feed-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* Left side: arrow + thread title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <RouterLink to={`/info/forum/${threadData?.forum_id || ''}`} className="arrow-link">
+            ←
+          </RouterLink>
+          <h2 className="thread-title">
+            {threadData?.title || `Thread ${thread_id}`}
+          </h2>
+        </div>
+      </div>
+  
       {/* Reply Sort Options */}
       <div className="reply-sort-options">
         <label htmlFor="replySort">Sort Replies:</label>
@@ -1091,7 +1095,8 @@ function ThreadView({ userData }) {
           <option value="mostPopular">Most Popular</option>
         </select>
       </div>
-
+  
+      {/* Post Tree */}
       {postTree.length === 0 ? (
         <p>No replies found.</p>
       ) : (
@@ -1117,7 +1122,7 @@ function ThreadView({ userData }) {
           ))}
         </div>
       )}
-
+  
       {/* Notification */}
       {notification && (
         <div className={`notification ${notification.type}`}>
@@ -1128,7 +1133,7 @@ function ThreadView({ userData }) {
         </div>
       )}
     </div>
-  );
+  ); 
 }
 
 export default ThreadView;

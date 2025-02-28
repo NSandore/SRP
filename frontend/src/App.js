@@ -1509,7 +1509,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
               className="non-togglable-button"
               onClick={() => setShowCreateForumModal(true)}
             >
-              + Create Forum
+              + New Forum
             </button>
           )}
           </div>
