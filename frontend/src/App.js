@@ -276,6 +276,7 @@ function ForumCard({
 
 function App() {
   const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [selectedSchools, setSelectedSchools] = useState([]);
   const [activeFeed, setActiveFeed] = useState('yourFeed');
@@ -304,7 +305,9 @@ function App() {
         const response = await axios.get('http://34.31.85.242/api/check_session.php', {
           withCredentials: true
         });
-        console.log("Session Data:", response.data); // Logs the $_SESSION data sent from PHP
+
+        console.log("Session Data:", response.data);
+
         if (response.data?.loggedIn) {
           const user = response.data.user;
           user.role_id = Number(user.role_id);
@@ -314,12 +317,13 @@ function App() {
         }
       } catch (err) {
         console.error('Error checking session:', err);
+      } finally {
+        setLoading(false); // Stop loading after check
       }
     };
-  
+
     checkUserSession();
-  }, []);  
-  
+  }, []); // ✅ useEffect is always called in the same order
 
   // Inside your App component
   useEffect(() => {
@@ -475,179 +479,160 @@ function App() {
   };  
   
   return (
-    <Router>
-      <div className="app-container">
-        {/* Welcome Overlay */}
-        {showWelcome && (
-          <div className="welcome-overlay">
-            <div className="welcome-message">
-              <h1>Welcome to StudentSphere!</h1>
-              <p>Start your journey by following ambassadors who can guide you.</p>
-              <button
-                className="get-started-button"
-                onClick={() => {
-                  setShowWelcome(false);  // Close welcome overlay
-                  setShowAmbassadorOverlay(true); // Show ambassador overlay
-                  fetchAmbassadors();
-                }}
-              >
-                Get Started
-              </button>
-              <button onClick={() => setShowWelcome(false)}>Close</button>
-            </div>
+    <div>
+      {loading ? (
+        <div>Loading...</div> // ✅ No early return, so all hooks are always called
+      ) : (
+        <Router>
+          <div className="app-container">
+            {/* Welcome Overlay */}
+            {showWelcome && (
+              <div className="welcome-overlay">
+                <div className="welcome-message">
+                  <h1>Welcome to StudentSphere!</h1>
+                  <p>Start your journey by following ambassadors who can guide you.</p>
+                  <button
+                    className="get-started-button"
+                    onClick={() => {
+                      setShowWelcome(false); // Close welcome overlay
+                      setShowAmbassadorOverlay(true); // Show ambassador overlay
+                      fetchAmbassadors();
+                    }}
+                  >
+                    Get Started
+                  </button>
+                  <button onClick={() => setShowWelcome(false)}>Close</button>
+                </div>
+              </div>
+            )}
+  
+            {/* Ambassador Overlay */}
+            {showAmbassadorOverlay && (
+              <div className="overlay">
+                <div className="overlay-content">
+                  <h2>Ambassador List</h2>
+                  {loadingAmbassadors ? (
+                    <p>Loading ambassadors...</p>
+                  ) : errorAmbassadors ? (
+                    <p>{errorAmbassadors}</p>
+                  ) : (
+                    <ul className="ambassador-list">
+                      {ambassadors.map((amb) => {
+                        const isFollowing = followingAmbassadors.includes(amb.user_id);
+                        return (
+                          <li key={amb.id} className="ambassador-item">
+                            <img
+                              src={amb.avatar_path || "/uploads/avatars/default-avatar.png"}
+                              alt={`${amb.first_name} ${amb.last_name}`}
+                              className="ambassador-avatar"
+                            />
+                            <div className="ambassador-info">
+                              <p className="ambassador-name">
+                                <Link to={`/user/${amb.user_id}`}>
+                                  {amb.first_name} {amb.last_name}
+                                </Link>
+                              </p>
+                              <p className="ambassador-headline">{amb.headline}</p>
+                            </div>
+  
+                            {/* Dynamic Follow/Unfollow Button */}
+                            <button
+                              className={`follow-button ${isFollowing ? "unfollow" : "follow"}`}
+                              onClick={() => handleFollowAmbassador(amb.user_id)}
+                            >
+                              {isFollowing ? "Unfollow" : "Follow"}
+                            </button>
+  
+                            <button className="message-button" onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}>
+                              Message
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  <button onClick={() => setShowAmbassadorOverlay(false)}>Close</button>
+                </div>
+              </div>
+            )}
+  
+            {step === 1 && <SignUp onNext={handleNext} />}
+            {step === 2 && <Login onLogin={handleLogin} onGoToSignUp={() => setStep(1)} />}
+            {step === 3 && <InterestSelection onComplete={handleInterestComplete} />}
+  
+            {step === 0 && (
+              <>
+                <NavBar
+                  activeFeed={activeFeed}
+                  setStep={setStep}
+                  setActiveFeed={setActiveFeed}
+                  activeSection={activeSection}
+                  setActiveSection={setActiveSection}
+                  userData={userData}
+                  accountMenuVisible={accountMenuVisible}
+                  setAccountMenuVisible={setAccountMenuVisible}
+                  handleLogout={handleLogout}
+                  toggleNotifications={toggleNotifications}
+                  notifications={notifications}
+                  isNotificationsOpen={isNotificationsOpen}
+                  notificationRef={notificationRef}
+                  markAllAsRead={markAllAsRead}
+                />
+  
+                <Routes>
+                  {/* Profile and User Profile Views (2-column layout) */}
+                  <Route
+                    path="/profile"
+                    element={
+                      <div className="profile-page-main-content">
+                        {userData ? <SelfProfileView userData={userData} /> : <Navigate to="/login" />}
+                        <RightSidebar />
+                      </div>
+                    }
+                  />
+                  
+                  <Route
+                    path="/user/:user_id"
+                    element={
+                      <div className="profile-page-main-content">
+                        <UserProfileView userData={userData} />
+                        <RightSidebar />
+                      </div>
+                    }
+                  />
+  
+                  {/* Default layout for all other routes */}
+                  <Route
+                    path="*"
+                    element={
+                      <div className="main-content">
+                        <LeftSidebar />
+                        <Routes>
+                          <Route path="/home" element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="home" userData={userData} />} />
+                          <Route path="/info" element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="info" userData={userData} />} />
+                          <Route path="/saved" element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="saved" userData={userData} />} />
+                          <Route path="/connections" element={userData ? <Connections userData={userData} /> : <Navigate to="/login" />} />
+                          <Route path="/funding" element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="funding" userData={userData} />} />
+                          <Route path="/communities" element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="communities" userData={userData} />} />
+                          <Route path="/info/forum/:forum_id" element={<ForumView userData={userData} />} />
+                          <Route path="/info/forum/:forum_id/thread/:thread_id" element={<ThreadView userData={userData} />} />
+                          <Route path="/university/:id" element={<UniversityProfile userData={userData} />} />
+                          <Route path="/group/:id" element={<GroupProfile userData={userData} />} />
+                          <Route path="/messages" element={<Messages userData={userData} />} />
+                        </Routes>
+                        <RightSidebar />
+                      </div>
+                    }
+                  />
+                </Routes>
+              </>
+            )}
           </div>
-        )}
-        
-        {/* Ambassador Overlay */}
-        {showAmbassadorOverlay && (
-          <div className="overlay">
-            <div className="overlay-content">
-              <h2>Ambassador List</h2>
-              {loadingAmbassadors ? (
-                <p>Loading ambassadors...</p>
-              ) : errorAmbassadors ? (
-                <p>{errorAmbassadors}</p>
-              ) : (
-                <ul className="ambassador-list">
-                  {ambassadors.map((amb) => {
-                    const isFollowing = followingAmbassadors.includes(amb.user_id);
-                    return (
-                      <li key={amb.id} className="ambassador-item">
-                        <img
-                          src={amb.avatar_path || "/uploads/avatars/default-avatar.png"}
-                          alt={`${amb.first_name} ${amb.last_name}`}
-                          className="ambassador-avatar"
-                        />
-                        <div className="ambassador-info">
-                          <p className="ambassador-name">
-                            <Link to={`/user/${amb.user_id}`}>
-                              {amb.first_name} {amb.last_name}
-                            </Link>
-                          </p>
-                          <p className="ambassador-headline">{amb.headline}</p>
-                        </div>
-
-                        {/* Dynamic Follow/Unfollow Button */}
-                        <button
-                          className={`follow-button ${isFollowing ? "unfollow" : "follow"}`}
-                          onClick={() => handleFollowAmbassador(amb.user_id)}
-                        >
-                          {isFollowing ? "Unfollow" : "Follow"}
-                        </button>
-
-                        <button className="message-button" onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}>
-                          Message
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              <button onClick={() => setShowAmbassadorOverlay(false)}>Close</button>
-            </div>
-          </div>
-        )}
-
-        {step === 1 && <SignUp onNext={handleNext} />}
-        {step === 2 && (
-          <Login
-            onLogin={handleLogin}
-            onGoToSignUp={() => setStep(1)}
-          />
-        )}
-        {step === 3 && (
-          <InterestSelection onComplete={handleInterestComplete} />
-        )}
-        {step === 0 && (
-          <>
-            <NavBar
-              activeFeed={activeFeed}
-              setStep={setStep}
-              setActiveFeed={setActiveFeed}
-              activeSection={activeSection}
-              setActiveSection={setActiveSection}
-              userData={userData}
-              accountMenuVisible={accountMenuVisible}
-              setAccountMenuVisible={setAccountMenuVisible}
-              handleLogout={handleLogout}
-              toggleNotifications={toggleNotifications}
-              notifications={notifications}
-              isNotificationsOpen={isNotificationsOpen}
-              notificationRef={notificationRef}
-              markAllAsRead={markAllAsRead}
-            />
-
-            <Routes>
-              {/* Profile and User Profile Views (2-column layout) */}
-              <Route
-                path="/profile"
-                element={
-                  <div className="profile-page-main-content">
-                    {userData ? <SelfProfileView userData={userData} /> : <Navigate to="/login" />}
-                    <RightSidebar />
-                  </div>
-                }
-              />
-              
-              <Route
-                path="/user/:user_id"
-                element={
-                  <div className="profile-page-main-content">
-                    <UserProfileView userData={userData} />
-                    <RightSidebar />
-                  </div>
-                }
-              />
-
-              {/* Default layout for all other routes */}
-              <Route
-                path="*"
-                element={
-                  <div className="main-content">
-                    <LeftSidebar />
-                    <Routes>
-                      <Route
-                        path="/home"
-                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="home" userData={userData} />}
-                      />
-                      <Route
-                        path="/info"
-                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="info" userData={userData} />}
-                      />
-                      <Route
-                        path="/saved"
-                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="saved" userData={userData} />}
-                      />
-                      <Route
-                        path="/connections"
-                        element={userData ? <Connections userData={userData} /> : <Navigate to="/login" />}
-                      />
-                      <Route
-                        path="/funding"
-                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="funding" userData={userData} />}
-                      />
-                      <Route
-                        path="/communities"
-                        element={<Feed activeFeed={activeFeed} setActiveFeed={setActiveFeed} activeSection="communities" userData={userData} />}
-                      />
-                      <Route path="/info/forum/:forum_id" element={<ForumView userData={userData} />} />
-                      <Route path="/info/forum/:forum_id/thread/:thread_id" element={<ThreadView userData={userData} />} />
-                      <Route path="/university/:id" element={<UniversityProfile userData={userData} />} />
-                      <Route path="/group/:id" element={<GroupProfile userData={userData} />} />
-                      <Route path="/messages" element={<Messages userData={userData} />} />
-                    </Routes>
-                    <RightSidebar />
-                  </div>
-                }
-              />
-            </Routes>
-          </>
-        )}
-      </div>
-    </Router>
-  );
+        </Router>
+      )}
+    </div>
+  );  
 }
-
 function NavItem({ active, label, Icon, onClick }) {
   return (
     <li className={active ? 'active' : ''} onClick={onClick}>
