@@ -375,9 +375,6 @@ function PostItem({
   const shouldAutoExpand = !isRoot && (Number(post.verified) !== 1 && Number(post.hasVerified) === 1);
   const [isCollapsed, setIsCollapsed] = useState(isRoot ? false : !shouldAutoExpand);
 
-  
-
-
   const toggleMenu = () => setOpenMenu((prev) => !prev);
 
   useOnClickOutside(menuRef, () => {
@@ -492,22 +489,28 @@ function PostItem({
     setIsCollapsed(!isCollapsed);
   };
 
-  const computedClassName = `forum-card reply-card level-${level} ${Number(post.verified) === 1 ? 'verified' : ''}`;
-
+  const computedClassName = `forum-card reply-card level-${level} ${
+    Number(post.verified) === 1 ? 'verified' : ''
+  }`;
+  
   return (
-    <div className={computedClassName}>
+    <div className={`post-card level-${level} ${post.verified === 1 ? 'verified' : ''}`}>
       {isEditing ? (
         <form onSubmit={confirmEdit} className="edit-form" style={{ marginBottom: '1rem' }}>
           {/* Show the same toolbar from TextEditor.js */}
           <EditToolbar editor={editor} />
           {/* Editor content */}
           <EditorContent editor={editor} className="tiptap-editor" />
-
+  
           <div className="edit-form-actions">
             <button type="submit" className="create-button">
               Save
             </button>
-            <button type="button" className="create-button cancel-button" onClick={cancelEditing}>
+            <button
+              type="button"
+              className="create-button cancel-button"
+              onClick={cancelEditing}
+            >
               Cancel
             </button>
           </div>
@@ -592,8 +595,7 @@ function PostItem({
             </RouterLink>{' '}
             on {new Date(post.created_at).toLocaleString()}
           </small>
-          
-
+  
           {/* Upvote/Downvote + Reply Icon row */}
           <div className="vote-row">
             {/* Upvote Button */}
@@ -607,7 +609,7 @@ function PostItem({
               {upvoteIcon}
             </button>
             <span className="vote-count">{post.upvotes}</span>
-
+  
             {/* Downvote Button */}
             <button
               type="button"
@@ -619,7 +621,7 @@ function PostItem({
               {downvoteIcon}
             </button>
             <span className="vote-count">{post.downvotes}</span>
-
+  
             {/* Speech Bubble Reply Icon */}
             <button
               type="button"
@@ -630,7 +632,7 @@ function PostItem({
             >
               <FiMessageCircle />
             </button>
-
+  
             {/* Collapse/Expand Replies Button */}
             {post.children && post.children.length > 0 && (
               <button
@@ -662,7 +664,7 @@ function PostItem({
           </div>
         </>
       )}
-
+  
       {/* Edit + Delete buttons */}
       <div className="post-actions">
         {canEdit && !isEditing && (
@@ -671,12 +673,15 @@ function PostItem({
           </button>
         )}
         {canDelete && (
-          <button className="create-button delete-button" onClick={() => handleDeletePost(post.post_id)}>
+          <button
+            className="create-button delete-button"
+            onClick={() => handleDeletePost(post.post_id)}
+          >
             Delete
           </button>
         )}
       </div>
-
+  
       {/* Reply Form */}
       {userData?.user_id && !isEditing && isReplyBoxOpen && (
         <form onSubmit={handleReplySubmitLocal} className="reply-form">
@@ -692,13 +697,17 @@ function PostItem({
             <button type="submit" className="create-button reply-button">
               Submit
             </button>
-            <button type="button" className="create-button cancel-button" onClick={() => setExpandedReplyBox(null)}>
+            <button
+              type="button"
+              className="create-button cancel-button"
+              onClick={() => setExpandedReplyBox(null)}
+            >
               Cancel
             </button>
           </div>
         </form>
       )}
-
+  
       {/* Recursively render child replies */}
       {post.children && post.children.length > 0 && !isCollapsed && (
         <div className="reply-tree-level">
@@ -718,14 +727,14 @@ function PostItem({
               level={level + 1}
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
-              handleVerifyPost={handleVerifyPost}  // pass the verify function down
+              handleVerifyPost={handleVerifyPost} // pass the verify function down
             />
           ))}
         </div>
       )}
     </div>
   );
-}
+}  
 
 /* --------------------------------------------------------------------------
    Main ThreadView Component
@@ -1058,18 +1067,25 @@ function ThreadView({ userData }) {
     return <p>Loading thread and posts...</p>;
   }
 
+  // In the return() at the bottom of ThreadView:
   return (
-    <div className="feed thread-view">
+    <div className="thread-view-container">
       {/* Back button */}
       <RouterLink to={`/info/forum/${threadData?.forum_id || ''}`} className="back-button">
         ← {threadData?.forum_name || 'Forum'}
       </RouterLink>
 
-      <h2 className="forum-title">{threadData?.title || `Thread ${thread_id}`}</h2>
+      {/* Thread Title */}
+      <h2 className="thread-title">{threadData?.title || `Thread ${thread_id}`}</h2>
 
+      {/* Reply Sort Options */}
       <div className="reply-sort-options">
-        <label htmlFor="replySort">Sort Replies: </label>
-        <select id="replySort" value={replySortCriteria} onChange={(e) => setReplySortCriteria(e.target.value)}>
+        <label htmlFor="replySort">Sort Replies:</label>
+        <select
+          id="replySort"
+          value={replySortCriteria}
+          onChange={(e) => setReplySortCriteria(e.target.value)}
+        >
           <option value="mostRecent">Most Recent</option>
           <option value="mostUpvoted">Most Upvoted</option>
           <option value="mostPopular">Most Popular</option>
@@ -1079,7 +1095,7 @@ function ThreadView({ userData }) {
       {postTree.length === 0 ? (
         <p>No replies found.</p>
       ) : (
-        <div className="forum-list">
+        <div className="post-list">
           {postTree.map((rootPost) => (
             <PostItem
               key={rootPost.post_id}
@@ -1094,10 +1110,9 @@ function ThreadView({ userData }) {
               handleDownvoteClick={handleDownvoteClick}
               isRoot
               level={1}
-              // pass savedPosts + toggle fn
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
-              handleVerifyPost={handleVerifyPost} // Pass down our new verify function
+              handleVerifyPost={handleVerifyPost}
             />
           ))}
         </div>
@@ -1107,11 +1122,7 @@ function ThreadView({ userData }) {
       {notification && (
         <div className={`notification ${notification.type}`}>
           {notification.message}
-          <button
-            className="notification-close"
-            onClick={() => setNotification(null)}
-            aria-label="Close Notification"
-          >
+          <button className="notification-close" onClick={() => setNotification(null)}>
             X
           </button>
         </div>

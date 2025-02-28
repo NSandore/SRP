@@ -823,18 +823,18 @@
 }
 
 .forum-card {
-  background: #fff;
-  border: 1px solid #e1e9ee;
-  border-radius: 8px;
+  background-color: #fff;           /* Same white background as feed & community cards */
+  border: 1px solid #ddd;          /* Matches other card borders */
+  border-radius: 8px;              /* Same radius as community / feed containers */
   padding: 1rem;
   margin-bottom: 1rem;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-  transition: box-shadow 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);  /* Subtle default shadow */
+  transition: box-shadow 0.3s ease;          /* Smooth hover transition */
 }
 
 /* For general forum-cards outside the ThreadView */
 .forum-card:hover {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);  /* Slightly stronger shadow on hover */
 }
 
 .forum-card small {
@@ -852,7 +852,7 @@
 }
 
 .forum-title {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 600;
   color: #333;
   margin-bottom: 0.75rem;
