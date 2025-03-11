@@ -8,7 +8,6 @@ function RightSidebar() {
       <ul>
         <li>#FinancialAid</li>
         <li>#Admissions</li>
-        <li>#StudentResources</li>
       </ul>
     </aside>
   );

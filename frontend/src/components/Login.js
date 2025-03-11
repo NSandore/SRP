@@ -18,7 +18,7 @@ function Login({ onLogin, onGoToSignUp }) {
     }
 
     try {
-      const response = await axios.post('http://34.31.85.242/api/login_user.php', {
+      const response = await axios.post('http://172.16.11.133/api/login_user.php', {
         email,
         password,
       });
