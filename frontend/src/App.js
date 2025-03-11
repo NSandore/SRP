@@ -302,7 +302,7 @@ function App() {
   useEffect(() => {
     const checkUserSession = async () => {
       try {
-        const response = await axios.get('http://34.31.85.242/api/check_session.php', {
+        const response = await axios.get('http://172.16.11.133/api/check_session.php', {
           withCredentials: true
         });
 
@@ -342,7 +342,7 @@ function App() {
 
   const fetchNotifications = async (user_id) => {
     try {
-      const response = await axios.get('http://34.31.85.242/api/fetch_notifications.php?user_id=${user_id}', {
+      const response = await axios.get('http://172.16.11.133/api/fetch_notifications.php?user_id=${user_id}', {
         withCredentials: true
       });
 
@@ -362,7 +362,7 @@ function App() {
   // Mark Notifications as Read
   const markAllAsRead = async () => {
     try {
-      await axios.post('http://34.31.85.242/api/mark_notifications_read.php', { user_id: userData.user_id }, {
+      await axios.post('http://172.16.11.133/api/mark_notifications_read.php', { user_id: userData.user_id }, {
         withCredentials: true
       });
 
@@ -395,7 +395,7 @@ function App() {
   // Logout
   const handleLogout = async () => {
     try {
-      await axios.post('http://34.31.85.242/api/logout.php', {}, { withCredentials: true });
+      await axios.post('http://172.16.11.133/api/logout.php', {}, { withCredentials: true });
       setUserData(null);
       setAccountMenuVisible(false);
     } catch (err) {
@@ -410,7 +410,7 @@ function App() {
   
     try {
       const response = await axios.get(
-        `http://34.31.85.242/api/fetch_all_community_ambassadors.php?user_id=${userData.user_id}`,
+        `http://172.16.11.133/api/fetch_all_community_ambassadors.php?user_id=${userData.user_id}`,
         { withCredentials: true }
       );
   
@@ -429,7 +429,7 @@ function App() {
 
   useEffect(() => {
     if (userData) {
-      axios.get(`http://34.31.85.242/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
+      axios.get(`http://172.16.11.133/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
         withCredentials: true
       })
       .then(response => {
@@ -463,7 +463,7 @@ function App() {
   
       if (response.data.success) {
         // Refetch the connections list to update following state
-        axios.get(`http://34.31.85.242/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
+        axios.get(`http://172.16.11.133/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
           withCredentials: true
         }).then(res => {
           if (res.data.success) {
@@ -790,7 +790,7 @@ function NavBar({
             >
               {userData.avatar_path ? (
                 <img
-                  src={`http://34.31.85.242${userData.avatar_path}`} // Ensure the base URL is correct
+                  src={`http://172.16.11.133${userData.avatar_path}`} // Ensure the base URL is correct
                   alt="User Avatar"
                   className="user-avatar"
                   onClick={() => setAccountMenuVisible(!accountMenuVisible)}
