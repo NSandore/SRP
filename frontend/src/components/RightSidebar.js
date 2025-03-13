@@ -7,7 +7,6 @@ function RightSidebar() {
       <h3>Trending Topics</h3>
       <ul>
         <li>#FinancialAid</li>
-        <li>#Admissions</li>
       </ul>
     </aside>
   );
