@@ -50,6 +50,7 @@ import LeftSidebar from './components/LeftSidebar';
 import NavBar from './components/NavBar';
 import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
+import ContactUsButton from './components/ContactUsButton';
 
 
 function App() {
@@ -365,6 +366,7 @@ function App() {
                       <div className="profile-page-main-content">
                         {userData ? <SelfProfileView userData={userData} /> : <Navigate to="/login" />}
                         <RightSidebar />
+                        <ContactUsButton />
                       </div>
                     }
                   />
@@ -486,6 +488,7 @@ function App() {
                           />
                         </Routes>
                         <RightSidebar />
+                        <ContactUsButton />
                       </div>
                     }
                   />
