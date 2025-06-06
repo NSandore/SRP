@@ -2,12 +2,9 @@
 
 /* Container matches your other feed containers */
 .feed-container.forum-view {
-  background-color: #fff; /* same white background */
-  border: 1px solid #ddd;
   border-radius: 8px;
   margin-bottom: 2rem;
   padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   position: relative;
 }
 
@@ -207,7 +204,7 @@
 }
 
 .modal-content {
-  background-color: #fff;
+  background-color: var(--card-background);
   padding: 1.5rem;
   border-radius: 8px;
   width: 90%;
@@ -234,6 +231,15 @@
   padding: 0.5rem;
   border: 1px solid #ccc;
   border-radius: 4px;
+}
+
+[data-thread="dark"].form-group input,
+[data-thread="dark"].form-group textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 4px;
+  color: var(--light-text);
+  background-color: #3d3d3d;
 }
 
 .form-actions {

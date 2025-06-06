@@ -180,30 +180,6 @@ const ForumCard = ({
         </div>
       )}
 
-      {/* Vote Row */}
-      <div className="vote-row">
-        <button
-          type="button"
-          className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
-          onClick={() => handleUpvoteClick(forum.forum_id)}
-          title="Upvote"
-          aria-label="Upvote"
-        >
-          {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
-        </button>
-        <span className="vote-count">{forum.upvotes}</span>
-        <button
-          type="button"
-          className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
-          onClick={() => handleDownvoteClick(forum.forum_id)}
-          title="Downvote"
-          aria-label="Downvote"
-        >
-          {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
-        </button>
-        <span className="vote-count">{forum.downvotes}</span>
-      </div>
-
       {/* Forum Details Link */}
       <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
         <h3 className="forum-title">{forum.name}</h3>
@@ -230,6 +206,30 @@ const ForumCard = ({
           </button>
         </div>
       )}
+      
+      {/* Vote Row */}
+      <div className="vote-row">
+        <button
+          type="button"
+          className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
+          onClick={() => handleUpvoteClick(forum.forum_id)}
+          title="Upvote"
+          aria-label="Upvote"
+        >
+          {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+        </button>
+        <span className="vote-count">{forum.upvotes}</span>
+        <button
+          type="button"
+          className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
+          onClick={() => handleDownvoteClick(forum.forum_id)}
+          title="Downvote"
+          aria-label="Downvote"
+        >
+          {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+        </button>
+        <span className="vote-count">{forum.downvotes}</span>
+      </div>
     </div>
   );
 };

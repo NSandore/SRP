@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   FaHome,
@@ -7,7 +7,10 @@ import {
   FaPeopleCarry,
   FaUsers,
   FaEnvelope,
-  FaBell
+  FaBell,
+  FaSearch,
+  FaMoon,
+  FaSun
 } from 'react-icons/fa';
 import { BiInfoCircle } from 'react-icons/bi';
 import { RiMedalFill } from 'react-icons/ri';
@@ -42,7 +45,42 @@ function NavBar({
   markAllAsRead,
 }) {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const unreadCount = notifications.filter(n => parseInt(n.is_read, 10) === 0).length;
+  const accountMenuRef = useRef(null);
+
+  useEffect(() => {
+    // Check localStorage for saved theme preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      setIsDarkMode(true);
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!accountMenuVisible) return;
+
+    function handleClickOutside(event) {
+      if (
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(event.target)
+      ) {
+        setAccountMenuVisible(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [accountMenuVisible, setAccountMenuVisible]);
+
+  const toggleDarkMode = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme ? 'dark' : 'light');
+    localStorage.setItem('theme', newTheme ? 'dark' : 'light');
+  };
 
   const handleSectionClick = (section) => {
     setActiveSection(section);
@@ -52,6 +90,13 @@ function NavBar({
       setActiveFeed('yourFeed');
     }
     navigate(`/${section}`);
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
   };
 
   return (
@@ -114,6 +159,30 @@ function NavBar({
 
       <div className="nav-right">
         <div className="nav-icons">
+          {/* Search Bar */}
+          <form className="search-form" onSubmit={handleSearch}>
+            <div className="search-container">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-input"
+              />
+              <button type="submit" className="search-button" aria-label="Search">
+                <FaSearch size={14} />
+              </button>
+            </div>
+          </form>
+          {/* Dark Mode Toggle */}
+          <button
+            className="nav-icon dark-mode-toggle"
+            onClick={toggleDarkMode}
+            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDarkMode ? <FaSun /> : <FaMoon />}
+          </button>
+
           {/* Messages link */}
           <Link to="/messages">
             <FaEnvelope className="nav-icon" title="Messages" />
@@ -160,12 +229,10 @@ function NavBar({
           {userData && (
             <div
               className="account-settings"
+              ref={accountMenuRef}
               onClick={() => setAccountMenuVisible(!accountMenuVisible)}
               tabIndex={0}
               role="button"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') setAccountMenuVisible(!accountMenuVisible);
-              }}
               aria-haspopup="true"
               aria-expanded={accountMenuVisible}
             >

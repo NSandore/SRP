@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import './SignUp.css';
+import React, { useState } from 'react';
 
 function SignUp({ onNext }) {
   const [step, setStep] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [userId, setUserId] = useState(null);
+  const [verificationMethod, setVerificationMethod] = useState('email');
+  const [verificationCode, setVerificationCode] = useState('');
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -11,205 +13,166 @@ function SignUp({ onNext }) {
     phone: '',
     password: '',
     confirmPassword: '',
-    educationStatus: 'Undergrad',
     schoolName: '',
     startDate: '',
     endDate: '',
-    isOver18: false,
   });
 
-  const [schoolsFromDatabase, setSchoolsFromDatabase] = useState([]);
-
-  // Fetch communities from the backend on component mount
-  useEffect(() => {
-    async function fetchCommunities() {
-      try {
-        const response = await fetch('/api/fetch_communities.php');
-        const data = await response.json();
-  
-        if (response.ok) {
-          setSchoolsFromDatabase(data);
-        } else {
-          alert('Failed to fetch communities: ' + data.error);
-        }
-      } catch (error) {
-        console.error('Error fetching communities:', error);
-        alert('An error occurred while fetching communities.');
-      }
-    }
-    fetchCommunities();
-  }, []);
-  
-
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value,
-    });
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleNextStep = () => {
-    if (step === 1) {
-      const { firstName, lastName, email, phone } = formData;
-      if (!firstName || !lastName || !email || !phone) {
-        alert('Please fill in all required fields.');
-        return;
-      }
+  const handleBasicSubmit = async () => {
+    const { firstName, lastName, email, phone, password, confirmPassword } = formData;
+    if (!firstName || !lastName || !email || !phone || !password || !confirmPassword) {
+      alert('All fields required.');
+      return;
     }
-    if (step === 2 && formData.password !== formData.confirmPassword) {
+    if (password !== confirmPassword) {
       alert('Passwords do not match!');
-      return;
-    }
-    if (step === 3 && (!formData.educationStatus || !formData.isOver18)) {
-      alert('Please complete all required fields.');
-      return;
-    }
-    setStep(step + 1);
-  };
-
-  const handleSchoolClick = (schoolName) => {
-    setFormData((prev) => ({ ...prev, schoolName }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.schoolName || !formData.startDate || !formData.endDate) {
-      alert('Please fill in all required fields.');
       return;
     }
 
     try {
-      const response = await fetch('/api/register_user.php', {
+      const res = await fetch('/api/init_register.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ firstName, lastName, email, phone, password, method: verificationMethod })
       });
 
-      const data = await response.json();
-      if (response.ok) {
-        localStorage.setItem('user_id', data.user_id);
-        alert('User registered successfully');
-        onNext(formData);
+    const text = await res.text();
+    console.log("Raw response:", text);
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (err) {
+        console.error("Invalid JSON response from init_register.php:", text);
+        throw new Error("Server returned invalid JSON.");
+    }
+
+
+      if (res.ok) {
+        setUserId(data.user_id);
+        alert(`Verification code sent via ${verificationMethod}`);
+        setStep(2);
       } else {
-        alert('Error: ' + data.error);
+        alert(data.error || 'An error occurred during registration.');
       }
-    } catch (error) {
-      console.error('Error registering user:', error);
-      alert('An error occurred while registering. Please try again.');
+    } catch (err) {
+      console.error("Error submitting basic info:", err);
+      alert('Failed to register. Please try again.');
     }
   };
 
-  const filteredSchools = schoolsFromDatabase.filter((school) =>
-    school.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleVerify = async () => {
+    try {
+      const res = await fetch('/api/verify_user.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, code: verificationCode })
+      });
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error("Invalid JSON:", text);
+        throw new Error("Server returned invalid JSON.");
+      }
+
+      if (res.ok) {
+        alert('Account verified!');
+        setStep(3);
+      } else {
+        alert(data.error || 'Invalid verification code.');
+      }
+    } catch (err) {
+      console.error("Verification error:", err);
+      alert('Verification failed. Please try again.');
+    }
+  };
+
+  const handleFinalSubmit = async (e) => {
+    e.preventDefault();
+    const { schoolName, startDate, endDate } = formData;
+    if (!schoolName || !startDate || !endDate) {
+      alert('Please fill out education details.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/complete_registration.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, schoolName, startDate, endDate })
+      });
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error("Invalid JSON:", text);
+        throw new Error("Server returned invalid JSON.");
+      }
+
+      if (res.ok) {
+        alert('Registration complete!');
+        localStorage.setItem('user_id', userId);
+        onNext(formData);
+      } else {
+        alert(data.error || 'Could not complete registration.');
+      }
+    } catch (err) {
+      console.error("Final step error:", err);
+      alert('Failed to complete registration.');
+    }
+  };
 
   return (
     <div className="signup-container">
       <h2>Create Your Account</h2>
-      <form onSubmit={handleSubmit}>
-        {step === 1 && (
-          <div className="form-step">
-            <label>First Name:</label>
-            <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required />
 
-            <label>Last Name:</label>
-            <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required />
+      {step === 1 && (
+        <div>
+          <input name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleChange} />
+          <input name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleChange} />
+          <input name="email" placeholder="Email" value={formData.email} onChange={handleChange} />
+          <input name="phone" placeholder="Phone" value={formData.phone} onChange={handleChange} />
+          <input type="password" name="password" placeholder="Password" value={formData.password} onChange={handleChange} />
+          <input type="password" name="confirmPassword" placeholder="Confirm Password" value={formData.confirmPassword} onChange={handleChange} />
 
-            <label>Email:</label>
-            <input type="email" name="email" value={formData.email} onChange={handleChange} required />
-
-            <label>Phone:</label>
-            <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required />
-
-            <button type="button" onClick={handleNextStep}>Next</button>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="form-step">
-            <label>Password:</label>
-            <input type="password" name="password" value={formData.password} onChange={handleChange} required />
-
-            <label>Confirm Password:</label>
-            <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required />
-
-            <button type="button" onClick={handleNextStep}>Next</button>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="form-step">
-            <label>Current Education Status:</label>
-            <select name="educationStatus" value={formData.educationStatus} onChange={handleChange}>
-              <option value="Prospective Student">Prospective Student</option>
-              <option value="Undergrad">Undergrad</option>
-              <option value="Graduate">Graduate</option>
-              <option value="Alum">Alum</option>
-              <option value="Faculty/Staff">Faculty/Staff</option>
-              <option value="Just looking">Just looking!</option>
+          <label>
+            Verify via:
+            <select value={verificationMethod} onChange={(e) => setVerificationMethod(e.target.value)}>
+              <option value="email">Email</option>
+              <option value="sms">Text Message</option>
             </select>
+          </label>
+          <button onClick={handleBasicSubmit}>Next</button>
+        </div>
+      )}
 
-            <label>
-              <input type="checkbox" name="isOver18" checked={formData.isOver18} onChange={handleChange} />
-              I am over 18 years old
-            </label>
+      {step === 2 && (
+        <div>
+          <p>Enter the verification code sent to your {verificationMethod}:</p>
+          <input value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} />
+          <button onClick={handleVerify}>Verify</button>
+        </div>
+      )}
 
-            <button type="button" onClick={handleNextStep}>Next</button>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="form-step">
-            <label>Search for Your School:</label>
-            <input
-              type="text"
-              className="school-search"
-              placeholder="Type to search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <div className="school-grid">
-              {filteredSchools.map((school, index) => {
-                const isSelected = formData.schoolName === school.name;
-                const logoSrc = school.logo_path ? school.logo_path : 'uploads/logos/default-logo.png';
-
-                return (
-                  <div
-                    key={index}
-                    className={`school-card ${isSelected ? 'selected' : ''}`}
-                    onClick={() => handleSchoolClick(school.name)}
-                  >
-                    <img
-                      src={logoSrc}
-                      alt={`${school.name} Logo`}
-                      className="school-logo"
-                    />
-                    <h3 className="school-name">{school.name}</h3>
-                    <p className="school-tagline">{school.tagline}</p>
-                  </div>
-                );
-              })}
-            </div>
-            {!filteredSchools.length && <p className="no-results">No matching schools found.</p>}
-
-            <div className="form-step-inline">
-              <div>
-                <label>Start Date:</label>
-                <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required />
-              </div>
-
-              <div>
-                <label>End Date:</label>
-                <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required />
-              </div>
-            </div>
-
-            <button type="submit">Submit</button>
-          </div>
-        )}
-      </form>
+      {step === 3 && (
+        <form onSubmit={handleFinalSubmit}>
+          <input name="schoolName" placeholder="School Name" value={formData.schoolName} onChange={handleChange} />
+          <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} />
+          <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} />
+          <button type="submit">Finish Sign Up</button>
+        </form>
+      )}
     </div>
   );
 }
+
 export default SignUp;

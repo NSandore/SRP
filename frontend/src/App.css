@@ -1,12 +1,201 @@
 /* Global Styles */
+:root {
+  /* Light theme (default) */
+  --primary-color: #0077B5;
+  --secondary-color: #005f8d;
+  --text-color: #333333;
+  --subtext-color: #777777;
+  --background-color: #ffffff;
+  --light-background: #f7f7f7;
+  --border-color: #dddddd;
+  --card-background: #ffffff;
+  --card-border: #dddddd;
+  --input-background: #ffffff;
+  --input-border: #cccccc;
+  --modal-background: #ffffff;
+  --modal-overlay: rgba(0, 0, 0, 0.5);
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --hover-color: #f0f0f0;
+  --nav-background: #0277b5;
+  --nav-text: #ffffff;
+  --nav-hover: #005f8d;
+  --main-content-bg: #ffffff;
+  --main-content-text: #333333;
+  --forum-card-bg: #ffffff;
+  --dark-text: #333333;
+  --light-text: #ffffff;
+  --muted-text: #777777;
+  --link-color: #0077B5;
+  --link-hover: #005f8d;
+  --feed-option-text: #333333;
+}
+
+[data-theme="dark"] {
+  --primary-color: #0077B5;
+  --secondary-color: #005f8d;
+  --text-color: #ffffff;
+  --subtext-color: #bbbbbb;
+  --background-color: #121212;
+  --light-background: #2d2d2d;
+  --border-color: #444444;
+  --card-background: #2d2d2d;
+  --card-border: #444444;
+  --input-background: #2d2d2d;
+  --input-border: #555555;
+  --modal-background: #2d2d2d;
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --hover-color: #3d3d3d;
+  --nav-background: #005f8d;
+  --nav-text: #ffffff;
+  --nav-hover: #004466;
+  --main-content-bg: #121212;
+  --main-content-text: #ffffff;
+  --forum-card-bg: #242424;
+  --dark-text: #ffffff;
+  --light-text: #ffffff;
+  --muted-text: #bbbbbb;
+  --link-color: #4da6ff;
+  --link-hover: #66b3ff;
+  --feed-option-text: #ffffff;
+}
+
+/* Ensure all text elements use the theme colors */
+h1, h4, h5, h6, a {
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] h6,
+[data-theme="dark"] a {
+  color: var(--light-text);
+}
+
+/* Specific heading and text styles */
+h2, h3, p, li, div, span, select {
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] p,
+[data-theme="dark"] li,
+[data-theme="dark"] div,
+[data-theme="dark"] span,
+[data-theme="dark"] select {
+  color: var(--light-text);
+}
+
+/* Links */
+a {
+  color: var(--link-color);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+a:hover {
+  color: var(--link-hover);
+}
+
+/* Muted text */
+small, .muted-text {
+  color: var(--muted-text);
+}
+
+/* Form elements */
+input, textarea, select {
+  color: var(--text-color);
+  background-color: var(--input-background);
+  border-color: var(--input-border);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--muted-text);
+}
+
+/* Cards and containers */
+.card, .container {
+  color: var(--text-color);
+}
+
+/* Forum specific */
+.forum-title, .forum-description {
+  color: var(--text-color);
+}
+
+.forum-card small {
+  color: var(--muted-text);
+}
+
+/* Thread specific */
+.thread-title, .post-content {
+  color: var(--text-color);
+}
+
+.post-meta {
+  color: var(--muted-text);
+}
+
+/* Profile specific */
+.profile-name, .profile-headline {
+  color: var(--text-color);
+}
+
+/* Messages specific */
+.message-sender {
+  color: var(--text-color);
+}
+
+.message-text {
+  color: var(--muted-text);
+}
+
+/* Navigation */
+
+.dark-mode-toggle {
+  background: none;
+  border: none;
+  color: var(--nav-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.7rem; /* Increased size for better visibility */
+  transition: color 0.3s;
+}
+
+.nav-icon:hover,
+.dark-mode-toggle:hover {
+  color: var(--primary-color);
+}
+
+/* Dropdowns */
+.dropdown-menu {
+  background-color: var(--card-background);
+  color: var(--text-color);
+}
+
+.dropdown-item {
+  color: var(--text-color);
+}
+
+.dropdown-item:hover {
+  background-color: var(--hover-color);
+  color: var(--text-color);
+}
+
 .app-container {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #f5f2ef;
+  background-color: var(--background-color);
+  color: var(--text-color);
   height: 92vh;
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding-top: 60px; /* This pushes content below the fixed nav bar */
+  padding-top: 60px;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .user-avatar {
@@ -150,15 +339,13 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 1000; /* Make sure it stays above other content */
-  background: #0277b5; /* Ensure the background is set */
-  /* keep your existing padding, height, etc. */
+  z-index: 1000;
+  background-color: var(--nav-background);
   padding: 0.5rem 1rem;
   height: 60px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: white;
 }
 
 
@@ -172,25 +359,44 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  color: #ffffff; /* Force white color for nav items */
 }
 
 .nav-item-icon {
   font-size: 1.5rem;
+  color: #ffffff; /* Force white color for icons */
 }
 
 .nav-item:hover .nav-item-icon {
-  color: #acacac;
+  color: #ffffff; /* Keep white on hover */
+  opacity: 0.8; /* Use opacity for hover effect instead of color change */
 }
 
 .nav-item-label {
   font-size: 0.75rem;
   margin-top: 0.25rem;
+  color: #ffffff; /* Force white color for labels */
 }
 
 /* Active state styling */
 .nav-menu li.active .nav-item-icon,
 .nav-menu li.active .nav-item-label {
-  color: #acacac;
+  color: #ffffff; /* Keep white for active state */
+  opacity: 1; /* Full opacity for active state */
+}
+
+/* Dark mode toggle button */
+.dark-mode-toggle {
+  background: none;
+  border: none;
+  color: #ffffff; /* Force white color for the toggle button */
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: opacity 0.3s ease;
+}
+
+.dark-mode-toggle:hover {
+  opacity: 0.8; /* Use opacity for hover effect */
 }
 
 .sidebar-toggle-button {
@@ -211,6 +417,7 @@
 .brand-title {
   margin: 0;
   font-size: 1.5rem;
+  color: var(--light-text);
 }
 
 .nav-center {
@@ -225,11 +432,13 @@
   padding-left: 1.5rem;
   padding-right: 1.5rem;
   padding-bottom: 1.5rem;
-  background: var(--background-color);
+  background-color: var(--card-background);
+  border-color: var(--card-border);
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow);
   font-family: var(--font-family);
-  margin-bottom: 2rem; /* optional spacing */
+  margin-bottom: 2rem;
+  color: var(--text-color);
 }
 
 .feed-header {
@@ -248,16 +457,23 @@
 
 .feed-option-button {
   background: none;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   border-radius: 20px;
   padding: 0.5rem 1rem;
   cursor: pointer;
+  color: var(--feed-option-text);
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
-.feed-option-button.active {
-  background-color: #0077B5;
-  color: #fff;
-  border-color: #0077B5;
+.feed-option-button:hover {
+  background-color: var(--hover-color);
+  border-color: var(--primary-color);
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] .feed-option-button:hover {
+  background-color: #3d3d3d;
+  color: var(--light-text);
 }
 
 .feed-toggle-buttons {
@@ -309,37 +525,52 @@
 }
 
 .nav-icon {
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   cursor: pointer;
   transition: color 0.3s;
-  color: #f4f2ef;
+  color: var(--light-text);
 }
 
 .nav-icon:hover {
-  color: #acacac;
+  color: var(--muted-text);
 }
 
 .account-menu {
   position: absolute;
   top: 60px;
   right: 10px;
-  background: #ffffff;
-  color: #333;
-  border: 1px solid #ddd;
+  background-color: var(--card-background);
+  color: var(--dark-text);
+  border: 1px solid var(--card-border);
   border-radius: 8px;
   width: 150px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 14px var(--shadow-color);
   z-index: 1000;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .account-menu {
+  background-color: #2d2d2d;
+  color: var(--light-text);
 }
 
 .account-menu-item {
   padding: 0.75rem 1rem;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background-color 0.2s;
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] .account-menu-item {
+  color: var(--light-text);
 }
 
 .account-menu-item:hover {
-  background: #f0f0f0;
+  background-color: var(--hover-color);
+}
+
+[data-theme="dark"] .account-menu-item:hover {
+  background-color: #3d3d3d;
 }
 
 .nav-button {
@@ -369,9 +600,11 @@
   margin-left: auto;
   align-items: start;
   box-sizing: border-box;
-  /* Remove the old margin-top if any and set height/scrolling */
-  height: calc(100vh - 60px); /* total viewport height minus nav bar height */
-  overflow-y: auto; /* enable vertical scrolling */
+  height: calc(100vh - 60px);
+  overflow-y: auto;
+  background-color: var(--main-content-bg);
+  color: var(--main-content-text);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .profile-page-main-content {
@@ -388,17 +621,20 @@
 
 /* Left Sidebar */
 .left-sidebar {
-  /* The grid column already forces the width to 15vw, but we add this for clarity */
-  background: #fff;
-  border: 1px solid #ddd;
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 1rem;
-  margin: 0; /* Remove any extra margin */
+  margin: 0;
   height: 60vh;
-  transition: width 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.3s ease-in-out,
-              padding 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition: width 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), 
+              opacity 0.3s ease-in-out,
+              padding 0.4s cubic-bezier(0.25, 0.1, 0.25, 1),
+              background-color 0.3s ease,
+              border-color 0.3s ease;
   position: relative;
   overflow: hidden;
+  color: var(--text-color);
 }
 
 .left-sidebar.collapsed {
@@ -412,7 +648,7 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem; /* Increases vertical spacing between sidebar items */
+  gap: 1.5rem;
 }
 
 .sidebar-list li {
@@ -421,35 +657,38 @@
   cursor: pointer;
   transition: color 0.2s;
   font-size: 1rem;
-  padding: 0.25rem 0; /* Adds some padding for easier clicking */
+  padding: 0.25rem 0;
+  color: var(--text-color);
 }
 
 .sidebar-icon {
   margin-right: 0.5rem;
-  min-width: 20px; /* Ensure icon takes up consistent space */
+  min-width: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--text-color);
 }
 
 .sidebar-text {
   transition: opacity 0.3s ease;
   opacity: 1;
+  color: var(--text-color);
 }
 
 .sidebar-item {
-  color: #333;
+  color: var(--text-color);
 }
 
 .sidebar-item:hover {
-  color: #0077B5;
+  color: var(--primary-color);
 }
 
 /* Active state for sidebar items */
 .sidebar-item.active {
-  color: #0077B5;
+  color: var(--primary-color);
   font-weight: 600;
-  background: #eef9ff;
+  background-color: var(--hover-color);
   border-radius: 8px;
 }
 
@@ -487,11 +726,6 @@
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 20px;
-  /* Remove these lines:
-  overflow-y: auto;
-  height: calc(100vh - 80px);
-  max-height: 80vh;
-  */
 }
 
 
@@ -499,12 +733,30 @@
   margin-bottom: 1rem;
 }
 
-.post-card {
-  background: #fafafa;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+.post-list {
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
   padding: 1rem;
   margin-bottom: 1rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .post-list {
+  background-color: #242424;
+  border: 1px solid #141414;
+}
+
+.post-card {
+  background-color: var(--card-background);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .post-card {
+  background-color: #242424;
 }
 
 .post-card h3 {
@@ -513,6 +765,10 @@
 
 .post-card small {
   color: #555;
+}
+
+[data-theme="dark"] .post-card small {
+  color: #a2a2a2;
 }
 
 .post-card p {
@@ -530,42 +786,81 @@
   gap: 1.5rem;
 }
 
+/* Community Card Styles */
 .community-card {
-  background: #f9f9f9;
-  border: 2px solid transparent;
-  border-radius: 10px;
-  padding: 1.5rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin: 0.3rem;
+  width: 200px;
+  box-shadow: 1px 1px 8px var(--shadow-color);
+  position: relative;
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
 }
 
-.community-card:hover {
-  background: #fff;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+.community-card.followed {
+  border-color: var(--primary-color);
+  background-color: var(--hover-color);
+}
+
+.community-card.followed .community-name {
+  color: var(--primary-color);
 }
 
 .community-logo {
-  width: 60px;
-  height: 60px;
+  width: 100%;
+  height: 80px;
   object-fit: contain;
-  margin-bottom: 1rem;
+  margin-bottom: 0.3rem;
 }
 
 .community-name {
   font-size: 1.1rem;
-  font-weight: 600;
-  color: #333;
-  margin: 0.5rem 0;
+  margin-bottom: 0.3rem;
+  color: var(--dark-text);
 }
 
-.community-location {
-  font-size: 0.9rem;
-  color: #555;
-  margin: 0;
+[data-theme="dark"] .community-name {
+  color: var(--light-text);
+}
+
+.community-location,
+.community-tagline,
+.followers-count {
+  font-size: 0.85rem;
+  margin-bottom: 0.2rem;
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] .community-location,
+[data-theme="dark"] .community-tagline,
+[data-theme="dark"] .followers-count {
+  color: var(--light-text);
+}
+
+/* Select dropdown styles */
+select {
+  background-color: var(--input-background);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+select:hover {
+  border-color: var(--primary-color);
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0, 119, 181, 0.2);
 }
 
 /* Search Bar for Communities */
@@ -602,11 +897,30 @@
   transition: background var(--transition-speed), color var(--transition-speed);
 }
 
+[data-theme="dark"] .community-tab button {
+  color: var(--feed-option-text);
+}
 /* Active state for community tab buttons */
 .community-tab button.active {
   background-color: #0077B5;
   color: #fff;
   border-color: #0077B5;
+}
+
+.community-tab button:hover {
+  background-color: var(--hover-color);
+  border-color: var(--primary-color);
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] .community-tab button:hover {
+  background-color: #3d3d3d;
+}
+
+.community-tab button.active {
+  background-color: var(--primary-color);
+  color: var(--light-text);
+  border-color: var(--primary-color);
 }
 
 /* Pagination Controls */
@@ -644,16 +958,21 @@
 /* Right Sidebar */
 .right-sidebar {
   height: 45vh;
-  background: #fff;
-  border: 1px solid #ddd;
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 1rem;
-  margin: 0; /* Remove extra margins so spacing comes from the grid gap */
+  margin: 0;
+  color: var(--text-color);
+  transition: background-color 0.3s ease,
+              border-color 0.3s ease,
+              color 0.3s ease;
 }
 
 .sidebar-title {
   margin: 0 0 0.5rem 0;
   font-weight: bold;
+  color: var(--text-color);
 }
 
 .sidebar-list li {
@@ -666,93 +985,27 @@
   color: #0077B5;
 }
 
-/* Scrollbar Styling for Feed and Right Sidebar */
-.feed::-webkit-scrollbar,
+/* Scrollbar Styling for Sidebars */
+.left-sidebar::-webkit-scrollbar,
 .right-sidebar::-webkit-scrollbar {
   width: 8px;
 }
 
-.feed::-webkit-scrollbar-track,
+.left-sidebar::-webkit-scrollbar-track,
 .right-sidebar::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--card-background);
   border-radius: 4px;
 }
 
-.feed::-webkit-scrollbar-thumb,
+.left-sidebar::-webkit-scrollbar-thumb,
 .right-sidebar::-webkit-scrollbar-thumb {
-  background: #ccc;
+  background: var(--border-color);
   border-radius: 4px;
 }
 
-.feed::-webkit-scrollbar-thumb:hover,
+.left-sidebar::-webkit-scrollbar-thumb:hover,
 .right-sidebar::-webkit-scrollbar-thumb:hover {
-  background: #bbb;
-}
-
-/* Community Card Styles */
-.community-card {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 0.75rem;
-  margin: 0.3rem;
-  width: 200px; /* Reduced from 250px */
-  box-shadow: 1px 1px 8px rgba(0,0,0,0.1);
-  position: relative;
-}
-
-.community-card.followed {
-  border-color: #0077B5;
-  background-color: #eef9ff;
-}
-
-.community-card.followed .community-name {
-  color: #0077B5;
-}
-
-.community-logo {
-  width: 100%;
-  height: 80px; /* Reduced from 100px */
-  object-fit: contain;
-  margin-bottom: 0.3rem;
-}
-
-.community-name {
-  font-size: 1.1rem; /* Reduced from 1.2rem */
-  margin-bottom: 0.3rem;
-}
-
-.community-location,
-.community-tagline,
-.followers-count {
-  font-size: 0.85rem; /* Reduced from 0.9rem */
-  margin-bottom: 0.2rem;
-}
-
-.follow-button {
-  margin-top: 0.5rem;
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.follow-button.follow {
-  background-color: #0077B5;
-  color: #fff;
-}
-
-.follow-button.unfollow {
-  background-color: #ccc;
-  color: #333;
-}
-
-.follow-button.follow:hover {
-  background-color: #005f8d;
-}
-
-.follow-button.unfollow:hover {
-  background-color: #aaa;
+  background: var(--hover-color);
 }
 
 /* Updated .community-grid for tighter layout */
@@ -822,552 +1075,521 @@
   display: block;
 }
 
+/* Feed Container */
+.feed-container {
+  padding-top: 1rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-bottom: 1.5rem;
+  background-color: var(--card-background);
+  border-color: var(--card-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  font-family: var(--font-family);
+  margin-bottom: 2rem;
+  color: var(--text-color);
+}
+
+/* Forum Card */
 .forum-card {
-  background-color: #fff;           /* Same white background as feed & community cards */
-  border: 1px solid #ddd;          /* Matches other card borders */
-  border-radius: 8px;              /* Same radius as community / feed containers */
+  background-color: var(--forum-card-bg, var(--card-background)) !important;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);  /* Subtle default shadow */
-  transition: box-shadow 0.3s ease;          /* Smooth hover transition */
+  box-shadow: 0 2px 4px var(--shadow-color);
+  transition: box-shadow 0.3s ease, background-color 0.3s ease;
+  color: var(--text-color);
 }
 
-/* For general forum-cards outside the ThreadView */
 .forum-card:hover {
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);  /* Slightly stronger shadow on hover */
+  box-shadow: 0 4px 14px var(--shadow-color);
+  background-color: var(--hover-color) !important;
 }
 
-.forum-card small {
-  display: block;
-  font-size: 0.85rem;
-  color: #777;
-  margin-top: 0.5rem;
+[data-theme="dark"] .forum-card:hover {
+  background-color: #3d3d3d !important;
 }
 
-/* Style for upvote/downvote section */
-.forum-card div {
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-  color: #555;
-}
-
+/* Forum Title and Description */
 .forum-title {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #333;
+  color: var(--text-color);
   margin-bottom: 0.75rem;
 }
 
 .forum-description {
   font-size: 1rem;
-  color: #333;
+  color: var(--text-color);
   line-height: 1.4;
   margin-bottom: 0.5rem;
 }
 
-.back-button {
-  display: inline-flex;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding: 0.5rem 1rem;
-  background-color: #0077B5;
-  color: #fff;
-  border-radius: 4px;
-  text-decoration: none;
-  font-weight: bold;
-  transition: background-color 0.3s ease;
-}
-
-.back-button:hover {
-  background-color: #005f8d;
-}
-
-.back-button:focus {
-  outline: 2px solid #005f8d;
-  outline-offset: 2px;
-}
-
-.reply-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  margin-right: 0.5rem;
-  object-fit: cover;
-}
-
-.create-button {
-  background-color: #0077B5; /* LinkedIn Blue */
-  color: #fff;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.create-button:hover {
-  background-color: #005f8d; /* Darker Blue on Hover */
-}
-
-/* **Modal Overlay** */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000; /* Ensure it sits above other content */
-}
-
-/* **Modal Content** */
-.modal-content {
-  background-color: #fff;
-  padding: 2rem;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 65%;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  max-height: 90%;
-}
-
-/* **Form Groups** */
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
+/* Forum Small Text */
+.forum-card small {
   display: block;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted-text);
+  margin-top: 0.5rem;
 }
 
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box;
-}
-
-/* **Form Actions** */
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.form-actions button {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.form-actions button[type="submit"] {
-  background-color: #0077B5; /* LinkedIn Blue */
-  color: #fff;
-}
-
-.form-actions button[type="submit"]:hover {
-  background-color: #005f8d; /* Darker Blue on Hover */
-}
-
-.form-actions button[type="button"] {
-  background-color: #ccc; /* Gray */
-  color: #333;
-}
-
-.form-actions button[type="button"]:hover {
-  background-color: #999; /* Darker Gray on Hover */
-}
-
-/* **Modal Header** */
-.modal-content h3 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: #0077B5;
-}
-
-/* **Notification Styles** */
-.notification {
-  position: fixed;
-  top: 9%; /* Adjust this as you prefer */
-  right: 1%;
-  padding: 1rem 1.5rem;
-  border-radius: 4px;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  z-index: 1001; /* Ensure it sits above other content */
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  min-width: 250px;
-}
-
-.notification.success {
-  background-color: #4CAF50; /* Green */
-}
-
-.notification.error {
-  background-color: #f44336; /* Red */
-}
-
-.notification-close {
-  background: none;
-  border: none;
-  color: #fff;
-  font-weight: bold;
-  cursor: pointer;
-  font-size: 1rem;
-}
-
-.notification-close:hover {
-  opacity: 0.8;
-}
-
-
-/* For each level of the reply tree, add a left border or indent. */
-.reply-tree-level {
-  margin-left: 1.5rem;
-  border-left: 2px solid #ddd;
-  padding-left: 1rem;
-}
-
-/* Distinguish nested cards from top-level posts if you want */
-.reply-card {
-  background-color: #fafafa; /* Slightly different background */
-  margin-bottom: 1rem;
-}
-
-/* In the ThreadView, remove any hover effect or box-shadow transitions from .forum-card */
-.thread-view .forum-card {
-  border: none;
-  box-shadow: none;
-  transition: none;
-}
-
-.thread-view .forum-card:hover {
-  box-shadow: none;
-}
-
-.forum-thread-count {
+/* Forum Vote Section */
+.forum-card div {
+  margin-top: 0.5rem;
   font-size: 0.9rem;
-  color: #777;
-  margin: 0.5rem 0;
+  color: var(--muted-text);
 }
 
-/* ========================= */
-/* Forum Vote Button Styles */
-/* ========================= */
-
-.forum-card .vote-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+/* Connections Container */
+.connections-container {
+  padding-top: 1rem;
+  padding-right: 1.5rem;
+  padding-left: 1.5rem;
+  padding-bottom: 1.5rem;
+  background-color: var(--card-background);
+  border-color: var(--card-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  font-family: var(--font-family);
+  margin-bottom: 2rem;
+  color: var(--text-color);
+  transition: background-color 0.3s ease;
 }
 
-/* Base Styles for Vote Buttons */
-.forum-card .vote-button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1.4rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.4rem;
-  transition: color 0.3s ease;
-  outline: none;
+[data-theme="dark"] .connections-container {
+  background-color: #2d2d2d;
 }
 
-.forum-card .vote-button:hover {
-  color: #000;
-}
-
-/* Upvote Button */
-.forum-card .vote-button.upvote-button {
-  color: #6c757d; /* Default gray */
-}
-
-.forum-card .vote-button.upvote-button.active {
-  color: #28a745 !important; /* Green when upvoted */
-}
-
-/* Downvote Button */
-.forum-card .vote-button.downvote-button {
-  color: #6c757d; /* Default gray */
-}
-
-.forum-card .vote-button.downvote-button.active {
-  color: #dc3545 !important; /* Red when downvoted */
-}
-
-/* Vote Count */
-.forum-card .vote-count {
-  font-size: 1rem;
-  color: #333;
-  margin-left: 0.25rem;
-  font-weight: bold;
-}
-
-/* Additional styles to ensure a clean layout */
-.forum-card .vote-container {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  justify-content: flex-start;
-  margin-top: 0.5rem;
-}
-
-.notification-container {
-  position: relative;
-  display: inline-block;
-}
-
-.notification-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  background-color: red;
-  color: #fff;
-  border-radius: 50%;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  animation: blink 1s linear infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-.notifications-dropdown {
-  position: absolute;
-  color: black;
-  right: 0;
-  top: 30px;
-  background: white;
-  border: 1px solid #ddd;
+/* Connections List */
+.connections-list {
+  max-height: 350px;
+  overflow-y: auto;
+  margin-top: 1rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
   padding: 10px;
-  width: 250px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  background-color: var(--card-background);
+  transition: background-color 0.3s ease;
 }
 
-.notification-item.unread {
+[data-theme="dark"] .connections-list {
+  background-color: #242424;
+}
+
+.connections-list li {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background-color: var(--card-background);
+  margin-bottom: 5px;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  transition: transform 0.2s, background-color 0.3s ease;
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] .connections-list li {
+  color: var(--light-text);
+}
+
+.connection-name {
+  font-size: 1.1rem;
   font-weight: bold;
+  margin: 0;
+  color: var(--dark-text);
 }
 
+[data-theme="dark"] .connection-name {
+  color: var(--light-text);
+}
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .main-content {
+.connection-headline {
+  font-size: 0.9rem;
+  color: var(--dark-text);
+  margin: 0.25rem 0 0;
+}
+
+[data-theme="dark"] .connection-headline {
+  color: var(--light-text);
+}
+
+/* Profile View */
+.profile-view {
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+[data-theme="dark"] .profile-view {
+  background-color: #2d2d2d;
+}
+
+.skill-item {
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+  padding: 0.5rem 1rem;
+  margin: 0.25rem;
+  display: inline-block;
+  color: var(--dark-text);
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+[data-theme="dark"] .skill-item {
+  background-color: #3d3d3d;
+  color: var(--light-text);
+}
+
+.message-item:hover {
+  background-color: var(--hover-color);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+[data-theme="dark"] .message-item:hover {
+  background-color: #3d3d3d;
+}
+
+.feed-option-button:hover {
+  background-color: var(--hover-color);
+  border-color: var(--primary-color);
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] .feed-option-button:hover {
+  background-color: #3d3d3d;
+}
+
+.feed-option-button.active {
+  background-color: var(--primary-color);
+  color: var(--light-text);
+  border-color: var(--primary-color);
+}
+
+.search-container {
+  background-color: #ffffff;
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+    padding: 1rem;
+  box-shadow: var(--box-shadow);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+[data-theme="dark"] .search-container {
+  background-color: #ffffff;
+  }
+
+.search-input {
+  flex: 1;
+  border: none;           /* Remove border */
+  background: transparent;
+  padding: 0.5rem 0.5rem 0.5rem 0.5rem;
+  font-size: 1rem;
+  color: var(--text-primary);
+  border-radius: 20px;
+  min-width: 0;
+  box-shadow: none;       /* Remove any box-shadow */
+}
+
+[data-theme="dark"] .search-input {
+  color: var(--light-text);
+}
+
+.search-input:focus {
+  outline: none;
+  background: transparent;
+  border: none;           /* Ensure no border on focus */
+  box-shadow: none;       /* Ensure no shadow on focus */
+}
+
+.search-input::placeholder {
+  color: var(--muted-text);
+}
+
+/* Edit Fields */
+.edit-field {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+  background-color: var(--card-background);
+  color: var(--dark-text);
+  transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+}
+
+[data-theme="dark"] .edit-field {
+  color: var(--light-text);
+}
+
+.edit-field:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0, 119, 181, 0.2);
+}
+
+.edit-field::placeholder {
+  color: var(--muted-text);
+}
+
+/* University Profile */
+.university-profile {
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: var(--box-shadow);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+[data-theme="dark"] .university-profile {
+  background-color: #2d2d2d;
+}
+
+.university-name {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] .university-name {
+  color: var(--light-text);
+}
+
+.university-details {
+  color: var(--dark-text);
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .university-details {
+  color: var(--light-text);
+}
+
+.university-description {
+  color: var(--dark-text);
+  line-height: 1.6;
+}
+
+[data-theme="dark"] .university-description {
+  color: var(--light-text);
+}
+
+.university-stats {
+  display: flex;
+  gap: 2rem;
+  margin-top: 1.5rem;
+  color: var(--dark-text);
+}
+
+[data-theme="dark"] .university-stats {
+  color: var(--light-text);
+}
+
+.stat-item {
     display: flex;
     flex-direction: column;
-  }
-  .right-sidebar,
-  .left-sidebar {
-    width: 100%;
-    margin: 0;
-  }
-
-  .feed {
-    max-height: none;
-  }
-
-  .community-grid {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  }
-
-  .community-logo {
-    width: 50px;
-    height: 50px;
-  }
-
-  .modal-content {
-    padding: 1rem;
-  }
-
-  .form-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .form-actions button {
-    width: 100%;
-  }
+  align-items: center;
 }
 
-/* 
- * ==========================================
- * Tiptap & Editor/Toolbar ADDITIONS
- * ==========================================
- */
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: var(--dark-text);
+}
 
-/* Tiptap Toolbar Styles */
-.tiptap-toolbar {
-  display: flex;
-  gap: 0.5rem;
+[data-theme="dark"] .stat-value {
+  color: var(--light-text);
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: var(--muted-text);
+}
+
+.edit-headline-input,
+.edit-name-input {
+    width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+  background-color: var(--light-background);
+  color: var(--dark-text);
+  transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+}
+
+[data-theme="dark"] .edit-headline-input,
+[data-theme="dark"] .edit-name-input {
+  color: var(--light-text);
+  background-color: #3d3d3d;
+}
+
+.edit-headline-input:focus,
+.edit-name-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0, 119, 181, 0.2);
+}
+
+.edit-headline-input::placeholder,
+.edit-name-input::placeholder {
+  color: var(--muted-text);
+}
+
+.color-picker-container label {
+  color: var(--dark-text);
   margin-bottom: 0.5rem;
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 0.5rem;
+  display: block;
 }
 
-.tiptap-toolbar button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1.1rem;
-  padding: 0.3rem;
-  transition: color 0.3s;
-  color: #555;
+[data-theme="dark"] .color-picker-container label {
+  color: var(--light-text);
 }
 
-.tiptap-toolbar button.active {
-  color: #0077B5;
+.university-logo-container {
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-.tiptap-toolbar button:hover {
-  color: #005f8d;
+[data-theme="dark"] .university-logo-container {
+  background-color: #2d2d2d;
 }
 
-/* Tiptap Editor Styles */
-.tiptap-editor {
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 0.5rem;
-  min-height: 150px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 1rem;
+.university-info {
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .university-info {
+  background-color: #2d2d2d;
+}
+
+[data-theme="dark"] .forum-card,
+[data-theme="dark"] .connections-list,
+[data-theme="dark"] .profile-view {
+  border-color: rgb(20,20,20);
+}
+
+/* Ensure the base styles are properly set */
+.forum-card,
+.connections-list,
+.profile-view {
+  border: 1px solid var(--card-border);
+  transition: border-color 0.3s ease;
+}
+
+[data-theme="dark"] .feed-thread-card {
+  background-color: #242424;
+  border-color: #141414 !important;
+}
+[data-theme="dark"] .feed-thread-card:hover {
+  background-color: #3d3d3d;
+}
+.feed-thread-card:hover {
+  background-color: var(--hover-color);
+}
+
+.feed-thread-card {
+  border-color: #ddd !important;
+}
+
+.feed-container-forum-view {
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .feed-container-forum-view {
+  background-color: #121212 !important;
+}
+
+.post-card-level-1 {
+  background-color: var(--card-background);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .post-card-level-1 {
+  background-color: #242424;
+}
+
+/* Search form styles */
+.search-form {
+  margin: 0 1rem;
+  width: 240px; /* Ensure enough width for input and icon */
+}
+
+.search-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 0 0.5rem 0 0.5rem;
   background-color: #fff;
 }
 
-.tiptap-editor:focus-within {
-  border-color: #0077B5;
-  box-shadow: 0 0 5px rgba(0, 119, 181, 0.3);
-}
-
-/* Additional classes for the Tiptap editing state */
-.edit-form-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.post-actions {
-  margin-top: 0.5rem;
-  display: flex;
-  gap: 0.5rem;
-}
-
-.edit-button {
-  background-color: #ffa500; /* Orange */
-  color: #fff;
-}
-
-.edit-button:hover {
-  background-color: #e69500;
-}
-
-.delete-button {
-  background-color: #ff6961; /* Red */
-  color: #fff;
-}
-
-.delete-button:hover {
-  background-color: #e35e4c;
-}
-
-/* Upvote/Downvote row in editing view */
-.vote-row {
-  margin-top: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #555;
-}
-
-/* Reply form when toggling child replies */
-.reply-form {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.reply-textarea {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  resize: vertical;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+.search-input {
+  flex: 1;
+  border: none;           /* Remove border */
+  background: transparent;
+  padding: 0.5rem 0.5rem 0.5rem 0.5rem;
   font-size: 1rem;
-  margin-bottom: 0.5rem;
-}
-
-.reply-button {
-  background-color: #0077B5;
-  color: #fff;
-}
-
-.cancel-button {
-  background-color: #ccc;
-  color: #333;
-}
-
-.cancel-button:hover {
-  background-color: #aaa;
-}
-
-/* Reply toggle for child replies */
-.reply-toggle {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-size: 1rem;
-  color: #0077B5;
-}
-
-.reply-toggle-text {
-  margin-left: 0.3rem;
-}
-
-/* Add a specific background or border for authenticated items */
-.sidebar-item.authenticated {
-  background: #eef9ff; /* Light blue background */
-}
-
-.sidebar-item.authenticated:hover {
-  background: #d0f0ff; /* Slightly darker blue on hover */
-}
-
-.filter-buttons button {
-  border: none;
-  margin-right: 7px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-size: 1rem;
+  color: var(--text-primary);
   border-radius: 20px;
-  transition: background var(--transition-speed), color var(--transition-speed);
+  min-width: 0;
+  box-shadow: none;       /* Remove any box-shadow */
 }
 
-/* Active state for filter buttons */
-.filter-buttons button.active {
-  background: var(--primary-color);
-  color: #fff;
+.search-input:focus {
+  outline: none;
+  background: transparent;
+  border: none;           /* Ensure no border on focus */
+  box-shadow: none;       /* Ensure no shadow on focus */
+}
+
+.search-button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+}
+
+.search-button:hover {
+  color: var(--primary-color);
+}
+
+[data-theme="dark"] .search-container {
+  background-color: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.2);
+}
+
+[data-theme="dark"] .search-input {
+  color: var(--light-text);
 }

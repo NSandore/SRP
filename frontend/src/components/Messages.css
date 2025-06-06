@@ -2,24 +2,26 @@
 :root {
     --primary-color: #0077B5;
     --secondary-color: #005f8d;
-    --background-color: #fff;
+    /*--background-color: #fff;*/
     --text-color: #333;
     --border-radius: 8px;
     --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     --transition-speed: 0.3s;
+    --font-family: Arial, sans-serif;
+    --border-color: #ddd;
+    --hover-color: #f7f7f7;
   }
   
   .messages-container {
     padding: 1rem;
-    background-color: var(--background-color);
+    background-color: var(--card-background);
     border-radius: var(--border-radius);
     box-shadow: var(--box-shadow);
-    font-family: Arial, sans-serif;
+    font-family: var(--font-family);
   }
   
   .messages-container h1 {
     text-align: center;
-    color: var(--primary-color);
     margin-bottom: 1rem;
   }
   
@@ -31,14 +33,14 @@
   
   .message-item {
     padding: 1rem;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     transition: background var(--transition-speed) ease;
   }
   
   .message-item:hover {
-    background: #f7f7f7;
+    background: var(--hover-color);
   }
   
   .message-sender {

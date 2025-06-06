@@ -5,9 +5,37 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+* {
+  box-sizing: border-box;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+  background-color: var(--light-background);
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  color: var(--text-color);
+}
+
+/* Ensure all text elements use the theme colors */
+h1, h2, h3, h4, h5, h6, p, span, div, a {
+  color: var(--text-color);
+}
+
+/* Ensure form elements use theme colors */
+input, textarea, select {
+  background-color: var(--input-background);
+  border-color: var(--input-border);
+  color: var(--text-color);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--subtext-color);
 }

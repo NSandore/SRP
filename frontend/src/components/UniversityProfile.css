@@ -3,7 +3,7 @@
   --secondary-color: #005f8d; /* Default secondary color */
   --text-color: #333;
   --subtext-color: #777;
-  --background-color: #fff;
+  /*--background-color: #fff;*/
   --light-background: #f7f7f7;
   --border-radius: 8px;
   --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);

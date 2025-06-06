@@ -547,7 +547,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
                   style={{
                     marginBottom: "1rem",
                     padding: "1rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid",
+                    //borderColor: "blue",
                     borderRadius: "8px",
                   }}
                 >

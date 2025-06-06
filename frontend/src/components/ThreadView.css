@@ -35,11 +35,9 @@
   /* Each post or reply is now a 'post-card', matching the .forum-card style */
   .post-card {
     background-color: #fff;
-    border: 1px solid #ddd;
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 1rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     transition: box-shadow 0.3s ease;
   }
   .post-card:hover {
@@ -238,10 +236,8 @@
   /* Reply form, consistent with other forms */
   .reply-form {
     margin-top: 1rem;
-    border: 1px solid #ddd;
     border-radius: 6px;
     padding: 0.75rem;
-    background: #fff;
   }
   
   .reply-textarea {
