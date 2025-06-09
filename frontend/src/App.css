@@ -1588,7 +1588,6 @@ select:focus {
 .search-suggestions {
   position: absolute;
   background: #fff;
-  border: 1px solid var(--border-color);
   width: 240px;
   max-height: 200px;
   overflow-y: auto;
