@@ -24,11 +24,12 @@ try {
     // Get the database connection
     $db = getDB();
 
-    // Fetch the count of followers (users who have accepted connections with this user)
+    // Fetch the count of followers from the user_follows table
+    // Each row represents a follower -> followed relationship
     $queryFollowersCount = "
         SELECT COUNT(*) AS follower_count
-        FROM connections
-        WHERE user_id2 = :user_id AND status = 'accepted'
+        FROM user_follows
+        WHERE followed_user_id = :user_id
     ";
     $stmtFollowersCount = $db->prepare($queryFollowersCount);
     $stmtFollowersCount->execute([':user_id' => $user_id]);
