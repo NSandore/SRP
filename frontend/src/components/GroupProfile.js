@@ -9,6 +9,7 @@ function GroupProfile({ userData }) {
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [followersCount, setFollowersCount] = useState(0);
 
   // Fetch group details on mount (or when id changes)
   useEffect(() => {
@@ -17,6 +18,7 @@ function GroupProfile({ userData }) {
         const response = await axios.get(`/api/fetch_group.php?community_id=${id}`);
         if (response.data.success) {
           setGroup(response.data.group);
+          setFollowersCount(response.data.group.followers_count || 0);
         } else {
           setError(response.data.error);
         }
@@ -59,6 +61,7 @@ function GroupProfile({ userData }) {
         <h1 className="group-name">{group.name}</h1>
         <p className="group-tagline">{group.tagline}</p>
         <p className="group-location">{group.location}</p>
+        <p className="followers-count">{followersCount} Followers</p>
         {group.website && (
           <a href={group.website} target="_blank" rel="noopener noreferrer">
             Visit Website

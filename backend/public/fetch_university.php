@@ -17,7 +17,13 @@ $community_id = intval($_GET['community_id']);
 
 try {
     $db = getDB();
-    $stmt = $db->prepare("SELECT * FROM communities WHERE id = :id AND community_type = 'university'");
+    $stmt = $db->prepare(
+        "SELECT c.*, COUNT(fc.user_id) AS followers_count
+         FROM communities c
+         LEFT JOIN followed_communities fc ON fc.community_id = c.id
+         WHERE c.id = :id AND c.community_type = 'university'
+         GROUP BY c.id"
+    );
     $stmt->execute([':id' => $community_id]);
     $university = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$university) {
