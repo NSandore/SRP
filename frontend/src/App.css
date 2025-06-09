@@ -831,7 +831,8 @@ input::placeholder, textarea::placeholder {
 
 .community-location,
 .community-tagline,
-.followers-count {
+.followers-count,
+.following-count {
   font-size: 0.85rem;
   margin-bottom: 0.2rem;
   color: var(--dark-text);
@@ -839,7 +840,8 @@ input::placeholder, textarea::placeholder {
 
 [data-theme="dark"] .community-location,
 [data-theme="dark"] .community-tagline,
-[data-theme="dark"] .followers-count {
+[data-theme="dark"] .followers-count,
+[data-theme="dark"] .following-count {
   color: var(--light-text);
 }
 
