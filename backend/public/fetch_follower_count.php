@@ -28,7 +28,7 @@ try {
     $queryFollowersCount = "
         SELECT follower_count
         FROM users
-        WHERE id = :user_id
+        WHERE user_id = :user_id
         LIMIT 1
     ";
     $stmtFollowersCount = $db->prepare($queryFollowersCount);
