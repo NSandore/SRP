@@ -38,6 +38,10 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const [verified, setVerified] = useState(false);
   const [verifiedCommunityName, setVerifiedCommunityName] = useState('');
 
+  // Follower/Following counts
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
   // --------------------------------------------------------------------------
   // Fetch full profile from /api/fetch_user.php
   // --------------------------------------------------------------------------
@@ -97,6 +101,32 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       fetchVerificationCommunity(profile.verified_community_id);
     }
   }, [verified, profile]);
+
+  // --------------------------------------------------------------------------
+  // Fetch follower and following counts
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    if (!userData) return;
+    const fetchCounts = async () => {
+      try {
+        const resFollowers = await axios.get(
+          `/api/fetch_follower_count.php?user_id=${userData.user_id}`
+        );
+        if (resFollowers.data.success) {
+          setFollowerCount(resFollowers.data.follower_count);
+        }
+        const resFollowing = await axios.get(
+          `/api/fetch_following_count.php?user_id=${userData.user_id}`
+        );
+        if (resFollowing.data.success) {
+          setFollowingCount(resFollowing.data.following_count);
+        }
+      } catch (err) {
+        console.error('Error fetching follow counts:', err);
+      }
+    };
+    fetchCounts();
+  }, [userData]);
 
   // --------------------------------------------------------------------------
   // Fetch experience & education data
@@ -342,6 +372,8 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                     )}
                   </h2>
                   <p className="profile-headline">{displayHeadline}</p>
+                  <p className="followers-count">{followerCount} Followers</p>
+                  <p className="following-count">{followingCount} Following</p>
                 </>
               )}
             </div>
