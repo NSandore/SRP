@@ -51,6 +51,7 @@ import NavBar from './components/NavBar';
 import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
 import ContactUsButton from './components/ContactUsButton';
+import SearchResults from './components/SearchResults';
 
 
 function App() {
@@ -486,6 +487,7 @@ function App() {
                             path="/messages"
                             element={<Messages userData={userData} />}
                           />
+                          <Route path="/search" element={<SearchResults />} />
                         </Routes>
                         <RightSidebar />
                         <ContactUsButton />
