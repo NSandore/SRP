@@ -24,20 +24,22 @@ try {
     // Get the database connection
     $db = getDB();
 
-    // Fetch the count of followers (users who have accepted connections with this user)
+    // Fetch the follower_count stored on the user record
     $queryFollowersCount = "
-        SELECT COUNT(*) AS follower_count
-        FROM connections
-        WHERE user_id2 = :user_id AND status = 'accepted'
+        SELECT follower_count
+        FROM users
+        WHERE id = :user_id
+        LIMIT 1
     ";
     $stmtFollowersCount = $db->prepare($queryFollowersCount);
     $stmtFollowersCount->execute([':user_id' => $user_id]);
     $result = $stmtFollowersCount->fetch(PDO::FETCH_ASSOC);
+    $count = $result ? (int) $result['follower_count'] : 0;
 
     // Return the follower count
     echo json_encode([
         'success' => true,
-        'follower_count' => $result['follower_count']
+        'follower_count' => $count
     ]);
 } catch (PDOException $e) {
     http_response_code(500);
