@@ -15,6 +15,7 @@ import {
 import { BiInfoCircle } from 'react-icons/bi';
 import { RiMedalFill } from 'react-icons/ri';
 import DOMPurify from 'dompurify';
+import axios from 'axios';
 
 // NavItem sub-component
 function NavItem({ active, label, Icon, onClick }) {
@@ -46,6 +47,8 @@ function NavBar({
 }) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState({ users: [], forums: [], threads: [], tags: [] });
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const unreadCount = notifications.filter(n => parseInt(n.is_read, 10) === 0).length;
   const accountMenuRef = useRef(null);
@@ -92,11 +95,40 @@ function NavBar({
     navigate(`/${section}`);
   };
 
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setShowSuggestions(false);
+      setSuggestions({ users: [], forums: [], threads: [], tags: [] });
+      return;
+    }
+    const controller = new AbortController();
+    axios
+      .get(`/api/search.php?q=${encodeURIComponent(searchQuery.trim())}&limit=5`, {
+        signal: controller.signal,
+      })
+      .then((res) => {
+        setSuggestions(res.data);
+        setShowSuggestions(true);
+      })
+      .catch((err) => {
+        if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+          console.error('Search error:', err);
+        }
+      });
+    return () => controller.abort();
+  }, [searchQuery]);
+
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
+  };
+
+  const handleSuggestionClick = (path) => {
+    setShowSuggestions(false);
+    setSearchQuery('');
+    navigate(path);
   };
 
   return (
@@ -168,11 +200,52 @@ function NavBar({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input"
+                onFocus={() => setShowSuggestions(true)}
               />
               <button type="submit" className="search-button" aria-label="Search">
                 <FaSearch size={14} />
               </button>
             </div>
+            {showSuggestions && (
+              <div className="search-suggestions">
+                {suggestions.users.map((u) => (
+                  <div
+                    key={`u${u.user_id}`}
+                    className="search-suggestion-item"
+                    onClick={() => handleSuggestionClick(`/user/${u.user_id}`)}
+                  >
+                    @{u.first_name} {u.last_name}
+                  </div>
+                ))}
+                {suggestions.forums.map((f) => (
+                  <div
+                    key={`f${f.forum_id}`}
+                    className="search-suggestion-item"
+                    onClick={() => handleSuggestionClick(`/info/forum/${f.forum_id}`)}
+                  >
+                    {f.name}
+                  </div>
+                ))}
+                {suggestions.threads.map((t) => (
+                  <div
+                    key={`t${t.thread_id}`}
+                    className="search-suggestion-item"
+                    onClick={() => handleSuggestionClick(`/info/forum/${t.forum_id}/thread/${t.thread_id}`)}
+                  >
+                    {t.title}
+                  </div>
+                ))}
+                {suggestions.tags.map((tag) => (
+                  <div
+                    key={`tag${tag}`}
+                    className="search-suggestion-item"
+                    onClick={() => handleSuggestionClick(`/search?q=%23${tag}`)}
+                  >
+                    #{tag}
+                  </div>
+                ))}
+              </div>
+            )}
           </form>
           {/* Dark Mode Toggle */}
           <button
