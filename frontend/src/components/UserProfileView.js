@@ -23,6 +23,7 @@ function UserProfileView({ userData }) {
   // Follow state for this profile (does the logged-in user follow this profile?)
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadingFollowStatus, setLoadingFollowStatus] = useState(true);
+  const [followerCount, setFollowerCount] = useState(0);
 
   // Log if no userData is passed from the parent
   useEffect(() => {
@@ -130,6 +131,24 @@ function UserProfileView({ userData }) {
 
     checkFollowStatus();
   }, [userData, user_id]);
+
+  // --------------------------------------------------------------------------
+  // Fetch follower count for this profile
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    const fetchFollowerCount = async () => {
+      try {
+        const res = await axios.get(`/api/fetch_follower_count.php?user_id=${user_id}`);
+        if (res.data.success) {
+          setFollowerCount(res.data.follower_count);
+        }
+      } catch (err) {
+        console.error('Error fetching follower count:', err);
+      }
+    };
+
+    fetchFollowerCount();
+  }, [user_id]);
 
   // --------------------------------------------------------------------------
   // Handle follow/unfollow toggle
@@ -250,6 +269,7 @@ function UserProfileView({ userData }) {
             )}
           </h2>
           <p className="profile-headline">{displayHeadline}</p>
+          <p className="followers-count">{followerCount} Followers</p>
 
           {/* Follow/Unfollow and Message Buttons (only if viewing another user's profile) */}
           {userData && userData.user_id !== parseInt(user_id, 10) && (

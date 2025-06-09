@@ -33,6 +33,7 @@ function UniversityProfile({ userData }) {
 
   // New state for connections: following and followers (fetched via fetch_connections_list.php)
   const [connections, setConnections] = useState({ following: [], followers: [] });
+  const [followersCount, setFollowersCount] = useState(0);
 
   // For demonstration, we include some mock ambassadors (in addition to fetched ones)
   const mockAmbassadors = [
@@ -120,6 +121,7 @@ function UniversityProfile({ userData }) {
         const response = await axios.get(`/api/fetch_university.php?community_id=${id}`);
         if (response.data.success) {
           setUniversity(response.data.university);
+          setFollowersCount(response.data.university.followers_count || 0);
           // Initialize editable fields with the current values
           setEditName(response.data.university.name || "");
           setEditTagline(response.data.university.tagline || "");
@@ -374,6 +376,7 @@ function UniversityProfile({ userData }) {
           <h1 className="university-name">{university.name}</h1>
           <p className="university-tagline">{university.tagline}</p>
           <p className="university-location">{university.location}</p>
+          <p className="followers-count">{followersCount} Followers</p>
           {university.website && (
             <a
               href={university.website}
