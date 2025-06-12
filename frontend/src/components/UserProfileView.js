@@ -261,7 +261,7 @@ function UserProfileView({ userData }) {
               >
                 {loadingFollowStatus ? "Loading..." : isFollowing ? "Unfollow" : "Follow"}
               </button>
-              <button className="message-button">Message</button>
+              <RouterLink to={`/messages?user=${user_id}`} className="message-button">Message</RouterLink>
             </div>
           )}
 

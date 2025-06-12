@@ -40,6 +40,7 @@ function NavBar({
   isNotificationsOpen,
   notificationRef,
   markAllAsRead,
+  unreadMessages,
 }) {
   const navigate = useNavigate();
   const unreadCount = notifications.filter(n => parseInt(n.is_read, 10) === 0).length;
@@ -116,7 +117,12 @@ function NavBar({
         <div className="nav-icons">
           {/* Messages link */}
           <Link to="/messages">
-            <FaEnvelope className="nav-icon" title="Messages" />
+            <div className="notification-container">
+              <FaEnvelope className="nav-icon" title="Messages" />
+              {unreadMessages > 0 && (
+                <span className="notification-badge">{unreadMessages}</span>
+              )}
+            </div>
           </Link>
 
           {/* Notifications */}

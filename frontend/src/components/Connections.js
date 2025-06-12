@@ -137,7 +137,7 @@ function Connections({ userData }) {
                         >
                           Unfollow
                         </button>
-                        <button className="message-button">Message</button>
+                        <Link to={`/messages?user=${userId}`} className="message-button">Message</Link>
                       </div>
                     </li>
                   );
@@ -166,9 +166,9 @@ function Connections({ userData }) {
                         </p>
                         <p className="connection-headline">{user.headline || 'No headline'}</p>
                       </div>
-                      <button className="message-button">
+                      <Link to={`/messages?user=${userId}`} className="message-button">
                         Message
-                      </button>
+                      </Link>
                     </li>
                   );
                 })}

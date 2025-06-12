@@ -9,46 +9,72 @@
     --transition-speed: 0.3s;
   }
   
-  .messages-container {
-    padding: 1rem;
-    background-color: var(--background-color);
-    border-radius: var(--border-radius);
-    box-shadow: var(--box-shadow);
-    font-family: Arial, sans-serif;
-  }
-  
-  .messages-container h1 {
-    text-align: center;
-    color: var(--primary-color);
-    margin-bottom: 1rem;
-  }
-  
-  .messages-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .message-item {
-    padding: 1rem;
-    border-bottom: 1px solid #ddd;
-    display: flex;
-    flex-direction: column;
-    transition: background var(--transition-speed) ease;
-  }
-  
-  .message-item:hover {
-    background: #f7f7f7;
-  }
-  
-  .message-sender {
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-    color: var(--text-color);
-  }
-  
-  .message-text {
-    color: var(--subtext-color);
-    font-size: 1rem;
-  }
+.messages-wrapper {
+  display: flex;
+  gap: 1rem;
+}
+
+.conversations-column {
+  width: 30%;
+  border-right: 1px solid #ddd;
+  padding-right: 1rem;
+}
+
+.messages-column {
+  flex: 1;
+}
+
+.conversation-list,
+.messages-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.conversation-list li {
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+
+.conversation-list li.active {
+  background: #f0f0f0;
+}
+
+.conversation-list .badge {
+  background: red;
+  color: #fff;
+  border-radius: 50%;
+  padding: 2px 6px;
+  margin-left: 4px;
+  font-size: 0.75rem;
+}
+
+.message-in,
+.message-out {
+  margin: 0.25rem 0;
+  padding: 0.5rem;
+  border-radius: 8px;
+  max-width: 60%;
+}
+
+.message-in {
+  background: #f1f1f1;
+}
+
+.message-out {
+  background: #daf1ff;
+  margin-left: auto;
+}
+
+.send-box {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.message-search {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
   
