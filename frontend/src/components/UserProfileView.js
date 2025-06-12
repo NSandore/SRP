@@ -25,6 +25,9 @@ function UserProfileView({ userData }) {
   const [loadingFollowStatus, setLoadingFollowStatus] = useState(true);
   const [followerCount, setFollowerCount] = useState(0);
 
+  // Connection state between logged-in user and this profile
+  const [connectionStatus, setConnectionStatus] = useState("none");
+
   // Experience & Education states
   const [experience, setExperience] = useState([]);
   const [education, setEducation] = useState([]);
@@ -141,6 +144,27 @@ function UserProfileView({ userData }) {
   }, [userData, user_id]);
 
   // --------------------------------------------------------------------------
+  // Fetch connection status between logged-in user and this profile
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    const fetchConnectionStatus = async () => {
+      if (!userData || !userData.user_id) return;
+      try {
+        const res = await axios.get(
+          `/api/fetch_connection_status.php?user_id1=${userData.user_id}&user_id2=${user_id}`
+        );
+        if (res.data.success) {
+          setConnectionStatus(res.data.status);
+        }
+      } catch (err) {
+        console.error("Error fetching connection status:", err);
+      }
+    };
+
+    fetchConnectionStatus();
+  }, [userData, user_id]);
+
+  // --------------------------------------------------------------------------
   // Fetch follower count for this profile
   // --------------------------------------------------------------------------
   useEffect(() => {
@@ -213,6 +237,25 @@ function UserProfileView({ userData }) {
       console.log(`Follow status toggled. New status: ${!isFollowing}`);
     } catch (error) {
       console.error("Error toggling follow status:", error);
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // Send connection request
+  // --------------------------------------------------------------------------
+  const handleConnect = async () => {
+    if (!userData || !userData.user_id) return;
+    try {
+      const res = await axios.post(
+        "/api/request_connection.php",
+        { user_id1: userData.user_id, user_id2: parseInt(user_id, 10) },
+        { withCredentials: true }
+      );
+      if (res.data.success) {
+        setConnectionStatus("pending");
+      }
+    } catch (err) {
+      console.error("Error sending connection request:", err);
     }
   };
 
@@ -320,6 +363,19 @@ function UserProfileView({ userData }) {
               >
                 {loadingFollowStatus ? "Loading..." : isFollowing ? "Unfollow" : "Follow"}
               </button>
+              {connectionStatus === "accepted" ? (
+                <button className="connect-button connected" disabled>
+                  Connected
+                </button>
+              ) : connectionStatus === "pending" ? (
+                <button className="connect-button pending" disabled>
+                  Pending
+                </button>
+              ) : (
+                <button className="connect-button" onClick={handleConnect}>
+                  Connect
+                </button>
+              )}
               <RouterLink to={`/messages?user=${user_id}`} className="message-button">Message</RouterLink>
             </div>
           )}
