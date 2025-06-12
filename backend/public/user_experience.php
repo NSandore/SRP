@@ -45,6 +45,9 @@ try {
         if ($is_public === 0 && $viewer_id !== $user_id) {
             $row['start_date'] = null;
             $row['end_date'] = null;
+            $row['location_city'] = null;
+            $row['location_state'] = null;
+            $row['location_country'] = null;
         }
 
         $experiences[] = $row;
