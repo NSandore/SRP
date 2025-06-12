@@ -202,6 +202,41 @@
   background-color: #218838;
 }
 
+/* 3-dot menu icon */
+.menu-icon {
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #777;
+}
+
+/* Dropdown menu */
+.dropdown-menu {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  position: absolute;
+  top: 30px;
+  right: 0;
+  z-index: 10;
+  width: 140px;
+  padding: 0.25rem 0;
+}
+
+.dropdown-item {
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.dropdown-item:hover {
+  background-color: #f0f0f0;
+}
+
 /* ===================== */
 /* Ambassador Logos      */
 /* ===================== */
