@@ -30,6 +30,14 @@ try {
 
     $viewer_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
 
+    // Determine if viewer and user are connected
+    $isConnected = false;
+    if ($viewer_id && $viewer_id !== $user_id) {
+        $cstmt = $db->prepare("SELECT COUNT(*) FROM connections WHERE ((user_id1 = :viewer AND user_id2 = :user) OR (user_id1 = :user AND user_id2 = :viewer)) AND status = 'accepted'");
+        $cstmt->execute([':viewer' => $viewer_id, ':user' => $user_id]);
+        $isConnected = $cstmt->fetchColumn() > 0;
+    }
+
     $query = "SELECT education_id, degree, field_of_study, institution, start_date, end_date, gpa, honors, activities_societies, achievements
               FROM user_education
               WHERE user_id = :user_id";
@@ -42,7 +50,7 @@ try {
         // Decode JSON achievements
         $row['achievements'] = json_decode($row['achievements'], true) ?? [];
 
-        if ($is_public === 0 && $viewer_id !== $user_id) {
+        if ($is_public === 0 && $viewer_id !== $user_id && !$isConnected) {
             $row['start_date'] = null;
             $row['end_date'] = null;
         }

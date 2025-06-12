@@ -30,6 +30,14 @@ try {
 
     $viewer_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
 
+    // Determine if viewer and user are connected
+    $isConnected = false;
+    if ($viewer_id && $viewer_id !== $user_id) {
+        $cstmt = $db->prepare("SELECT COUNT(*) FROM connections WHERE ((user_id1 = :viewer AND user_id2 = :user) OR (user_id1 = :user AND user_id2 = :viewer)) AND status = 'accepted'");
+        $cstmt->execute([':viewer' => $viewer_id, ':user' => $user_id]);
+        $isConnected = $cstmt->fetchColumn() > 0;
+    }
+
     $query = "SELECT experience_id, title, company, start_date, end_date, industry, employment_type, location_city, location_state, location_country, description, responsibilities
               FROM user_experience
               WHERE user_id = :user_id";
@@ -42,7 +50,7 @@ try {
         // Decode JSON responsibilities
         $row['responsibilities'] = json_decode($row['responsibilities'], true) ?? [];
 
-        if ($is_public === 0 && $viewer_id !== $user_id) {
+        if ($is_public === 0 && $viewer_id !== $user_id && !$isConnected) {
             $row['start_date'] = null;
             $row['end_date'] = null;
             $row['location_city'] = null;

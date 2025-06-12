@@ -48,6 +48,14 @@ try {
 
     $viewer_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
 
+    // Determine if the viewer is connected to this user
+    $isConnected = false;
+    if ($viewer_id && $viewer_id !== $user_id) {
+        $cstmt = $db->prepare("SELECT COUNT(*) FROM connections WHERE ((user_id1 = :viewer AND user_id2 = :user) OR (user_id1 = :user AND user_id2 = :viewer)) AND status = 'accepted'");
+        $cstmt->execute([':viewer' => $viewer_id, ':user' => $user_id]);
+        $isConnected = $cstmt->fetchColumn() > 0;
+    }
+
     // Decode JSON field (community_ambassador_of) if it's not null
     if (!empty($user['community_ambassador_of'])) {
         $user['community_ambassador_of'] = json_decode($user['community_ambassador_of'], true);
@@ -55,7 +63,7 @@ try {
         $user['community_ambassador_of'] = [];
     }
 
-    if ($is_public === 0 && $viewer_id !== $user_id) {
+    if ($is_public === 0 && $viewer_id !== $user_id && !$isConnected) {
         if (isset($user['last_name'])) {
             $user['last_name'] = substr($user['last_name'], 0, 1) . '.';
         }
