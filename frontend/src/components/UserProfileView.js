@@ -27,6 +27,8 @@ function UserProfileView({ userData }) {
 
   // Connection state between logged-in user and this profile
   const [connectionStatus, setConnectionStatus] = useState("none");
+  const [connectionId, setConnectionId] = useState(null);
+  const [isRequester, setIsRequester] = useState(false);
 
   // Experience & Education states
   const [experience, setExperience] = useState([]);
@@ -155,6 +157,13 @@ function UserProfileView({ userData }) {
         );
         if (res.data.success) {
           setConnectionStatus(res.data.status);
+          if (res.data.connection_id) {
+            setConnectionId(res.data.connection_id);
+            setIsRequester(!!res.data.is_sender);
+          } else {
+            setConnectionId(null);
+            setIsRequester(false);
+          }
         }
       } catch (err) {
         console.error("Error fetching connection status:", err);
@@ -243,7 +252,7 @@ function UserProfileView({ userData }) {
   // --------------------------------------------------------------------------
   // Send connection request
   // --------------------------------------------------------------------------
-  const handleConnect = async () => {
+const handleConnect = async () => {
     if (!userData || !userData.user_id) return;
     try {
       const res = await axios.post(
@@ -254,8 +263,37 @@ function UserProfileView({ userData }) {
       if (res.data.success) {
         setConnectionStatus("pending");
       }
+  } catch (err) {
+    console.error("Error sending connection request:", err);
+  }
+};
+
+  const handleAccept = async () => {
+    if (!connectionId) return;
+    try {
+      await axios.post(
+        "/api/accept_connection.php",
+        { connection_id: connectionId },
+        { withCredentials: true }
+      );
+      setConnectionStatus("accepted");
     } catch (err) {
-      console.error("Error sending connection request:", err);
+      console.error("Error accepting connection:", err);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!connectionId) return;
+    try {
+      await axios.post(
+        "/api/cancel_connection.php",
+        { connection_id: connectionId },
+        { withCredentials: true }
+      );
+      setConnectionStatus("none");
+      setConnectionId(null);
+    } catch (err) {
+      console.error("Error cancelling connection:", err);
     }
   };
 
@@ -368,9 +406,15 @@ function UserProfileView({ userData }) {
                   Connected
                 </button>
               ) : connectionStatus === "pending" ? (
-                <button className="connect-button pending" disabled>
-                  Pending
-                </button>
+                isRequester ? (
+                  <button className="connect-button pending" onClick={handleCancel}>
+                    Pending
+                  </button>
+                ) : (
+                  <button className="connect-button" onClick={handleAccept}>
+                    Accept
+                  </button>
+                )
               ) : (
                 <button className="connect-button" onClick={handleConnect}>
                   Connect

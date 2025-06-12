@@ -35,9 +35,16 @@ try {
     $stmt->execute([':u1' => $user_id1, ':u2' => $user_id2]);
     $connection_id = $db->lastInsertId();
 
+    // Fetch sender name for notification message
+    $sstmt = $db->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
+    $sstmt->execute([$user_id1]);
+    $sender = $sstmt->fetch(PDO::FETCH_ASSOC);
+    $senderName = $sender ? $sender['first_name'] . ' ' . substr($sender['last_name'], 0, 1) . '.' : 'Someone';
+    $message = "$senderName sent you a <a href='/user/$user_id1'>connection request</a>.";
+
     // Notification
-    $notif = $db->prepare("INSERT INTO notifications (recipient_user_id, actor_user_id, notification_type, reference_id, message, created_at) VALUES (?, ?, 'connection', ?, 'Connection request', NOW())");
-    $notif->execute([$user_id2, $user_id1, $connection_id]);
+    $notif = $db->prepare("INSERT INTO notifications (recipient_user_id, actor_user_id, notification_type, reference_id, message, created_at) VALUES (?, ?, 'connection', ?, ?, NOW())");
+    $notif->execute([$user_id2, $user_id1, $connection_id, $message]);
 
     echo json_encode(['success' => true, 'connection_id' => $connection_id]);
 } catch (PDOException $e) {
