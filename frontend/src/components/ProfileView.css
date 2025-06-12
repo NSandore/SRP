@@ -164,6 +164,31 @@
   padding: 8px 16px;
 }
 
+.connect-button {
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 1rem;
+  border-radius: 20px;
+  transition: background var(--transition-speed), color var(--transition-speed);
+}
+
+.connect-button.pending {
+  background-color: #ccc;
+  color: #333;
+}
+
+.connect-button.connected {
+  background-color: #28a745;
+  color: #fff;
+}
+
+.connect-button:hover {
+  opacity: 0.8;
+}
+
 .follow-button:hover {
   opacity: 0.8;
 }
