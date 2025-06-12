@@ -463,12 +463,9 @@ function UniversityProfile({ userData }) {
                             Follow
                           </button>
                         )}
-                        <button
-                          className="message-button"
-                          onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}
-                        >
+                        <RouterLink to={`/messages?user=${amb.user_id}`} className="message-button">
                           Message
-                        </button>
+                        </RouterLink>
                       </>
                     )}
                   </li>
