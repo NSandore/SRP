@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import './Connections.css';
+import { FaEllipsisV } from 'react-icons/fa';
+import useOnClickOutside from '../hooks/useOnClickOutside';
 
 function UserConnections({ userData }) {
   const [activeTab, setActiveTab] = useState('connections');
@@ -10,6 +12,9 @@ function UserConnections({ userData }) {
   const [outgoing, setOutgoing] = useState([]);
   const [userDetails, setUserDetails] = useState({});
   const [loading, setLoading] = useState(true);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
+  useOnClickOutside(menuRef, () => setOpenMenuId(null));
 
   useEffect(() => {
     if (!userData) return;
@@ -74,6 +79,19 @@ function UserConnections({ userData }) {
     }
   };
 
+  const removeConnection = async (uid) => {
+    try {
+      await axios.post(
+        '/api/remove_connection.php',
+        { user_id1: userData.user_id, user_id2: uid },
+        { withCredentials: true }
+      );
+      setConnections(prev => prev.filter(id => id !== uid));
+    } catch (err) {
+      console.error('Error removing connection:', err);
+    }
+  };
+
   return (
     <div className="connections-container">
       <div className="feed-header">
@@ -111,7 +129,7 @@ function UserConnections({ userData }) {
                 {connections.map(uid => {
                   const user = userDetails[uid] || {};
                   return (
-                    <li key={uid}>
+                    <li key={uid} style={{ position: 'relative' }}>
                       <img
                         src={user.avatar_path || '/uploads/avatars/default-avatar.png'}
                         alt={`${user.first_name || ''} ${user.last_name || ''}`}
@@ -123,6 +141,21 @@ function UserConnections({ userData }) {
                         </p>
                         <p className="connection-headline">{user.headline || 'No headline'}</p>
                       </div>
+                      <FaEllipsisV
+                        className="menu-icon"
+                        onClick={() => setOpenMenuId(openMenuId === uid ? null : uid)}
+                        style={{ position: 'absolute', top: '8px', right: '8px' }}
+                      />
+                      {openMenuId === uid && (
+                        <div ref={menuRef} className="dropdown-menu">
+                          <Link to={`/messages?user=${uid}`} className="dropdown-item">
+                            Message
+                          </Link>
+                          <button className="dropdown-item" onClick={() => removeConnection(uid)}>
+                            Remove Connection
+                          </button>
+                        </div>
+                      )}
                     </li>
                   );
                 })}

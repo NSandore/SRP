@@ -1,11 +1,12 @@
 // src/components/UserProfileView.js
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useParams, Link as RouterLink } from "react-router-dom"; // Using RouterLink for navigation
 import "./ProfileView.css";
 import DOMPurify from "dompurify";
-import { FaCheckCircle } from "react-icons/fa"; // Verification badge icon
+import { FaCheckCircle, FaEllipsisV } from "react-icons/fa"; // Verification badge icon and menu
+import useOnClickOutside from "../hooks/useOnClickOutside";
 
 function UserProfileView({ userData }) {
   const { user_id } = useParams();
@@ -24,6 +25,10 @@ function UserProfileView({ userData }) {
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadingFollowStatus, setLoadingFollowStatus] = useState(true);
   const [followerCount, setFollowerCount] = useState(0);
+
+  const [openMenu, setOpenMenu] = useState(false);
+  const menuRef = useRef(null);
+  useOnClickOutside(menuRef, () => setOpenMenu(false));
 
   // Connection state between logged-in user and this profile
   const [connectionStatus, setConnectionStatus] = useState("none");
@@ -297,6 +302,20 @@ const handleConnect = async () => {
     }
   };
 
+  const handleRemoveConnection = async () => {
+    try {
+      await axios.post(
+        "/api/remove_connection.php",
+        { user_id1: userData.user_id, user_id2: parseInt(user_id, 10) },
+        { withCredentials: true }
+      );
+      setConnectionStatus("none");
+      setConnectionId(null);
+    } catch (err) {
+      console.error("Error removing connection:", err);
+    }
+  };
+
   // --------------------------------------------------------------------------
   // Fetch verification community name if user is verified
   // --------------------------------------------------------------------------
@@ -393,19 +412,12 @@ const handleConnect = async () => {
 
           {/* Follow/Unfollow and Message Buttons (only if viewing another user's profile) */}
           {userData && userData.user_id !== parseInt(user_id, 10) && (
-            <div className="profile-actions">
-              <button
-                className={`follow-button ${isFollowing ? "unfollow" : "follow"}`}
-                onClick={handleFollowToggle}
-                disabled={loadingFollowStatus}
-              >
-                {loadingFollowStatus ? "Loading..." : isFollowing ? "Unfollow" : "Follow"}
-              </button>
-              {connectionStatus === "accepted" ? (
-                <button className="connect-button connected" disabled>
-                  Connected
-                </button>
-              ) : connectionStatus === "pending" ? (
+            <div className="profile-actions" style={{ position: 'relative' }}>
+              {connectionStatus === 'accepted' ? (
+                <RouterLink to={`/messages?user=${user_id}`} className="message-button">
+                  Message
+                </RouterLink>
+              ) : connectionStatus === 'pending' ? (
                 isRequester ? (
                   <button className="connect-button pending" onClick={handleCancel}>
                     Pending
@@ -420,7 +432,28 @@ const handleConnect = async () => {
                   Connect
                 </button>
               )}
-              <RouterLink to={`/messages?user=${user_id}`} className="message-button">Message</RouterLink>
+              <FaEllipsisV
+                className="menu-icon"
+                onClick={() => setOpenMenu((prev) => !prev)}
+                style={{ marginLeft: '8px' }}
+              />
+              {openMenu && (
+                <div ref={menuRef} className="dropdown-menu" style={{ right: 0 }}>
+                  <button
+                    className="dropdown-item"
+                    onClick={handleFollowToggle}
+                    disabled={loadingFollowStatus}
+                  >
+                    {isFollowing ? 'Unfollow' : 'Follow'}
+                  </button>
+                  {connectionStatus === 'accepted' && (
+                    <button className="dropdown-item" onClick={handleRemoveConnection}>
+                      Remove Connection
+                    </button>
+                  )}
+                  <button className="dropdown-item" onClick={() => alert('Report/Block coming soon')}>Report or Block</button>
+                </div>
+              )}
             </div>
           )}
 
