@@ -30,7 +30,7 @@ import {
 } from 'react-icons/fa';
 import { TbWriting } from 'react-icons/tb';
 import { BiInfoCircle } from 'react-icons/bi';
-import Connections from './components/Connections';
+import UserConnections from './components/UserConnections';
 import { RiMedalFill } from 'react-icons/ri';
 import SignUp from './components/SignUp';
 import InterestSelection from './components/InterestSelection';
@@ -452,7 +452,7 @@ function App() {
                           <Route
                             path="/connections"
                             element={
-                              userData ? <Connections userData={userData} /> : <Navigate to="/login" />
+                              userData ? <UserConnections userData={userData} /> : <Navigate to="/login" />
                             }
                           />
 
