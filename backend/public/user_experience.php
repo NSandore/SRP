@@ -1,4 +1,5 @@
 <?php
+session_start();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
@@ -22,8 +23,15 @@ if (!$user_id) {
 $db = getDB(); // Ensure this function exists in db_connection.php
 
 try {
-    $query = "SELECT experience_id, title, company, start_date, end_date, industry, employment_type, location_city, location_state, location_country, description, responsibilities 
-              FROM user_experience 
+    // Check privacy setting
+    $pstmt = $db->prepare("SELECT is_public FROM users WHERE user_id = :uid");
+    $pstmt->execute([':uid' => $user_id]);
+    $is_public = (int)($pstmt->fetchColumn());
+
+    $viewer_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
+
+    $query = "SELECT experience_id, title, company, start_date, end_date, industry, employment_type, location_city, location_state, location_country, description, responsibilities
+              FROM user_experience
               WHERE user_id = :user_id";
     $stmt = $db->prepare($query);
     $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
@@ -33,6 +41,12 @@ try {
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         // Decode JSON responsibilities
         $row['responsibilities'] = json_decode($row['responsibilities'], true) ?? [];
+
+        if ($is_public === 0 && $viewer_id !== $user_id) {
+            $row['start_date'] = null;
+            $row['end_date'] = null;
+        }
+
         $experiences[] = $row;
     }
 

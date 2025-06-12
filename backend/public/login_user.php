@@ -16,7 +16,7 @@ if (empty($email) || empty($password)) {
 try {
     $db = getDB();
 
-    $query = "SELECT user_id, first_name, last_name, email, password_hash, role_id, avatar_path, is_ambassador, login_count FROM users WHERE email = :email LIMIT 1";
+    $query = "SELECT user_id, first_name, last_name, email, password_hash, role_id, avatar_path, is_ambassador, login_count, is_public FROM users WHERE email = :email LIMIT 1";
     $stmt = $db->prepare($query);
     $stmt->bindParam(':email', $email, PDO::PARAM_STR);
     $stmt->execute();
@@ -39,6 +39,7 @@ try {
         $_SESSION['avatar_path'] = $user['avatar_path'];
         $_SESSION['is_ambassador'] = $user['is_ambassador'];
         $_SESSION['login_count'] = $user['login_count'];
+        $_SESSION['is_public'] = $user['is_public'];
 
         echo json_encode([
             "success" => true,
