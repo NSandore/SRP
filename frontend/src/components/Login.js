@@ -8,6 +8,10 @@ function Login({ onLogin, onGoToSignUp }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [showReset, setShowReset] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
 
   const handleLoginClick = async (e) => {
     e.preventDefault();
@@ -37,38 +41,127 @@ function Login({ onLogin, onGoToSignUp }) {
     }
   };
 
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+
+    if (!email || !newPassword || !confirmPassword) {
+      setResetMessage('Please fill out all fields.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setResetMessage('Passwords do not match.');
+      return;
+    }
+
+    try {
+      const response = await axios.post('http://172.16.11.133/api/reset_password.php', {
+        email,
+        new_password: newPassword,
+      });
+
+      if (response.data && response.data.success) {
+        setResetMessage('Password updated. You can now log in.');
+        setShowReset(false);
+        setPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setResetMessage(response.data.error || 'Failed to reset password.');
+      }
+    } catch (err) {
+      setResetMessage('Server error. Please try again later.');
+    }
+  };
+
   return (
     <div className="login-container">
       <h2>Login to StudentSphere</h2>
-      <form onSubmit={handleLoginClick}>
-        <label htmlFor="email">Email:</label>
-        <input
-          type="email"
-          name="email"
-          id="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+      {showReset ? (
+        <form onSubmit={handleResetPassword}>
+          <label htmlFor="email">Email:</label>
+          <input
+            type="email"
+            name="email"
+            id="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-        <label htmlFor="password">Password:</label>
-        <input
-          type="password"
-          name="password"
-          id="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+          <label htmlFor="new-password">New Password:</label>
+          <input
+            type="password"
+            name="new-password"
+            id="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+          />
 
-        {error && <p className="error-message">{error}</p>}
+          <label htmlFor="confirm-password">Confirm Password:</label>
+          <input
+            type="password"
+            name="confirm-password"
+            id="confirm-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
 
-        <button type="submit">Login</button>
-      </form>
+          {resetMessage && <p className="error-message">{resetMessage}</p>}
 
-      <div className="not-a-member">
-        Not a Member? <span className="sign-up-link" onClick={onGoToSignUp}>Sign Up</span>
-      </div>
+          <button type="submit">Reset Password</button>
+          <div className="not-a-member">
+            Remembered?{' '}
+            <span className="sign-up-link" onClick={() => setShowReset(false)}>
+              Back to Login
+            </span>
+          </div>
+        </form>
+      ) : (
+        <>
+          <form onSubmit={handleLoginClick}>
+            <label htmlFor="email">Email:</label>
+            <input
+              type="email"
+              name="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+
+            <label htmlFor="password">Password:</label>
+            <input
+              type="password"
+              name="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+
+            {error && <p className="error-message">{error}</p>}
+
+            <button type="submit">Login</button>
+          </form>
+
+          <div className="not-a-member">
+            Not a Member?{' '}
+            <span className="sign-up-link" onClick={onGoToSignUp}>
+              Sign Up
+            </span>
+          </div>
+
+          <div className="not-a-member">
+            Forgot your password?{' '}
+            <span className="sign-up-link" onClick={() => setShowReset(true)}>
+              Reset Password
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
