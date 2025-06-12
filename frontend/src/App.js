@@ -73,6 +73,7 @@ function App() {
 
   const [notifications, setNotifications] = useState([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   const [showWelcome, setShowWelcome] = useState(false);
 
@@ -94,6 +95,7 @@ function App() {
           user.user_id = Number(user.user_id);
           setUserData(user);
           fetchNotifications(user.user_id);
+          fetchConversations(user.user_id);
         }
       } catch (err) {
         console.error('Error checking session:', err);
@@ -134,6 +136,21 @@ function App() {
     }
   };
 
+  const fetchConversations = async (user_id) => {
+    try {
+      const response = await axios.get(`http://172.16.11.133/api/fetch_conversations.php?user_id=${user_id}`, {
+        withCredentials: true,
+      });
+      if (response.data.success) {
+        const convs = response.data.conversations || [];
+        const total = convs.reduce((sum, c) => sum + Number(c.unread_count || 0), 0);
+        setUnreadMessages(total);
+      }
+    } catch (err) {
+      console.error('Error fetching conversations:', err);
+    }
+  };
+
   // Toggle Notification Pop-up
   const toggleNotifications = () => {
     setIsNotificationsOpen((prev) => !prev);
@@ -169,6 +186,8 @@ function App() {
     user.role_id = Number(user.role_id);
     user.user_id = Number(user.user_id);
     setUserData(user);
+    fetchNotifications(user.user_id);
+    fetchConversations(user.user_id);
     setStep(0);
   };
 
@@ -357,6 +376,7 @@ function App() {
                   isNotificationsOpen={isNotificationsOpen}
                   notificationRef={notificationRef}
                   markAllAsRead={markAllAsRead}
+                  unreadMessages={unreadMessages}
                 />
   
                 <Routes>

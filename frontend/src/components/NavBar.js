@@ -44,6 +44,7 @@ function NavBar({
   isNotificationsOpen,
   notificationRef,
   markAllAsRead,
+  unreadMessages,
 }) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
@@ -258,7 +259,12 @@ function NavBar({
 
           {/* Messages link */}
           <Link to="/messages">
-            <FaEnvelope className="nav-icon" title="Messages" />
+            <div className="notification-container">
+              <FaEnvelope className="nav-icon" title="Messages" />
+              {unreadMessages > 0 && (
+                <span className="notification-badge">{unreadMessages}</span>
+              )}
+            </div>
           </Link>
 
           {/* Notifications */}
