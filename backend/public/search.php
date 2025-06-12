@@ -1,4 +1,5 @@
 <?php
+session_start();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
@@ -21,11 +22,20 @@ if ($q === '') {
 try {
     if ($q[0] === '@') {
         $term = substr($q, 1);
-        $stmt = $db->prepare("SELECT user_id, first_name, last_name FROM user_profiles WHERE CONCAT(first_name,' ',last_name) LIKE :q LIMIT :lim");
+        $stmt = $db->prepare("SELECT up.user_id, up.first_name, up.last_name, u.is_public FROM user_profiles up JOIN users u ON up.user_id = u.user_id WHERE CONCAT(up.first_name,' ',up.last_name) LIKE :q LIMIT :lim");
         $stmt->bindValue(':q', '%' . $term . '%', PDO::PARAM_STR);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->execute();
-        $results['users'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $viewer_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
+        foreach ($users as &$u) {
+            if ((int)$u['is_public'] === 0 && $viewer_id !== (int)$u['user_id']) {
+                $u['last_name'] = substr($u['last_name'], 0, 1) . '.';
+            }
+            unset($u['is_public']);
+        }
+        $results['users'] = $users;
     } elseif ($q[0] === '#') {
         $term = substr($q, 1);
         $stmt = $db->prepare("SELECT DISTINCT LOWER(SUBSTRING_INDEX(SUBSTRING(content, LOCATE('#', content)+1), ' ', 1)) AS tag FROM posts WHERE content LIKE :q LIMIT :lim");

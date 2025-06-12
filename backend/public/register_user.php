@@ -83,10 +83,10 @@ try {
 
     // Insert user
     // role_id = 2 as default (e.g. prospective student)
-    $stmt = $db->prepare("
-        INSERT INTO users (role_id, first_name, last_name, email, phone, password_hash, education_status, is_over_18)
-        VALUES (:role_id, :first_name, :last_name, :email, :phone, :password_hash, :education_status, :is_over_18)
-    ");
+    $stmt = $db->prepare(
+        "INSERT INTO users (role_id, first_name, last_name, email, phone, password_hash, education_status, is_over_18, is_public)
+        VALUES (:role_id, :first_name, :last_name, :email, :phone, :password_hash, :education_status, :is_over_18, :is_public)"
+    );
     $stmt->execute([
         ':role_id' => 2,
         ':first_name' => $firstName,
@@ -95,7 +95,8 @@ try {
         ':phone' => $phone,
         ':password_hash' => $password,
         ':education_status' => $educationStatus,
-        ':is_over_18' => $isOver18
+        ':is_over_18' => $isOver18,
+        ':is_public' => 1
     ]);
 
     $user_id = $db->lastInsertId();

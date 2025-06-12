@@ -1,6 +1,8 @@
 <?php
 // fetch_user.php
 
+session_start();
+
 // Enable error reporting for debugging (disable in production)
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -39,11 +41,30 @@ try {
         exit;
     }
 
+    // Retrieve privacy setting for this user
+    $pstmt = $db->prepare("SELECT is_public FROM users WHERE user_id = :uid");
+    $pstmt->execute([':uid' => $user_id]);
+    $is_public = (int)($pstmt->fetchColumn());
+
+    $viewer_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
+
     // Decode JSON field (community_ambassador_of) if it's not null
     if (!empty($user['community_ambassador_of'])) {
         $user['community_ambassador_of'] = json_decode($user['community_ambassador_of'], true);
     } else {
         $user['community_ambassador_of'] = [];
+    }
+
+    if ($is_public === 0 && $viewer_id !== $user_id) {
+        if (isset($user['last_name'])) {
+            $user['last_name'] = substr($user['last_name'], 0, 1) . '.';
+        }
+        if (isset($user['email'])) {
+            $user['email'] = null;
+        }
+        if (isset($user['phone'])) {
+            $user['phone'] = null;
+        }
     }
 
     // Return the user data
