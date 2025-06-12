@@ -361,9 +361,11 @@ function UserProfileView({ userData }) {
               <h4>
                 {exp.title} at {exp.company}
               </h4>
-              <div className="experience-dates">
-                {exp.start_date} - {exp.end_date ? exp.end_date : "Present"}
-              </div>
+              {exp.start_date && (
+                <div className="experience-dates">
+                  {exp.start_date} - {exp.end_date ? exp.end_date : "Present"}
+                </div>
+              )}
               <div className="experience-meta">
                 {/*<span className="experience-industry">{exp.industry}</span>*/}
                 <span className="experience-type">{exp.employment_type}</span>
@@ -401,9 +403,11 @@ function UserProfileView({ userData }) {
                 {edu.degree} in {edu.field_of_study}
               </h4>
               <div className="education-institution">{edu.institution}</div>
-              <div className="education-dates">
-                {edu.start_date} - {edu.end_date ? edu.end_date : "Present"}
-              </div>
+              {edu.start_date && (
+                <div className="education-dates">
+                  {edu.start_date} - {edu.end_date ? edu.end_date : "Present"}
+                </div>
+              )}
               {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
               {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
               {edu.activities_societies && (
