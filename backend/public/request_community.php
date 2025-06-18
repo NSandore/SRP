@@ -22,6 +22,11 @@ $input = json_decode(file_get_contents('php://input'), true);
 $name = trim($input['name'] ?? '');
 $type = trim($input['type'] ?? '');
 $description = trim($input['description'] ?? '');
+$tagline = trim($input['tagline'] ?? '');
+$location = trim($input['location'] ?? '');
+$website = trim($input['website'] ?? '');
+$primaryColor = trim($input['primary_color'] ?? '');
+$secondaryColor = trim($input['secondary_color'] ?? '');
 
 if ($name === '' || $type === '' || $description === '') {
     http_response_code(400);
@@ -34,12 +39,17 @@ $userEmail = $_SESSION['email'] ?? '';
 
 try {
     $db = getDB();
-    $stmt = $db->prepare("INSERT INTO community_creation_requests (user_email, name, community_type, description, status, created_at) VALUES (:email, :name, :type, :description, 'pending', NOW())");
+    $stmt = $db->prepare("INSERT INTO community_creation_requests (user_email, name, community_type, description, tagline, location, website, primary_color, secondary_color, status, created_at) VALUES (:email, :name, :type, :description, :tagline, :location, :website, :primary_color, :secondary_color, 'pending', NOW())");
     $stmt->execute([
         ':email' => $userEmail,
         ':name' => $name,
         ':type' => $type,
-        ':description' => $description
+        ':description' => $description,
+        ':tagline' => $tagline,
+        ':location' => $location,
+        ':website' => $website,
+        ':primary_color' => $primaryColor,
+        ':secondary_color' => $secondaryColor
     ]);
 
     $requestId = $db->lastInsertId();
@@ -52,7 +62,7 @@ try {
             'from' => 'noreply@studentsphere.com',
             'to' => 'n.sandore5140@gmail.com',
             'subject' => 'New Community Creation Request',
-            'text' => "User $userEmail requested a new community:\nName: $name\nType: $type\nDescription: $description"
+            'text' => "User $userEmail requested a new community:\nName: $name\nType: $type\nTagline: $tagline\nLocation: $location\nWebsite: $website\nPrimary Color: $primaryColor\nSecondary Color: $secondaryColor\nDescription: $description"
         ]);
     } catch (Exception $e) {
         // ignore mailgun errors but log if needed

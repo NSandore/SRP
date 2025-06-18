@@ -35,3 +35,18 @@
   background-color: #dc3545;
   color: #fff;
 }
+
+.request-toggle {
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  padding: 0;
+}
+
+.request-details {
+  margin-top: 0.5rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid #eee;
+}
