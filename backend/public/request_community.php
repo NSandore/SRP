@@ -34,13 +34,14 @@ $userEmail = $_SESSION['email'] ?? '';
 
 try {
     $db = getDB();
-    $stmt = $db->prepare("INSERT INTO community_creation_requests (user_id, name, community_type, description, status, created_at) VALUES (:uid, :name, :type, :description, 'pending', NOW())");
+    $stmt = $db->prepare("INSERT INTO community_creation_requests (user_email, name, community_type, description, status, created_at) VALUES (:email, :name, :type, :description, 'pending', NOW())");
     $stmt->execute([
-        ':uid' => $userId,
+        ':email' => $userEmail,
         ':name' => $name,
         ':type' => $type,
         ':description' => $description
     ]);
+
     $requestId = $db->lastInsertId();
 
     // send email to admin

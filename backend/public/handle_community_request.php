@@ -30,7 +30,7 @@ if ($requestId <= 0 || !in_array($action, ['approve','decline'])) {
 
 try {
     $db = getDB();
-    $stmt = $db->prepare("SELECT r.*, u.email FROM community_creation_requests r JOIN users u ON r.user_id = u.user_id WHERE r.id = :id");
+    $stmt = $db->prepare("SELECT r.*, u.email FROM community_creation_requests r JOIN users u ON r.user_email = u.email WHERE r.id = :id");
     $stmt->execute([':id' => $requestId]);
     $request = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$request) {
