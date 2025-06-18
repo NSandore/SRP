@@ -267,6 +267,13 @@ const handleConnect = async () => {
       );
       if (res.data.success) {
         setConnectionStatus("pending");
+        // Store the new connection ID returned by the API so we can
+        // cancel the request without refreshing. Since the current
+        // user initiated the request, mark them as the requester.
+        if (res.data.connection_id) {
+          setConnectionId(res.data.connection_id);
+        }
+        setIsRequester(true);
       }
   } catch (err) {
     console.error("Error sending connection request:", err);
