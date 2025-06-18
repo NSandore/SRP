@@ -40,12 +40,19 @@ try {
     }
 
     if ($action === 'approve') {
-        // create community with minimal info
-        $stmt = $db->prepare("INSERT INTO communities (community_type, name, tagline) VALUES (:type, :name, :tagline)");
+        // create community with provided info
+        $stmt = $db->prepare(
+            "INSERT INTO communities (community_type, name, tagline, location, website, primary_color, secondary_color) " .
+            "VALUES (:type, :name, :tagline, :location, :website, :primary_color, :secondary_color)"
+        );
         $stmt->execute([
             ':type' => $request['community_type'],
             ':name' => $request['name'],
-            ':tagline' => $request['description']
+            ':tagline' => $request['tagline'],
+            ':location' => $request['location'],
+            ':website' => $request['website'],
+            ':primary_color' => $request['primary_color'] ?: '#0077B5',
+            ':secondary_color' => $request['secondary_color'] ?: '#005f8d'
         ]);
         $communityId = $db->lastInsertId();
         // add admin

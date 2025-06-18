@@ -49,7 +49,16 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
 
   // Community creation request modal
   const [showRequestModal, setShowRequestModal] = useState(false);
-  const [requestData, setRequestData] = useState({ name: '', type: '', description: '' });
+  const [requestData, setRequestData] = useState({
+    name: '',
+    type: '',
+    description: '',
+    tagline: '',
+    location: '',
+    website: '',
+    primary_color: '',
+    secondary_color: ''
+  });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
 
   // ============== S A V E D ==============
@@ -481,7 +490,16 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     try {
       const resp = await axios.post('/api/request_community.php', requestData, { withCredentials: true });
       if (resp.data.success) {
-        setRequestData({ name: '', type: '', description: '' });
+        setRequestData({
+          name: '',
+          type: '',
+          description: '',
+          tagline: '',
+          location: '',
+          website: '',
+          primary_color: '',
+          secondary_color: ''
+        });
         setShowRequestModal(false);
         setNotification({ type: 'success', message: 'Request submitted.' });
       } else {

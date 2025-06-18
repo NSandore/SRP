@@ -27,6 +27,58 @@ function CommunityRequestModal({ isVisible, onClose, onSubmit, formData, setForm
             />
           </div>
           <div className="form-group">
+            <label htmlFor="community-tagline">Tagline:</label>
+            <input
+              type="text"
+              id="community-tagline"
+              name="tagline"
+              value={formData.tagline}
+              onChange={handleChange}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="community-location">Location:</label>
+            <input
+              type="text"
+              id="community-location"
+              name="location"
+              value={formData.location}
+              onChange={handleChange}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="community-website">Website:</label>
+            <input
+              type="text"
+              id="community-website"
+              name="website"
+              value={formData.website}
+              onChange={handleChange}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="primary-color">Primary Color:</label>
+            <input
+              type="text"
+              id="primary-color"
+              name="primary_color"
+              value={formData.primary_color}
+              onChange={handleChange}
+              placeholder="#0077B5"
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="secondary-color">Secondary Color:</label>
+            <input
+              type="text"
+              id="secondary-color"
+              name="secondary_color"
+              value={formData.secondary_color}
+              onChange={handleChange}
+              placeholder="#005f8d"
+            />
+          </div>
+          <div className="form-group">
             <label htmlFor="community-type">Type:</label>
             <select
               id="community-type"
