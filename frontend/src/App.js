@@ -52,6 +52,7 @@ import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
 import ContactUsButton from './components/ContactUsButton';
 import SearchResults from './components/SearchResults';
+import CommunityRequests from './components/CommunityRequests';
 
 
 function App() {
@@ -479,6 +480,18 @@ function App() {
                                 activeSection="communities"
                                 userData={userData}
                               />
+                            }
+                          />
+
+                          {/* Community Creation Requests */}
+                          <Route
+                            path="/community-requests"
+                            element={
+                              userData && userData.email === 'n.sandore5140@gmail.com' ? (
+                                <CommunityRequests />
+                              ) : (
+                                <Navigate to="/communities" />
+                              )
                             }
                           />
 

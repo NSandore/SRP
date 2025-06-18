@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fa';
 
 import ForumCard from './ForumCard'; // Adjust path if ForumCard is located elsewhere
+import CommunityRequestModal from './CommunityRequestModal';
 
 function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted", "mostRecent"
@@ -45,6 +46,11 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
 
   // For 3-dot menu
   const [openMenuId, setOpenMenuId] = useState(null);
+
+  // Community creation request modal
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestData, setRequestData] = useState({ name: '', type: '', description: '' });
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
 
   // ============== S A V E D ==============
   // We’ll store arrays for savedForums, savedThreads, savedPosts
@@ -467,6 +473,28 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     }
   };
 
+  // ------------- COMMUNITY REQUEST -------------
+  const handleCommunityRequestSubmit = async (e) => {
+    e.preventDefault();
+    if (!userData) return;
+    setIsSubmittingRequest(true);
+    try {
+      const resp = await axios.post('/api/request_community.php', requestData, { withCredentials: true });
+      if (resp.data.success) {
+        setRequestData({ name: '', type: '', description: '' });
+        setShowRequestModal(false);
+        setNotification({ type: 'success', message: 'Request submitted.' });
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Error submitting request.' });
+      }
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      setNotification({ type: 'error', message: 'An error occurred.' });
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
+
   // ------------- HOME FEED -------------
   // Re-fetch feed threads if userData changes or the feed changes
   useEffect(() => {
@@ -661,18 +689,26 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
           </div>
 
           {/* Community Type Tabs */}
-          <div className="community-tab" style={{ marginBottom: '1rem' }}>
-            <button
-              onClick={() => setSelectedCommunityTab("university")}
-              className={selectedCommunityTab === "university" ? "active" : ""}
-            >
-              Universities
-            </button>
-            <button
-              onClick={() => setSelectedCommunityTab("group")}
-              className={selectedCommunityTab === "group" ? "active" : ""}
-            >
-              Groups
+          <div
+            className="community-tab"
+            style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <div>
+              <button
+                onClick={() => setSelectedCommunityTab("university")}
+                className={selectedCommunityTab === "university" ? "active" : ""}
+              >
+                Universities
+              </button>
+              <button
+                onClick={() => setSelectedCommunityTab("group")}
+                className={selectedCommunityTab === "group" ? "active" : ""}
+              >
+                Groups
+              </button>
+            </div>
+            <button className="non-togglable-button" onClick={() => setShowRequestModal(true)}>
+              Request New
             </button>
           </div>
 
@@ -761,6 +797,16 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
             </div>
           </div>
         </div>
+        {showRequestModal && (
+          <CommunityRequestModal
+            isVisible={showRequestModal}
+            onClose={() => setShowRequestModal(false)}
+            onSubmit={handleCommunityRequestSubmit}
+            formData={requestData}
+            setFormData={setRequestData}
+            isSubmitting={isSubmittingRequest}
+          />
+        )}
       </main>
     );
   }
