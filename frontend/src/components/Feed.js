@@ -36,6 +36,12 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   const [newForumDescription, setNewForumDescription] = useState('');
   const [isCreatingForum, setIsCreatingForum] = useState(false);
 
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestName, setRequestName] = useState('');
+  const [requestType, setRequestType] = useState('university');
+  const [requestDesc, setRequestDesc] = useState('');
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
   const [editForumId, setEditForumId] = useState(null);
   const [editForumName, setEditForumName] = useState('');
   const [editForumDescription, setEditForumDescription] = useState('');
@@ -467,6 +473,31 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     }
   };
 
+  const handleRequestSubmit = async (e) => {
+    e.preventDefault();
+    if (!userData) return;
+    setIsSubmittingRequest(true);
+    try {
+      const resp = await axios.post('/api/request_community.php', {
+        user_id: userData.user_id,
+        name: requestName,
+        type: requestType,
+        description: requestDesc
+      }, { withCredentials: true });
+      if (resp.data.success) {
+        setRequestName('');
+        setRequestDesc('');
+        setShowRequestModal(false);
+      } else {
+        alert(resp.data.error || 'Error sending request');
+      }
+    } catch (err) {
+      console.error('Error requesting community:', err);
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
+
   // ------------- HOME FEED -------------
   // Re-fetch feed threads if userData changes or the feed changes
   useEffect(() => {
@@ -661,19 +692,29 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
           </div>
 
           {/* Community Type Tabs */}
-          <div className="community-tab" style={{ marginBottom: '1rem' }}>
-            <button
-              onClick={() => setSelectedCommunityTab("university")}
-              className={selectedCommunityTab === "university" ? "active" : ""}
-            >
-              Universities
-            </button>
-            <button
-              onClick={() => setSelectedCommunityTab("group")}
-              className={selectedCommunityTab === "group" ? "active" : ""}
-            >
-              Groups
-            </button>
+          <div
+            className="community-tab"
+            style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <div>
+              <button
+                onClick={() => setSelectedCommunityTab('university')}
+                className={selectedCommunityTab === 'university' ? 'active' : ''}
+              >
+                Universities
+              </button>
+              <button
+                onClick={() => setSelectedCommunityTab('group')}
+                className={selectedCommunityTab === 'group' ? 'active' : ''}
+              >
+                Groups
+              </button>
+            </div>
+            {userData && (
+              <button className="non-togglable-button" onClick={() => setShowRequestModal(true)}>
+                Request New
+              </button>
+            )}
           </div>
 
           {/* Search Bar */}
@@ -859,6 +900,55 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
                   <div className="form-actions">
                     <button type="submit">Save</button>
                     <button type="button" onClick={cancelEditingForum}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* REQUEST COMMUNITY MODAL */}
+          {showRequestModal && (
+            <div className="modal-overlay">
+              <div className="modal-content">
+                <h3>Request New Community</h3>
+                <form onSubmit={handleRequestSubmit}>
+                  <div className="form-group">
+                    <label htmlFor="req-name">Name:</label>
+                    <input
+                      id="req-name"
+                      type="text"
+                      value={requestName}
+                      onChange={(e) => setRequestName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="req-type">Type:</label>
+                    <select
+                      id="req-type"
+                      value={requestType}
+                      onChange={(e) => setRequestType(e.target.value)}
+                    >
+                      <option value="university">University</option>
+                      <option value="group">Group</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="req-desc">Description:</label>
+                    <textarea
+                      id="req-desc"
+                      value={requestDesc}
+                      onChange={(e) => setRequestDesc(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-actions">
+                    <button type="submit" disabled={isSubmittingRequest}>
+                      {isSubmittingRequest ? 'Sending...' : 'Submit'}
+                    </button>
+                    <button type="button" onClick={() => setShowRequestModal(false)}>
                       Cancel
                     </button>
                   </div>

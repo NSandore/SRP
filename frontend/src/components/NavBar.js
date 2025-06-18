@@ -158,12 +158,20 @@ function NavBar({
             Icon={RiMedalFill} 
             onClick={() => handleSectionClick('funding')} 
           />
-          <NavItem 
-            active={activeSection === 'communities'} 
-            label="Communities" 
-            Icon={FaUsers} 
-            onClick={() => handleSectionClick('communities')} 
+          <NavItem
+            active={activeSection === 'communities'}
+            label="Communities"
+            Icon={FaUsers}
+            onClick={() => handleSectionClick('communities')}
           />
+          {userData && userData.email === 'n.sandore5140@gmail.com' && (
+            <NavItem
+              active={activeSection === 'community-requests'}
+              label="Requests"
+              Icon={FaEnvelope}
+              onClick={() => handleSectionClick('community-requests')}
+            />
+          )}
 
           {userData && (
             <>

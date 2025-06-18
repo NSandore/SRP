@@ -1,0 +1,15 @@
+.request-list {
+  list-style: none;
+  padding: 0;
+}
+
+.request-item {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.request-actions button {
+  margin-right: 0.5rem;
+}

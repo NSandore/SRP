@@ -52,6 +52,7 @@ import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
 import ContactUsButton from './components/ContactUsButton';
 import SearchResults from './components/SearchResults';
+import CommunityRequests from './components/CommunityRequests';
 
 
 function App() {
@@ -506,6 +507,10 @@ function App() {
                           <Route
                             path="/messages"
                             element={<Messages userData={userData} />}
+                          />
+                          <Route
+                            path="/community-requests"
+                            element={<CommunityRequests userData={userData} />}
                           />
                           <Route path="/search" element={<SearchResults />} />
                         </Routes>
