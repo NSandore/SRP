@@ -43,7 +43,7 @@ try {
 
         // Fetch communities that this user administers if applicable
         $communityIds = [];
-        if ($user['role_id'] >= 5 && $user['role_id'] < 7) {
+        if ($user['role_id'] >= 5 && $user['role_id'] < 8) {
             $cStmt = $db->prepare("SELECT community_id FROM community_admins WHERE user_email = :email");
             $cStmt->execute([':email' => $user['email']]);
             $communityIds = $cStmt->fetchAll(PDO::FETCH_COLUMN);
