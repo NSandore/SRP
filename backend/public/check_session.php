@@ -14,7 +14,8 @@ if (isset($_SESSION['user_id'])) {
             "avatar_path" => $_SESSION['avatar_path'],
             "is_ambassador" => $_SESSION['is_ambassador'],
             "login_count" => $_SESSION['login_count'],
-            "is_public" => $_SESSION['is_public']
+            "is_public" => $_SESSION['is_public'],
+            "admin_community_ids" => $_SESSION['admin_community_ids'] ?? []
         ]
     ]);
 } else {
