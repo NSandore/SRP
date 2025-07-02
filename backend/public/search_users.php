@@ -22,7 +22,6 @@ try {
     foreach ($users as &$u) {
         if ((int)$u['is_public'] === 0 && $viewer_id !== (int)$u['user_id']) {
             $u['last_name'] = substr($u['last_name'], 0, 1) . '.';
-            $u['email'] = null;
         }
         unset($u['is_public']);
     }
