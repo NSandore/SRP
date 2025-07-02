@@ -271,7 +271,9 @@ function UniversityProfile({ userData }) {
       return;
     }
     try {
-      const response = await axios.get(`/api/search_users.php?term=${encodeURIComponent(term)}`);
+      const response = await axios.get(
+        `/api/search_users.php?term=${encodeURIComponent(term)}&exclude_admins_of=${id}`
+      );
       if (response.data.success) {
         setSearchResults(response.data.users);
       }
