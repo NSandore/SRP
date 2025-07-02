@@ -12,7 +12,7 @@ if ($term === '') {
 try {
     $db = getDB();
     $like = '%' . $term . '%';
-    $stmt = $db->prepare("SELECT user_id, first_name, last_name, avatar_path, is_public FROM users WHERE first_name LIKE :term OR last_name LIKE :term ORDER BY first_name LIMIT 10");
+    $stmt = $db->prepare("SELECT user_id, first_name, last_name, email, avatar_path, is_public FROM users WHERE first_name LIKE :term OR last_name LIKE :term OR email LIKE :term ORDER BY first_name LIMIT 10");
     $stmt->bindValue(':term', $like, PDO::PARAM_STR);
     $stmt->execute();
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -22,6 +22,7 @@ try {
     foreach ($users as &$u) {
         if ((int)$u['is_public'] === 0 && $viewer_id !== (int)$u['user_id']) {
             $u['last_name'] = substr($u['last_name'], 0, 1) . '.';
+            $u['email'] = null;
         }
         unset($u['is_public']);
     }

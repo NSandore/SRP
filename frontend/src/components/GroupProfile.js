@@ -68,10 +68,14 @@ function GroupProfile({ userData }) {
           </a>
         )}
         {/* Optionally, add an edit button if needed, similar to UniversityProfile */}
-        {userData && userData.role_id === 7 && (
-          <button className="edit-group-button" onClick={() => alert('Edit group functionality coming soon!')}>
-            Edit Group
-          </button>
+        {userData &&
+          (userData.role_id >= 6 ||
+            (userData.role_id === 5 &&
+              userData.admin_community_ids &&
+              userData.admin_community_ids.includes(Number(id))) ) && (
+            <button className="edit-group-button" onClick={() => alert('Edit group functionality coming soon!')}>
+              Edit Group
+            </button>
         )}
       </div>
     </div>
