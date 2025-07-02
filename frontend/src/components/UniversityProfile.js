@@ -494,7 +494,6 @@ function UniversityProfile({ userData }) {
                         <RouterLink to={`/user/${amb.user_id}`}>
                           {amb.first_name} {amb.last_name}
                         </RouterLink>
-                        {amb.is_admin && <span className="admin-star">★</span>}
                         {(() => {
                           if (userData && Number(userData.user_id) === Number(amb.user_id)) {
                             console.log("This ambassador is the logged-in user:", amb);
