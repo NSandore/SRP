@@ -468,7 +468,7 @@ function UniversityProfile({ userData }) {
                   <ul className="search-results">
                     {searchResults.map((u) => (
                       <li key={u.user_id}>
-                        {u.first_name} {u.last_name} ({u.email})
+                        {u.first_name} {u.last_name}
                         <button onClick={() => handlePromoteAdmin(u.email)}>Add</button>
                       </li>
                     ))}
