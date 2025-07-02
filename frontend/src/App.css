@@ -498,7 +498,6 @@ input::placeholder, textarea::placeholder {
 
 .non-togglable-button {
   background-color: #0077B5; /* Blue */
-  color: #fff;
   border: none;
   border-radius: 20px;
   padding: 0.5rem 1rem;
