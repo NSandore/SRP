@@ -41,6 +41,16 @@ try {
         $_SESSION['login_count'] = $user['login_count'];
         $_SESSION['is_public'] = $user['is_public'];
 
+        // Fetch communities that this user administers if applicable
+        $communityIds = [];
+        if ($user['role_id'] >= 5 && $user['role_id'] < 7) {
+            $cStmt = $db->prepare("SELECT community_id FROM community_admins WHERE user_email = :email");
+            $cStmt->execute([':email' => $user['email']]);
+            $communityIds = $cStmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+        $_SESSION['admin_community_ids'] = $communityIds;
+        $user['admin_community_ids'] = $communityIds;
+
         echo json_encode([
             "success" => true,
             "user" => $user

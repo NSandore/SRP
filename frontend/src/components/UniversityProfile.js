@@ -30,6 +30,8 @@ function UniversityProfile({ userData }) {
   const [ambassadors, setAmbassadors] = useState([]);
   const [loadingAmbassadors, setLoadingAmbassadors] = useState(false);
   const [errorAmbassadors, setErrorAmbassadors] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
 
   // New state for connections: following and followers (fetched via fetch_connections_list.php)
   const [connections, setConnections] = useState({ following: [], followers: [] });
@@ -262,6 +264,43 @@ function UniversityProfile({ userData }) {
     }
   };
 
+  const searchUsers = async (term) => {
+    setSearchTerm(term);
+    if (term.trim() === "") {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const response = await axios.get(`/api/search_users.php?term=${encodeURIComponent(term)}`);
+      if (response.data.success) {
+        setSearchResults(response.data.users);
+      }
+    } catch (error) {
+      console.error("Error searching users:", error);
+    }
+  };
+
+  const handlePromoteAdmin = async (email) => {
+    try {
+      const response = await axios.post(
+        "/api/promote_user_to_admin.php",
+        { community_id: id, user_email: email },
+        { withCredentials: true }
+      );
+      if (response.data.success) {
+        alert("User promoted to admin");
+        fetchAmbassadors();
+        setSearchResults([]);
+        setSearchTerm("");
+      } else {
+        alert("Error: " + response.data.error);
+      }
+    } catch (err) {
+      console.error("Error promoting user:", err);
+      alert("Error promoting user");
+    }
+  };
+
   if (loading) return <p>Loading...</p>;
   if (error) return <p>{error}</p>;
   if (!university) return <p>No university found.</p>;
@@ -386,7 +425,11 @@ function UniversityProfile({ userData }) {
               Visit Website
             </a>
           )}
-          {userData && userData.role_id === 7 && (
+          {userData &&
+            (userData.role_id >= 6 ||
+              (userData.role_id === 5 &&
+                userData.admin_community_ids &&
+                userData.admin_community_ids.includes(Number(id))) ) && (
             <button
               className="edit-university-button"
               onClick={handleToggleEdit}
@@ -409,6 +452,30 @@ function UniversityProfile({ userData }) {
         <div className="overlay">
           <div className="overlay-content">
             <h2>Ambassador List</h2>
+            {userData &&
+              (userData.role_id >= 6 ||
+                (userData.role_id === 5 &&
+                  userData.admin_community_ids &&
+                  userData.admin_community_ids.includes(Number(id))) ) && (
+              <div className="admin-search">
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={searchTerm}
+                  onChange={(e) => searchUsers(e.target.value)}
+                />
+                {searchResults.length > 0 && (
+                  <ul className="search-results">
+                    {searchResults.map((u) => (
+                      <li key={u.user_id}>
+                        {u.first_name} {u.last_name} ({u.email})
+                        <button onClick={() => handlePromoteAdmin(u.email)}>Add</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             {loadingAmbassadors ? (
               <p>Loading ambassadors...</p>
             ) : errorAmbassadors ? (
@@ -427,6 +494,7 @@ function UniversityProfile({ userData }) {
                         <RouterLink to={`/user/${amb.user_id}`}>
                           {amb.first_name} {amb.last_name}
                         </RouterLink>
+                        {amb.is_admin && <span className="admin-star">★</span>}
                         {(() => {
                           if (userData && Number(userData.user_id) === Number(amb.user_id)) {
                             console.log("This ambassador is the logged-in user:", amb);
