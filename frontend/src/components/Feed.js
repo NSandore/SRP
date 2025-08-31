@@ -1,7 +1,7 @@
 // src/components/Feed.js
 
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify'; 
 import {
@@ -15,6 +15,7 @@ import ForumCard from './ForumCard'; // Adjust path if ForumCard is located else
 import CommunityRequestModal from './CommunityRequestModal';
 
 function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted", "mostRecent"
   const [communityFilter, setCommunityFilter] = useState('All'); // Options: "All", "Followed", "Unfollowed"
   const [selectedCommunityTab, setSelectedCommunityTab] = useState("university");
@@ -556,24 +557,68 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     return true;
   });
 
+  // Keep Home tab selection in sync with URL (?tab=feed|explore)
+  useEffect(() => {
+    if (activeSection !== 'home') return;
+    const tab = searchParams.get('tab');
+    const desired = tab === 'explore' ? 'explore' : 'yourFeed';
+    if (activeFeed !== desired) {
+      setActiveFeed(desired);
+    }
+    // Ensure default param exists
+    if (!tab) {
+      const params = new URLSearchParams(searchParams);
+      params.set('tab', 'feed');
+      setSearchParams(params, { replace: true });
+    }
+  }, [activeSection, searchParams, activeFeed, setActiveFeed, setSearchParams]);
+
+  // When feed changes on Home, update the URL search param without reloading
+  useEffect(() => {
+    if (activeSection !== 'home') return;
+    const current = searchParams.get('tab');
+    const expected = activeFeed === 'yourFeed' ? 'feed' : 'explore';
+    if (current !== expected) {
+      const params = new URLSearchParams(searchParams);
+      params.set('tab', expected);
+      setSearchParams(params);
+    }
+  }, [activeFeed, activeSection, searchParams, setSearchParams]);
+
   // ------------- RENDER LOGIC -------------
   // HOME SECTION
   if (activeSection === 'home') {
     return (
       <main>
         <div className="feed-container">
+          {/* Hero */}
+          <div style={{ marginBottom: '0.75rem' }}>
+            <h2 style={{ margin: 0 }}>
+              Welcome back, {userData?.first_name ? `${userData.first_name}` : 'there'}!
+            </h2>
+          </div>
           <div className="feed-header">
             <h2>{activeFeed === 'yourFeed' ? 'Your Feed' : 'Explore'}</h2>
             <div className="feed-toggle-buttons">
               <button
                 className={`feed-option-button ${activeFeed === 'yourFeed' ? 'active' : ''}`}
-                onClick={() => setActiveFeed('yourFeed')}
+                onClick={() => {
+                  setActiveFeed('yourFeed');
+                  const params = new URLSearchParams(searchParams);
+                  params.set('tab', 'feed');
+                  setSearchParams(params);
+                }}
               >
                 Your Feed
               </button>
               <button
-                className={`feed-option-button ${activeFeed === 'suggested' ? 'active' : ''}`}
-                onClick={() => setActiveFeed('suggested')}
+                className={`feed-option-button ${activeFeed === 'explore' ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveFeed('explore');
+                  const params = new URLSearchParams(searchParams);
+                  params.set('tab', 'explore');
+                  setSearchParams(params);
+                }}
               >
                 Explore
               </button>

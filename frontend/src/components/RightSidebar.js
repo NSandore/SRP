@@ -1,13 +1,11 @@
 // src/components/RightSidebar.js
 import React from 'react';
+import RightRail from '../widgets/RightRail';
 
 function RightSidebar() {
   return (
     <aside className="right-sidebar">
-      <h3>Trending Topics</h3>
-      <ul>
-        <li>#FinancialAid</li>
-      </ul>
+      <RightRail />
     </aside>
   );
 }

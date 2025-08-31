@@ -47,7 +47,7 @@ import Messages from './components/Messages'; // New Messages component
 import useOnClickOutside from './hooks/useOnClickOutside';  // Hook to close popups when clicking outside
 import RightSidebar from './components/RightSidebar';
 import LeftSidebar from './components/LeftSidebar';
-import NavBar from './components/NavBar';
+import AppShell from './layout/AppShell';
 import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
 import ContactUsButton from './components/ContactUsButton';
@@ -362,53 +362,85 @@ function App() {
   
             {step === 0 && (
               <>
-                <NavBar
-                  activeFeed={activeFeed}
-                  setStep={setStep}
-                  setActiveFeed={setActiveFeed}
-                  activeSection={activeSection}
-                  setActiveSection={setActiveSection}
-                  userData={userData}
-                  accountMenuVisible={accountMenuVisible}
-                  setAccountMenuVisible={setAccountMenuVisible}
-                  handleLogout={handleLogout}
-                  toggleNotifications={toggleNotifications}
-                  notifications={notifications}
-                  isNotificationsOpen={isNotificationsOpen}
-                  notificationRef={notificationRef}
-                  markAllAsRead={markAllAsRead}
-                  unreadMessages={unreadMessages}
-                />
-  
                 <Routes>
                   {/* Profile and User Profile Views (2-column layout) */}
                   <Route
                     path="/profile"
                     element={
-                      <div className="profile-page-main-content">
+                      <AppShell
+                        navBarProps={{
+                          activeFeed,
+                          setStep,
+                          setActiveFeed,
+                          activeSection,
+                          setActiveSection,
+                          userData,
+                          accountMenuVisible,
+                          setAccountMenuVisible,
+                          handleLogout,
+                          toggleNotifications,
+                          notifications,
+                          isNotificationsOpen,
+                          notificationRef,
+                          markAllAsRead,
+                          unreadMessages,
+                        }}
+                      >
                         {userData ? <SelfProfileView userData={userData} /> : <Navigate to="/login" />}
-                        <RightSidebar />
-                        <ContactUsButton />
-                      </div>
+                      </AppShell>
                     }
                   />
                   
                   <Route
                     path="/user/:user_id"
                     element={
-                      <div className="profile-page-main-content">
+                      <AppShell
+                        navBarProps={{
+                          activeFeed,
+                          setStep,
+                          setActiveFeed,
+                          activeSection,
+                          setActiveSection,
+                          userData,
+                          accountMenuVisible,
+                          setAccountMenuVisible,
+                          handleLogout,
+                          toggleNotifications,
+                          notifications,
+                          isNotificationsOpen,
+                          notificationRef,
+                          markAllAsRead,
+                          unreadMessages,
+                        }}
+                      >
                         <UserProfileView userData={userData} />
-                        <RightSidebar />
-                      </div>
+                      </AppShell>
                     }
                   />
-  
+
                   {/* Default layout for all other routes */}
                   <Route
                     path="*"
                     element={
-                      <div className="main-content">
-                        <LeftSidebar />
+                      <AppShell
+                        navBarProps={{
+                          activeFeed,
+                          setStep,
+                          setActiveFeed,
+                          activeSection,
+                          setActiveSection,
+                          userData,
+                          accountMenuVisible,
+                          setAccountMenuVisible,
+                          handleLogout,
+                          toggleNotifications,
+                          notifications,
+                          isNotificationsOpen,
+                          notificationRef,
+                          markAllAsRead,
+                          unreadMessages,
+                        }}
+                      >
                         <Routes>
                           {/* Home */}
                           <Route
@@ -522,9 +554,7 @@ function App() {
                           />
                           <Route path="/search" element={<SearchResults />} />
                         </Routes>
-                        <RightSidebar />
-                        <ContactUsButton />
-                      </div>
+                      </AppShell>
                     }
                   />
                 </Routes>
