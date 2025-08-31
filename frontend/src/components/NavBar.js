@@ -1,33 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  FaHome,
-  FaBookmark,
-  FaUserCircle,
-  FaPeopleCarry,
-  FaUsers,
-  FaEnvelope,
-  FaBell,
-  FaSearch,
-  FaMoon,
-  FaSun
-} from 'react-icons/fa';
-import { BiInfoCircle } from 'react-icons/bi';
-import { RiMedalFill } from 'react-icons/ri';
+import { FaUserCircle, FaEnvelope, FaBell, FaSearch, FaMoon, FaSun } from 'react-icons/fa';
 import DOMPurify from 'dompurify';
 import axios from 'axios';
 
-// NavItem sub-component
-function NavItem({ active, label, Icon, onClick }) {
-  return (
-    <li className={active ? 'active' : ''} onClick={onClick}>
-      <div className="nav-item">
-        <Icon className="nav-item-icon" />
-        <span className="nav-item-label">{label}</span>
-      </div>
-    </li>
-  );
-}
+//
 
 function NavBar({
   setStep,
@@ -133,153 +110,126 @@ function NavBar({
   };
 
   return (
-    <nav className="nav-bar">
+    <nav className="nav-bar" aria-label="Top Navigation Bar">
+      {/* Left: Wordmark button linking to /home */}
       <div className="nav-left">
-        <h2 className="brand-title">StudentSphere</h2>
+        <Link
+          to="/home"
+          className="brand-button"
+          aria-label="Go to Home"
+        >
+          <span className="brand-title">StudentSphere</span>
+        </Link>
       </div>
 
-      <div className="nav-menu">
-        <ul>
-          <NavItem 
-            active={activeSection === 'home'} 
-            label="Home" 
-            Icon={FaHome} 
-            onClick={() => handleSectionClick('home')} 
-          />
-          <NavItem 
-            active={activeSection === 'info'} 
-            label="Info Board" 
-            Icon={BiInfoCircle} 
-            onClick={() => handleSectionClick('info')} 
-          />
-          <NavItem 
-            active={activeSection === 'funding'} 
-            label="Funding" 
-            Icon={RiMedalFill} 
-            onClick={() => handleSectionClick('funding')} 
-          />
-          <NavItem 
-            active={activeSection === 'communities'} 
-            label="Communities" 
-            Icon={FaUsers} 
-            onClick={() => handleSectionClick('communities')} 
-          />
-
-          {userData && (
-            <>
-              <NavItem 
-                active={activeSection === 'saved'} 
-                label="Saved" 
-                Icon={FaBookmark} 
-                onClick={() => handleSectionClick('saved')} 
-              />
-              <NavItem 
-                active={activeSection === 'connections'} 
-                label="Connections" 
-                Icon={FaPeopleCarry} 
-                onClick={() => handleSectionClick('connections')} 
-              />
-              <NavItem 
-                active={activeSection === 'profile'} 
-                label="My Profile" 
-                Icon={FaUserCircle} 
-                onClick={() => handleSectionClick('profile')} 
-              />
-            </>
-          )}
-        </ul>
-      </div>
-
-      <div className="nav-right">
-        <div className="nav-icons">
-          {/* Search Bar */}
-          <form className="search-form" onSubmit={handleSearch}>
-            <div className="search-container">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input"
-                onFocus={() => setShowSuggestions(true)}
-              />
-              <button type="submit" className="search-button" aria-label="Search">
-                <FaSearch size={14} />
-              </button>
+      {/* Center: Pill search */}
+      <div className="nav-center">
+        <form className="search-form" role="search" onSubmit={handleSearch} aria-label="Site Search">
+          <div className="search-container" aria-live="polite">
+            <input
+              type="text"
+              placeholder="Search forums, posts, people…"
+              aria-label="Search StudentSphere"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+              onFocus={() => setShowSuggestions(true)}
+            />
+            <button type="submit" className="search-button" aria-label="Search">
+              <FaSearch size={14} />
+            </button>
+          </div>
+          {showSuggestions && (
+            <div className="search-suggestions" role="listbox">
+              {suggestions.users.map((u) => (
+                <div
+                  key={`u${u.user_id}`}
+                  className="search-suggestion-item"
+                  onClick={() => handleSuggestionClick(`/user/${u.user_id}`)}
+                  role="option"
+                >
+                  @{u.first_name} {u.last_name}
+                </div>
+              ))}
+              {suggestions.forums.map((f) => (
+                <div
+                  key={`f${f.forum_id}`}
+                  className="search-suggestion-item"
+                  onClick={() => handleSuggestionClick(`/info/forum/${f.forum_id}`)}
+                  role="option"
+                >
+                  {f.name}
+                </div>
+              ))}
+              {suggestions.threads.map((t) => (
+                <div
+                  key={`t${t.thread_id}`}
+                  className="search-suggestion-item"
+                  onClick={() => handleSuggestionClick(`/info/forum/${t.forum_id}/thread/${t.thread_id}`)}
+                  role="option"
+                >
+                  {t.title}
+                </div>
+              ))}
+              {suggestions.tags.map((tag) => (
+                <div
+                  key={`tag${tag}`}
+                  className="search-suggestion-item"
+                  onClick={() => handleSuggestionClick(`/search?q=%23${tag}`)}
+                  role="option"
+                >
+                  #{tag}
+                </div>
+              ))}
             </div>
-            {showSuggestions && (
-              <div className="search-suggestions">
-                {suggestions.users.map((u) => (
-                  <div
-                    key={`u${u.user_id}`}
-                    className="search-suggestion-item"
-                    onClick={() => handleSuggestionClick(`/user/${u.user_id}`)}
-                  >
-                    @{u.first_name} {u.last_name}
-                  </div>
-                ))}
-                {suggestions.forums.map((f) => (
-                  <div
-                    key={`f${f.forum_id}`}
-                    className="search-suggestion-item"
-                    onClick={() => handleSuggestionClick(`/info/forum/${f.forum_id}`)}
-                  >
-                    {f.name}
-                  </div>
-                ))}
-                {suggestions.threads.map((t) => (
-                  <div
-                    key={`t${t.thread_id}`}
-                    className="search-suggestion-item"
-                    onClick={() => handleSuggestionClick(`/info/forum/${t.forum_id}/thread/${t.thread_id}`)}
-                  >
-                    {t.title}
-                  </div>
-                ))}
-                {suggestions.tags.map((tag) => (
-                  <div
-                    key={`tag${tag}`}
-                    className="search-suggestion-item"
-                    onClick={() => handleSuggestionClick(`/search?q=%23${tag}`)}
-                  >
-                    #{tag}
-                  </div>
-                ))}
-              </div>
-            )}
-          </form>
+          )}
+        </form>
+      </div>
+
+      {/* Right: Icons and avatar */}
+      <div className="nav-right">
+        <div className="nav-icons" role="group" aria-label="Quick actions">
           {/* Dark Mode Toggle */}
           <button
-            className="nav-icon dark-mode-toggle"
+            className="nav-icon-button dark-mode-toggle"
             onClick={toggleDarkMode}
             title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            aria-label={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            aria-pressed={isDarkMode}
           >
-            {isDarkMode ? <FaSun /> : <FaMoon />}
+            {isDarkMode ? <FaSun className="nav-icon" /> : <FaMoon className="nav-icon" />}
           </button>
 
           {/* Messages link */}
-          <Link to="/messages">
+          <Link to="/messages" aria-label="Messages" className="messages-link">
             <div className="notification-container">
-              <FaEnvelope className="nav-icon" title="Messages" />
+              <FaEnvelope className="nav-icon" title="Messages" aria-hidden="true" />
               {unreadMessages > 0 && (
-                <span className="notification-badge">{unreadMessages}</span>
+                <span className="notification-badge" aria-label={`${unreadMessages} unread messages`}>{unreadMessages}</span>
               )}
             </div>
           </Link>
 
           {/* Notifications */}
           <div className="notification-container" ref={notificationRef}>
-            <FaBell
-              className="nav-icon"
-              title="Notifications"
+            <button
+              type="button"
+              className="nav-icon-button"
               onClick={toggleNotifications}
-            />
-            {unreadCount > 0 && (
-              <span className="notification-badge">{unreadCount}</span>
-            )}
+              aria-haspopup="true"
+              aria-expanded={isNotificationsOpen}
+              aria-controls="notifications-dropdown"
+              aria-label="Notifications"
+              title="Notifications"
+            >
+              <FaBell className="nav-icon" aria-hidden="true" />
+              {unreadCount > 0 && (
+                <span className="notification-badge" aria-label={`${unreadCount} unread notifications`}>{unreadCount}</span>
+              )}
+            </button>
 
             {isNotificationsOpen && (
-              <div className="notifications-dropdown">
+              <div id="notifications-dropdown" className="notifications-dropdown" role="dialog" aria-label="Notifications">
                 <h4>Notifications</h4>
                 {notifications.length === 0 ? (
                   <p>No notifications</p>
@@ -314,24 +264,30 @@ function NavBar({
               role="button"
               aria-haspopup="true"
               aria-expanded={accountMenuVisible}
+              aria-controls="account-menu"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setAccountMenuVisible(!accountMenuVisible);
+                }
+              }}
             >
               {userData.avatar_path ? (
                 <img
                   src={`http://172.16.11.133${userData.avatar_path}`}
                   alt="User Avatar"
                   className="user-avatar"
-                  onClick={() => setAccountMenuVisible(!accountMenuVisible)}
                 />
               ) : (
-                <FaUserCircle className="nav-icon" title="Account Settings" onClick={() => setAccountMenuVisible(!accountMenuVisible)} />
+                <FaUserCircle className="nav-icon" title="Account Menu" aria-hidden="true" />
               )}
               {accountMenuVisible && (
-                <div className="account-menu">
+                <div id="account-menu" className="account-menu" role="menu" aria-label="Account Menu">
                   <div
                     className="account-menu-item"
                     onClick={() => alert('Account Settings')}
                     tabIndex={0}
-                    role="button"
+                    role="menuitem"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') alert('Account Settings');
                     }}
@@ -342,7 +298,7 @@ function NavBar({
                     className="account-menu-item"
                     onClick={handleLogout}
                     tabIndex={0}
-                    role="button"
+                    role="menuitem"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') handleLogout();
                     }}
