@@ -1,0 +1,55 @@
+:root {
+  /* Primary gradient */
+  --primary-from: #2563EB; /* blue-600 */
+  --primary-to: #60A5FA;   /* blue-400 */
+  --gradient-primary: linear-gradient(90deg, var(--primary-from), var(--primary-to));
+
+  /* Accents */
+  --accent-trending: #7C3AED; /* violet-600 */
+  --accent-webinars: #F43F5E; /* rose-500 */
+  --accent-poll: #F59E0B;     /* amber-500 */
+  --accent-success: #22C55E;  /* green-500 */
+
+  /* Backgrounds */
+  --bg-page: #F8FAFC; /* slate-50 */
+  --bg-card: #FFFFFF;
+
+  /* Radius scale */
+  --radius-card: 16px;  /* default card radius */
+  --radius-card-lg: 20px;
+
+  /* Icon/text on color backgrounds */
+  --icon-on-color: #FFFFFF;
+
+  /* Content type colors */
+  --type-question: #3B82F6; /* blue-500/600 */
+  --type-guide: #10B981;    /* emerald-500 */
+  --type-study: #6366F1;    /* indigo-500 */
+  --type-forum: var(--type-study);
+
+  /* Typography */
+  --font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', Arial, sans-serif;
+
+  /* Font sizes (Tailwind parity) */
+  --fs-3xl: 1.875rem; /* 30px */
+  --fs-xl: 1.25rem;   /* 20px */
+  --fs-base: 1rem;    /* 16px */
+  --fs-sm: 0.875rem;  /* 14px */
+
+  /* Font weights */
+  --fw-700: 700;
+  --fw-600: 600;
+  --fw-500: 500;
+  --fw-400: 400;
+
+  /* Spacing scale (base 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;  /* common gaps */
+  --space-5: 20px;
+  --space-6: 24px;  /* section gaps */
+  --space-8: 32px;  /* section gaps */
+}

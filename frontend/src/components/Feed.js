@@ -14,6 +14,7 @@ import {
 import ForumCard from './ForumCard'; // Adjust path if ForumCard is located elsewhere
 import ThreadCard from './ThreadCard';
 import CommunityRequestModal from './CommunityRequestModal';
+import FloatingComposer from './FloatingComposer';
 
 function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -820,25 +821,50 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     return (
       <main>
         <div className="feed-container">
-          <div
-            className="feed-header"
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}
-          >
-            <h2>General Information</h2>
-            {/* Admin "Create Forum" button (role_id === 7 is your example for admin) */}
+          <div className="feed-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h1 className="info-title" style={{ margin: 0 }}>Info Board</h1>
             {userData?.role_id === 7 && (
               <button
-                className="non-togglable-button"
+                className="btn-primary"
                 onClick={() => setShowCreateForumModal(true)}
               >
-                + New Forum
+                New Forum
               </button>
             )}
           </div>
+
+          {/* Controls: Sort pill + topic chips */}
+          {(() => {
+            const topic = (searchParams.get('topic') || 'all').toLowerCase();
+            const setTopic = (val) => {
+              const params = new URLSearchParams(searchParams);
+              params.set('topic', val);
+              setSearchParams(params);
+            };
+            return (
+              <div className="info-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                <span className="sort-pill">Sort</span>
+                <label htmlFor="sort-by" className="sr-only">Sort by</label>
+                <select
+                  id="sort-by"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="sort-select"
+                >
+                  <option value="mostRecent">Most Recent</option>
+                  <option value="popularity">Popularity</option>
+                  <option value="mostUpvoted">Most Upvoted</option>
+                </select>
+
+                <div className="chips-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button type="button" className={`chip ${topic === 'all' ? 'active' : ''}`} onClick={() => setTopic('all')}>All</button>
+                  <button type="button" className={`chip ${topic === 'admissions' ? 'active' : ''}`} onClick={() => setTopic('admissions')}>Admissions</button>
+                  <button type="button" className={`chip ${topic === 'academics' ? 'active' : ''}`} onClick={() => setTopic('academics')}>Academics ▾</button>
+                  <button type="button" className={`chip ${topic === 'campus-life' ? 'active' : ''}`} onClick={() => setTopic('campus-life')}>Campus Life</button>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* CREATE FORUM MODAL */}
           {showCreateForumModal && (
@@ -917,21 +943,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
             </div>
           )}
 
-          {/* Sorting Dropdown */}
-          <div className="sort-container" style={{ marginBottom: '1rem' }}>
-            <label htmlFor="sort-by">Sort by: </label>
-            <select
-              id="sort-by"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <option value="popularity">Popularity</option>
-              <option value="mostUpvoted">Most Upvoted</option>
-              <option value="mostRecent">Most Recent</option>
-            </select>
-          </div>
-
-          <h2 className="forum-title">Forums</h2>
+          <h2 className="forum-title" style={{ marginTop: '8px' }}>Forums</h2>
           {isLoadingForums ? (
             <p>Loading forums...</p>
           ) : forums.length === 0 ? (
@@ -956,6 +968,12 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
             </div>
           )}
         </div>
+        {/* FAB visible on Home (Your Feed + Explore) for admins (role_id=7) or ambassadors */}
+        {userData && (Number(userData.role_id) === 7 || Number(userData.is_ambassador) === 1) && (
+          <FloatingComposer
+            communities={[...followedCommunities, ...allCommunities]}
+          />
+        )}
       </main>
     );
   }

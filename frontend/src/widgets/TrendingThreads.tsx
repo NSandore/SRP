@@ -10,7 +10,6 @@ type TrendingItem = {
 const demoTrending: TrendingItem[] = [
   { id: 1, title: 'How to maximize scholarship offers?', community: 'Financial Aid' },
   { id: 2, title: 'Best strategies for SAT in 6 weeks', community: 'Test Prep' },
-  { id: 3, title: 'Campus housing pros/cons at State U', community: 'Student Life' },
 ];
 
 export default function TrendingThreads() {

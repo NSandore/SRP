@@ -11,7 +11,6 @@ type Webinar = {
 const demoWebinars: Webinar[] = [
   { id: 1, title: 'Financial Aid 101', date: 'Sep 8, 4:00 PM', host: 'Counselor Team' },
   { id: 2, title: 'Crafting a Standout Personal Statement', date: 'Sep 12, 6:00 PM', host: 'Admissions Coach' },
-  { id: 3, title: 'Choosing Your Major', date: 'Sep 15, 5:30 PM', host: 'Career Services' },
 ];
 
 export default function UpcomingWebinars() {

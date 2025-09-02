@@ -51,7 +51,7 @@
   --nav-hover: #004466;
   --main-content-bg: #121212;
   --main-content-text: #ffffff;
-  --forum-card-bg: #242424;
+  --forum-card-bg: #2d2d2d;
   --dark-text: #ffffff;
   --light-text: #ffffff;
   --muted-text: #bbbbbb;
@@ -487,11 +487,16 @@ input::placeholder, textarea::placeholder {
   color: var(--text-color);
 }
 
+/* Dark mode: center rail background should be #333 */
+[data-theme="dark"] .feed-container {
+  background-color: #121212 !important;
+}
+
 .feed-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid #ddd;
+  border-bottom: 2px solid var(--card-border);
   margin-bottom: 1rem;
 }
 
@@ -612,6 +617,22 @@ input::placeholder, textarea::placeholder {
   font-size: 0.85rem;
 }
 
+/* ThreadRightRail styles */
+.ti-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+.ti-label { color: var(--muted-text); }
+.ti-value { font-weight: 600; }
+.participant-avatars { display: flex; gap: 8px; align-items: center; }
+.participant-avatar { width: 32px; height: 32px; border-radius: 9999px; background: #e5e7eb; color: #111827; display:flex; align-items:center; justify-content:center; font-weight:700; font-size: 0.85rem; }
+[data-theme="dark"] .participant-avatar { background: #374151; color: #f9fafb; }
+.participant-avatar.more { background: #e2e8f0; color: #334155; }
+.rt-icon { margin-right: 8px; font-size: 0.9rem; }
+.rt-blue { color: #2563EB; }
+.modtools { display: flex; flex-direction: column; gap: 8px; }
+.mod-btn { border: none; padding: 8px 10px; border-radius: 8px; color: #fff; cursor: pointer; font-weight: 600; text-align:left; }
+.mod-btn.danger { background: #ef4444; }
+.mod-btn.warning { background: #f59e0b; }
+.mod-btn.success { background: #22c55e; }
+
 /* Floating Action Button */
 .fab-container {
   position: fixed;
@@ -688,6 +709,65 @@ input::placeholder, textarea::placeholder {
   padding: 6px 12px;
   cursor: pointer;
   color: var(--feed-option-text);
+}
+
+/* Info section styles */
+.info-title {
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-700);
+  line-height: 1.2;
+  margin-bottom: var(--space-3);
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sort-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--light-background);
+  color: var(--text-color);
+  font-size: 0.85rem;
+}
+
+.sort-select {
+  border: 1px solid var(--card-border);
+  background: var(--card-background);
+  color: var(--text-color);
+  border-radius: 9999px;
+  padding: 4px 10px;
+}
+
+.chips-row .chip {
+  border: 1px solid var(--card-border);
+  background: #f1f5f9; /* slate-100 */
+  color: #334155;      /* slate-700 */
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.chips-row .chip.active {
+  background: #2563EB; /* blue-600 */
+  color: #ffffff;
+  border-color: #2563EB;
+}
+[data-theme="dark"] .chips-row .chip {
+  background: #374151; /* slate-700 */
+  color: #e5e7eb;      /* slate-200 */
+}
+[data-theme="dark"] .chips-row .chip.active {
+  background: #2563EB;
+  color: #ffffff;
+  border-color: #2563EB;
 }
 
 .poll-option-button.selected,
@@ -1180,7 +1260,7 @@ select:focus {
 
 /* Right Sidebar */
 .right-sidebar {
-  height: 45vh;
+  /* Let the AppShell rail control height/scroll via sticky wrapper */
   border-radius: 8px;
   padding: 1rem;
   margin: 0;
@@ -1312,10 +1392,10 @@ select:focus {
 
 /* Forum Card */
 .forum-card {
-  background-color: var(--forum-card-bg, var(--card-background)) !important;
+  background-color: var(--forum-card-bg, #2c2c2c) !important;
   border: 1px solid var(--card-border);
   border-radius: var(--radius-card); /* rounded-2xl */
-  padding: 1rem;
+  padding: 1.25rem; /* p-5 */
   margin-bottom: 1rem;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); /* soft shadow */
   transition: box-shadow 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
@@ -1324,7 +1404,7 @@ select:focus {
 
 .forum-card:hover {
   transform: translateY(-2px); /* hover raise by 2px */
-  background-color: var(--hover-color) !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.09);
 }
 
 [data-theme="dark"] .forum-card:hover {
@@ -1388,6 +1468,10 @@ select:focus {
   justify-content: center;
   font-size: 0.7rem;
   font-weight: 700;
+}
+[data-theme="dark"] .avatar-circle {
+  background: #374151; /* slate-700 */
+  color: #f9fafb;      /* slate-50 */
 }
 
 .kebab-button {
@@ -1886,6 +1970,7 @@ select:focus {
   border-radius: 8px;
   box-shadow: 0 8px 16px rgba(0,0,0,0.12);
   z-index: 1001;
+  color: var(--text-color);
 }
 
 .search-suggestion-item {
@@ -1897,6 +1982,47 @@ select:focus {
   background: var(--hover-color);
 }
 
+/* Accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap; /* added line */
+  border: 0;
+}
+
+/* Breadcrumbs */
+.breadcrumbs {
+  font-size: var(--fs-sm);
+  color: var(--muted-text);
+  margin-bottom: 8px;
+}
+.breadcrumbs a {
+  color: var(--muted-text);
+  text-decoration: none;
+}
+.breadcrumbs a:hover { color: var(--link-color); }
+.breadcrumb-sep { margin: 0 6px; color: var(--muted-text); }
+.breadcrumb-current { color: var(--muted-text); }
+
+/* Dark mode: search suggestions panel */
+[data-theme="dark"] .search-suggestions {
+  background: #333333;
+  border: 1px solid #141414;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+  color: var(--light-text);
+}
+[data-theme="dark"] .search-suggestion-item {
+  color: var(--light-text);
+}
+[data-theme="dark"] .search-suggestion-item:hover {
+  background: #3d3d3d;
+}
+
 [data-theme="dark"] .search-container {
   background-color: rgba(255,255,255,0.12);
   border-color: rgba(255,255,255,0.25);
@@ -1904,3 +2030,11 @@ select:focus {
 [data-theme="dark"] .search-input { color: #f9fafb; }
 [data-theme="dark"] .search-button { color: #e5e7eb; }
 [data-theme="dark"] .search-button:hover { color: #fff; }
+[data-theme="dark"] .forum-description { color: var(--light-text); }
+.enter-cta {
+  background: var(--primary-color);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+}

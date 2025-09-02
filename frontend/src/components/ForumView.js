@@ -1,17 +1,12 @@
 // src/components/ForumView.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import TextEditor from './TextEditor';
+import FloatingComposer from './FloatingComposer';
 import './ForumView.css';  // Adjusted to match feed styling
-import useOnClickOutside from '../hooks/useOnClickOutside';
-import {
-  FaEllipsisV,
-  FaArrowAltCircleUp,
-  FaRegArrowAltCircleUp,
-  FaArrowAltCircleDown,
-  FaRegArrowAltCircleDown
-} from 'react-icons/fa';
+import { FaEllipsisV, FaArrowAltCircleUp, FaRegArrowAltCircleUp, FaArrowAltCircleDown, FaRegArrowAltCircleDown } from 'react-icons/fa';
+import ThreadCard from './ThreadCard';
 
 // Sorting function
 const sortItems = (items, criteria) => {
@@ -62,9 +57,10 @@ function ForumView({ userData }) {
   // Saved Threads
   const [savedThreads, setSavedThreads] = useState([]);
 
-  // 3-dot menu
-  const [openMenuThreadId, setOpenMenuThreadId] = useState(null);
-  const menuRef = useRef(null);
+  // Ambassador communities for visibility gating
+  const [ambassadorCommunities, setAmbassadorCommunities] = useState([]);
+
+  // kebab menu handled inside ThreadCard
 
   // Helper to detect if a thread is saved
   const isThreadSaved = (threadId) =>
@@ -119,15 +115,27 @@ function ForumView({ userData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forum_id, userData]);
 
+  // Load ambassador communities when user is ambassador
+  useEffect(() => {
+    const loadAmbassadorCommunities = async () => {
+      if (!userData || Number(userData.is_ambassador) !== 1) return;
+      try {
+        const res = await axios.get(`/api/fetch_ambassador_communities.php?user_id=${userData.user_id}`);
+        const list = Array.isArray(res.data) ? res.data : (res.data.communities || res.data.ambassador_communities || []);
+        setAmbassadorCommunities(list);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('Error fetching ambassador communities:', e);
+        setAmbassadorCommunities([]);
+      }
+    };
+    loadAmbassadorCommunities();
+  }, [userData]);
+
   // Sort threads
   const sortedThreads = sortItems(threads, sortBy);
 
-  // === 3-dot menu handling ===
-  useOnClickOutside(menuRef, () => setOpenMenuThreadId(null));
-
-  const toggleMenu = (threadId) => {
-    setOpenMenuThreadId((prev) => (prev === threadId ? null : threadId));
-  };
+  // kebab menu handled inside ThreadCard
 
   // === Thread CRUD / Voting ===
   const handleToggleSaveThread = async (threadId) => {
@@ -160,7 +168,7 @@ function ForumView({ userData }) {
       console.error('Error saving/unsaving thread:', error);
       setNotification({ type: 'error', message: 'Error saving/unsaving thread.' });
     }
-    setOpenMenuThreadId(null);
+    // ThreadCard manages its own kebab menu state
   };
 
   const handleUpvoteClick = async (threadId) => {
@@ -308,6 +316,14 @@ function ForumView({ userData }) {
 
   return (
     <div className="feed-container forum-view">
+    {/* Breadcrumbs */}
+    <nav className="breadcrumbs" aria-label="Breadcrumb">
+      <Link to="/info">Info Board</Link>
+      <span className="breadcrumb-sep">&gt;</span>
+      {/*<span className="breadcrumb-current" aria-current="page">
+        {forumData?.name ? forumData.name : `Forum ${forum_id}`}
+      </span>*/}
+    </nav>
     {/* Top Header Row */}
     <div
       className="feed-header"
@@ -323,12 +339,7 @@ function ForumView({ userData }) {
         </h2>
       </div>
 
-      {/* Right side: "Create Thread" button (if logged in) */}
-      {userData && (
-        <button className="create-button" onClick={() => setShowCreateThreadModal(true)}>
-          + New Thread
-        </button>
-      )}
+      {/* Removed inline New Thread button; FAB provided at bottom-right */}
     </div>
     
       {/* Sorting */}
@@ -350,123 +361,41 @@ function ForumView({ userData }) {
         <p>No threads available.</p>
       ) : (
         <div className="forum-list">
-          {sortedThreads.map((thread) => {
-            const hasUpvoted = thread.vote_type === 'up';
-            const hasDownvoted = thread.vote_type === 'down';
-
-            const canEditOrDelete =
-              userData &&
-              (Number(userData.role_id) === 7 || Number(userData.user_id) === Number(thread.user_id));
-
-            return (
-              <div key={thread.thread_id} className="forum-card" style={{ position: 'relative' }}>
-                {/* 3-dot menu */}
-                <FaEllipsisV
-                  className="menu-icon"
-                  style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
-                  onClick={() => toggleMenu(thread.thread_id)}
-                />
-                {openMenuThreadId === thread.thread_id && (
-                  <div
-                    ref={menuRef}
-                    className="dropdown-menu"
-                    style={{
-                      position: 'absolute',
-                      top: '30px',
-                      right: '8px',
-                      backgroundColor: '#fff',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                      zIndex: 10,
-                      width: '120px',
-                    }}
-                  >
-                    {userData && (
-                      <button
-                        className="dropdown-item"
-                        style={{ padding: '8px', textAlign: 'left', cursor: 'pointer' }}
-                        onClick={() => handleToggleSaveThread(thread.thread_id)}
-                      >
-                        {isThreadSaved(thread.thread_id) ? 'Unsave' : 'Save'}
-                      </button>
-                    )}
-                    <button
-                      className="dropdown-item"
-                      style={{ padding: '8px', textAlign: 'left', cursor: 'pointer' }}
-                      onClick={() => {
-                        alert(`Report thread ${thread.thread_id}`);
-                        setOpenMenuThreadId(null);
-                      }}
-                    >
-                      Report
-                    </button>
-                  </div>
-                )}
-
-                {/* Thread link */}
-                <Link
-                  to={`/info/forum/${forum_id}/thread/${thread.thread_id}`}
-                  className="thread-link"
-                >
-                  <h3 className="thread-title">{thread.title}</h3>
-                  <p className="thread-post-count">
-                    {thread.post_count || 0} Posts
-                  </p>
-                  <p className="thread-description">
-                    Started by User {thread.user_id} on{' '}
-                    {new Date(thread.created_at).toLocaleString()}
-                  </p>
-                </Link>
-
-                {/* Voting row */}
-                <div className="vote-row">
-                  <button
-                    type="button"
-                    className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
-                    title="Upvote"
-                    onClick={() => handleUpvoteClick(thread.thread_id)}
-                  >
-                    {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
-                  </button>
-                  <span className="vote-count">{thread.upvotes}</span>
-
-                  <button
-                    type="button"
-                    className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
-                    title="Downvote"
-                    onClick={() => handleDownvoteClick(thread.thread_id)}
-                  >
-                    {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
-                  </button>
-                  <span className="vote-count">{thread.downvotes}</span>
-                </div>
-
-                {/* Edit / Delete buttons */}
-                {canEditOrDelete && (
-                  <div className="thread-actions">
-                    <button
-                      className="create-button edit-button"
-                      onClick={() => startEditingThread(thread)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="create-button delete-button"
-                      onClick={() => handleDeleteThread(thread.thread_id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {sortedThreads.map((thread) => (
+            <ThreadCard
+              key={thread.thread_id}
+              thread={thread}
+              userData={userData}
+              onUpvote={handleUpvoteClick}
+              onDownvote={handleDownvoteClick}
+              onEdit={startEditingThread}
+              onDelete={handleDeleteThread}
+              onToggleSave={() => handleToggleSaveThread(thread.thread_id)}
+              linkTo={`/info/forum/${forum_id}/thread/${thread.thread_id}`}
+            />
+          ))}
         </div>
       )}
 
+      {/* Bottom-right FAB for creating thread/post/poll */}
+      {userData && (() => {
+        const isAdmin = Number(userData.role_id) === 7;
+        const isAmb = Number(userData.is_ambassador) === 1;
+        const communityId = forumData?.community_id;
+        const ambAllowed = isAmb && communityId && ambassadorCommunities.some((c) => {
+          const id = c?.community_id ?? c?.id ?? c;
+          return Number(id) === Number(communityId);
+        });
+        return isAdmin || ambAllowed;
+      })() && (
+        <FloatingComposer
+          defaultCommunityId={forumData?.community_id}
+          communities={forumData?.community_id ? [{ community_id: forumData.community_id, name: forumData?.community_name }] : []}
+        />
+      )}
+
       {/* CREATE THREAD MODAL */}
-      {showCreateThreadModal && (
+      {false && showCreateThreadModal && (
         <div className="modal-overlay">
           <div className="modal-content">
             <h3>Create a New Thread</h3>

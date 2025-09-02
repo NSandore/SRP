@@ -13,7 +13,7 @@ $forum_id = (int)$_GET['forum_id'];
 $db = getDB();
 
 try {
-    $stmt = $db->prepare("SELECT forum_id, name, description FROM forums WHERE forum_id = :forum_id");
+$stmt = $db->prepare("SELECT forum_id, community_id, name, description FROM forums WHERE forum_id = :forum_id");
     $stmt->execute([':forum_id' => $forum_id]);
     $forum = $stmt->fetch(PDO::FETCH_ASSOC);
 

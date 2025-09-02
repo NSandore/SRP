@@ -1,5 +1,5 @@
 /* AppShell layout */
-.app-shell-main { margin-top: 0; }
+.app-shell-main { margin-top: 0; display: flex; justify-content: center; }
 
 .app-shell-grid {
   display: grid;
@@ -10,9 +10,25 @@
   align-items: start;
 }
 
-.left-rail { position: relative; }
-.center-rail { min-width: 0; }
-.right-rail { position: relative; }
+.left-rail {
+  position: sticky;
+  top: 80px; /* below fixed navbar */
+  align-self: start;
+  justify-self: center;
+  width: 240px;
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
+.center-rail { min-width: 0; justify-self: center; width: 100%; max-width: 760px; }
+.right-rail {
+  position: sticky;
+  top: 80px; /* below fixed navbar */
+  align-self: start;
+  justify-self: center;
+  width: 340px;
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
 
 /* Hide right rail below xl (1280px) */
 @media (max-width: 1279px) {

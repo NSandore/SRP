@@ -462,15 +462,8 @@ function PostItem({
   const hasUpvoted = post.user_vote === 'up';
   const hasDownvoted = post.user_vote === 'down';
 
-  const upvoteIcon = hasUpvoted ? (
-    <FaArrowAltCircleUp />
-  ) : (
-    <FaRegArrowAltCircleUp />
-  );
-  const downvoteIcon = hasDownvoted ? (
-    <FaArrowAltCircleDown />
-  ) : (
-    <FaRegArrowAltCircleDown />
+  const upvoteIcon = (
+    <FaArrowAltCircleUp style={{ color: '#22C55E' }} />
   );
 
   // Determine if the reply box for this post is open
@@ -583,46 +576,45 @@ function PostItem({
               Verified Answer on {new Date(post.verified_at).toLocaleString()}
             </div>
           )}
+          {/* Reply header: avatar + meta */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
+            <div className="avatar-circle" aria-hidden>
+              {((post.first_name || '')[0] || 'U').toUpperCase()}
+            </div>
+            <div className="post-meta" style={{ margin: 0 }}>
+              <RouterLink to={`/user/${post.user_id}`} style={{ color: 'var(--text-color)', textDecoration: 'none', fontWeight: 600 }}>
+                {post.first_name ? post.first_name : 'User'} {post.last_name ? post.last_name.charAt(0) + '.' : ''}
+              </RouterLink>
+              {post.school_name && (
+                <>
+                  <span className="middot">·</span>
+                  <span className="meta-quiet">{post.school_name}</span>
+                </>
+              )}
+              <span className="middot">·</span>
+              <span className="meta-quiet">{new Date(post.created_at).toLocaleString()}</span>
+            </div>
+          </div>
           <div
             className="forum-description"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
           />
-          <small>
-            Posted by{' '}
-            <RouterLink to={`/user/${post.user_id}`}>
-              {post.first_name ? post.first_name : 'User'}{' '}
-              {post.last_name ? post.last_name.charAt(0) + '.' : ''}
-            </RouterLink>{' '}
-            on {new Date(post.created_at).toLocaleString()}
-          </small>
   
-          {/* Upvote/Downvote + Reply Icon row */}
+          {/* Upvote count + Reply */}
           <div className="vote-row">
-            {/* Upvote Button */}
             <button
               type="button"
               className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
               onClick={() => handleUpvoteClick(post.post_id)}
               title="Upvote"
               aria-label="Upvote"
+              style={{ color: '#22C55E' }}
             >
               {upvoteIcon}
             </button>
-            <span className="vote-count">{post.upvotes}</span>
-  
-            {/* Downvote Button */}
-            <button
-              type="button"
-              className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
-              onClick={() => handleDownvoteClick(post.post_id)}
-              title="Downvote"
-              aria-label="Downvote"
-            >
-              {downvoteIcon}
-            </button>
-            <span className="vote-count">{post.downvotes}</span>
-  
-            {/* Speech Bubble Reply Icon */}
+            <span className="vote-count" style={{ color: '#22C55E' }}>{post.upvotes}</span>
+
+            {/* Reply Button */}
             <button
               type="button"
               className="reply-button"
@@ -743,6 +735,7 @@ function ThreadView({ userData }) {
 
   const [threadData, setThreadData] = useState(null);
   const [postTree, setPostTree] = useState([]);
+  const [originalPost, setOriginalPost] = useState(null);
   const [isLoadingThread, setIsLoadingThread] = useState(true);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
 
@@ -751,6 +744,33 @@ function ThreadView({ userData }) {
 
   const [replySortCriteria, setReplySortCriteria] = useState('mostRecent');
   const [savedPosts, setSavedPosts] = useState([]);
+  // Helpers for header formatting
+  const timeAgo = (dateStr) => {
+    if (!dateStr) return '';
+    const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    const intervals = [
+      { label: 'year', secs: 31536000 },
+      { label: 'month', secs: 2592000 },
+      { label: 'week', secs: 604800 },
+      { label: 'day', secs: 86400 },
+      { label: 'hour', secs: 3600 },
+      { label: 'minute', secs: 60 },
+    ];
+    for (const it of intervals) {
+      const count = Math.floor(seconds / it.secs);
+      if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
+    }
+    return 'just now';
+  };
+
+  const tagStyle = (tag) => {
+    const t = String(tag || '').toLowerCase();
+    if (t.includes('hous')) return { background: '#ffedd5', color: '#9a3412', borderColor: '#fed7aa' }; // amber
+    if (t.includes('campus')) return { background: '#e0e7ff', color: '#3730a3', borderColor: '#c7d2fe' }; // indigo
+    if (t.includes('academ')) return { background: '#dbeafe', color: '#1d4ed8', borderColor: '#bfdbfe' }; // blue
+    if (t.includes('admiss')) return { background: '#dcfce7', color: '#166534', borderColor: '#bbf7d0' }; // green
+    return {};
+  };
 
   // Toggle save for posts
   const handleToggleSavePost = async (postId, alreadySaved) => {
@@ -847,7 +867,13 @@ function ThreadView({ userData }) {
         downvotes: Number(post.downvotes) || 0,
         verified: Number(post.verified) || 0,
       }));
-      let tree = buildReplyTree(numericData);
+      // Identify original post (first root by created_at)
+      const rootCandidates = numericData.filter((p) => !p.reply_to);
+      rootCandidates.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const op = rootCandidates[0] || null;
+      setOriginalPost(op || null);
+      const repliesSource = op ? numericData.filter((p) => Number(p.post_id) !== Number(op.post_id)) : numericData;
+      let tree = buildReplyTree(repliesSource);
       tree = sortReplyNodes(tree, replySortCriteria);
       setPostTree(tree);
     } catch (err) {
@@ -1069,32 +1095,82 @@ function ThreadView({ userData }) {
   // Final return block
   return (
     <div className="feed-container thread-view">
-      {/* Header Row */}
-      <div className="feed-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {/* Left side: arrow + thread title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <RouterLink to={`/info/forum/${threadData?.forum_id || ''}`} className="arrow-link">
-            ←
+      {/* Breadcrumbs */}
+      <nav className="breadcrumbs" aria-label="Breadcrumb">
+        <RouterLink to="/info">Info Board</RouterLink>
+        <span className="breadcrumb-sep">/</span>
+        {threadData?.forum_id ? (
+          <RouterLink to={`/info/forum/${threadData.forum_id}`}>
+            {threadData?.forum_name || 'Category'}
           </RouterLink>
-          <h2 className="thread-title">
-            {threadData?.title || `Thread ${thread_id}`}
-          </h2>
+        ) : (
+          <span>{threadData?.forum_name || 'Category'}</span>
+        )}
+        <span className="breadcrumb-sep">/</span>
+        {/*<span className="breadcrumb-current" aria-current="page">
+          {threadData?.title || `Thread ${thread_id}`}
+        </span>*/}
+      </nav>
+      {/* Title */}
+      <h1 className="h1" style={{ margin: 0 }}>
+        {threadData?.title || `Thread ${thread_id}`}
+      </h1>
+
+      {/* Author row + sort pill moved into original post card */}
+
+      {/* Tags under title */}
+      {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
+        <div className="chips-row" style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
+          {threadData.tags.map((tag, idx) => (
+            <span key={idx} className="chip" style={{ ...tagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}>
+              {tag}
+            </span>
+          ))}
         </div>
-      </div>
-  
-      {/* Reply Sort Options */}
-      <div className="reply-sort-options">
-        <label htmlFor="replySort">Sort Replies:</label>
-        <select
-          id="replySort"
-          value={replySortCriteria}
-          onChange={(e) => setReplySortCriteria(e.target.value)}
-        >
-          <option value="mostRecent">Most Recent</option>
-          <option value="mostUpvoted">Most Upvoted</option>
-          <option value="mostPopular">Most Popular</option>
-        </select>
-      </div>
+      )}
+
+      {/* Original Post at top */}
+      {originalPost && (
+        <div className="post-card original-post" style={{ border: '1px solid var(--card-border)' }}>
+          {/* Use the thread-top-row pattern inside the card */}
+          <div className="thread-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div className="avatar-circle" aria-hidden>
+                {((originalPost.first_name || '')[0] || 'U').toUpperCase()}
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <RouterLink to={`/user/${originalPost.user_id}`} style={{ textDecoration: 'none', color: 'var(--text-color)', fontWeight: 700 }}>
+                    {originalPost.first_name ? originalPost.first_name : 'User'} {originalPost.last_name ? originalPost.last_name : ''}
+                  </RouterLink>
+                  {originalPost.user_role && <span className="meta-quiet">· {originalPost.user_role}</span>}
+                </div>
+                <div className="meta-quiet">{timeAgo(originalPost.created_at)}</div>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="replySort" className="sr-only">Sort Replies</label>
+              <select
+                id="replySort"
+                value={replySortCriteria}
+                onChange={(e) => setReplySortCriteria(e.target.value)}
+                className="sort-select"
+                style={{ padding: '6px 12px' }}
+              >
+                <option value="mostRecent">Sort by Newest</option>
+                <option value="mostUpvoted">Most Upvoted</option>
+                <option value="mostPopular">Most Popular</option>
+              </select>
+            </div>
+          </div>
+
+          <div
+            className="post-content"
+            style={{ marginTop: '8px' }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
+          />
+        </div>
+      )}
   
       {/* Post Tree */}
       {postTree.length === 0 ? (
