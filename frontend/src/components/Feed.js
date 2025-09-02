@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fa';
 
 import ForumCard from './ForumCard'; // Adjust path if ForumCard is located elsewhere
+import ThreadCard from './ThreadCard';
 import CommunityRequestModal from './CommunityRequestModal';
 
 function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
@@ -632,73 +633,13 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
               <p>No threads in your feed.</p>
             ) : (
               feedThreads.map((thread) => (
-                <div
+                <ThreadCard
                   key={thread.thread_id}
-                  className="feed-thread-card"
-                  style={{
-                    marginBottom: "1rem",
-                    padding: "1rem",
-                    border: "1px solid",
-                    //borderColor: "blue",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <div className="thread-header">
-                    <Link
-                      to={`/info/forum/${thread.forum_id}/thread/${thread.thread_id}`}
-                      className="thread-link"
-                    >
-                      <small className="thread-community">
-                        <Link
-                          to={`/${thread.community_type}/${thread.community_id}`}
-                          style={{ textDecoration: "none", color: "inherit" }}
-                        >
-                          {thread.community_name}
-                        </Link>
-                      </small>
-                      <h3 className="thread-title">{thread.title}</h3>
-                      <small>
-                        Posted by{" "}
-                        <Link
-                          to={`/user/${thread.user_id}`}
-                          style={{ textDecoration: "none" }}
-                        >
-                          {thread.first_name}{" "}
-                          {thread.last_name ? thread.last_name.charAt(0) + "." : ""}
-                        </Link>{" "}
-                        on {new Date(thread.created_at).toLocaleString()}
-                      </small>
-                    </Link>
-                  </div>
-                  <div className="vote-row">
-                    <button
-                      type="button"
-                      className="vote-button upvote-button"
-                      title="Upvote"
-                      onClick={() => handleThreadUpvoteClick(thread.thread_id)}
-                    >
-                      {thread.user_vote === "up" ? (
-                        <FaArrowAltCircleUp style={{ color: "green" }} />
-                      ) : (
-                        <FaRegArrowAltCircleUp style={{ color: "gray" }} />
-                      )}
-                    </button>
-                    <span className="vote-count">{thread.upvotes}</span>
-                    <button
-                      type="button"
-                      className="vote-button downvote-button"
-                      title="Downvote"
-                      onClick={() => handleThreadDownvoteClick(thread.thread_id)}
-                    >
-                      {thread.user_vote === "down" ? (
-                        <FaArrowAltCircleDown style={{ color: "red" }} />
-                      ) : (
-                        <FaRegArrowAltCircleDown style={{ color: "gray" }} />
-                      )}
-                    </button>
-                    <span className="vote-count">{thread.downvotes}</span>
-                  </div>
-                </div>
+                  thread={thread}
+                  userData={userData}
+                  onUpvote={handleThreadUpvoteClick}
+                  onDownvote={handleThreadDownvoteClick}
+                />
               ))
             )
           ) : (

@@ -5,10 +5,10 @@
   --secondary-color: #005f8d;
   --text-color: #333333;
   --subtext-color: #777777;
-  --background-color: #ffffff;
+  --background-color: var(--bg-page);
   --light-background: #f7f7f7;
   --border-color: #dddddd;
-  --card-background: #ffffff;
+  --card-background: var(--bg-card);
   --card-border: #dddddd;
   --input-background: #ffffff;
   --input-border: #cccccc;
@@ -187,7 +187,7 @@ input::placeholder, textarea::placeholder {
 }
 
 .app-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: var(--font-family);
   background-color: var(--background-color);
   color: var(--text-color);
   height: 92vh;
@@ -482,7 +482,6 @@ input::placeholder, textarea::placeholder {
   background-color: var(--card-background);
   border-color: var(--card-border);
   border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow);
   font-family: var(--font-family);
   margin-bottom: 2rem;
   color: var(--text-color);
@@ -547,7 +546,7 @@ input::placeholder, textarea::placeholder {
 .right-rail-stack {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .widget-card {
@@ -559,17 +558,18 @@ input::placeholder, textarea::placeholder {
 }
 
 .widget-header {
-  padding: 8px 12px;
+  padding: var(--space-3) var(--space-4);
   color: #fff;
 }
 
 .widget-title {
-  margin: 0;
-  font-size: 0.95rem;
+  margin: 0 0 var(--space-4);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-600);
 }
 
 .widget-body {
-  padding: 12px;
+  padding: var(--space-4);
 }
 
 .widget-list {
@@ -578,7 +578,7 @@ input::placeholder, textarea::placeholder {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .widget-list-item {
@@ -593,11 +593,13 @@ input::placeholder, textarea::placeholder {
 }
 
 .widget-item-title {
-  font-weight: 600;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-400);
 }
 
 .widget-item-meta {
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-500);
   color: var(--muted-text);
 }
 
@@ -610,23 +612,73 @@ input::placeholder, textarea::placeholder {
   font-size: 0.85rem;
 }
 
+/* Floating Action Button */
+.fab-container {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: 1100;
+}
+
+.fab-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  border: none;
+  background: var(--primary-color);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
+}
+.fab-button:hover { transform: translateY(-2px); }
+.fab-button:active { transform: translateY(0); }
+
+/* Composer */
+.compose-type-group {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.compose-type-btn {
+  border: 1px solid var(--card-border);
+  background: var(--card-background);
+  color: var(--text-color);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.compose-type-btn.active {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
+}
+
 /* Poll */
 .widget-poll-question {
-  font-weight: 600;
-  margin-bottom: 8px;
+  font-weight: var(--fw-400);
+  font-size: var(--fs-base);
+  margin-bottom: var(--space-2);
 }
 
 .widget-poll-options {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .poll-option-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .poll-option-button {
@@ -1129,8 +1181,6 @@ select:focus {
 /* Right Sidebar */
 .right-sidebar {
   height: 45vh;
-  background-color: var(--card-background);
-  border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 1rem;
   margin: 0;
@@ -1252,10 +1302,9 @@ select:focus {
   padding-left: 1.5rem;
   padding-right: 1.5rem;
   padding-bottom: 1.5rem;
-  background-color: var(--card-background);
+  background-color: #f8fafc;
   border-color: var(--card-border);
   border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow);
   font-family: var(--font-family);
   margin-bottom: 2rem;
   color: var(--text-color);
@@ -1265,16 +1314,16 @@ select:focus {
 .forum-card {
   background-color: var(--forum-card-bg, var(--card-background)) !important;
   border: 1px solid var(--card-border);
-  border-radius: 8px;
+  border-radius: var(--radius-card); /* rounded-2xl */
   padding: 1rem;
   margin-bottom: 1rem;
-  box-shadow: 0 2px 4px var(--shadow-color);
-  transition: box-shadow 0.3s ease, background-color 0.3s ease;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); /* soft shadow */
+  transition: box-shadow 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
   color: var(--text-color);
 }
 
 .forum-card:hover {
-  box-shadow: 0 4px 14px var(--shadow-color);
+  transform: translateY(-2px); /* hover raise by 2px */
   background-color: var(--hover-color) !important;
 }
 
@@ -1282,16 +1331,88 @@ select:focus {
   background-color: #3d3d3d !important;
 }
 
+/* Thread card (shared styling with forum card) */
+.thread-card {
+  background-color: var(--forum-card-bg, var(--card-background));
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card); /* rounded-2xl */
+  padding: 1rem;
+  margin-bottom: 1rem;
+  color: var(--text-color);
+}
+
+.card-lift {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+.card-lift:hover { transform: translateY(-2px); }
+
+/* Common header row */
+.card-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Replaces old pill with an icon circle */
+.type-icon-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+}
+
+/* Meta row */
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--muted-text);
+}
+.middot { color: var(--muted-text); }
+.meta-author, .meta-community, .meta-time { color: var(--muted-text); }
+.meta-quiet { color: var(--muted-text); font-size: 0.9rem; }
+
+.avatar-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.kebab-button {
+  background: transparent;
+  border: none;
+  color: var(--muted-text);
+}
+
+.actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 /* Forum Title and Description */
 .forum-title {
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-600);
   color: var(--text-color);
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--space-4);
 }
 
 .forum-description {
-  font-size: 1rem;
+  font-size: var(--fs-base);
   color: var(--text-color);
   line-height: 1.4;
   margin-bottom: 0.5rem;
@@ -1300,7 +1421,8 @@ select:focus {
 /* Forum Small Text */
 .forum-card small {
   display: block;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-500);
   color: var(--muted-text);
   margin-top: 0.5rem;
 }
