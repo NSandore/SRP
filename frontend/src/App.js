@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  BrowserRouter as Router,
   Route,
   Routes,
   Link,
   useNavigate,
+  useLocation,
   Navigate
 } from 'react-router-dom';
 import axios from 'axios';
@@ -46,21 +46,21 @@ import GroupProfile from './components/GroupProfile';
 import Messages from './components/Messages'; // New Messages component
 import useOnClickOutside from './hooks/useOnClickOutside';  // Hook to close popups when clicking outside
 import RightSidebar from './components/RightSidebar';
-import LeftSidebar from './components/LeftSidebar';
 import AppShell from './layout/AppShell';
 import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
 import ContactUsButton from './components/ContactUsButton';
 import SearchResults from './components/SearchResults';
 import CommunityRequests from './components/CommunityRequests';
+import AuthOverlay from './components/AuthOverlay';
 
+const PROTECTED_ROUTES = ['/profile', '/saved', '/connections'];
 
 function App() {
-  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [selectedSchools, setSelectedSchools] = useState([]);
-  const [activeFeed, setActiveFeed] = useState('yourFeed');
+  const [activeFeed, setActiveFeed] = useState('explore');
   const [activeSection, setActiveSection] = useState('home');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [accountMenuVisible, setAccountMenuVisible] = useState(false);
@@ -68,9 +68,10 @@ function App() {
   const [ambassadors, setAmbassadors] = useState([]);
   const [loadingAmbassadors, setLoadingAmbassadors] = useState(false);
   const [errorAmbassadors, setErrorAmbassadors] = useState(null);
-
-
+  const [requireAuthOverlay, setRequireAuthOverlay] = useState(false);
   const [followingAmbassadors, setFollowingAmbassadors] = useState([]);
+  const [lastAccessiblePath, setLastAccessiblePath] = useState('/home');
+  const [pendingProtectedReturnPath, setPendingProtectedReturnPath] = useState(null);
 
   const [notifications, setNotifications] = useState([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -80,6 +81,11 @@ function App() {
 
   const notificationRef = useRef(null); // Ref to handle click outside notifications
   useOnClickOutside(notificationRef, () => setIsNotificationsOpen(false));
+  const navigate = useNavigate();
+  const location = useLocation();
+  const authRoutes = ['/login', '/signup'];
+  const isAuthPage = authRoutes.includes(location.pathname);
+  const previousPathRef = useRef(location.pathname);
 
   useEffect(() => {
     const checkUserSession = async () => {
@@ -107,6 +113,21 @@ function App() {
 
     checkUserSession();
   }, []); // ✅ useEffect is always called in the same order
+
+  useEffect(() => {
+    const prevPath = previousPathRef.current;
+    const isProtectedRoute = PROTECTED_ROUTES.some((route) => location.pathname.startsWith(route));
+
+    if (!isProtectedRoute) {
+      setLastAccessiblePath(location.pathname);
+      setPendingProtectedReturnPath(null);
+    } else if (!userData) {
+      const fallback = prevPath === location.pathname ? lastAccessiblePath : prevPath;
+      setPendingProtectedReturnPath(fallback || '/home');
+    }
+
+    previousPathRef.current = location.pathname;
+  }, [location.pathname, userData, lastAccessiblePath]);
 
   // Inside your App component
   useEffect(() => {
@@ -174,12 +195,12 @@ function App() {
   // Onboarding steps
   const handleNext = (formData) => {
     setUserData(formData);
-    setStep(3);
+    navigate('/interest-selection');
   };
 
   const handleInterestComplete = (schools) => {
     setSelectedSchools(schools);
-    setStep(0);
+    navigate('/home');
   };
 
   // Login
@@ -189,7 +210,7 @@ function App() {
     setUserData(user);
     fetchNotifications(user.user_id);
     fetchConversations(user.user_id);
-    setStep(0);
+    navigate('/home');
   };
 
   // Logout
@@ -198,10 +219,20 @@ function App() {
       await axios.post('http://172.16.11.133/api/logout.php', {}, { withCredentials: true });
       setUserData(null);
       setAccountMenuVisible(false);
+      navigate('/login');
     } catch (err) {
       console.error('Error logging out:', err);
     }
   };
+  const openSignUpPage = () => navigate('/signup');
+  const openLoginPage = () => navigate('/login');
+  const continueAsGuest = () => {
+    const target = pendingProtectedReturnPath || lastAccessiblePath || '/home';
+    setPendingProtectedReturnPath(null);
+    navigate(target);
+  };
+  const closeProtectedOverlay = () => continueAsGuest();
+  const dismissAuthPrompt = () => setRequireAuthOverlay(false);
 
   const fetchAmbassadors = async () => {
     if (!userData) return;
@@ -248,7 +279,7 @@ function App() {
   
   const handleFollowAmbassador = async (ambassadorId) => {
     if (!userData) {
-      alert("You must be logged in to follow an ambassador.");
+      setRequireAuthOverlay(true);
       return;
     }
   
@@ -278,292 +309,282 @@ function App() {
     }
   };  
   
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  const navBarProps = {
+    activeFeed,
+    setActiveFeed,
+    activeSection,
+    setActiveSection,
+    userData,
+    accountMenuVisible,
+    setAccountMenuVisible,
+    handleLogout,
+    toggleNotifications,
+    notifications,
+    isNotificationsOpen,
+    notificationRef,
+    markAllAsRead,
+    unreadMessages,
+    onOpenLogin: openLoginPage,
+  };
+
+  const shouldShowOverlays = !isAuthPage;
+
   return (
-    <div>
-      {loading ? (
-        <div>Loading...</div> // ✅ No early return, so all hooks are always called
-      ) : (
-        <Router>
-          <div className="app-container">
-            {/* Welcome Overlay */}
-            {showWelcome && (
-              <div className="welcome-overlay">
-                <div className="welcome-message">
-                  <h1>Welcome to StudentSphere!</h1>
-                  <p>Start your journey by following ambassadors who can guide you.</p>
-                  <button
-                    className="get-started-button"
-                    onClick={() => {
-                      setShowWelcome(false); // Close welcome overlay
-                      setShowAmbassadorOverlay(true); // Show ambassador overlay
-                      fetchAmbassadors();
-                    }}
-                  >
-                    Get Started
-                  </button>
-                  <button onClick={() => setShowWelcome(false)}>Close</button>
-                </div>
-              </div>
-            )}
-  
-            {/* Ambassador Overlay */}
-            {showAmbassadorOverlay && (
-              <div className="overlay">
-                <div className="overlay-content">
-                  <h2>Ambassador List</h2>
-                  {loadingAmbassadors ? (
-                    <p>Loading ambassadors...</p>
-                  ) : errorAmbassadors ? (
-                    <p>{errorAmbassadors}</p>
-                  ) : (
-                    <ul className="ambassador-list">
-                      {ambassadors.map((amb) => {
-                        const isFollowing = followingAmbassadors.includes(amb.user_id);
-                        return (
-                          <li key={amb.id} className="ambassador-item">
-                            <img
-                              src={amb.avatar_path || "/uploads/avatars/default-avatar.png"}
-                              alt={`${amb.first_name} ${amb.last_name}`}
-                              className="ambassador-avatar"
-                            />
-                            <div className="ambassador-info">
-                              <p className="ambassador-name">
-                                <Link to={`/user/${amb.user_id}`}>
-                                  {amb.first_name} {amb.last_name}
-                                </Link>
-                              </p>
-                              <p className="ambassador-headline">{amb.headline}</p>
-                            </div>
-  
-                            {/* Dynamic Follow/Unfollow Button */}
-                            <button
-                              className={`follow-button ${isFollowing ? "unfollow" : "follow"}`}
-                              onClick={() => handleFollowAmbassador(amb.user_id)}
-                            >
-                              {isFollowing ? "Unfollow" : "Follow"}
-                            </button>
-  
-                            <button className="message-button" onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}>
-                              Message
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  <button onClick={() => setShowAmbassadorOverlay(false)}>Close</button>
-                </div>
-              </div>
-            )}
-  
-            {step === 1 && <SignUp onNext={handleNext} />}
-            {step === 2 && <Login onLogin={handleLogin} onGoToSignUp={() => setStep(1)} />}
-            {step === 3 && <InterestSelection onComplete={handleInterestComplete} />}
-  
-            {step === 0 && (
-              <>
-                <Routes>
-                  {/* Profile and User Profile Views (2-column layout) */}
-                  <Route
-                    path="/profile"
-                    element={
-                      <AppShell
-                        navBarProps={{
-                          activeFeed,
-                          setStep,
-                          setActiveFeed,
-                          activeSection,
-                          setActiveSection,
-                          userData,
-                          accountMenuVisible,
-                          setAccountMenuVisible,
-                          handleLogout,
-                          toggleNotifications,
-                          notifications,
-                          isNotificationsOpen,
-                          notificationRef,
-                          markAllAsRead,
-                          unreadMessages,
-                        }}
-                      >
-                        {userData ? <SelfProfileView userData={userData} /> : <Navigate to="/login" />}
-                      </AppShell>
-                    }
-                  />
-                  
-                  <Route
-                    path="/user/:user_id"
-                    element={
-                      <AppShell
-                        navBarProps={{
-                          activeFeed,
-                          setStep,
-                          setActiveFeed,
-                          activeSection,
-                          setActiveSection,
-                          userData,
-                          accountMenuVisible,
-                          setAccountMenuVisible,
-                          handleLogout,
-                          toggleNotifications,
-                          notifications,
-                          isNotificationsOpen,
-                          notificationRef,
-                          markAllAsRead,
-                          unreadMessages,
-                        }}
-                      >
-                        <UserProfileView userData={userData} />
-                      </AppShell>
-                    }
-                  />
-
-                  {/* Default layout for all other routes */}
-                  <Route
-                    path="*"
-                    element={
-                      <AppShell
-                        navBarProps={{
-                          activeFeed,
-                          setStep,
-                          setActiveFeed,
-                          activeSection,
-                          setActiveSection,
-                          userData,
-                          accountMenuVisible,
-                          setAccountMenuVisible,
-                          handleLogout,
-                          toggleNotifications,
-                          notifications,
-                          isNotificationsOpen,
-                          notificationRef,
-                          markAllAsRead,
-                          unreadMessages,
-                        }}
-                      >
-                        <Routes>
-                          {/* Home */}
-                          <Route
-                            path="/home"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="home"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Info */}
-                          <Route
-                            path="/info"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="info"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Saved */}
-                          <Route
-                            path="/saved"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="saved"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Connections (requires login) */}
-                          <Route
-                            path="/connections"
-                            element={
-                              userData ? <UserConnections userData={userData} /> : <Navigate to="/login" />
-                            }
-                          />
-
-                          {/* Funding */}
-                          <Route
-                            path="/funding"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="funding"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Communities */}
-                          <Route
-                            path="/communities"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="communities"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Community Creation Requests */}
-                          <Route
-                            path="/community-requests"
-                            element={
-                              userData && userData.email === 'n.sandore5140@gmail.com' ? (
-                                <CommunityRequests />
-                              ) : (
-                                <Navigate to="/communities" />
-                              )
-                            }
-                          />
-
-                          {/* Forum & Thread Views */}
-                          <Route
-                            path="/info/forum/:forum_id"
-                            element={<ForumView userData={userData} />}
-                          />
-                          <Route
-                            path="/info/forum/:forum_id/thread/:thread_id"
-                            element={<ThreadView userData={userData} />}
-                          />
-
-                          {/* University & Group Profiles */}
-                          <Route
-                            path="/university/:id"
-                            element={<UniversityProfile userData={userData} />}
-                          />
-                          <Route
-                            path="/group/:id"
-                            element={<GroupProfile userData={userData} />}
-                          />
-
-                          {/* Messages */}
-                          <Route
-                            path="/messages"
-                            element={<Messages userData={userData} />}
-                          />
-                          <Route path="/search" element={<SearchResults />} />
-                        </Routes>
-                      </AppShell>
-                    }
-                  />
-                </Routes>
-              </>
-            )}
+    <div className={`app-container ${isAuthPage ? 'auth-page' : ''}`}>
+      {shouldShowOverlays && showWelcome && (
+        <div className="welcome-overlay">
+          <div className="welcome-message">
+            <h1>Welcome to StudentSphere!</h1>
+            <p>Start your journey by following ambassadors who can guide you.</p>
+            <button
+              className="get-started-button"
+              onClick={() => {
+                setShowWelcome(false);
+                setShowAmbassadorOverlay(true);
+                fetchAmbassadors();
+              }}
+            >
+              Get Started
+            </button>
+            <button onClick={() => setShowWelcome(false)}>Close</button>
           </div>
-        </Router>
+        </div>
+      )}
+
+      {shouldShowOverlays && showAmbassadorOverlay && (
+        <div className="overlay">
+          <div className="overlay-content">
+            <h2>Ambassador List</h2>
+            {loadingAmbassadors ? (
+              <p>Loading ambassadors...</p>
+            ) : errorAmbassadors ? (
+              <p>{errorAmbassadors}</p>
+            ) : (
+              <ul className="ambassador-list">
+                {ambassadors.map((amb) => {
+                  const isFollowing = followingAmbassadors.includes(amb.user_id);
+                  return (
+                    <li key={amb.id} className="ambassador-item">
+                      <img
+                        src={amb.avatar_path || "/uploads/avatars/default-avatar.png"}
+                        alt={`${amb.first_name} ${amb.last_name}`}
+                        className="ambassador-avatar"
+                      />
+                      <div className="ambassador-info">
+                        <p className="ambassador-name">
+                          <Link to={`/user/${amb.user_id}`}>
+                            {amb.first_name} {amb.last_name}
+                          </Link>
+                        </p>
+                        <p className="ambassador-headline">{amb.headline}</p>
+                      </div>
+
+                      <button
+                        className={`follow-button ${isFollowing ? 'unfollow' : 'follow'}`}
+                        onClick={() => handleFollowAmbassador(amb.user_id)}
+                      >
+                        {isFollowing ? 'Unfollow' : 'Follow'}
+                      </button>
+
+                      <button className="message-button" onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}>
+                        Message
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <button onClick={() => setShowAmbassadorOverlay(false)}>Close</button>
+          </div>
+        </div>
+      )}
+
+      <Routes>
+        <Route
+          path="/signup"
+          element={<SignUp onNext={handleNext} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} />}
+        />
+        <Route
+          path="/login"
+          element={<Login onLogin={handleLogin} onGoToSignUp={openSignUpPage} onContinueAsGuest={continueAsGuest} />}
+        />
+        <Route
+          path="/interest-selection"
+          element={<InterestSelection onComplete={handleInterestComplete} />}
+        />
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route
+          path="/profile"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              {userData ? (
+                <SelfProfileView userData={userData} />
+              ) : (
+                <AuthOverlay
+                  isOpen
+                  onClose={closeProtectedOverlay}
+                  onLogin={handleLogin}
+                  onGoToSignUp={openSignUpPage}
+                  onContinueAsGuest={continueAsGuest}
+                />
+              )}
+            </AppShell>
+          }
+        />
+        <Route
+          path="/user/:user_id"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <UserProfileView userData={userData} />
+            </AppShell>
+          }
+        />
+        <Route
+          path="*"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <Routes>
+                <Route
+                  path="/home"
+                  element={
+                    <Feed
+                      activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
+                      activeSection="home"
+                      userData={userData}
+                      onRequireAuth={() => setRequireAuthOverlay(true)}
+                    />
+                  }
+                />
+                <Route
+                  path="/info"
+                  element={
+                    <Feed
+                      activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
+                      activeSection="info"
+                      userData={userData}
+                      onRequireAuth={() => setRequireAuthOverlay(true)}
+                    />
+                  }
+                />
+                <Route
+                  path="/saved"
+                  element={
+                    userData ? (
+                      <Feed
+                        activeFeed={activeFeed}
+                        setActiveFeed={setActiveFeed}
+                        activeSection="saved"
+                        userData={userData}
+                      />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/connections"
+                  element={
+                    userData ? (
+                      <UserConnections userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/funding"
+                  element={
+                    <Feed
+                      activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
+                      activeSection="funding"
+                      userData={userData}
+                    />
+                  }
+                />
+                <Route
+                  path="/communities"
+                  element={
+                    <Feed
+                      activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
+                      activeSection="communities"
+                      userData={userData}
+                      onRequireAuth={() => setRequireAuthOverlay(true)}
+                    />
+                  }
+                />
+                <Route
+                  path="/community-requests"
+                  element={
+                    userData && userData.email === 'n.sandore5140@gmail.com' ? (
+                      <CommunityRequests />
+                    ) : (
+                      <Navigate to="/communities" />
+                    )
+                  }
+                />
+                <Route
+                  path="/info/forum/:forum_id"
+                  element={<ForumView userData={userData} onRequireAuth={() => setRequireAuthOverlay(true)} />}
+                />
+                <Route
+                  path="/info/forum/:forum_id/thread/:thread_id"
+                  element={<ThreadView userData={userData} onRequireAuth={() => setRequireAuthOverlay(true)} />}
+                />
+                <Route
+                  path="/university/:id"
+                  element={<UniversityProfile userData={userData} onRequireAuth={() => setRequireAuthOverlay(true)} />}
+                />
+                <Route
+                  path="/group/:id"
+                  element={<GroupProfile userData={userData} onRequireAuth={() => setRequireAuthOverlay(true)} />}
+                />
+                <Route
+                  path="/messages"
+                  element={<Messages userData={userData} />}
+                />
+                <Route path="/search" element={<SearchResults />} />
+              </Routes>
+            </AppShell>
+          }
+        />
+      </Routes>
+      {requireAuthOverlay && (
+        <AuthOverlay
+          isOpen
+          onClose={dismissAuthPrompt}
+          onLogin={(user) => {
+            setRequireAuthOverlay(false);
+            handleLogin(user);
+          }}
+          onGoToSignUp={() => {
+            setRequireAuthOverlay(false);
+            openSignUpPage();
+          }}
+          onContinueAsGuest={dismissAuthPrompt}
+        />
       )}
     </div>
-  );  
+  );
 }
+
 export default App;

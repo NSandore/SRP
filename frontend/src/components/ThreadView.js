@@ -1,6 +1,6 @@
 // src/components/ThreadView.js
 import './ThreadView.css';
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import useOnClickOutside from '../hooks/useOnClickOutside'; // <--- import the hook
 import axios from 'axios';
@@ -364,6 +364,7 @@ function PostItem({
   savedPosts,
   handleToggleSavePost,
   handleVerifyPost, // NEW prop for verifying posts
+  onRequireAuth,
 }) {
   const [localReply, setLocalReply] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -462,14 +463,23 @@ function PostItem({
   const hasUpvoted = post.user_vote === 'up';
   const hasDownvoted = post.user_vote === 'down';
 
-  const upvoteIcon = (
-    <FaArrowAltCircleUp style={{ color: '#22C55E' }} />
-  );
+  const getDescendantCount = (nodes = []) =>
+    nodes.reduce(
+      (sum, node) => sum + 1 + (node.children && node.children.length > 0 ? getDescendantCount(node.children) : 0),
+      0
+    );
+  const childReplyCount = getDescendantCount(post.children || []);
 
   // Determine if the reply box for this post is open
   const isReplyBoxOpen = expandedReplyBox === post.post_id;
 
   const handleToggleReplyBox = () => {
+    if (!userData) {
+      if (onRequireAuth) {
+        onRequireAuth();
+      }
+      return;
+    }
     if (isReplyBoxOpen) {
       setExpandedReplyBox(null);
     } else {
@@ -487,7 +497,7 @@ function PostItem({
   }`;
   
   return (
-    <div className={`post-card level-${level} ${post.verified === 1 ? 'verified' : ''}`}>
+    <div className={`post-card card-lift level-${level} ${post.verified === 1 ? 'verified' : ''}`}>
       {isEditing ? (
         <form onSubmit={confirmEdit} className="edit-form" style={{ marginBottom: '1rem' }}>
           {/* Show the same toolbar from TextEditor.js */}
@@ -533,7 +543,7 @@ function PostItem({
                 width: '120px',
               }}
             >
-              {userData && (
+              {handleToggleSavePost && (
                 <button
                   className="dropdown-item"
                   style={{
@@ -608,11 +618,20 @@ function PostItem({
               onClick={() => handleUpvoteClick(post.post_id)}
               title="Upvote"
               aria-label="Upvote"
-              style={{ color: '#22C55E' }}
             >
-              {upvoteIcon}
+              {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
             </button>
-            <span className="vote-count" style={{ color: '#22C55E' }}>{post.upvotes}</span>
+            <span className="vote-count">{post.upvotes}</span>
+            <button
+              type="button"
+              className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
+              onClick={() => handleDownvoteClick(post.post_id)}
+              title="Downvote"
+              aria-label="Downvote"
+            >
+              {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+            </button>
+            <span className="vote-count">{post.downvotes}</span>
 
             {/* Reply Button */}
             <button
@@ -624,6 +643,7 @@ function PostItem({
             >
               <FiMessageCircle />
             </button>
+            <span className="vote-count comment-count">{childReplyCount}</span>
   
             {/* Collapse/Expand Replies Button */}
             {post.children && post.children.length > 0 && (
@@ -719,6 +739,7 @@ function PostItem({
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost} // pass the verify function down
+              onRequireAuth={onRequireAuth}
             />
           ))}
         </div>
@@ -730,7 +751,7 @@ function PostItem({
 /* --------------------------------------------------------------------------
    Main ThreadView Component
 -------------------------------------------------------------------------- */
-function ThreadView({ userData }) {
+function ThreadView({ userData, onRequireAuth }) {
   const { thread_id } = useParams();
 
   const [threadData, setThreadData] = useState(null);
@@ -741,9 +762,17 @@ function ThreadView({ userData }) {
 
   const [notification, setNotification] = useState(null);
   const [expandedReplyBox, setExpandedReplyBox] = useState(null);
+  const [rootReplyOpen, setRootReplyOpen] = useState(false);
+  const [rootReplyContent, setRootReplyContent] = useState('');
 
   const [replySortCriteria, setReplySortCriteria] = useState('mostRecent');
   const [savedPosts, setSavedPosts] = useState([]);
+  const countReplies = (nodes = []) =>
+    nodes.reduce(
+      (sum, node) => sum + 1 + (node.children && node.children.length > 0 ? countReplies(node.children) : 0),
+      0
+    );
+  const totalComments = useMemo(() => countReplies(postTree), [postTree]);
   // Helpers for header formatting
   const timeAgo = (dateStr) => {
     if (!dateStr) return '';
@@ -772,10 +801,16 @@ function ThreadView({ userData }) {
     return {};
   };
 
+  const promptAuthOverlay = () => {
+    if (onRequireAuth) {
+      onRequireAuth();
+    }
+  };
+
   // Toggle save for posts
   const handleToggleSavePost = async (postId, alreadySaved) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to save posts.' });
+      promptAuthOverlay();
       return;
     }
     const url = alreadySaved ? '/api/unsave_post.php' : '/api/save_post.php';
@@ -892,6 +927,11 @@ function ThreadView({ userData }) {
     }
   }, [thread_id, userData]);
 
+  useEffect(() => {
+    setRootReplyOpen(false);
+    setRootReplyContent('');
+  }, [originalPost?.post_id]);
+
   // Re-sort the reply tree when sort criteria changes.
   useEffect(() => {
     setPostTree((prevTree) => sortReplyNodes([...prevTree], replySortCriteria));
@@ -900,7 +940,7 @@ function ThreadView({ userData }) {
 
   const handleReplySubmit = async (reply_to_post_id, content) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to reply.' });
+      promptAuthOverlay();
       return;
     }
   
@@ -932,10 +972,37 @@ function ThreadView({ userData }) {
     }
   };  
 
+  const handleOpenRootReply = () => {
+    if (!originalPost) return;
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
+    setRootReplyOpen(true);
+  };
+
+  const handleRootReplySubmit = async (e) => {
+    e.preventDefault();
+    if (!originalPost) return;
+    await handleReplySubmit(originalPost.post_id, rootReplyContent);
+    setRootReplyContent('');
+    setRootReplyOpen(false);
+  };
+
+  const handleCancelRootReply = () => {
+    setRootReplyContent('');
+    setRootReplyOpen(false);
+  };
+
+  const originalHasUpvoted = originalPost?.user_vote === 'up';
+  const originalHasDownvoted = originalPost?.user_vote === 'down';
+  const originalUpvotes = Number(originalPost?.upvotes) || 0;
+  const originalDownvotes = Number(originalPost?.downvotes) || 0;
+
   // handleDeletePost
   const handleDeletePost = async (post_id) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to delete a post.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -951,7 +1018,7 @@ function ThreadView({ userData }) {
   // handleEditPost for root post editing
   const handleEditPost = async (post_id, newContent) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to edit a post.' });
+      promptAuthOverlay();
       return false;
     }
     try {
@@ -983,7 +1050,7 @@ function ThreadView({ userData }) {
   // Upvote
   const handleUpvoteClick = async (post_id) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to upvote.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -992,6 +1059,28 @@ function ThreadView({ userData }) {
         user_id: userData.user_id,
         vote_type: 'up',
       });
+      const isRoot = originalPost && Number(originalPost.post_id) === Number(post_id);
+      if (isRoot) {
+        setOriginalPost((prev) => {
+          if (!prev) return prev;
+          let newUpvotes = prev.upvotes;
+          let newDownvotes = prev.downvotes;
+          let newUserVote = prev.user_vote;
+          if (prev.user_vote === 'up') {
+            newUpvotes -= 1;
+            newUserVote = null;
+          } else if (prev.user_vote === 'down') {
+            newDownvotes -= 1;
+            newUpvotes += 1;
+            newUserVote = 'up';
+          } else {
+            newUpvotes += 1;
+            newUserVote = 'up';
+          }
+          return { ...prev, upvotes: newUpvotes, downvotes: newDownvotes, user_vote: newUserVote };
+        });
+        return;
+      }
       // Update the post vote counts without refreshing
       setPostTree((prevPostTree) => {
         const updateVotes = (posts) =>
@@ -1037,7 +1126,7 @@ function ThreadView({ userData }) {
   // Downvote
   const handleDownvoteClick = async (post_id) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to downvote.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -1046,6 +1135,28 @@ function ThreadView({ userData }) {
         user_id: userData.user_id,
         vote_type: 'down',
       });
+      const isRoot = originalPost && Number(originalPost.post_id) === Number(post_id);
+      if (isRoot) {
+        setOriginalPost((prev) => {
+          if (!prev) return prev;
+          let newUpvotes = prev.upvotes;
+          let newDownvotes = prev.downvotes;
+          let newUserVote = prev.user_vote;
+          if (prev.user_vote === 'down') {
+            newDownvotes -= 1;
+            newUserVote = null;
+          } else if (prev.user_vote === 'up') {
+            newUpvotes -= 1;
+            newDownvotes += 1;
+            newUserVote = 'down';
+          } else {
+            newDownvotes += 1;
+            newUserVote = 'down';
+          }
+          return { ...prev, upvotes: newUpvotes, downvotes: newDownvotes, user_vote: newUserVote };
+        });
+        return;
+      }
       // Update the post vote counts without refreshing
       setPostTree((prevPostTree) => {
         const updateVotes = (posts) =>
@@ -1131,7 +1242,7 @@ function ThreadView({ userData }) {
 
       {/* Original Post at top */}
       {originalPost && (
-        <div className="post-card original-post" style={{ border: '1px solid var(--card-border)' }}>
+        <div className="post-card card-lift original-post">
           {/* Use the thread-top-row pattern inside the card */}
           <div className="thread-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1148,20 +1259,6 @@ function ThreadView({ userData }) {
                 <div className="meta-quiet">{timeAgo(originalPost.created_at)}</div>
               </div>
             </div>
-            <div>
-              <label htmlFor="replySort" className="sr-only">Sort Replies</label>
-              <select
-                id="replySort"
-                value={replySortCriteria}
-                onChange={(e) => setReplySortCriteria(e.target.value)}
-                className="sort-select"
-                style={{ padding: '6px 12px' }}
-              >
-                <option value="mostRecent">Sort by Newest</option>
-                <option value="mostUpvoted">Most Upvoted</option>
-                <option value="mostPopular">Most Popular</option>
-              </select>
-            </div>
           </div>
 
           <div
@@ -1169,9 +1266,76 @@ function ThreadView({ userData }) {
             style={{ marginTop: '8px' }}
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
           />
-        </div>
+          <div className="vote-row">
+            <button
+              type="button"
+              className={`vote-button upvote-button ${originalHasUpvoted ? 'active' : ''}`}
+              onClick={() => handleUpvoteClick(originalPost.post_id)}
+              title="Upvote"
+              aria-label="Upvote"
+            >
+              {originalHasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+            </button>
+            <span className="vote-count">{originalUpvotes}</span>
+            <button
+              type="button"
+              className={`vote-button downvote-button ${originalHasDownvoted ? 'active' : ''}`}
+              onClick={() => handleDownvoteClick(originalPost.post_id)}
+              title="Downvote"
+              aria-label="Downvote"
+            >
+              {originalHasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+            </button>
+            <span className="vote-count">{originalDownvotes}</span>
+            <button
+              type="button"
+              className="reply-button"
+              onClick={handleOpenRootReply}
+              title="Leave a comment"
+              aria-label="Leave a comment"
+            >
+              <FiMessageCircle />
+            </button>
+            <span className="vote-count comment-count">{totalComments}</span>
+          </div>
+      {rootReplyOpen && (
+        <form className="reply-form" onSubmit={handleRootReplySubmit}>
+          <textarea
+            className="reply-textarea"
+            rows={4}
+            value={rootReplyContent}
+            onChange={(e) => setRootReplyContent(e.target.value)}
+            placeholder="Share your thoughts..."
+            required
+          />
+          <div className="reply-form-actions">
+            <button type="submit" className="create-button reply-button">
+              Submit
+            </button>
+            <button type="button" className="create-button cancel-button" onClick={handleCancelRootReply}>
+              Cancel
+            </button>
+          </div>
+        </form>
       )}
-  
+      <hr className="thread-divider" />
+    </div>
+  )}
+
+  <div className="reply-sort-controls">
+        <label htmlFor="replySort" className="sr-only">Sort Replies</label>
+        <select
+          id="replySort"
+          value={replySortCriteria}
+          onChange={(e) => setReplySortCriteria(e.target.value)}
+          className="sort-select"
+        >
+          <option value="mostRecent">Sort by Newest</option>
+          <option value="mostUpvoted">Most Upvoted</option>
+          <option value="mostPopular">Most Popular</option>
+        </select>
+      </div>
+
       {/* Post Tree */}
       {postTree.length === 0 ? (
         <p>No replies found.</p>
@@ -1194,6 +1358,7 @@ function ThreadView({ userData }) {
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost}
+              onRequireAuth={onRequireAuth}
             />
           ))}
         </div>

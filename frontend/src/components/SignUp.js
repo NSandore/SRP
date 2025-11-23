@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import './Login.css';
+import { FaCheckCircle } from 'react-icons/fa';
 
-function SignUp({ onNext }) {
+function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
   const [step, setStep] = useState(1);
   const [userId, setUserId] = useState(null);
   const [verificationMethod, setVerificationMethod] = useState('email');
@@ -131,46 +133,109 @@ function SignUp({ onNext }) {
     }
   };
 
+  const stepTitles = {
+    1: 'Tell us about yourself',
+    2: 'Verify your account',
+    3: 'Share your education details',
+  };
+
+  const renderStepOne = () => (
+    <div className="auth-form">
+      <div className="auth-input-grid">
+        <input name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleChange} />
+        <input name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleChange} />
+      </div>
+      <input name="email" placeholder="Email" value={formData.email} onChange={handleChange} />
+      <input name="phone" placeholder="Phone" value={formData.phone} onChange={handleChange} />
+      <input type="password" name="password" placeholder="Password" value={formData.password} onChange={handleChange} />
+      <input type="password" name="confirmPassword" placeholder="Confirm Password" value={formData.confirmPassword} onChange={handleChange} />
+      <label className="auth-select-label">
+        Preferred verification method
+        <select value={verificationMethod} onChange={(e) => setVerificationMethod(e.target.value)}>
+          <option value="email">Email</option>
+          <option value="sms">Text Message</option>
+        </select>
+      </label>
+      <button type="button" className="auth-primary" onClick={handleBasicSubmit}>
+        Send verification code
+      </button>
+      <button type="button" className="auth-link" onClick={onShowLogin}>
+        Already have an account? Log in
+      </button>
+    </div>
+  );
+
+  const renderStepTwo = () => (
+    <div className="auth-form">
+      <p className="auth-note">Enter the 6-digit code sent to your {verificationMethod}.</p>
+      <input value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} placeholder="Verification code" />
+      <button type="button" className="auth-primary" onClick={handleVerify}>
+        Verify code
+      </button>
+      <button type="button" className="auth-link" onClick={onShowLogin}>
+        Already verified? Log in
+      </button>
+    </div>
+  );
+
+  const renderStepThree = () => (
+    <form className="auth-form" onSubmit={handleFinalSubmit}>
+      <input name="schoolName" placeholder="School Name" value={formData.schoolName} onChange={handleChange} />
+      <div className="auth-input-grid">
+        <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} />
+        <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} />
+      </div>
+      <button type="submit" className="auth-primary">
+        Finish sign up
+      </button>
+      <button type="button" className="auth-link" onClick={onShowLogin}>
+        Have an account? Log in
+      </button>
+    </form>
+  );
+
+  const renderStep = () => {
+    if (step === 1) return renderStepOne();
+    if (step === 2) return renderStepTwo();
+    return renderStepThree();
+  };
+
+  const benefits = [
+    'Unlock curated scholarships picked for you',
+    'Request direct mentorship from verified ambassadors',
+    'Track applications and chats in one place',
+  ];
+
   return (
-    <div className="signup-container">
-      <h2>Create Your Account</h2>
+    <div className="auth-welcome">
+      <div className="auth-gradient" aria-hidden />
+      <div className="auth-content">
+        <section className="auth-hero">
+          <span className="auth-pill">Create your space</span>
+          <h1>Join StudentSphere in minutes.</h1>
+          <p>Build your profile, follow communities, and get personal coaching with a free account.</p>
+          <ul className="auth-benefits">
+            {benefits.map((copy) => (
+              <li key={copy}>
+                <FaCheckCircle />
+                {copy}
+              </li>
+            ))}
+          </ul>
+          <button className="auth-secondary" onClick={onShowLogin}>
+            Already a member? Log in
+          </button>
+          <button type="button" className="auth-ghost" onClick={onContinueAsGuest}>
+            Browse without an account
+          </button>
+        </section>
 
-      {step === 1 && (
-        <div>
-          <input name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleChange} />
-          <input name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleChange} />
-          <input name="email" placeholder="Email" value={formData.email} onChange={handleChange} />
-          <input name="phone" placeholder="Phone" value={formData.phone} onChange={handleChange} />
-          <input type="password" name="password" placeholder="Password" value={formData.password} onChange={handleChange} />
-          <input type="password" name="confirmPassword" placeholder="Confirm Password" value={formData.confirmPassword} onChange={handleChange} />
-
-          <label>
-            Verify via:
-            <select value={verificationMethod} onChange={(e) => setVerificationMethod(e.target.value)}>
-              <option value="email">Email</option>
-              <option value="sms">Text Message</option>
-            </select>
-          </label>
-          <button onClick={handleBasicSubmit}>Next</button>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div>
-          <p>Enter the verification code sent to your {verificationMethod}:</p>
-          <input value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} />
-          <button onClick={handleVerify}>Verify</button>
-        </div>
-      )}
-
-      {step === 3 && (
-        <form onSubmit={handleFinalSubmit}>
-          <input name="schoolName" placeholder="School Name" value={formData.schoolName} onChange={handleChange} />
-          <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} />
-          <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} />
-          <button type="submit">Finish Sign Up</button>
-        </form>
-      )}
+        <section className="auth-panel">
+          <p className="auth-step-label">Step {step} of 3</p>
+          <h2>{stepTitles[step]}</h2>
+          {renderStep()}
+        </section>
+      </div>
     </div>
   );
 }

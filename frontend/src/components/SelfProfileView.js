@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Link as RouterLink } from 'react-router-dom';
 import './ProfileView.css';
 import DOMPurify from 'dompurify';
 import { FaCheckCircle } from 'react-icons/fa';
+import ThreadCard from './ThreadCard';
 
 function SelfProfileView({ userData, onProfileUpdate }) {
   // 1) Full profile data from fetch_user.php
@@ -41,16 +43,32 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   // Follower/Following counts
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [activeTab, setActiveTab] = useState('about');
+  const [userThreads, setUserThreads] = useState([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [threadsError, setThreadsError] = useState(null);
+  const [userReplies, setUserReplies] = useState([]);
+  const [repliesLoading, setRepliesLoading] = useState(false);
+  const [repliesError, setRepliesError] = useState(null);
+  const [hasLoadedThreads, setHasLoadedThreads] = useState(false);
+  const [hasLoadedReplies, setHasLoadedReplies] = useState(false);
+
+  const userId = userData?.user_id;
+  const profileTabs = [
+    { id: 'about', label: 'About' },
+    { id: 'posts', label: 'Posts' },
+    { id: 'replies', label: 'Replies' },
+  ];
 
   // --------------------------------------------------------------------------
   // Fetch full profile from /api/fetch_user.php
   // --------------------------------------------------------------------------
   useEffect(() => {
-    if (!userData) return;
+    if (!userId) return;
     const fetchUserProfile = async () => {
       try {
         const response = await axios.get(
-          `/api/fetch_user.php?user_id=${userData.user_id}`,
+          `/api/fetch_user.php?user_id=${userId}`,
           { withCredentials: true }
         );
         if (response.data.success) {
@@ -63,7 +81,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       }
     };
     fetchUserProfile();
-  }, [userData]);
+  }, [userId]);
 
   // --------------------------------------------------------------------------
   // Populate local state from profile
@@ -102,21 +120,78 @@ function SelfProfileView({ userData, onProfileUpdate }) {
     }
   }, [verified, profile]);
 
+  const fetchProfileThreads = async () => {
+    if (!userId) return;
+    setThreadsLoading(true);
+    setThreadsError(null);
+    try {
+      let url = `/api/fetch_user_threads.php?user_id=${userId}`;
+      if (userId) {
+        url += `&viewer_id=${userId}`;
+      }
+      const res = await axios.get(url, { withCredentials: true });
+      if (res.data.success) {
+        setUserThreads(res.data.threads || []);
+      } else {
+        setThreadsError(res.data.error || 'Unable to load posts.');
+      }
+    } catch (error) {
+      console.error('Error fetching profile threads:', error);
+      setThreadsError('Unable to load posts.');
+    } finally {
+      setThreadsLoading(false);
+      setHasLoadedThreads(true);
+    }
+  };
+
+  const fetchProfileReplies = async () => {
+    if (!userId) return;
+    setRepliesLoading(true);
+    setRepliesError(null);
+    try {
+      let url = `/api/fetch_user_replies.php?user_id=${userId}`;
+      if (userId) {
+        url += `&viewer_id=${userId}`;
+      }
+      const res = await axios.get(url, { withCredentials: true });
+      if (res.data.success) {
+        setUserReplies(res.data.replies || []);
+      } else {
+        setRepliesError(res.data.error || 'Unable to load replies.');
+      }
+    } catch (error) {
+      console.error('Error fetching profile replies:', error);
+      setRepliesError('Unable to load replies.');
+    } finally {
+      setRepliesLoading(false);
+      setHasLoadedReplies(true);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'posts' && !hasLoadedThreads) {
+      fetchProfileThreads();
+    }
+    if (activeTab === 'replies' && !hasLoadedReplies) {
+      fetchProfileReplies();
+    }
+  }, [activeTab, hasLoadedThreads, hasLoadedReplies, userId]);
+
   // --------------------------------------------------------------------------
   // Fetch follower and following counts
   // --------------------------------------------------------------------------
   useEffect(() => {
-    if (!userData) return;
+    if (!userId) return;
     const fetchCounts = async () => {
       try {
         const resFollowers = await axios.get(
-          `/api/fetch_follower_count.php?user_id=${userData.user_id}`
+          `/api/fetch_follower_count.php?user_id=${userId}`
         );
         if (resFollowers.data.success) {
           setFollowerCount(resFollowers.data.follower_count);
         }
         const resFollowing = await axios.get(
-          `/api/fetch_following_count.php?user_id=${userData.user_id}`
+          `/api/fetch_following_count.php?user_id=${userId}`
         );
         if (resFollowing.data.success) {
           setFollowingCount(resFollowing.data.following_count);
@@ -126,13 +201,23 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       }
     };
     fetchCounts();
-  }, [userData]);
+  }, [userId]);
+
+  useEffect(() => {
+    setActiveTab('about');
+    setUserThreads([]);
+    setUserReplies([]);
+    setHasLoadedThreads(false);
+    setHasLoadedReplies(false);
+    setThreadsError(null);
+    setRepliesError(null);
+  }, [userId]);
 
   // --------------------------------------------------------------------------
   // Fetch experience & education data
   // --------------------------------------------------------------------------
   useEffect(() => {
-    if (!userData) {
+    if (!userId) {
       setExperience([]);
       setEducation([]);
       setLoadingExp(false);
@@ -141,7 +226,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
     }
     setLoadingExp(true);
     axios
-      .get(`/api/user_experience.php?user_id=${userData.user_id}`, { withCredentials: true })
+      .get(`/api/user_experience.php?user_id=${userId}`, { withCredentials: true })
       .then((res) => {
         setExperience(res.data);
         setLoadingExp(false);
@@ -154,7 +239,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
 
     setLoadingEdu(true);
     axios
-      .get(`/api/user_education.php?user_id=${userData.user_id}`, { withCredentials: true })
+      .get(`/api/user_education.php?user_id=${userId}`, { withCredentials: true })
       .then((res) => {
         setEducation(res.data);
         setLoadingEdu(false);
@@ -164,7 +249,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
         setErrorEdu('Error fetching education');
         setLoadingEdu(false);
       });
-  }, [userData]);
+  }, [userId]);
 
   // --------------------------------------------------------------------------
   // Handler: Toggle edit mode
@@ -177,9 +262,9 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   // Handler: Upload file for avatar or banner, returning new path
   // --------------------------------------------------------------------------
   const handleFileUpload = async (file, type) => {
-    if (!file || !userData) return null;
+    if (!file || !userId) return null;
     const formData = new FormData();
-    formData.append('user_id', userData.user_id);
+    formData.append('user_id', userId);
     formData.append(type, file);
     try {
       const res = await axios.post(
@@ -216,7 +301,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   // --------------------------------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!userData) return;
+    if (!userId) return;
     let updatedAvatarPath = avatarPath;
     let updatedBannerPath = bannerPath;
     if (avatarFile) {
@@ -232,7 +317,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       }
     }
     const updatedData = {
-      user_id: userData.user_id,
+      user_id: userId,
       first_name: firstName,
       last_name: lastName,
       headline,
@@ -250,7 +335,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       if (response.data.success) {
         alert('Profile updated successfully!');
         setIsEditing(false);
-        const updatedRes = await axios.get(`/api/fetch_user.php?user_id=${userData.user_id}`, { withCredentials: true });
+        const updatedRes = await axios.get(`/api/fetch_user.php?user_id=${userId}`, { withCredentials: true });
         if (updatedRes.data.success) {
           setProfile(updatedRes.data.user);
           if (onProfileUpdate) {
@@ -285,220 +370,311 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   };
 
   return (
-    <div className={`profile-view ${isEditing ? 'editing' : ''}`} style={profileStyle}>
-      {!userData ? (
+    <div className="profile-view profile-container" style={profileStyle}>
+      {!userId ? (
         <p>Please log in to view your profile.</p>
       ) : (
         <>
-          {/* Banner Section */}
-          <div className="banner-section">
-            <img src={bannerPath} alt="Profile Banner" className="profile-banner-img" />
-            {isEditing && (
-              <div className="banner-upload-container">
-                <label className="banner-upload">
-                  Choose Banner
-                  <input type="file" onChange={(e) => setBannerFile(e.target.files[0])} />
-                </label>
+          <div className="hero-card profile-hero-card">
+            <div className="hero-banner">
+              <img src={bannerPath} alt="Profile Banner" />
+            </div>
+            <div className="hero-content">
+              <div className="hero-left">
+                <div className="user-hero-logo-wrap">
+                  <img src={avatarPath} alt="Profile Avatar" className="user-hero-logo" />
+                </div>
+                <div className="hero-text">
+                  {isEditing ? (
+                    <>
+                      <div className="name-row">
+                        <input
+                          type="text"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          placeholder="First Name"
+                          className="edit-name-input"
+                        />
+                        <input
+                          type="text"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          placeholder="Last Name"
+                          className="edit-name-input"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={headline}
+                        onChange={(e) => setHeadline(e.target.value)}
+                        placeholder="Headline"
+                        className="edit-headline-input"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <h1 className="hero-title">
+                        {fullName}
+                        {verified && (
+                          <FaCheckCircle
+                            className="verified-badge"
+                            style={{ pointerEvents: 'auto' }}
+                            title={`Verified from ${verifiedCommunityName}`}
+                          />
+                        )}
+                      </h1>
+                      <p className="hero-sub">{displayHeadline}</p>
+                      <p className="hero-sub">{followerCount} Followers</p>
+                      <p className="hero-sub">{followingCount} Following</p>
+                    </>
+                  )}
+                </div>
               </div>
-            )}
+              <div className="hero-right hero-actions">
+                <div className="profile-actions">
+                  {isEditing ? (
+                    <button className="save-button" onClick={handleSubmit}>
+                      Save Profile
+                    </button>
+                  ) : (
+                    <button className="edit-button" onClick={handleToggleEdit}>
+                      Edit Profile
+                    </button>
+                  )}
+                </div>
+                {isEditing && (
+                  <div className="hero-edit-controls">
+                    <label className="banner-upload">
+                      Choose Banner
+                      <input type="file" onChange={(e) => setBannerFile(e.target.files[0])} />
+                    </label>
+                    <label className="avatar-upload">
+                      Choose Avatar
+                      <input type="file" onChange={(e) => setAvatarFile(e.target.files[0])} />
+                    </label>
+                    <div className="color-picker-container">
+                      <label>
+                        Primary Color:
+                        <input
+                          type="color"
+                          value={primaryColor}
+                          onChange={(e) => setPrimaryColor(e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Secondary Color:
+                        <input
+                          type="color"
+                          value={secondaryColor}
+                          onChange={(e) => setSecondaryColor(e.target.value)}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="tabs-underline">
+              {profileTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`tab-link ${activeTab === tab.id ? 'active' : ''}`}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Profile Header */}
-          <div className="profile-header">
-            <div className="avatar-container">
-              <img src={avatarPath} alt="Profile Avatar" className="profile-avatar" />
-              {isEditing && (
-                <div className="avatar-upload-container">
-                  <label className="avatar-upload">
-                    Choose Avatar
-                    <input type="file" onChange={(e) => setAvatarFile(e.target.files[0])} />
-                  </label>
-                </div>
-              )}
-            </div>
-            <div className="profile-info">
-              {isEditing ? (
-                <div className="edit-fields">
-                  <div className="name-row">
-                    <input
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="First Name"
-                      className="edit-name-input"
-                    />
-                    <input
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Last Name"
-                      className="edit-name-input"
-                    />
-                  </div>
-                  <input
-                    type="text"
-                    value={headline}
-                    onChange={(e) => setHeadline(e.target.value)}
-                    placeholder="Headline"
-                    className="edit-headline-input"
-                  />
-                  <div className="color-picker-container">
-                    <label>
-                      Primary Color:
-                      <input
-                        type="color"
-                        value={primaryColor}
-                        onChange={(e) => setPrimaryColor(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Secondary Color:
-                      <input
-                        type="color"
-                        value={secondaryColor}
-                        onChange={(e) => setSecondaryColor(e.target.value)}
-                      />
-                    </label>
-                  </div>
-                </div>
-              ) : (
+          <div className="profile-detail-wrapper">
+            <div className="profile-detail-sections">
+              {activeTab === 'about' && (
                 <>
-                  <h2 className="profile-name">
-                    {fullName}{' '}
-                    {verified && (
-                      <span className="verified-badge" title={`Verified from ${verifiedCommunityName}`}>
-                        <FaCheckCircle />
-                      </span>
+                  <div className="profile-section about-section">
+                    <h3>About</h3>
+                    {isEditing ? (
+                      <textarea
+                        value={about}
+                        onChange={(e) => setAbout(e.target.value)}
+                        placeholder="Tell us about yourself..."
+                      />
+                    ) : (
+                      <p>{DOMPurify.sanitize(displayAbout)}</p>
                     )}
-                  </h2>
-                  <p className="profile-headline">{displayHeadline}</p>
-                  <p className="followers-count">{followerCount} Followers</p>
-                  <p className="following-count">{followingCount} Following</p>
+                  </div>
+
+                  <div className="profile-section">
+                    <h3>Experience</h3>
+                    {loadingExp ? (
+                      <p>Loading experience...</p>
+                    ) : errorExp ? (
+                      <p>{errorExp}</p>
+                    ) : experience.length > 0 ? (
+                      experience.map((exp, index) => (
+                        <div key={index} className="experience-item">
+                          <h4>
+                            {exp.title} at {exp.company}
+                          </h4>
+                          <div className="experience-dates">
+                            {exp.start_date} - {exp.end_date ? exp.end_date : 'Present'}
+                          </div>
+                          <div className="experience-meta">
+                            <span className="experience-type">{exp.employment_type}</span>
+                            <span className="experience-location">
+                              {exp.location_city}
+                              {exp.location_state ? `, ${exp.location_state}` : ''}
+                            </span>
+                          </div>
+                          <p>{exp.description}</p>
+                          {exp.responsibilities && exp.responsibilities.length > 0 && (
+                            <ul className="responsibilities-list">
+                              {exp.responsibilities.map((resp, idx) => (
+                                <li key={idx}>{resp}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <p>No experience added yet.</p>
+                    )}
+                  </div>
+
+                  <div className="profile-section">
+                    <h3>Education</h3>
+                    {loadingEdu ? (
+                      <p>Loading education...</p>
+                    ) : errorEdu ? (
+                      <p>{errorEdu}</p>
+                    ) : education.length > 0 ? (
+                      education.map((edu, index) => (
+                        <div key={index} className="education-item">
+                          <h4>
+                            {edu.degree} in {edu.field_of_study}
+                          </h4>
+                          <div className="education-institution">{edu.institution}</div>
+                          <div className="education-dates">
+                            {edu.start_date} - {edu.end_date ? edu.end_date : 'Present'}
+                          </div>
+                          {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
+                          {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
+                          {edu.activities_societies && (
+                            <div className="education-activities">
+                              Activities: {edu.activities_societies}
+                            </div>
+                          )}
+                          {edu.achievements && edu.achievements.length > 0 && (
+                            <ul className="achievements-list">
+                              {edu.achievements.map((ach, idx) => (
+                                <li key={idx}>{ach}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <p>No education details added yet.</p>
+                    )}
+                  </div>
+
+                  <div className="profile-section">
+                    <h3>Skills</h3>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={skills}
+                        onChange={(e) => setSkills(e.target.value)}
+                        placeholder="Enter skills, separated by commas"
+                      />
+                    ) : displaySkills ? (
+                      <ul className="skills-list">
+                        {displaySkills.split(',').map((skill, index) => (
+                          <li key={index} className="skill-item">
+                            {skill.trim()}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No skills listed yet.</p>
+                    )}
+                  </div>
                 </>
               )}
-            </div>
-          </div>
 
-          {/* Edit/Save Button */}
-          <div className="edit-button-container">
-            {isEditing ? (
-              <button className="save-button" onClick={handleSubmit}>
-                Save Profile
-              </button>
-            ) : (
-              <button className="edit-button" onClick={handleToggleEdit}>
-                Edit Profile
-              </button>
-            )}
-          </div>
-
-          {/* About Section */}
-          <div className="profile-section">
-            <h3>About</h3>
-            {isEditing ? (
-              <textarea
-                value={about}
-                onChange={(e) => setAbout(e.target.value)}
-                placeholder="Tell us about yourself..."
-              />
-            ) : (
-              <p>{DOMPurify.sanitize(displayAbout)}</p>
-            )}
-          </div>
-
-          {/* Experience Section */}
-          <div className="profile-section">
-            <h3>Experience</h3>
-            {loadingExp ? (
-              <p>Loading experience...</p>
-            ) : errorExp ? (
-              <p>{errorExp}</p>
-            ) : experience.length > 0 ? (
-              experience.map((exp, index) => (
-                <div key={index} className="experience-item">
-                  <h4>{exp.title} at {exp.company}</h4>
-                  <div className="experience-dates">
-                    {exp.start_date} - {exp.end_date ? exp.end_date : "Present"}
-                  </div>
-                  <div className="experience-meta">
-                    {/*<span className="experience-industry">{exp.industry}</span>*/}
-                    <span className="experience-type">{exp.employment_type}</span>
-                    <span className="experience-location">
-                      {exp.location_city}, {exp.location_state}
-                    </span>
-                  </div>
-                  <p>{exp.description}</p>
-                  {exp.responsibilities && exp.responsibilities.length > 0 && (
-                    <ul className="responsibilities-list">
-                      {exp.responsibilities.map((resp, idx) => (
-                        <li key={idx}>{resp}</li>
+              {activeTab === 'posts' && (
+                <div className="profile-section">
+                  <h3>Posts</h3>
+                  {threadsLoading ? (
+                    <p>Loading posts...</p>
+                  ) : threadsError ? (
+                    <p>{threadsError}</p>
+                  ) : userThreads.length > 0 ? (
+                    <div className="profile-thread-list">
+                      {userThreads.map((thread) => (
+                        <ThreadCard key={thread.thread_id} thread={thread} userData={userData} />
                       ))}
-                    </ul>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p>No experience added yet.</p>
-            )}
-          </div>
-
-          {/* Education Section */}
-          <div className="profile-section">
-            <h3>Education</h3>
-            {loadingEdu ? (
-              <p>Loading education...</p>
-            ) : errorEdu ? (
-              <p>{errorEdu}</p>
-            ) : education.length > 0 ? (
-              education.map((edu, index) => (
-                <div key={index} className="education-item">
-                  <h4>{edu.degree} in {edu.field_of_study}</h4>
-                  <div className="education-institution">{edu.institution}</div>
-                  <div className="education-dates">
-                    {edu.start_date} - {edu.end_date ? edu.end_date : "Present"}
-                  </div>
-                  {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
-                  {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
-                  {edu.activities_societies && (
-                    <div className="education-activities">
-                      Activities: {edu.activities_societies}
                     </div>
-                  )}
-                  {edu.achievements && edu.achievements.length > 0 && (
-                    <ul className="achievements-list">
-                      {edu.achievements.map((ach, idx) => (
-                        <li key={idx}>{ach}</li>
-                      ))}
-                    </ul>
+                  ) : (
+                    <p>No posts yet.</p>
                   )}
                 </div>
-              ))
-            ) : (
-              <p>No education details added yet.</p>
-            )}
-          </div>
+              )}
 
-          {/* Skills Section */}
-          <div className="profile-section">
-            <h3>Skills</h3>
-            {isEditing ? (
-              <input
-                type="text"
-                value={skills}
-                onChange={(e) => setSkills(e.target.value)}
-                placeholder="Enter skills, separated by commas"
-              />
-            ) : displaySkills ? (
-              <ul className="skills-list">
-                {displaySkills.split(',').map((skill, index) => (
-                  <li key={index} className="skill-item">
-                    {skill.trim()}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No skills listed yet.</p>
-            )}
+              {activeTab === 'replies' && (
+                <div className="profile-section">
+                  <h3>Replies</h3>
+                  {repliesLoading ? (
+                    <p>Loading replies...</p>
+                  ) : repliesError ? (
+                    <p>{repliesError}</p>
+                  ) : userReplies.length > 0 ? (
+                    <div className="profile-replies-list">
+                      {userReplies.map((reply) => (
+                        <div key={reply.post_id} className="profile-reply-card">
+                          <div className="profile-reply-meta">
+                            <RouterLink
+                              to={`/info/forum/${reply.forum_id}/thread/${reply.thread_id}`}
+                              className="profile-reply-thread"
+                            >
+                              {reply.thread_title || 'View Thread'}
+                            </RouterLink>
+                            <span className="middot" aria-hidden="true">
+                              •
+                            </span>
+                            <span className="meta-quiet">
+                              {new Date(reply.created_at).toLocaleString()}
+                            </span>
+                            {reply.community_name && reply.community_id && reply.community_type && (
+                              <>
+                                <span className="middot" aria-hidden="true">
+                                  •
+                                </span>
+                                <RouterLink
+                                  to={`/${reply.community_type}/${reply.community_id}`}
+                                  className="profile-reply-community"
+                                >
+                                  {reply.community_name}
+                                </RouterLink>
+                              </>
+                            )}
+                          </div>
+                          <div
+                            className="profile-reply-content"
+                            dangerouslySetInnerHTML={{
+                              __html: DOMPurify.sanitize(reply.content || ''),
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>No replies yet.</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </>
       )}

@@ -1,23 +1,28 @@
 // src/components/Feed.js
 
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify'; 
 import {
   FaArrowAltCircleUp,
   FaRegArrowAltCircleUp,
   FaArrowAltCircleDown,
-  FaRegArrowAltCircleDown
+  FaRegArrowAltCircleDown,
+  FaMedal,
+  FaLock
 } from 'react-icons/fa';
 
 import ForumCard from './ForumCard'; // Adjust path if ForumCard is located elsewhere
 import ThreadCard from './ThreadCard';
 import CommunityRequestModal from './CommunityRequestModal';
 import FloatingComposer from './FloatingComposer';
+import ModalOverlay from './ModalOverlay';
+import './LockedFeature.css';
 
-function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
+function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAuth }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted", "mostRecent"
   const [communityFilter, setCommunityFilter] = useState('All'); // Options: "All", "Followed", "Unfollowed"
   const [selectedCommunityTab, setSelectedCommunityTab] = useState("university");
@@ -46,6 +51,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   const [isEditingForum, setIsEditingForum] = useState(false);
 
   const [notification, setNotification] = useState(null);
+  const [showFundingModal, setShowFundingModal] = useState(false);
 
   // For 3-dot menu
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -79,10 +85,23 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     console.log("Active Section:", activeSection);
   }, [activeSection]);
 
+  useEffect(() => {
+    if (activeSection === 'funding') {
+      setShowFundingModal(true);
+    }
+  }, [activeSection]);
+
+  const handleDismissFundingModal = () => setShowFundingModal(false);
+
+  const handleFundingNavigateHome = () => {
+    setShowFundingModal(false);
+    navigate('/home');
+  };
+
   // ------------- THREAD VOTING -------------
   const handleThreadVoteClick = async (threadId, voteType) => {
     if (!userData) {
-      alert("You must be logged in to vote.");
+      onRequireAuth?.();
       return;
     }
     try {
@@ -185,9 +204,20 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     setOpenMenuId(openMenuId === forumId ? null : forumId);
   };
 
+  const openRequestCommunityModal = () => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    setShowRequestModal(true);
+  };
+
   // Save/Unsave a Forum
   const handleSaveForum = async (forumId, isAlreadySaved) => {
-    if (!userData) return;
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
     try {
       let url = isAlreadySaved ? '/api/unsave_forum.php' : '/api/save_forum.php';
       const resp = await axios.post(
@@ -227,7 +257,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   };
 
   const fetchAllCommunitiesData = async (page = 1, term = '') => {
-    if (!userData) return;
     setIsLoadingAll(true);
     try {
       // Decide the endpoint by selectedCommunityTab
@@ -235,9 +264,13 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
         selectedCommunityTab === "university"
           ? "/api/fetch_all_university_data.php"
           : "/api/fetch_all_group_data.php";
-      const response = await axios.get(
-        `${endpoint}?user_id=${userData.user_id}&page=${page}&search=${encodeURIComponent(term)}`
-      );
+      const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('search', term);
+      if (userData?.user_id) {
+        params.append('user_id', String(userData.user_id));
+      }
+      const response = await axios.get(`${endpoint}?${params.toString()}`);
       const communities = response.data.communities;
       setAllCommunities(Array.isArray(communities) ? communities : []);
       setTotalPages(response.data.total_pages || 1);
@@ -252,15 +285,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
 
   // ------------- FORUMS -------------
   const fetchForums = async (communityId) => {
-    if (!userData) {
-      setIsLoadingForums(false);
-      return;
-    }
     setIsLoadingForums(true);
     try {
-      const resp = await axios.get(
-        `/api/fetch_forums.php?community_id=${communityId}&user_id=${userData.user_id}`
-      );
+      const params = new URLSearchParams();
+      params.append('community_id', String(communityId));
+      if (userData?.user_id) {
+        params.append('user_id', String(userData.user_id));
+      }
+      const resp = await axios.get(`/api/fetch_forums.php?${params.toString()}`);
       const forumsData = resp.data.forums || resp.data;
       if (Array.isArray(forumsData)) {
         setForums(forumsData);
@@ -300,7 +332,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   // Forum upvote/downvote
   const handleVoteClick = async (forumId, voteType) => {
     if (!userData) {
-      alert("You must be logged in to vote.");
+      onRequireAuth?.();
       return;
     }
     try {
@@ -333,6 +365,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   useEffect(() => {
     if (activeSection === 'communities' && userData) {
       fetchFollowedCommunities();
+    }
+    if (activeSection === 'communities') {
       fetchAllCommunitiesData(1, '');
       setCurrentPage(1);
       setSearchTerm('');
@@ -362,6 +396,49 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     return () => clearTimeout(debounce);
   }, [searchTerm, activeSection, selectedCommunityTab]);
 
+  // ---------------- URL SYNC (Communities only; visual state only) ----------------
+  // Initialize local UI state from URL params on mount or when URL changes
+  useEffect(() => {
+    if (activeSection !== 'communities') return;
+    const kind = (searchParams.get('kind') || '').toLowerCase();
+    const scope = (searchParams.get('scope') || '').toLowerCase();
+    const query = searchParams.get('query') ?? '';
+
+    if (kind === 'university' || kind === 'group') {
+      if (selectedCommunityTab !== kind) setSelectedCommunityTab(kind);
+    }
+    if (['all', 'followed', 'unfollowed'].includes(scope)) {
+      const scopeToState = scope === 'all' ? 'All' : scope.charAt(0).toUpperCase() + scope.slice(1);
+      if (communityFilter !== scopeToState) setCommunityFilter(scopeToState);
+    }
+    if (typeof query === 'string' && searchTerm !== query) {
+      setSearchTerm(query);
+    }
+    // We intentionally do not trigger backend calls here. Existing effects handle fetching.
+  }, [activeSection, searchParams]);
+
+  // Push UI state to URL params when it changes (no backend calls triggered by this directly)
+  useEffect(() => {
+    if (activeSection !== 'communities') return;
+    const params = new URLSearchParams(searchParams);
+
+    let changed = false;
+    const kindParam = selectedCommunityTab; // 'university' | 'group'
+    if ((params.get('kind') || '') !== kindParam) { params.set('kind', kindParam); changed = true; }
+
+    const scopeParam = (communityFilter || 'All').toLowerCase(); // 'all' | 'followed' | 'unfollowed'
+    if ((params.get('scope') || '') !== scopeParam) { params.set('scope', scopeParam); changed = true; }
+
+    const queryParam = searchTerm || '';
+    const existingQuery = params.get('query') || '';
+    if (existingQuery !== queryParam) {
+      if (queryParam) params.set('query', queryParam); else params.delete('query');
+      changed = true;
+    }
+
+    if (changed) setSearchParams(params, { replace: true });
+  }, [selectedCommunityTab, communityFilter, searchTerm, activeSection]);
+
   // Pagination controls
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -380,7 +457,10 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
 
   // Follow/unfollow community
   const handleFollowToggle = async (communityId, isFollowed) => {
-    if (!userData) return;
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
     try {
       const endpoint = isFollowed ? '/api/unfollow_community.php' : '/api/follow_community.php';
       await axios.post(endpoint, {
@@ -465,7 +545,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
   // ------------- DELETE FORUM -------------
   const handleDeleteForum = async (forum_id) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to delete a forum.' });
+      onRequireAuth?.();
       return;
     }
     try {
@@ -559,33 +639,33 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     return true;
   });
 
+  // Clear filters helper (for empty state action)
+  const clearCommunityFilters = () => {
+    setCommunityFilter('All');
+    setSearchTerm('');
+    setCurrentPage(1);
+  };
+
   // Keep Home tab selection in sync with URL (?tab=feed|explore)
   useEffect(() => {
     if (activeSection !== 'home') return;
     const tab = searchParams.get('tab');
     const desired = tab === 'explore' ? 'explore' : 'yourFeed';
+    if (!userData && desired === 'yourFeed') {
+      if (activeFeed !== 'explore') {
+        setActiveFeed('explore');
+      }
+      return;
+    }
     if (activeFeed !== desired) {
       setActiveFeed(desired);
     }
-    // Ensure default param exists
     if (!tab) {
       const params = new URLSearchParams(searchParams);
-      params.set('tab', 'feed');
+      params.set('tab', userData ? 'feed' : 'explore');
       setSearchParams(params, { replace: true });
     }
   }, [activeSection, searchParams, activeFeed, setActiveFeed, setSearchParams]);
-
-  // When feed changes on Home, update the URL search param without reloading
-  useEffect(() => {
-    if (activeSection !== 'home') return;
-    const current = searchParams.get('tab');
-    const expected = activeFeed === 'yourFeed' ? 'feed' : 'explore';
-    if (current !== expected) {
-      const params = new URLSearchParams(searchParams);
-      params.set('tab', expected);
-      setSearchParams(params);
-    }
-  }, [activeFeed, activeSection, searchParams, setSearchParams]);
 
   // ------------- RENDER LOGIC -------------
   // HOME SECTION
@@ -594,32 +674,54 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
       <main>
         <div className="feed-container">
           {/* Hero */}
-          <div style={{ marginBottom: '0.75rem' }}>
-            <h2 style={{ margin: 0 }}>
-              Welcome back, {userData?.first_name ? `${userData.first_name}` : 'there'}!
-            </h2>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <h1 className="section-title">
+              {activeFeed === 'yourFeed' ? 'Your Feed' : 'Explore'}
+            </h1>
           </div>
-          <div className="feed-header">
-            <h2>{activeFeed === 'yourFeed' ? 'Your Feed' : 'Explore'}</h2>
-            <div className="feed-toggle-buttons">
+          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
+            Welcome back, {userData?.first_name ? `${userData.first_name}` : 'there'}!
+          </p>
+          <div className="section-controls">
+            <span className="sort-pill">Feed</span>
+            <div className="chips-row">
               <button
-                className={`feed-option-button ${activeFeed === 'yourFeed' ? 'active' : ''}`}
+                type="button"
+                className={`chip ${activeFeed === 'yourFeed' ? 'active' : ''} ${!userData ? 'chip-locked' : ''}`}
                 onClick={() => {
-                  setActiveFeed('yourFeed');
+                  if (!userData) {
+                    onRequireAuth?.();
+                    return;
+                  }
+                  if (activeFeed !== 'yourFeed') {
+                    setActiveFeed('yourFeed');
+                  }
                   const params = new URLSearchParams(searchParams);
-                  params.set('tab', 'feed');
-                  setSearchParams(params);
+                  if (params.get('tab') !== 'feed') {
+                    params.set('tab', 'feed');
+                    setSearchParams(params);
+                  }
                 }}
+                aria-disabled={!userData}
+                title={!userData ? 'Log in to access Your Feed' : 'View Your Feed'}
               >
-                Your Feed
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <FaLock size={12} />
+                  Your Feed
+                </span>
               </button>
               <button
-                className={`feed-option-button ${activeFeed === 'explore' ? 'active' : ''}`}
+                type="button"
+                className={`chip ${activeFeed === 'explore' ? 'active' : ''}`}
                 onClick={() => {
-                  setActiveFeed('explore');
+                  if (activeFeed !== 'explore') {
+                    setActiveFeed('explore');
+                  }
                   const params = new URLSearchParams(searchParams);
-                  params.set('tab', 'explore');
-                  setSearchParams(params);
+                  if (params.get('tab') !== 'explore') {
+                    params.set('tab', 'explore');
+                    setSearchParams(params);
+                  }
                 }}
               >
                 Explore
@@ -627,7 +729,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
             </div>
           </div>
 
-          {activeFeed === 'yourFeed' ? (
+          {activeFeed === 'yourFeed' && userData ? (
             isLoadingFeed ? (
               <p>Loading feed...</p>
             ) : feedThreads.length === 0 ? (
@@ -643,11 +745,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
                 />
               ))
             )
-          ) : (
+          ) : activeFeed === 'explore' ? (
             // DUMMY Explore content
             <div className="explore-dummy">
               <p>This is some dummy explore content!</p>
               {/* Additional dummy content here */}
+            </div>
+          ) : (
+            <div className="locked-feature-card" style={{ textAlign: 'center' }}>
+              <p>Your Feed is available once you create an account or log in.</p>
+              <button className="pill-button" onClick={() => navigate('/signup')}>
+                Create Account
+              </button>
             </div>
           )}
         </div>
@@ -660,124 +769,193 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     return (
       <main>
         <div className="feed-container">
-          <div
-            className="communities-header"
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              borderBottom: '2px solid #ddd',
-              marginBottom: '1rem'
-            }}
-          >
-            <h2>Communities</h2>
-            <div className="feed-toggle-buttons">
-              <button
-                className={`feed-option-button ${communityFilter === 'All' ? 'active' : ''}`}
-                onClick={() => setCommunityFilter('All')}
-              >
-                All
-              </button>
-              <button
-                className={`feed-option-button ${communityFilter === 'Followed' ? 'active' : ''}`}
-                onClick={() => setCommunityFilter('Followed')}
-              >
-                Followed
-              </button>
-              <button
-                className={`feed-option-button ${communityFilter === 'Unfollowed' ? 'active' : ''}`}
-                onClick={() => setCommunityFilter('Unfollowed')}
-              >
-                Unfollowed
-              </button>
-            </div>
-          </div>
+          <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Communities</h1>
+          {/* Top control bar: tabs + scope + search + action (sticky under header) */}
+          <div className="section-controls section-controls-sticky">
+            <div className="community-controls">
+              <div className="control-group">
+                <span className="sort-pill">Type</span>
+                <div className="chips-row">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCommunityTab('university')}
+                    className={`chip ${selectedCommunityTab === 'university' ? 'active' : ''}`}
+                  >
+                    Universities
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCommunityTab('group')}
+                    className={`chip ${selectedCommunityTab === 'group' ? 'active' : ''}`}
+                  >
+                    Groups
+                  </button>
+                </div>
+              </div>
 
-          {/* Community Type Tabs */}
-          <div
-            className="community-tab"
-            style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <div>
-              <button
-                onClick={() => setSelectedCommunityTab("university")}
-                className={selectedCommunityTab === "university" ? "active" : ""}
-              >
-                Universities
-              </button>
-              <button
-                onClick={() => setSelectedCommunityTab("group")}
-                className={selectedCommunityTab === "group" ? "active" : ""}
-              >
-                Groups
-              </button>
-            </div>
-            <button className="non-togglable-button" onClick={() => setShowRequestModal(true)}>
-              Request New
-            </button>
-          </div>
+              <div className="control-group">
+                <span className="sort-pill">Filter</span>
+                <div className="chips-row">
+                  <button
+                    type="button"
+                    className={`chip ${communityFilter === 'All' ? 'active' : ''}`}
+                    onClick={() => setCommunityFilter('All')}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    className={`chip ${communityFilter === 'Followed' ? 'active' : ''}`}
+                    onClick={() => setCommunityFilter('Followed')}
+                  >
+                    Followed
+                  </button>
+                  <button
+                    type="button"
+                    className={`chip ${communityFilter === 'Unfollowed' ? 'active' : ''}`}
+                    onClick={() => setCommunityFilter('Unfollowed')}
+                  >
+                    Unfollowed
+                  </button>
+                </div>
+              </div>
 
-          {/* Search Bar */}
-          <div className="search-bar-container">
-            <input
-              id="community-search"
-              type="text"
-              placeholder="Search communities..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="community-search-bar"
-            />
+              {selectedCommunityTab === 'group' && (
+                <div className="control-action">
+                  <button
+                    type="button"
+                    className="pill-button community-request-button"
+                    onClick={openRequestCommunityModal}
+                    aria-disabled={!userData}
+                  >
+                    + Request Group
+                  </button>
+                </div>
+              )}
+              {selectedCommunityTab === 'university' && (
+                <div className="control-action">
+                  <button
+                    type="button"
+                    className="pill-button community-request-button"
+                    onClick={openRequestCommunityModal}
+                    aria-disabled={!userData}
+                  >
+                    + Request University
+                  </button>
+                </div>
+              )}
+
+              <div className="control-search">
+                <input
+                  id="community-search"
+                  type="text"
+                  placeholder="Search universities, groups…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pill-search"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="communities-section">
             {isLoadingAll ? (
-              <p>Loading communities...</p>
-            ) : filteredCommunities.length > 0 ? (
-              <div className="community-grid">
-                {filteredCommunities.map((community) => (
-                  <div
-                    key={community.community_id}
-                    className="community-card"
-                    style={
-                      communityFilter === 'All' && followedIds.has(community.community_id)
-                        ? { border: '2px solid green' }
-                        : {}
-                    }
-                  >
-                    <img
-                      src={community.logo_path || '/uploads/logos/default-logo.png'}
-                      alt={`${community.name} Logo`}
-                      className="community-logo"
-                      loading="lazy"
-                    />
-                    <Link
-                      to={`/${community.community_type}/${community.community_id}`}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
-                      <h4 className="community-name">{community.name}</h4>
-                    </Link>
-                    <p className="community-location">{community.location}</p>
-                    {community.tagline && (
-                      <p className="community-tagline">{community.tagline}</p>
-                    )}
-                    <p className="followers-count">
-                      {community.followers_count} Followers
-                    </p>
-                    <button
-                      className={`follow-button ${
-                        followedIds.has(community.community_id) ? 'unfollow' : 'follow'
-                      }`}
-                      onClick={() =>
-                        handleFollowToggle(community.community_id, followedIds.has(community.community_id))
-                      }
-                    >
-                      {followedIds.has(community.community_id) ? 'Unfollow' : 'Follow'}
-                    </button>
+              <div className="community-list">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="community-row-card skeleton animate-pulse">
+                    <div className="skeleton-circle" aria-hidden />
+                    <div className="community-row-content">
+                      <div className="skeleton-line" style={{ width: '52%' }} aria-hidden />
+                      <div className="skeleton-line" style={{ width: '72%', marginTop: 6 }} aria-hidden />
+                    </div>
+                    <div className="community-row-actions">
+                      <div className="skeleton-pill" aria-hidden />
+                    </div>
                   </div>
                 ))}
               </div>
+            ) : filteredCommunities.length > 0 ? (
+              <div className="community-list space-y-3">
+                {filteredCommunities.map((community) => {
+                  const isFollowed = followedIds.has(community.community_id);
+                  return (
+                    <div
+                      key={community.community_id}
+                      className={`community-row-card${isFollowed ? ' followed' : ''}`}
+                    >
+                      <img
+                        src={community.logo_path || '/uploads/logos/default-logo.png'}
+                        alt={`${community.name} Logo`}
+                        className="community-row-logo"
+                        loading="lazy"
+                      />
+                      <div className="community-row-content">
+                        <div className="community-row-header">
+                          <h4 className="community-name" style={{ margin: 0 }}>
+                            <Link
+                              to={`/${community.community_type}/${community.community_id}`}
+                              style={{ textDecoration: 'none', color: 'inherit' }}
+                            >
+                              <span className="truncate-38ch">{community.name}</span>
+                            </Link>
+                          </h4>
+                        </div>
+                        {community.tagline && (
+                          <p className="community-slogan" style={{ margin: '2px 0' }}>{community.tagline}</p>
+                        )}
+                        <div className="community-row-meta">
+                          {community.location && (
+                            <span className="community-location">{community.location}</span>
+                          )}
+                          <span className="dot-sep">•</span>
+                          <span className="followers-count">Followers: {community.followers_count || 0}</span>
+                          {typeof community.following_count !== 'undefined' && (
+                            <>
+                              <span className="dot-sep">•</span>
+                              <span className="following-count">Following: {community.following_count}</span>
+                            </>
+                          )}
+                          {typeof community.admin_count !== 'undefined' && (
+                            <>
+                              <span className="dot-sep">•</span>
+                              <span className="admin-count">Admins: {community.admin_count}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="community-row-actions">
+                        <button
+                          type="button"
+                          className={`follow-button ${isFollowed ? 'unfollow' : 'follow'} ${!userData ? 'locked' : ''}`}
+                          onClick={() => {
+                            if (!userData) {
+                              onRequireAuth?.();
+                              return;
+                            }
+                            handleFollowToggle(community.community_id, isFollowed);
+                          }}
+                          aria-disabled={!userData}
+                          title={!userData ? 'Log in to follow communities' : isFollowed ? 'Unfollow community' : 'Follow community'}
+                        >
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            {!userData && <FaLock size={12} />}
+                            {isFollowed ? 'Unfollow' : 'Follow'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
-              <p>No {selectedCommunityTab === "university" ? "universities" : "groups"} found.</p>
+              <div className="empty-state-card">
+                <p className="empty-state-text">
+                  No communities match your filters.
+                </p>
+                <button type="button" className="secondary-button" onClick={clearCommunityFilters}>
+                  Clear Filters
+                </button>
+              </div>
             )}
 
             {/* Pagination */}
@@ -818,11 +996,26 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
 
   // INFO SECTION
   if (activeSection === 'info') {
+    const topic = (searchParams.get('topic') || 'all').toLowerCase();
+    const setTopicParam = (val) => {
+      const params = new URLSearchParams(searchParams);
+      params.set('topic', val);
+      setSearchParams(params);
+    };
     return (
       <main>
         <div className="feed-container">
-          <div className="feed-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h1 className="info-title" style={{ margin: 0 }}>Info Board</h1>
+          <div
+            className="feed-header"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderBottom: 'none',
+              marginBottom: '0.5rem',
+            }}
+          >
+            <h1 className="section-title" style={{ margin: 0 }}>Info Board</h1>
             {userData?.role_id === 7 && (
               <button
                 className="btn-primary"
@@ -834,37 +1027,32 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
           </div>
 
           {/* Controls: Sort pill + topic chips */}
-          {(() => {
-            const topic = (searchParams.get('topic') || 'all').toLowerCase();
-            const setTopic = (val) => {
-              const params = new URLSearchParams(searchParams);
-              params.set('topic', val);
-              setSearchParams(params);
-            };
-            return (
-              <div className="info-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-                <span className="sort-pill">Sort</span>
-                <label htmlFor="sort-by" className="sr-only">Sort by</label>
-                <select
-                  id="sort-by"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="sort-select"
-                >
-                  <option value="mostRecent">Most Recent</option>
-                  <option value="popularity">Popularity</option>
-                  <option value="mostUpvoted">Most Upvoted</option>
-                </select>
+          <div className="section-controls info-controls">
+            <div className="control-group">
+              <span className="sort-pill">Sort</span>
+              <label htmlFor="sort-by" className="sr-only">Sort by</label>
+              <select
+                id="sort-by"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="sort-select"
+              >
+                <option value="mostRecent">Most Recent</option>
+                <option value="popularity">Popularity</option>
+                <option value="mostUpvoted">Most Upvoted</option>
+              </select>
+            </div>
 
-                <div className="chips-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button type="button" className={`chip ${topic === 'all' ? 'active' : ''}`} onClick={() => setTopic('all')}>All</button>
-                  <button type="button" className={`chip ${topic === 'admissions' ? 'active' : ''}`} onClick={() => setTopic('admissions')}>Admissions</button>
-                  <button type="button" className={`chip ${topic === 'academics' ? 'active' : ''}`} onClick={() => setTopic('academics')}>Academics ▾</button>
-                  <button type="button" className={`chip ${topic === 'campus-life' ? 'active' : ''}`} onClick={() => setTopic('campus-life')}>Campus Life</button>
-                </div>
+            <div className="control-group">
+              <span className="sort-pill">Topics</span>
+              <div className="chips-row">
+                <button type="button" className={`chip ${topic === 'all' ? 'active' : ''}`} onClick={() => setTopicParam('all')}>All</button>
+                <button type="button" className={`chip ${topic === 'admissions' ? 'active' : ''}`} onClick={() => setTopicParam('admissions')}>Admissions</button>
+                <button type="button" className={`chip ${topic === 'academics' ? 'active' : ''}`} onClick={() => setTopicParam('academics')}>Academics ▾</button>
+                <button type="button" className={`chip ${topic === 'campus-life' ? 'active' : ''}`} onClick={() => setTopicParam('campus-life')}>Campus Life</button>
               </div>
-            );
-          })()}
+            </div>
+          </div>
 
           {/* CREATE FORUM MODAL */}
           {showCreateForumModal && (
@@ -969,7 +1157,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
           )}
         </div>
         {/* FAB visible on Home (Your Feed + Explore) for admins (role_id=7) or ambassadors */}
-        {userData && (Number(userData.role_id) === 7 || Number(userData.is_ambassador) === 1) && (
+        {activeSection === 'home' && userData && (Number(userData.role_id) === 7 || Number(userData.is_ambassador) === 1) && (
           <FloatingComposer
             communities={[...followedCommunities, ...allCommunities]}
           />
@@ -983,11 +1171,35 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     return (
       <main>
         <div className="feed-container">
-          <div className="feed-header">
-            <h2>Funding</h2>
-          </div>
-          <p>More coming soon...</p>
+          <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Funding</h1>
+          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
+            We&apos;re crafting a richer funding experience. Stay tuned!
+          </p>
         </div>
+        <ModalOverlay
+          isOpen={showFundingModal}
+          onClose={handleDismissFundingModal}
+          showCloseButton={false}
+        >
+          <div className="locked-feature-wrapper">
+            <div className="locked-feature-card coming-soon-card">
+              <div className="locked-icon-circle">
+                <FaMedal />
+              </div>
+              <p className="locked-chip">Funding lab</p>
+              <h2>Funding hub is coming soon</h2>
+              <p>
+                We&apos;re building curated scholarship tracking, mentor tips, and deadline reminders
+                so you can secure the support you need faster.
+              </p>
+              <div className="coming-soon-actions">
+                <button className="primary" onClick={handleFundingNavigateHome}>
+                  Go back home
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalOverlay>
       </main>
     );
   }
@@ -997,26 +1209,30 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
     return (
       <main>
         <div className="feed-container">
-          <div
-            className="feed-header"
-            style={{ justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <h2>Saved</h2>
-            <div className="feed-toggle-buttons">
+          <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Saved</h1>
+          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
+            Curate your favorites across forums, threads, and posts.
+          </p>
+          <div className="section-controls">
+            <span className="sort-pill">View</span>
+            <div className="chips-row">
               <button
-                className={`feed-option-button ${savedTab === 'forums' ? 'active' : ''}`}
+                type="button"
+                className={`chip ${savedTab === 'forums' ? 'active' : ''}`}
                 onClick={() => setSavedTab('forums')}
               >
                 Forums
               </button>
               <button
-                className={`feed-option-button ${savedTab === 'threads' ? 'active' : ''}`}
+                type="button"
+                className={`chip ${savedTab === 'threads' ? 'active' : ''}`}
                 onClick={() => setSavedTab('threads')}
               >
                 Threads
               </button>
               <button
-                className={`feed-option-button ${savedTab === 'posts' ? 'active' : ''}`}
+                type="button"
+                className={`chip ${savedTab === 'posts' ? 'active' : ''}`}
                 onClick={() => setSavedTab('posts')}
               >
                 Posts
@@ -1031,7 +1247,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
                 <p>You have no saved forums.</p>
               ) : (
                 savedForums.map((f) => (
-                  <div key={f.forum_id} className="forum-card" style={{ marginBottom: '1rem' }}>
+                  <div key={f.forum_id} className="forum-card card-lift">
                     <Link
                       to={`/info/forum/${f.forum_id}`}
                       style={{ textDecoration: 'none', color: 'inherit' }}
@@ -1064,7 +1280,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
                 <p>You have no saved threads.</p>
               ) : (
                 savedThreads.map((t) => (
-                  <div key={t.thread_id} className="forum-card" style={{ marginBottom: '1rem' }}>
+                  <div key={t.thread_id} className="forum-card card-lift">
                     <Link
                       to={`/info/forum/0/thread/${t.thread_id}`}
                       style={{ textDecoration: 'none', color: 'inherit' }}
@@ -1099,7 +1315,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
                 <p>You have no saved posts.</p>
               ) : (
                 savedPosts.map((p) => (
-                  <div key={p.post_id} className="forum-card" style={{ marginBottom: '1rem' }}>
+                  <div key={p.post_id} className="forum-card card-lift">
                     <h4>Post #{p.post_id}</h4>
                     <div
                       dangerouslySetInnerHTML={{
@@ -1141,7 +1357,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData }) {
         activeSection !== 'communities' &&
         activeSection !== 'saved' &&
         mockPosts.map((post, i) => (
-          <div key={i} className="post-card">
+          <div key={i} className="post-card card-lift">
             <h3>{post.title}</h3>
             <small>Posted by {post.author}</small>
             <p>{post.content}</p>

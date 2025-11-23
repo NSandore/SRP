@@ -87,18 +87,26 @@ function Connections({ userData }) {
   };  
 
   return (
-    <div className="connections-container">
-      <div className="feed-header">
-        <h2>Connections</h2>
-        <div className="feed-toggle-buttons">
+    <div className="feed-container connections-container">
+      <div style={{ marginBottom: '0.5rem' }}>
+        <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Connections</h1>
+        <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
+          Review who you follow and who follows you.
+        </p>
+      </div>
+      <div className="section-controls">
+        <span className="sort-pill">View</span>
+        <div className="chips-row">
           <button
-            className={`feed-option-button ${activeTab === 'following' ? 'active' : ''}`}
+            type="button"
+            className={`chip ${activeTab === 'following' ? 'active' : ''}`}
             onClick={() => setActiveTab('following')}
           >
             Following
           </button>
           <button
-            className={`feed-option-button ${activeTab === 'followers' ? 'active' : ''}`}
+            type="button"
+            className={`chip ${activeTab === 'followers' ? 'active' : ''}`}
             onClick={() => setActiveTab('followers')}
           >
             Followers

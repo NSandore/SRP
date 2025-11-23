@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import './ContactUsButton.css';
 
 function ContactUsButton() {
@@ -32,46 +33,60 @@ function ContactUsButton() {
     }
   };
 
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [open]);
+
+  const modalContent = (
+    <div className="feedback-modal" role="dialog" aria-modal="true" aria-label="Send feedback">
+      <div className="feedback-content">
+        <button className="close-button" onClick={() => setOpen(false)} aria-label="Close feedback form">×</button>
+        <h3>Send Feedback</h3>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            name="name"
+            placeholder="Your Name"
+            value={formData.name}
+            onChange={handleChange}
+            required
+          />
+          <input
+            type="email"
+            name="email"
+            placeholder="Your Email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+          />
+          <textarea
+            name="message"
+            placeholder="Your Feedback"
+            value={formData.message}
+            onChange={handleChange}
+            required
+          />
+          {status && <p className="status-message">{status}</p>}
+          <button type="submit">Submit</button>
+        </form>
+      </div>
+    </div>
+  );
+
+  const portalTarget = typeof document !== 'undefined' ? document.body : null;
+
   return (
     <>
       <button className="contact-us-button" onClick={() => setOpen(true)}>
         Contact Us
       </button>
-      {open && (
-        <div className="feedback-modal">
-          <div className="feedback-content">
-            <button className="close-button" onClick={() => setOpen(false)}>×</button>
-            <h3>Send Feedback</h3>
-            <form onSubmit={handleSubmit}>
-              <input
-                type="text"
-                name="name"
-                placeholder="Your Name"
-                value={formData.name}
-                onChange={handleChange}
-                required
-              />
-              <input
-                type="email"
-                name="email"
-                placeholder="Your Email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-              />
-              <textarea
-                name="message"
-                placeholder="Your Feedback"
-                value={formData.message}
-                onChange={handleChange}
-                required
-              />
-              {status && <p className="status-message">{status}</p>}
-              <button type="submit">Submit</button>
-            </form>
-          </div>
-        </div>
-      )}
+      {open && portalTarget && createPortal(modalContent, portalTarget)}
     </>
   );
 }

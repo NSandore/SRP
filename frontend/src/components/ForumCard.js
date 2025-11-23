@@ -64,7 +64,11 @@ const ForumCard = ({
   const lastUpdated = forum.updated_at || forum.created_at;
 
   return (
-    <div key={forum.forum_id} className="forum-card card-lift" style={{ marginBottom: '1rem', position: 'relative', padding: '20px' }}>
+    <div
+      key={forum.forum_id}
+      className="forum-card card-lift"
+      style={{ position: 'relative' }}
+    >
       {/* 3-dot menu icon */}
       <FaEllipsisV
         className="menu-icon kebab-button"
@@ -155,7 +159,7 @@ const ForumCard = ({
               )}
             </div>
           )}
-          {userData && (
+          {handleSaveForum && (
             <button
               className="dropdown-item"
               style={{

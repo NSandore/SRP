@@ -93,24 +93,33 @@ function UserConnections({ userData }) {
   };
 
   return (
-    <div className="connections-container">
-      <div className="feed-header">
-        <h2>Connections</h2>
-        <div className="feed-toggle-buttons">
+    <div className="feed-container connections-container">
+      <div style={{ marginBottom: '0.5rem' }}>
+        <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Connections</h1>
+        <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
+          Manage your network, incoming invites, and pending requests in one place.
+        </p>
+      </div>
+      <div className="section-controls">
+        <span className="sort-pill">View</span>
+        <div className="chips-row">
           <button
-            className={`feed-option-button ${activeTab === 'connections' ? 'active' : ''}`}
+            type="button"
+            className={`chip ${activeTab === 'connections' ? 'active' : ''}`}
             onClick={() => setActiveTab('connections')}
           >
             Connections
           </button>
           <button
-            className={`feed-option-button ${activeTab === 'incoming' ? 'active' : ''}`}
+            type="button"
+            className={`chip ${activeTab === 'incoming' ? 'active' : ''}`}
             onClick={() => setActiveTab('incoming')}
           >
-            Incoming Requests
+            Incoming
           </button>
           <button
-            className={`feed-option-button ${activeTab === 'outgoing' ? 'active' : ''}`}
+            type="button"
+            className={`chip ${activeTab === 'outgoing' ? 'active' : ''}`}
             onClick={() => setActiveTab('outgoing')}
           >
             Pending

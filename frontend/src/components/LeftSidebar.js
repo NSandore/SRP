@@ -8,7 +8,8 @@ import {
   Users,
   Bookmark,
   UserCheck,
-  UserCircle
+  UserCircle,
+  Lock
 } from 'lucide-react';
 
 const items = [
@@ -21,30 +22,50 @@ const items = [
   { to: '/profile', label: 'My Profile', Icon: UserCircle, color: '#64748B', key: 'profile' },
 ];
 
-function LeftSidebar() {
+function LeftSidebar({ userData, lockedKeys = ['saved', 'connections', 'profile'] }) {
   return (
     <nav className="left-sidebar" aria-label="Primary">
       <ul className="sidebar-list">
-        {items.map(({ to, label, Icon, color, key }) => (
-          <li key={key}>
-            <NavLink
-              to={to}
-              className={({ isActive }) =>
-                `sidebar-link${isActive ? ' active' : ''}`
-              }
-              aria-label={label}
-            >
-              <span
-                className="icon-circle"
-                style={{ backgroundColor: `${color}26`, color }}
-                aria-hidden="true"
+        {items.map(({ to, label, Icon, color, key }) => {
+          const isLocked = !userData && lockedKeys.includes(key);
+          const isComingSoon = key === 'funding';
+          return (
+            <li key={key}>
+              <NavLink
+                to={to}
+                className={({ isActive }) => {
+                  let classes = `sidebar-link${isActive ? ' active' : ''}`;
+                  if (isLocked) classes += ' locked';
+                  return classes;
+                }}
+                aria-label={label}
+                aria-disabled={isLocked}
               >
-                <Icon size={18} />
-              </span>
-              <span className="sidebar-text">{label}</span>
-            </NavLink>
-          </li>
-        ))}
+                <span
+                  className="icon-circle"
+                  style={{ backgroundColor: `${color}26`, color }}
+                  aria-hidden="true"
+                >
+                  <Icon size={18} />
+                </span>
+                <div className="sidebar-text-group">
+                  <span className="sidebar-text">{label}</span>
+                  {isLocked && (
+                    <span className="lock-badge">
+                      <Lock size={12} />
+                      Locked
+                    </span>
+                  )}
+                  {isComingSoon && (
+                    <span className="lock-badge coming-soon-badge">
+                      Coming Soon...
+                    </span>
+                  )}
+                </div>
+              </NavLink>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

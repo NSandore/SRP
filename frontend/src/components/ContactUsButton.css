@@ -8,7 +8,7 @@
   padding: 0.75rem 1rem;
   border-radius: 50px;
   cursor: pointer;
-  z-index: 1000;
+  z-index: 1500;
 }
 
 .feedback-modal {
@@ -21,7 +21,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 2000;
 }
 
 .feedback-content {

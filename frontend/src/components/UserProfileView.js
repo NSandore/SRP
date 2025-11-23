@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { useParams, Link as RouterLink } from "react-router-dom"; // Using RouterLink for navigation
+import { useParams, Link as RouterLink } from "react-router-dom";
 import "./ProfileView.css";
 import DOMPurify from "dompurify";
-import { FaCheckCircle, FaEllipsisV } from "react-icons/fa"; // Verification badge icon and menu
+import { FaCheckCircle, FaEllipsisV } from "react-icons/fa";
 import useOnClickOutside from "../hooks/useOnClickOutside";
+import ThreadCard from "./ThreadCard";
 
 function UserProfileView({ userData }) {
   const { user_id } = useParams();
@@ -18,10 +19,10 @@ function UserProfileView({ userData }) {
 
   // Ambassador states
   const [ambassadorCommunities, setAmbassadorCommunities] = useState([]);
-  const [communityLogos, setCommunityLogos] = useState({}); // { community_id: logo_path }
-  const [communityNames, setCommunityNames] = useState({}); // { community_id: name }
+  const [communityLogos, setCommunityLogos] = useState({});
+  const [communityNames, setCommunityNames] = useState({});
 
-  // Follow state for this profile (does the logged-in user follow this profile?)
+  // Follow state
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadingFollowStatus, setLoadingFollowStatus] = useState(true);
   const [followerCount, setFollowerCount] = useState(0);
@@ -30,7 +31,7 @@ function UserProfileView({ userData }) {
   const menuRef = useRef(null);
   useOnClickOutside(menuRef, () => setOpenMenu(false));
 
-  // Connection state between logged-in user and this profile
+  // Connection state
   const [connectionStatus, setConnectionStatus] = useState("none");
   const [connectionId, setConnectionId] = useState(null);
   const [isRequester, setIsRequester] = useState(false);
@@ -43,7 +44,17 @@ function UserProfileView({ userData }) {
   const [errorExp, setErrorExp] = useState(null);
   const [errorEdu, setErrorEdu] = useState(null);
 
-  // Log if no userData is passed from the parent
+  // Profile tabs
+  const [activeTab, setActiveTab] = useState("about");
+  const [userThreads, setUserThreads] = useState([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [threadsError, setThreadsError] = useState(null);
+  const [userReplies, setUserReplies] = useState([]);
+  const [repliesLoading, setRepliesLoading] = useState(false);
+  const [repliesError, setRepliesError] = useState(null);
+  const [hasLoadedThreads, setHasLoadedThreads] = useState(false);
+  const [hasLoadedReplies, setHasLoadedReplies] = useState(false);
+
   useEffect(() => {
     if (!userData) {
       console.log("No logged-in user data available.");
@@ -52,9 +63,20 @@ function UserProfileView({ userData }) {
     }
   }, [userData]);
 
-  // --------------------------------------------------------------------------
-  // Fetch user profile (includes verification and ambassador fields)
-  // --------------------------------------------------------------------------
+  useEffect(() => {
+    setActiveTab("about");
+  }, [user_id]);
+
+  useEffect(() => {
+    setUserThreads([]);
+    setUserReplies([]);
+    setHasLoadedThreads(false);
+    setHasLoadedReplies(false);
+    setThreadsError(null);
+    setRepliesError(null);
+  }, [user_id, userData?.user_id]);
+
+  // Fetch user profile
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
@@ -66,7 +88,7 @@ function UserProfileView({ userData }) {
           setProfile(response.data.user);
           console.log("Fetched user profile:", response.data.user);
 
-          // Check if the user is verified
+          // Verified
           if (
             response.data.user.verified === 1 ||
             response.data.user.verified === "1"
@@ -77,18 +99,16 @@ function UserProfileView({ userData }) {
             setVerified(true);
           }
 
-          // Check if the user is an ambassador in any communities
+          // Ambassador communities
           if (response.data.user.community_ambassador_of) {
             let communityIds;
             try {
               communityIds = JSON.parse(response.data.user.community_ambassador_of);
-              // Ensure it's an array (if a single value, wrap it in an array)
               if (!Array.isArray(communityIds)) {
                 communityIds = [communityIds];
               }
               console.log("Detected ambassador communities:", communityIds);
               setAmbassadorCommunities(communityIds);
-              // Fetch logos (and names) for these communities
               fetchCommunityLogos(communityIds);
             } catch (error) {
               console.error(
@@ -111,9 +131,7 @@ function UserProfileView({ userData }) {
     fetchUserProfile();
   }, [user_id]);
 
-  // --------------------------------------------------------------------------
-  // Check follow status: does the logged-in user follow this profile?
-  // --------------------------------------------------------------------------
+  // Check follow status
   useEffect(() => {
     const checkFollowStatus = async () => {
       if (!userData || !userData.user_id) {
@@ -125,13 +143,11 @@ function UserProfileView({ userData }) {
         console.log(
           `Checking follow status: logged-in user ${userData.user_id} -> target user ${user_id}`
         );
-        // Note: using 'follower_id' and 'followed_user_id' as required by your API.
         const res = await axios.get(
           `/api/fetch_following_status.php?follower_id=${userData.user_id}&followed_user_id=${user_id}`,
           { withCredentials: true }
         );
         if (res.data.success) {
-          // The API returns "isFollowing" in camelCase
           console.log(
             `Follow status for logged-in user ${userData.user_id} on profile ${user_id}:`,
             res.data.isFollowing
@@ -150,9 +166,7 @@ function UserProfileView({ userData }) {
     checkFollowStatus();
   }, [userData, user_id]);
 
-  // --------------------------------------------------------------------------
-  // Fetch connection status between logged-in user and this profile
-  // --------------------------------------------------------------------------
+  // Fetch connection status
   useEffect(() => {
     const fetchConnectionStatus = async () => {
       if (!userData || !userData.user_id) return;
@@ -178,9 +192,7 @@ function UserProfileView({ userData }) {
     fetchConnectionStatus();
   }, [userData, user_id]);
 
-  // --------------------------------------------------------------------------
-  // Fetch follower count for this profile
-  // --------------------------------------------------------------------------
+  // Fetch follower count
   useEffect(() => {
     const fetchFollowerCount = async () => {
       try {
@@ -189,16 +201,14 @@ function UserProfileView({ userData }) {
           setFollowerCount(res.data.follower_count);
         }
       } catch (err) {
-        console.error('Error fetching follower count:', err);
+        console.error("Error fetching follower count:", err);
       }
     };
 
     fetchFollowerCount();
   }, [user_id]);
 
-  // --------------------------------------------------------------------------
-  // Fetch experience & education for this profile
-  // --------------------------------------------------------------------------
+  // Fetch experience & education
   useEffect(() => {
     setLoadingExp(true);
     axios
@@ -208,8 +218,8 @@ function UserProfileView({ userData }) {
         setLoadingExp(false);
       })
       .catch((err) => {
-        console.error('Error fetching experience:', err);
-        setErrorExp('Error fetching experience');
+        console.error("Error fetching experience:", err);
+        setErrorExp("Error fetching experience");
         setLoadingExp(false);
       });
 
@@ -221,15 +231,13 @@ function UserProfileView({ userData }) {
         setLoadingEdu(false);
       })
       .catch((err) => {
-        console.error('Error fetching education:', err);
-        setErrorEdu('Error fetching education');
+        console.error("Error fetching education:", err);
+        setErrorEdu("Error fetching education");
         setLoadingEdu(false);
       });
   }, [user_id]);
 
-  // --------------------------------------------------------------------------
-  // Handle follow/unfollow toggle
-  // --------------------------------------------------------------------------
+  // Follow/unfollow
   const handleFollowToggle = async () => {
     if (!userData || !userData.user_id) {
       console.log("Cannot toggle follow status: No logged-in user data.");
@@ -254,10 +262,8 @@ function UserProfileView({ userData }) {
     }
   };
 
-  // --------------------------------------------------------------------------
-  // Send connection request
-  // --------------------------------------------------------------------------
-const handleConnect = async () => {
+  // Connection actions
+  const handleConnect = async () => {
     if (!userData || !userData.user_id) return;
     try {
       const res = await axios.post(
@@ -267,18 +273,15 @@ const handleConnect = async () => {
       );
       if (res.data.success) {
         setConnectionStatus("pending");
-        // Store the new connection ID returned by the API so we can
-        // cancel the request without refreshing. Since the current
-        // user initiated the request, mark them as the requester.
         if (res.data.connection_id) {
           setConnectionId(res.data.connection_id);
         }
         setIsRequester(true);
       }
-  } catch (err) {
-    console.error("Error sending connection request:", err);
-  }
-};
+    } catch (err) {
+      console.error("Error sending connection request:", err);
+    }
+  };
 
   const handleAccept = async () => {
     if (!connectionId) return;
@@ -323,9 +326,7 @@ const handleConnect = async () => {
     }
   };
 
-  // --------------------------------------------------------------------------
-  // Fetch verification community name if user is verified
-  // --------------------------------------------------------------------------
+  // Fetch verification community name
   useEffect(() => {
     const fetchVerificationCommunity = async (communityId) => {
       console.log(`Fetching verification community name for community_id: ${communityId}`);
@@ -345,9 +346,7 @@ const handleConnect = async () => {
     }
   }, [verified, profile]);
 
-  // --------------------------------------------------------------------------
-  // Fetch community logos (and names) for ambassador communities
-  // --------------------------------------------------------------------------
+  // Fetch community logos & names for ambassador communities
   const fetchCommunityLogos = async (communityIds) => {
     let logos = {};
     let names = {};
@@ -361,7 +360,7 @@ const handleConnect = async () => {
         if (response.data.success && response.data.community) {
           console.log(`Fetched data for community_id ${communityId}:`, response.data.community);
           logos[communityId] = response.data.community.logo_path;
-          names[communityId] = response.data.community.name; // For tooltip
+          names[communityId] = response.data.community.name;
         } else {
           console.warn(`No data found for community_id: ${communityId}`);
         }
@@ -374,215 +373,386 @@ const handleConnect = async () => {
     setCommunityNames(names);
   };
 
-  // If profile is still loading, show a message
+  const fetchProfileThreads = async () => {
+    setThreadsLoading(true);
+    setThreadsError(null);
+    try {
+      let url = `/api/fetch_user_threads.php?user_id=${user_id}`;
+      if (userData?.user_id) {
+        url += `&viewer_id=${userData.user_id}`;
+      }
+      const res = await axios.get(url, { withCredentials: true });
+      if (res.data.success) {
+        setUserThreads(res.data.threads || []);
+      } else {
+        setThreadsError(res.data.error || "Unable to load posts.");
+      }
+    } catch (error) {
+      console.error("Error fetching profile threads:", error);
+      setThreadsError("Unable to load posts.");
+    } finally {
+      setThreadsLoading(false);
+      setHasLoadedThreads(true);
+    }
+  };
+
+  const fetchProfileReplies = async () => {
+    setRepliesLoading(true);
+    setRepliesError(null);
+    try {
+      let url = `/api/fetch_user_replies.php?user_id=${user_id}`;
+      if (userData?.user_id) {
+        url += `&viewer_id=${userData.user_id}`;
+      }
+      const res = await axios.get(url, { withCredentials: true });
+      if (res.data.success) {
+        setUserReplies(res.data.replies || []);
+      } else {
+        setRepliesError(res.data.error || "Unable to load replies.");
+      }
+    } catch (error) {
+      console.error("Error fetching profile replies:", error);
+      setRepliesError("Unable to load replies.");
+    } finally {
+      setRepliesLoading(false);
+      setHasLoadedReplies(true);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "posts" && !hasLoadedThreads) {
+      fetchProfileThreads();
+    }
+    if (activeTab === "replies" && !hasLoadedReplies) {
+      fetchProfileReplies();
+    }
+  }, [activeTab, hasLoadedThreads, hasLoadedReplies, user_id, userData?.user_id]);
+
   if (!profile) return <p>Loading profile...</p>;
 
-  // Prepare display values
   const fullName = `${profile.first_name} ${profile.last_name}`;
   const displayHeadline = profile.headline || "Student at Your University";
   const displayAbout = profile.about || "No about information provided yet.";
   const displaySkills = profile.skills || "";
+  const shouldBlurDetails = !userData;
+  const profileTabs = [
+    { id: "about", label: "About" },
+    { id: "posts", label: "Posts" },
+    { id: "replies", label: "Replies" },
+  ];
 
   return (
-    <div className="profile-view">
-      {/* Banner Section */}
-      <div className="profile-banner">
-        <img
-          src={profile.banner_path || "/uploads/banners/default-banner.jpg"}
-          alt="Profile Banner"
-          className="profile-banner-img"
-        />
-      </div>
-
-      {/* Header Section */}
-      <div className="profile-header">
-        <div className="avatar-container">
+    <div className="profile-view profile-container">
+      <div className="hero-card profile-hero-card">
+        <div className="hero-banner">
           <img
-            src={profile.avatar_path || "/uploads/avatars/default-avatar.png"}
-            alt={`${fullName} Avatar`}
-            className="profile-avatar"
+            src={profile.banner_path || "/uploads/banners/default-banner.jpg"}
+            alt="Profile Banner"
           />
         </div>
-        <div className="profile-info">
-          <h2 className="profile-name">
-            {fullName}{" "}
-            {verified && (
-              <FaCheckCircle
-                className="verified-badge"
-                style={{ pointerEvents: "auto" }}
-                title={`Verified from ${verifiedCommunityName}`}
+        <div className="hero-content">
+          <div className="hero-left">
+            <div className="user-hero-logo-wrap">
+              <img
+                src={profile.avatar_path || "/uploads/avatars/default-avatar.png"}
+                alt={`${fullName} Avatar`}
+                className="user-hero-logo"
               />
-            )}
-          </h2>
-          <p className="profile-headline">{displayHeadline}</p>
-          <p className="followers-count">{followerCount} Followers</p>
-
-          {/* Follow/Unfollow and Message Buttons (only if viewing another user's profile) */}
-          {userData && userData.user_id !== parseInt(user_id, 10) && (
-            <div className="profile-actions" style={{ position: 'relative' }}>
-              {connectionStatus === 'accepted' ? (
-                <RouterLink to={`/messages?user=${user_id}`} className="message-button">
-                  Message
-                </RouterLink>
-              ) : connectionStatus === 'pending' ? (
-                isRequester ? (
-                  <button className="connect-button pending" onClick={handleCancel}>
-                    Pending
-                  </button>
-                ) : (
-                  <button className="connect-button" onClick={handleAccept}>
-                    Accept
-                  </button>
-                )
-              ) : (
-                <button className="connect-button" onClick={handleConnect}>
-                  Connect
-                </button>
-              )}
-              <FaEllipsisV
-                className="menu-icon"
-                onClick={() => setOpenMenu((prev) => !prev)}
-                style={{ marginLeft: '8px' }}
-              />
-              {openMenu && (
-                <div ref={menuRef} className="dropdown-menu" style={{ right: 0 }}>
-                  <button
-                    className="dropdown-item"
-                    onClick={handleFollowToggle}
-                    disabled={loadingFollowStatus}
-                  >
-                    {isFollowing ? 'Unfollow' : 'Follow'}
-                  </button>
-                  {connectionStatus === 'accepted' && (
-                    <button className="dropdown-item" onClick={handleRemoveConnection}>
-                      Remove Connection
-                    </button>
-                  )}
-                  <button className="dropdown-item" onClick={() => alert('Report/Block coming soon')}>Report or Block</button>
+            </div>
+            <div className="hero-text">
+              <h1 className="hero-title">
+                {fullName}
+                {verified && (
+                  <FaCheckCircle
+                    className="verified-badge"
+                    style={{ pointerEvents: "auto" }}
+                    title={`Verified from ${verifiedCommunityName}`}
+                  />
+                )}
+              </h1>
+              <p className="hero-sub">{displayHeadline}</p>
+              <p className="hero-sub">{followerCount} Followers</p>
+              {ambassadorCommunities.length > 0 && (
+                <div className="ambassador-logos">
+                  {ambassadorCommunities.map((communityId) => (
+                    <RouterLink key={communityId} to={`/university/${communityId}`}>
+                      <img
+                        src={communityLogos[communityId] || "/uploads/logos/default-logo.png"}
+                        alt="Ambassador Community"
+                        className="community-logo"
+                        title={`${communityNames[communityId] || "Unknown"} Ambassador`}
+                      />
+                    </RouterLink>
+                  ))}
                 </div>
               )}
             </div>
-          )}
-
-          {/* Display ambassador community logos as clickable links */}
-          {ambassadorCommunities.length > 0 && (
-            <div className="ambassador-logos">
-              {ambassadorCommunities.map((communityId) => (
-                <RouterLink key={communityId} to={`/university/${communityId}`}>
-                  <img
-                    src={communityLogos[communityId] || "/uploads/logos/default-logo.png"}
-                    alt="Ambassador Community"
-                    className="community-logo"
-                    title={`${communityNames[communityId] || "Unknown"} Ambassador`}
-                  />
-                </RouterLink>
-              ))}
-            </div>
-          )}
+          </div>
+          <div className="hero-right hero-actions">
+            {userData && userData.user_id !== parseInt(user_id, 10) && (
+              <div className="profile-actions" style={{ position: "relative" }}>
+                {connectionStatus === "accepted" ? (
+                  <RouterLink to={`/messages?user=${user_id}`} className="message-button">
+                    Message
+                  </RouterLink>
+                ) : connectionStatus === "pending" ? (
+                  isRequester ? (
+                    <button className="connect-button pending" onClick={handleCancel}>
+                      Pending
+                    </button>
+                  ) : (
+                    <button className="connect-button" onClick={handleAccept}>
+                      Accept
+                    </button>
+                  )
+                ) : (
+                  <button className="connect-button" onClick={handleConnect}>
+                    Connect
+                  </button>
+                )}
+                <FaEllipsisV
+                  className="menu-icon"
+                  onClick={() => setOpenMenu((prev) => !prev)}
+                  style={{ marginLeft: "8px" }}
+                />
+                {openMenu && (
+                  <div ref={menuRef} className="dropdown-menu" style={{ right: 0 }}>
+                    <button
+                      className="dropdown-item"
+                      onClick={handleFollowToggle}
+                      disabled={loadingFollowStatus}
+                    >
+                      {isFollowing ? "Unfollow" : "Follow"}
+                    </button>
+                    {connectionStatus === "accepted" && (
+                      <button className="dropdown-item" onClick={handleRemoveConnection}>
+                        Remove Connection
+                      </button>
+                    )}
+                    <button
+                      className="dropdown-item"
+                      onClick={() => alert("Report/Block coming soon")}
+                    >
+                      Report or Block
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="tabs-underline">
+          {profileTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`tab-link ${activeTab === tab.id ? "active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+              disabled={shouldBlurDetails}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* About Section */}
-      <div className="profile-section">
-        <h3>About</h3>
-        <p>{DOMPurify.sanitize(displayAbout)}</p>
-      </div>
+      <div className="profile-detail-wrapper">
+        {shouldBlurDetails && (
+          <div className="profile-detail-cta">
+            <p>
+              Want more details? Log in or create an account to unlock experience, education, and
+              skills.
+            </p>
+            <div className="profile-detail-cta-actions">
+              <RouterLink to="/login" className="overlay-button primary">
+                Log In
+              </RouterLink>
+              <RouterLink to="/signup" className="overlay-button ghost">
+                Create Account
+              </RouterLink>
+            </div>
+          </div>
+        )}
 
-      {/* Experience Section */}
-      <div className="profile-section">
-        <h3>Experience</h3>
-        {loadingExp ? (
-          <p>Loading experience...</p>
-        ) : errorExp ? (
-          <p>{errorExp}</p>
-        ) : experience.length > 0 ? (
-          experience.map((exp, index) => (
-            <div key={index} className="experience-item">
-              <h4>
-                {exp.title} at {exp.company}
-              </h4>
-              {exp.start_date && (
-                <div className="experience-dates">
-                  {exp.start_date} - {exp.end_date ? exp.end_date : "Present"}
-                </div>
-              )}
-              <div className="experience-meta">
-                {/*<span className="experience-industry">{exp.industry}</span>*/}
-                <span className="experience-type">{exp.employment_type}</span>
-                <span className="experience-location">
-                  {exp.location_city}
-                  {exp.location_state ? `, ${exp.location_state}` : ""}
-                </span>
+        <div className={`profile-detail-sections ${shouldBlurDetails ? "restricted" : ""}`}>
+          {shouldBlurDetails && (
+            <div className="profile-detail-overlay" aria-hidden="true"></div>
+          )}
+
+          {activeTab === "about" && (
+            <>
+              <div className={`profile-section about-section ${shouldBlurDetails ? "restricted" : ""}`}>
+                <h3>About</h3>
+                <p>{DOMPurify.sanitize(displayAbout)}</p>
               </div>
-              <p>{exp.description}</p>
-              {exp.responsibilities && exp.responsibilities.length > 0 && (
-                <ul className="responsibilities-list">
-                  {exp.responsibilities.map((resp, idx) => (
-                    <li key={idx}>{resp}</li>
+
+              <div className="profile-section">
+                <h3>Experience</h3>
+                {loadingExp ? (
+                  <p>Loading experience...</p>
+                ) : errorExp ? (
+                  <p>{errorExp}</p>
+                ) : experience.length > 0 ? (
+                  experience.map((exp, index) => (
+                    <div key={index} className="experience-item">
+                      <h4>
+                        {exp.title} at {exp.company}
+                      </h4>
+                      {exp.start_date && (
+                        <div className="experience-dates">
+                          {exp.start_date} - {exp.end_date ? exp.end_date : "Present"}
+                        </div>
+                      )}
+                      <div className="experience-meta">
+                        <span className="experience-type">{exp.employment_type}</span>
+                        <span className="experience-location">
+                          {exp.location_city}
+                          {exp.location_state ? `, ${exp.location_state}` : ""}
+                        </span>
+                      </div>
+                      <p>{exp.description}</p>
+                      {exp.responsibilities && exp.responsibilities.length > 0 && (
+                        <ul className="responsibilities-list">
+                          {exp.responsibilities.map((resp, idx) => (
+                            <li key={idx}>{resp}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p>No experience added yet.</p>
+                )}
+              </div>
+
+              <div className="profile-section">
+                <h3>Education</h3>
+                {loadingEdu ? (
+                  <p>Loading education...</p>
+                ) : errorEdu ? (
+                  <p>{errorEdu}</p>
+                ) : education.length > 0 ? (
+                  education.map((edu, index) => (
+                    <div key={index} className="education-item">
+                      <h4>
+                        {edu.degree} in {edu.field_of_study}
+                      </h4>
+                      <div className="education-institution">{edu.institution}</div>
+                      {edu.start_date && (
+                        <div className="education-dates">
+                          {edu.start_date} - {edu.end_date ? edu.end_date : "Present"}
+                        </div>
+                      )}
+                      {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
+                      {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
+                      {edu.activities_societies && (
+                        <div className="education-activities">
+                          Activities: {edu.activities_societies}
+                        </div>
+                      )}
+                      {edu.achievements && edu.achievements.length > 0 && (
+                        <ul className="achievements-list">
+                          {edu.achievements.map((ach, idx) => (
+                            <li key={idx}>{ach}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p>No education details added yet.</p>
+                )}
+              </div>
+
+              <div className="profile-section">
+                <h3>Skills</h3>
+                {displaySkills ? (
+                  <ul className="skills-list">
+                    {displaySkills.split(",").map((skill, index) => (
+                      <li key={index} className="skill-item">
+                        {skill.trim()}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No skills listed yet.</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {activeTab === "posts" && (
+            <div className="profile-section">
+              <h3>Posts</h3>
+              {threadsLoading ? (
+                <p>Loading posts...</p>
+              ) : threadsError ? (
+                <p>{threadsError}</p>
+              ) : userThreads.length > 0 ? (
+                <div className="profile-thread-list">
+                  {userThreads.map((thread) => (
+                    <ThreadCard key={thread.thread_id} thread={thread} userData={userData} />
                   ))}
-                </ul>
+                </div>
+              ) : (
+                <p>No posts yet.</p>
               )}
             </div>
-          ))
-        ) : (
-          <p>No experience added yet.</p>
-        )}
-      </div>
+          )}
 
-      {/* Education Section */}
-      <div className="profile-section">
-        <h3>Education</h3>
-        {loadingEdu ? (
-          <p>Loading education...</p>
-        ) : errorEdu ? (
-          <p>{errorEdu}</p>
-        ) : education.length > 0 ? (
-          education.map((edu, index) => (
-            <div key={index} className="education-item">
-              <h4>
-                {edu.degree} in {edu.field_of_study}
-              </h4>
-              <div className="education-institution">{edu.institution}</div>
-              {edu.start_date && (
-                <div className="education-dates">
-                  {edu.start_date} - {edu.end_date ? edu.end_date : "Present"}
-                </div>
-              )}
-              {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
-              {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
-              {edu.activities_societies && (
-                <div className="education-activities">
-                  Activities: {edu.activities_societies}
-                </div>
-              )}
-              {edu.achievements && edu.achievements.length > 0 && (
-                <ul className="achievements-list">
-                  {edu.achievements.map((ach, idx) => (
-                    <li key={idx}>{ach}</li>
+          {activeTab === "replies" && (
+            <div className="profile-section">
+              <h3>Replies</h3>
+              {repliesLoading ? (
+                <p>Loading replies...</p>
+              ) : repliesError ? (
+                <p>{repliesError}</p>
+              ) : userReplies.length > 0 ? (
+                <div className="profile-replies-list">
+                  {userReplies.map((reply) => (
+                    <div key={reply.post_id} className="profile-reply-card">
+                      <div className="profile-reply-meta">
+                        <RouterLink
+                          to={`/info/forum/${reply.forum_id}/thread/${reply.thread_id}`}
+                          className="profile-reply-thread"
+                        >
+                          {reply.thread_title || "View Thread"}
+                        </RouterLink>
+                        <span className="middot" aria-hidden="true">
+                          •
+                        </span>
+                        <span className="meta-quiet">
+                          {new Date(reply.created_at).toLocaleString()}
+                        </span>
+                        {reply.community_name && reply.community_id && reply.community_type && (
+                          <>
+                            <span className="middot" aria-hidden="true">
+                              •
+                            </span>
+                            <RouterLink
+                              to={`/${reply.community_type}/${reply.community_id}`}
+                              className="profile-reply-community"
+                            >
+                              {reply.community_name}
+                            </RouterLink>
+                          </>
+                        )}
+                      </div>
+                      <div
+                        className="profile-reply-content"
+                        dangerouslySetInnerHTML={{
+                          __html: DOMPurify.sanitize(reply.content || ""),
+                        }}
+                      />
+                    </div>
                   ))}
-                </ul>
+                </div>
+              ) : (
+                <p>No replies yet.</p>
               )}
             </div>
-          ))
-        ) : (
-          <p>No education details added yet.</p>
-        )}
-      </div>
-
-      {/* Skills Section */}
-      <div className="profile-section">
-        <h3>Skills</h3>
-        {displaySkills ? (
-          <ul className="skills-list">
-            {displaySkills.split(",").map((skill, index) => (
-              <li key={index} className="skill-item">
-                {skill.trim()}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No skills listed yet.</p>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

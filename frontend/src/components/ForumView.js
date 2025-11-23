@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import TextEditor from './TextEditor';
-import FloatingComposer from './FloatingComposer';
 import './ForumView.css';  // Adjusted to match feed styling
 import { FaEllipsisV, FaArrowAltCircleUp, FaRegArrowAltCircleUp, FaArrowAltCircleDown, FaRegArrowAltCircleDown } from 'react-icons/fa';
 import ThreadCard from './ThreadCard';
@@ -29,7 +28,7 @@ const sortItems = (items, criteria) => {
   return sorted;
 };
 
-function ForumView({ userData }) {
+function ForumView({ userData, onRequireAuth }) {
   const { forum_id } = useParams();
 
   // Forum data & threads
@@ -137,10 +136,16 @@ function ForumView({ userData }) {
 
   // kebab menu handled inside ThreadCard
 
+  const promptAuthOverlay = () => {
+    if (onRequireAuth) {
+      onRequireAuth();
+    }
+  };
+
   // === Thread CRUD / Voting ===
   const handleToggleSaveThread = async (threadId) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to save threads.' });
+      promptAuthOverlay();
       return;
     }
 
@@ -172,7 +177,10 @@ function ForumView({ userData }) {
   };
 
   const handleUpvoteClick = async (threadId) => {
-    if (!userData) return alert('You must be logged in to vote.');
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
     try {
       await axios.post('/api/vote_thread.php', {
         thread_id: threadId,
@@ -186,7 +194,10 @@ function ForumView({ userData }) {
   };
 
   const handleDownvoteClick = async (threadId) => {
-    if (!userData) return alert('You must be logged in to vote.');
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
     try {
       await axios.post('/api/vote_thread.php', {
         thread_id: threadId,
@@ -202,7 +213,7 @@ function ForumView({ userData }) {
   const handleCreateThreadSubmit = async (e) => {
     e.preventDefault();
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to create threads.' });
+      promptAuthOverlay();
       return;
     }
     setIsCreatingThread(true);
@@ -238,7 +249,7 @@ function ForumView({ userData }) {
 
   const handleDeleteThread = async (threadId) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to delete a thread.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -276,7 +287,7 @@ function ForumView({ userData }) {
   const handleEditThreadSubmit = async (e) => {
     e.preventDefault();
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to edit a thread.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -314,6 +325,18 @@ function ForumView({ userData }) {
     );
   }
 
+  const isAdmin = Number(userData?.role_id) === 7;
+  const isAmbassador = Number(userData?.is_ambassador) === 1;
+  const communityId = forumData?.community_id;
+  const ambassadorHasAccess =
+    isAmbassador &&
+    communityId &&
+    ambassadorCommunities.some((c) => {
+      const id = c?.community_id ?? c?.id ?? c;
+      return Number(id) === Number(communityId);
+    });
+  const canCreateThread = Boolean(userData && (isAdmin || ambassadorHasAccess));
+
   return (
     <div className="feed-container forum-view">
     {/* Breadcrumbs */}
@@ -339,7 +362,15 @@ function ForumView({ userData }) {
         </h2>
       </div>
 
-      {/* Removed inline New Thread button; FAB provided at bottom-right */}
+      {canCreateThread && (
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => setShowCreateThreadModal(true)}
+        >
+          New Thread
+        </button>
+      )}
     </div>
     
       {/* Sorting */}
@@ -377,25 +408,8 @@ function ForumView({ userData }) {
         </div>
       )}
 
-      {/* Bottom-right FAB for creating thread/post/poll */}
-      {userData && (() => {
-        const isAdmin = Number(userData.role_id) === 7;
-        const isAmb = Number(userData.is_ambassador) === 1;
-        const communityId = forumData?.community_id;
-        const ambAllowed = isAmb && communityId && ambassadorCommunities.some((c) => {
-          const id = c?.community_id ?? c?.id ?? c;
-          return Number(id) === Number(communityId);
-        });
-        return isAdmin || ambAllowed;
-      })() && (
-        <FloatingComposer
-          defaultCommunityId={forumData?.community_id}
-          communities={forumData?.community_id ? [{ community_id: forumData.community_id, name: forumData?.community_name }] : []}
-        />
-      )}
-
       {/* CREATE THREAD MODAL */}
-      {false && showCreateThreadModal && (
+      {canCreateThread && showCreateThreadModal && (
         <div className="modal-overlay">
           <div className="modal-content">
             <h3>Create a New Thread</h3>
@@ -419,7 +433,7 @@ function ForumView({ userData }) {
               </div>
               <div className="form-actions">
                 <button type="submit" disabled={isCreatingThread}>
-                  {isCreatingThread ? 'Creating...' : 'Create'}
+                  {isCreatingThread ? 'Creating...' : 'Create Thread'}
                 </button>
                 <button
                   type="button"

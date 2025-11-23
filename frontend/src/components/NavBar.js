@@ -7,7 +7,7 @@ import axios from 'axios';
 //
 
 function NavBar({
-  setStep,
+  onOpenLogin,
   activeFeed,
   setActiveFeed,
   activeSection,
@@ -200,60 +200,64 @@ function NavBar({
             {isDarkMode ? <FaSun className="nav-icon" /> : <FaMoon className="nav-icon" />}
           </button>
 
-          {/* Messages link */}
-          <Link to="/messages" aria-label="Messages" className="messages-link">
-            <div className="notification-container">
-              <FaEnvelope className="nav-icon" title="Messages" aria-hidden="true" />
-              {unreadMessages > 0 && (
-                <span className="notification-badge" aria-label={`${unreadMessages} unread messages`}>{unreadMessages}</span>
-              )}
-            </div>
-          </Link>
+          {userData && (
+            <>
+              {/* Messages link */}
+              <Link to="/messages" aria-label="Messages" className="messages-link">
+                <div className="notification-container">
+                  <FaEnvelope className="nav-icon" title="Messages" aria-hidden="true" />
+                  {unreadMessages > 0 && (
+                    <span className="notification-badge" aria-label={`${unreadMessages} unread messages`}>{unreadMessages}</span>
+                  )}
+                </div>
+              </Link>
 
-          {/* Notifications */}
-          <div className="notification-container" ref={notificationRef}>
-            <button
-              type="button"
-              className="nav-icon-button"
-              onClick={toggleNotifications}
-              aria-haspopup="true"
-              aria-expanded={isNotificationsOpen}
-              aria-controls="notifications-dropdown"
-              aria-label="Notifications"
-              title="Notifications"
-            >
-              <FaBell className="nav-icon" aria-hidden="true" />
-              {unreadCount > 0 && (
-                <span className="notification-badge" aria-label={`${unreadCount} unread notifications`}>{unreadCount}</span>
-              )}
-            </button>
+              {/* Notifications */}
+              <div className="notification-container" ref={notificationRef}>
+                <button
+                  type="button"
+                  className="nav-icon-button"
+                  onClick={toggleNotifications}
+                  aria-haspopup="true"
+                  aria-expanded={isNotificationsOpen}
+                  aria-controls="notifications-dropdown"
+                  aria-label="Notifications"
+                  title="Notifications"
+                >
+                  <FaBell className="nav-icon" aria-hidden="true" />
+                  {unreadCount > 0 && (
+                    <span className="notification-badge" aria-label={`${unreadCount} unread notifications`}>{unreadCount}</span>
+                  )}
+                </button>
 
-            {isNotificationsOpen && (
-              <div id="notifications-dropdown" className="notifications-dropdown" role="dialog" aria-label="Notifications">
-                <h4>Notifications</h4>
-                {notifications.length === 0 ? (
-                  <p>No notifications</p>
-                ) : (
-                  <>
-                    <ul>
-                      {notifications.map((notif) => (
-                        <li
-                          key={notif.notification_id}
-                          className={`notification-item ${notif.is_read === "0" ? 'unread' : ''}`}
-                        >
-                          <p dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notif.message) }} />
-                          <small>{new Date(notif.created_at).toLocaleString()}</small>
-                        </li>
-                      ))}
-                    </ul>
-                    <button className="mark-read-button" onClick={markAllAsRead}>
-                      Mark All as Read
-                    </button>
-                  </>
+                {isNotificationsOpen && (
+                  <div id="notifications-dropdown" className="notifications-dropdown" role="dialog" aria-label="Notifications">
+                    <h4>Notifications</h4>
+                    {notifications.length === 0 ? (
+                      <p>No notifications</p>
+                    ) : (
+                      <>
+                        <ul>
+                          {notifications.map((notif) => (
+                            <li
+                              key={notif.notification_id}
+                              className={`notification-item ${notif.is_read === "0" ? 'unread' : ''}`}
+                            >
+                              <p dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notif.message) }} />
+                              <small>{new Date(notif.created_at).toLocaleString()}</small>
+                            </li>
+                          ))}
+                        </ul>
+                        <button className="mark-read-button" onClick={markAllAsRead}>
+                          Mark All as Read
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            </>
+          )}
 
           {userData && (
             <div
@@ -311,7 +315,7 @@ function NavBar({
           )}
         </div>
         {!userData && (
-          <button className="nav-button" onClick={() => setStep(2)}>
+          <button className="nav-button" onClick={onOpenLogin}>
             Login
           </button>
         )}

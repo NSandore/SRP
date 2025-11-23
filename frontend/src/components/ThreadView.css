@@ -27,11 +27,7 @@
 
 /* Original post block */
 .original-post {
-  background-color: var(--card-background);
-  border: 1px solid var(--card-border);
-  border-radius: var(--border-radius);
-  padding: 1rem;
-  margin: 0.5rem 0 1rem 0;
+  margin: 0.5rem 0 0 0;
 }
 
 /* Tags under thread title reuse .chips-row .chip from App.css */
@@ -42,19 +38,6 @@
     flex-direction: column;
     gap: 1rem;
   }
-  
-  /* Each post or reply is now a 'post-card', matching the .forum-card style */
-  .post-card {
-    background-color: #fff;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    transition: box-shadow 0.3s ease;
-  }
-  .post-card:hover {
-    box-shadow: 0 4px 14px rgba(0,0,0,0.1);
-  }
-  
   
   /* Keep the verified styling, but unify the color usage */
   .post-card.verified {
@@ -88,6 +71,7 @@
     align-items: center;
     gap: 0.5rem;
     margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
   }
   
   .vote-button {
@@ -115,11 +99,17 @@
     color: #dc3545; /* Red for downvoted */
   }
   
-  .vote-count {
-    font-size: 1rem;
-    color: #333;
-    font-weight: bold;
-  }
+.vote-count {
+  font-size: 1rem;
+  color: #333;
+  font-weight: bold;
+}
+
+.thread-divider {
+  border: none;
+  border-top: 1px solid var(--card-border);
+  margin: 0 0;
+}
   
   /* Reply & Collapse buttons in the same row */
   .reply-button,

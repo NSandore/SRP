@@ -5,16 +5,34 @@ import RightSidebar from '../components/RightSidebar';
 import ContactUsButton from '../components/ContactUsButton';
 import NavBar from '../components/NavBar';
 import { Menu } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 type NavBarProps = any; // Narrow types later as needed
 
 type AppShellProps = {
   children: React.ReactNode;
   navBarProps: NavBarProps;
+  userData?: any;
+  lockedNavKeys?: string[];
 };
 
-export default function AppShell({ children, navBarProps }: AppShellProps) {
+export default function AppShell({
+  children,
+  navBarProps,
+  userData,
+  lockedNavKeys,
+}: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const location = useLocation();
+  const pathname = location.pathname;
+  const isWideLayout =
+    pathname.startsWith('/communities') ||
+    pathname.startsWith('/university') ||
+    pathname.startsWith('/group') ||
+    pathname.startsWith('/profile') ||
+    pathname.startsWith('/user/');
+  const isMessagesRoute = pathname.startsWith('/messages');
+  const effectiveLockedKeys = lockedNavKeys ?? ['saved', 'connections', 'profile'];
 
   return (
     <div className="app-shell">
@@ -45,14 +63,18 @@ export default function AppShell({ children, navBarProps }: AppShellProps) {
         role="dialog"
         aria-label="Navigation drawer"
       >
-        <LeftSidebar />
+        <LeftSidebar userData={userData} lockedKeys={effectiveLockedKeys} />
       </aside>
 
       {/* Main three-column grid */}
       <main className="app-shell-main">
-        <div className="app-shell-grid">
+        <div
+          className={`app-shell-grid ${isWideLayout ? 'communities-layout' : ''} ${
+            isMessagesRoute ? 'messages-layout' : ''
+          }`}
+        >
           <div className="left-rail">
-            <LeftSidebar />
+            <LeftSidebar userData={userData} lockedKeys={effectiveLockedKeys} />
           </div>
           <div className="center-rail">
             {children}
@@ -68,4 +90,3 @@ export default function AppShell({ children, navBarProps }: AppShellProps) {
     </div>
   );
 }
-

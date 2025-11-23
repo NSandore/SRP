@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link as RouterLink } from "react-router-dom";
 import axios from "axios";
+import { FaLock } from "react-icons/fa";
 import "./UniversityProfile.css";
 
-function UniversityProfile({ userData }) {
+function UniversityProfile({ userData, onRequireAuth }) {
   const { id } = useParams(); // community id
   const [university, setUniversity] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -113,6 +114,7 @@ function UniversityProfile({ userData }) {
     },
   ];
   const combinedAmbassadors = [...ambassadors, ...mockAmbassadors];
+  const canViewAmbassadors = Boolean(userData);
 
   // --------------------------------------------------------------------------
   // Fetch university details on mount (or when id changes)
@@ -308,34 +310,57 @@ function UniversityProfile({ userData }) {
   if (!university) return <p>No university found.</p>;
 
   return (
-    <div
-      className="university-profile"
-      style={{
-        "--primary-color": university.primary_color || "#0077B5",
-        "--secondary-color": university.secondary_color || "#005f8d",
-      }}
-    >
-      {/* University Banner */}
-      <div className="university-banner">
-        <img
-          src={university.banner_path || "/uploads/banners/default-banner.jpeg"}
-          alt="University Banner"
-        />
-      </div>
-
-      <div className="university-logo-container">
-        <RouterLink to={`/university/${id}`}>
-          <img
-            src={university.logo_path || "/uploads/logos/default-logo.png"}
-            alt="University Logo"
-            className="university-logo"
-          />
-        </RouterLink>
-      </div>
+    <div className="profile-container" style={{
+      "--primary-color": university.primary_color || "#0077B5",
+      "--secondary-color": university.secondary_color || "#005f8d",
+    }}>
+      <section className="profile-main">
+        {/* HERO CARD */}
+        <div className="hero-card community-hero">
+          <div className="hero-banner">
+            <img src={university.banner_path || "/uploads/banners/default-banner.jpeg"} alt="University Banner" />
+          </div>
+          <div className="hero-content">
+            <div className="hero-left">
+              <RouterLink to={`/university/${id}`} className="community-hero-logo-wrap">
+                <img
+                  src={university.logo_path || "/uploads/logos/default-logo.png"}
+                  alt="University Logo"
+                  className="community-hero-logo"
+                />
+              </RouterLink>
+              <div className="hero-text">
+                <h1 className="hero-title">{university.name}</h1>
+                {university.tagline && <p className="hero-sub">{university.tagline}</p>}
+                {university.location && <p className="hero-sub">{university.location}</p>}
+              </div>
+            </div>
+            <div className="hero-right hero-actions">
+              <button type="button" className="pill-button">Following</button>
+              {userData &&
+                (userData.role_id >= 6 ||
+                  (userData.role_id === 5 &&
+                    userData.admin_community_ids &&
+                    userData.admin_community_ids.includes(Number(id))) ) && (
+                <button
+                  type="button"
+                  className="pill-button secondary"
+                  onClick={handleToggleEdit}
+                >
+                  Edit University
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="tabs-underline">
+            <button type="button" className="tab-link">Overview</button>
+            <button type="button" className="tab-link active">Posts</button>
+          </div>
+        </div>
 
       {isEditing ? (
         <form className="university-edit-form" onSubmit={handleUpdateUniversity}>
-          <div className="university-info">
+          <div className="edit-panel">
             <div className="logo-section">
               <span>Logo:</span>
               <input
@@ -412,45 +437,64 @@ function UniversityProfile({ userData }) {
             </div>
           </div>
         </form>
-      ) : (
-        <div className="university-info">
-          <h1 className="university-name">{university.name}</h1>
-          <p className="university-tagline">{university.tagline}</p>
-          <p className="university-location">{university.location}</p>
-          <p className="followers-count">{followersCount} Followers</p>
-          {university.website && (
-            <a
-              href={university.website}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Visit Website
-            </a>
-          )}
-          {userData &&
-            (userData.role_id >= 6 ||
-              (userData.role_id === 5 &&
-                userData.admin_community_ids &&
-                userData.admin_community_ids.includes(Number(id))) ) && (
-            <button
-              className="edit-university-button"
-              onClick={handleToggleEdit}
-            >
-              Edit University
-            </button>
-          )}
-          {/* Ambassador List Button */}
-          <button
-            className="ambassador-button"
-            onClick={() => setShowAmbassadorOverlay(true)}
-          >
-            Ambassador List
-          </button>
+      ) : null}
+
+        {/* Below hero: two-column split — main content + right cards */}
+        <div className="profile-split">
+          <div className="split-main">
+            {/* Main content card (Posts/Overview placeholder) */}
+            <div className="content-card">
+              <div className="posts-placeholder">
+                <p>Posts will appear here.</p>
+              </div>
+            </div>
+          </div>
+          <aside className="split-aside">
+            <div className="info-card">
+              <h3>Ambassadors</h3>
+              <div className="avatar-stack" style={{ marginBottom: 8 }}>
+                {combinedAmbassadors.slice(0, 6).map((a) => (
+                  <img key={a.id} className="avatar" src={a.avatar_path || '/uploads/avatars/default-avatar.png'} alt="amb" />
+                ))}
+              </div>
+              <button
+                className={`pill-button ${!canViewAmbassadors ? 'locked' : ''}`}
+                type="button"
+                onClick={() => {
+                  if (!canViewAmbassadors) {
+                    onRequireAuth?.();
+                    return;
+                  }
+                  setShowAmbassadorOverlay(true);
+                }}
+                aria-disabled={!canViewAmbassadors}
+                title={!canViewAmbassadors ? 'Log in to view ambassadors' : 'View ambassadors'}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  {!canViewAmbassadors && <FaLock size={12} />}
+                  View all
+                </span>
+              </button>
+            </div>
+            <div className="info-card">
+              <h3>Contact Us</h3>
+              {university.website ? (
+                <p style={{ margin: 0 }}>
+                  <a href={university.website} target="_blank" rel="noopener noreferrer">{university.website}</a>
+                </p>
+              ) : null}
+              {university.contact_email || university.email ? (
+                <p className="muted" style={{ margin: '6px 0 0 0' }}>{university.contact_email || university.email}</p>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>No contact info provided.</p>
+              )}
+            </div>
+          </aside>
         </div>
-      )}
+      </section>
 
       {/* Ambassador Overlay */}
-      {showAmbassadorOverlay && (
+      {showAmbassadorOverlay && userData && (
         <div className="overlay">
           <div className="overlay-content">
             <h2>Ambassador List</h2>

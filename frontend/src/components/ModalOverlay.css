@@ -1,0 +1,58 @@
+.feature-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 11, 25, 0.65);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem clamp(1rem, 5vw, 3rem);
+  z-index: 11000;
+}
+
+.feature-overlay-content {
+  position: relative;
+  width: min(1120px, 100%);
+  max-height: calc(100vh - 3rem);
+  border-radius: 32px;
+  background: var(--card-background);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 120px rgba(2, 6, 23, 0.35);
+  overflow: hidden;
+}
+
+.feature-overlay-body {
+  max-height: inherit;
+  overflow-y: auto;
+}
+
+.feature-overlay-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  border: none;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 1.4rem;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.feature-overlay-close:hover {
+  background: rgba(15, 23, 42, 0.15);
+}
+
+@media (max-width: 768px) {
+  .feature-overlay-content {
+    border-radius: 24px;
+    max-height: calc(100vh - 2rem);
+  }
+
+  .feature-overlay-close {
+    top: 0.75rem;
+    right: 0.75rem;
+  }
+}
