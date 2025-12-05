@@ -8,6 +8,11 @@
   width: min(1400px, 98vw);
   margin: 16px auto 24px;
   align-items: start;
+  transition: grid-template-columns 0.2s ease-in-out;
+}
+
+.app-shell-grid.nav-collapsed {
+  grid-template-columns: 80px 1fr 320px;
 }
 
 .left-rail {
@@ -17,7 +22,13 @@
   justify-self: center;
   width: 240px;
   max-height: calc(100vh - 80px);
-  overflow: auto;
+  overflow-x: visible;
+  transition: width 0.2s ease-in-out;
+  will-change: width;
+}
+
+.app-shell-grid.nav-collapsed .left-rail {
+  width: 80px;
 }
 .center-rail { min-width: 0; justify-self: center; width: 100%; max-width: 880px; }
 .right-rail {
@@ -43,6 +54,10 @@
   padding-right: 0;
 }
 
+.app-shell-grid.nav-collapsed.communities-layout {
+  grid-template-columns: 80px 1fr;
+}
+
 .app-shell-grid.messages-layout {
   grid-template-columns: 240px 1fr;
 }
@@ -55,17 +70,56 @@
   padding-right: 1.5rem;
 }
 
+.app-shell-grid.nav-collapsed.messages-layout {
+  grid-template-columns: 80px 1fr;
+}
+
+.app-shell-grid.search-layout {
+  grid-template-columns: 240px 1fr;
+}
+.app-shell-grid.search-layout .right-rail {
+  display: none;
+}
+.app-shell-grid.search-layout .center-rail {
+  max-width: 1200px;
+}
+
+.app-shell-grid.nav-collapsed.search-layout {
+  grid-template-columns: 80px 1fr;
+}
+
+.app-shell-grid.settings-layout {
+  grid-template-columns: 1fr;
+  width: min(1400px, 98vw);
+}
+.app-shell-grid.settings-layout .left-rail,
+.app-shell-grid.settings-layout .right-rail {
+  display: none;
+}
+.app-shell-grid.settings-layout .center-rail {
+  max-width: 1400px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
 /* Hide right rail below xl (1280px) */
 @media (max-width: 1279px) {
   .app-shell-grid {
     grid-template-columns: 240px 1fr;
   }
   .right-rail { display: none; }
+
+  .app-shell-grid.nav-collapsed {
+    grid-template-columns: 80px 1fr;
+  }
 }
 
 /* Convert left rail to drawer below lg (1024px) */
 @media (max-width: 1023px) {
   .app-shell-grid {
+    grid-template-columns: 1fr;
+  }
+  .app-shell-grid.nav-collapsed {
     grid-template-columns: 1fr;
   }
   .left-rail { display: none; }

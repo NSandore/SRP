@@ -79,6 +79,12 @@ function App() {
 
   const [showWelcome, setShowWelcome] = useState(false);
 
+  const getInitials = (firstName = '', lastName = '') => {
+    const first = firstName.trim().charAt(0);
+    const last = lastName.trim().charAt(0);
+    return `${first}${last}`.toUpperCase() || 'A';
+  };
+
   const notificationRef = useRef(null); // Ref to handle click outside notifications
   useOnClickOutside(notificationRef, () => setIsNotificationsOpen(false));
   const navigate = useNavigate();
@@ -90,7 +96,7 @@ function App() {
   useEffect(() => {
     const checkUserSession = async () => {
       try {
-        const response = await axios.get('http://172.16.11.133/api/check_session.php', {
+        const response = await axios.get('/api/check_session.php', {
           withCredentials: true
         });
 
@@ -118,7 +124,8 @@ function App() {
     const prevPath = previousPathRef.current;
     const isProtectedRoute = PROTECTED_ROUTES.some((route) => location.pathname.startsWith(route));
 
-    if (!isProtectedRoute) {
+    // Only track non-auth, non-protected routes as "last accessible" so guest continue has a real destination
+    if (!isProtectedRoute && !isAuthPage) {
       setLastAccessiblePath(location.pathname);
       setPendingProtectedReturnPath(null);
     } else if (!userData) {
@@ -127,7 +134,7 @@ function App() {
     }
 
     previousPathRef.current = location.pathname;
-  }, [location.pathname, userData, lastAccessiblePath]);
+  }, [location.pathname, userData, lastAccessiblePath, isAuthPage]);
 
   // Inside your App component
   useEffect(() => {
@@ -146,7 +153,7 @@ function App() {
 
   const fetchNotifications = async (user_id) => {
     try {
-      const response = await axios.get('http://172.16.11.133/api/fetch_notifications.php?user_id=${user_id}', {
+      const response = await axios.get('/api/fetch_notifications.php?user_id=${user_id}', {
         withCredentials: true
       });
 
@@ -160,7 +167,7 @@ function App() {
 
   const fetchConversations = async (user_id) => {
     try {
-      const response = await axios.get(`http://172.16.11.133/api/fetch_conversations.php?user_id=${user_id}`, {
+      const response = await axios.get(`/api/fetch_conversations.php?user_id=${user_id}`, {
         withCredentials: true,
       });
       if (response.data.success) {
@@ -181,7 +188,7 @@ function App() {
   // Mark Notifications as Read
   const markAllAsRead = async () => {
     try {
-      await axios.post('http://172.16.11.133/api/mark_notifications_read.php', { user_id: userData.user_id }, {
+      await axios.post('/api/mark_notifications_read.php', { user_id: userData.user_id }, {
         withCredentials: true
       });
 
@@ -216,7 +223,7 @@ function App() {
   // Logout
   const handleLogout = async () => {
     try {
-      await axios.post('http://172.16.11.133/api/logout.php', {}, { withCredentials: true });
+      await axios.post('/api/logout.php', {}, { withCredentials: true });
       setUserData(null);
       setAccountMenuVisible(false);
       navigate('/login');
@@ -241,12 +248,12 @@ function App() {
   
     try {
       const response = await axios.get(
-        `http://172.16.11.133/api/fetch_all_community_ambassadors.php?user_id=${userData.user_id}`,
+        `/api/fetch_all_community_ambassadors.php?user_id=${userData.user_id}`,
         { withCredentials: true }
       );
   
       if (response.data.success) {
-        setAmbassadors(response.data.ambassadors);
+        setAmbassadors(response.data.ambassadors || []);
       } else {
         setErrorAmbassadors(response.data.error || "Failed to load ambassadors.");
       }
@@ -260,7 +267,7 @@ function App() {
 
   useEffect(() => {
     if (userData) {
-      axios.get(`http://172.16.11.133/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
+      axios.get(`/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
         withCredentials: true
       })
       .then(response => {
@@ -294,7 +301,7 @@ function App() {
   
       if (response.data.success) {
         // Refetch the connections list to update following state
-        axios.get(`http://172.16.11.133/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
+        axios.get(`/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
           withCredentials: true
         }).then(res => {
           if (res.data.success) {
@@ -356,24 +363,61 @@ function App() {
       )}
 
       {shouldShowOverlays && showAmbassadorOverlay && (
-        <div className="overlay">
+        <div
+          className="overlay ambassador-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ambassador-overlay-title"
+        >
           <div className="overlay-content">
-            <h2>Ambassador List</h2>
+            <div className="ambassador-overlay__header">
+              <div>
+                <p className="ambassador-overlay__eyebrow">Community ambassadors</p>
+                <h2 id="ambassador-overlay-title">Ambassador List</h2>
+                <p className="ambassador-overlay__subtitle">
+                  Connect with students and counselors ready to help.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="ambassador-overlay__close"
+                aria-label="Close ambassador list"
+                onClick={() => setShowAmbassadorOverlay(false)}
+              >
+                &times;
+              </button>
+            </div>
+
             {loadingAmbassadors ? (
-              <p>Loading ambassadors...</p>
+              <p className="ambassador-overlay__status">Loading ambassadors...</p>
             ) : errorAmbassadors ? (
-              <p>{errorAmbassadors}</p>
+              <p className="ambassador-overlay__status">{errorAmbassadors}</p>
+            ) : ambassadors.length === 0 ? (
+              <p className="ambassador-overlay__status">No current ambassadors.</p>
             ) : (
-              <ul className="ambassador-list">
+              <ul className="ambassador-list" aria-label="Ambassador list">
                 {ambassadors.map((amb) => {
                   const isFollowing = followingAmbassadors.includes(amb.user_id);
+                  const initials = getInitials(amb.first_name, amb.last_name);
+                  const avatarKey = amb.user_id || amb.id || initials;
+                  const avatarNode = amb.avatar_path ? (
+                    <img
+                      src={amb.avatar_path}
+                      alt={`${amb.first_name} ${amb.last_name}`}
+                      className="ambassador-avatar"
+                    />
+                  ) : (
+                    <div
+                      className="ambassador-avatar ambassador-avatar--initial"
+                      aria-label={`${amb.first_name} ${amb.last_name}`}
+                    >
+                      {initials}
+                    </div>
+                  );
+
                   return (
-                    <li key={amb.id} className="ambassador-item">
-                      <img
-                        src={amb.avatar_path || "/uploads/avatars/default-avatar.png"}
-                        alt={`${amb.first_name} ${amb.last_name}`}
-                        className="ambassador-avatar"
-                      />
+                    <li key={avatarKey} className="ambassador-item">
+                      {avatarNode}
                       <div className="ambassador-info">
                         <p className="ambassador-name">
                           <Link to={`/user/${amb.user_id}`}>
@@ -383,22 +427,36 @@ function App() {
                         <p className="ambassador-headline">{amb.headline}</p>
                       </div>
 
-                      <button
-                        className={`follow-button ${isFollowing ? 'unfollow' : 'follow'}`}
-                        onClick={() => handleFollowAmbassador(amb.user_id)}
-                      >
-                        {isFollowing ? 'Unfollow' : 'Follow'}
-                      </button>
+                      <div className="ambassador-actions">
+                        <button
+                          className={`follow-button ${isFollowing ? 'unfollow' : 'follow'}`}
+                          onClick={() => handleFollowAmbassador(amb.user_id)}
+                        >
+                          {isFollowing ? 'Unfollow' : 'Follow'}
+                        </button>
 
-                      <button className="message-button" onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}>
-                        Message
-                      </button>
+                        <button
+                          className="message-button"
+                          onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}
+                        >
+                          Message
+                        </button>
+                      </div>
                     </li>
                   );
                 })}
               </ul>
             )}
-            <button onClick={() => setShowAmbassadorOverlay(false)}>Close</button>
+
+            <div className="ambassador-overlay__footer">
+              <button
+                type="button"
+                className="overlay-ghost"
+                onClick={() => setShowAmbassadorOverlay(false)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

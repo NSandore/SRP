@@ -90,6 +90,7 @@
   padding: var(--hero-logo-pad);
   background: #fff;
   border-radius: 50%;
+  overflow: hidden;
 }
 
 [data-theme="dark"] .user-hero-logo-wrap {
@@ -102,6 +103,10 @@
   border-radius: 50%;
   object-fit: cover;
   border: 4px solid var(--light-bg);
+}
+
+.user-hero-logo.user-hero-logo--default {
+  transform: scale(1.4);
 }
 
 .hero-text {
@@ -329,7 +334,6 @@
 }
 
 .follow-button.follow {
-  background-color: var(--primary-color);
   color: #fff;
 }
 
