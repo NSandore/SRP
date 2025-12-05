@@ -86,7 +86,15 @@ try {
     ]);
 
     // Send verification email via Mailgun
-    $mailgunApiKey = getenv('MAILGUN_API_KEY') ?: '2c04230c77be11778ae543d377d80cb8-235e4bb2-b849c495';
+    $mailgunApiKey = getenv('MAILGUN_API_KEY');
+
+    if (!$mailgunApiKey) {
+        error_log('MAILGUN_API_KEY not set');
+        http_response_code(500);
+        echo 'Mail service is not configured. Please try again later.';
+        exit;
+    }
+
     $mailgunDomain = getenv('MAILGUN_DOMAIN') ?: 'sandbox4223236740f0414e949fd59ca1a63257.mailgun.org';
     $fromEmail = "StudentSphere <postmaster@{$mailgunDomain}>";
 
