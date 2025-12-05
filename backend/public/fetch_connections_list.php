@@ -18,28 +18,36 @@ if (!isset($_GET['user_id'])) {
 }
 
 // Sanitize and retrieve the user_id
-$user_id = (int) $_GET['user_id'];
+$user_id = normalizeId($_GET['user_id']);
 
 try {
     // Get the database connection
     $db = getDB();
 
-    // Fetch the list of users this user follows
-    $queryFollowing = "SELECT followed_user_id FROM user_follows WHERE follower_id = :user_id";
-    $stmtFollowing = $db->prepare($queryFollowing);
-    $stmtFollowing->execute([':user_id' => $user_id]);
-    $following = $stmtFollowing->fetchAll(PDO::FETCH_COLUMN); // Get an array of followed user IDs
+// Fetch the list of users this user follows (only accepted connections treated as follow)
+$queryFollowing = "
+    SELECT followed_user_id
+    FROM user_follows
+    WHERE follower_id = :user_id
+";
+$stmtFollowing = $db->prepare($queryFollowing);
+$stmtFollowing->execute([':user_id' => $user_id]);
+$following = $stmtFollowing->fetchAll(PDO::FETCH_COLUMN); // Get an array of followed user IDs
 
-    // Fetch the list of users that follow this user
-    $queryFollowers = "SELECT follower_id FROM user_follows WHERE followed_user_id = :user_id";
-    $stmtFollowers = $db->prepare($queryFollowers);
-    $stmtFollowers->execute([':user_id' => $user_id]);
-    $followers = $stmtFollowers->fetchAll(PDO::FETCH_COLUMN); // Get an array of follower user IDs
+// Fetch the list of users that follow this user
+$queryFollowers = "
+    SELECT follower_id
+    FROM user_follows
+    WHERE followed_user_id = :user_id
+";
+$stmtFollowers = $db->prepare($queryFollowers);
+$stmtFollowers->execute([':user_id' => $user_id]);
+$followers = $stmtFollowers->fetchAll(PDO::FETCH_COLUMN); // Get an array of follower user IDs
 
-    // Return the lists
-    echo json_encode([
-        'success' => true,
-        'following' => $following,
+// Return the lists
+echo json_encode([
+    'success' => true,
+    'following' => $following,
         'followers' => $followers
     ]);
 } catch (PDOException $e) {

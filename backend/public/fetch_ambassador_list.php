@@ -20,7 +20,7 @@ if (!isset($_GET['community_id'])) {
     exit;
 }
 
-$community_id = (int) $_GET['community_id'];
+$community_id = normalizeId($_GET['community_id']);
 
 try {
     $db = getDB();
@@ -30,13 +30,18 @@ try {
                 a.id,
                 a.user_id,
                 a.community_id,
+                a.role,
                 a.added_at,
                 u.avatar_path,
                 u.first_name,
                 u.last_name,
-                u.headline
+                u.headline,
+                u.email,
+                COALESCE(s.show_online, 1) AS show_online,
+                JSON_UNQUOTE(JSON_EXTRACT(s.extras, '$.last_seen_at')) AS last_seen_at
               FROM ambassadors a
               JOIN users u ON a.user_id = u.user_id
+              LEFT JOIN account_settings s ON s.user_id = u.user_id
               WHERE a.community_id = :community_id
               ORDER BY a.added_at ASC";
     $aStmt = $db->prepare($aQuery);
@@ -44,44 +49,18 @@ try {
     $ambassadors = $aStmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($ambassadors as &$amb) {
-        $amb['is_admin'] = false;
-    }
-
-    // Fetch admins for this community
-    $admQuery = "SELECT u.user_id, u.avatar_path, u.first_name, u.last_name, u.headline
-                 FROM community_admins ca
-                 JOIN users u ON ca.user_email = u.email
-                 WHERE ca.community_id = :community_id";
-    $admStmt = $db->prepare($admQuery);
-    $admStmt->execute([':community_id' => $community_id]);
-    $admins = $admStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Combine ambassadors and admins, marking admins appropriately
-    $combined = [];
-    foreach ($ambassadors as $amb) {
-        $combined[$amb['user_id']] = $amb;
-    }
-    foreach ($admins as $adm) {
-        if (isset($combined[$adm['user_id']])) {
-            $combined[$adm['user_id']]['is_admin'] = true;
-        } else {
-            $combined[$adm['user_id']] = [
-                'id' => null,
-                'user_id' => $adm['user_id'],
-                'community_id' => $community_id,
-                'added_at' => null,
-                'avatar_path' => $adm['avatar_path'],
-                'first_name' => $adm['first_name'],
-                'last_name' => $adm['last_name'],
-                'headline' => $adm['headline'],
-                'is_admin' => true
-            ];
+        if (empty($amb['role'])) {
+            $amb['role'] = 'moderator';
         }
+        $lastSeenTs = isset($amb['last_seen_at']) ? strtotime($amb['last_seen_at']) : false;
+        $amb['is_online'] = ((int)$amb['show_online'] === 1) && $lastSeenTs !== false && (time() - $lastSeenTs) <= 300;
+        unset($amb['last_seen_at']);
     }
+    unset($amb);
 
     echo json_encode([
         'success' => true,
-        'ambassadors' => array_values($combined)
+        'ambassadors' => array_values($ambassadors)
     ]);
 } catch (PDOException $e) {
     http_response_code(500);

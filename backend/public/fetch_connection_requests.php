@@ -9,7 +9,7 @@ if (!isset($_GET['user_id'])) {
     exit;
 }
 
-$user_id = (int)$_GET['user_id'];
+$user_id = normalizeId($_GET['user_id']);
 
 try {
     $db = getDB();
@@ -17,14 +17,14 @@ try {
     $incomingStmt->execute([':uid' => $user_id]);
     $incoming = [];
     while ($row = $incomingStmt->fetch(PDO::FETCH_ASSOC)) {
-        $incoming[] = ['connection_id' => (int)$row['connection_id'], 'user_id' => (int)$row['user_id1']];
+        $incoming[] = ['connection_id' => $row['connection_id'], 'user_id' => $row['user_id1']];
     }
 
     $outgoingStmt = $db->prepare("SELECT connection_id, user_id2 FROM connections WHERE user_id1 = :uid AND status = 'pending'");
     $outgoingStmt->execute([':uid' => $user_id]);
     $outgoing = [];
     while ($row = $outgoingStmt->fetch(PDO::FETCH_ASSOC)) {
-        $outgoing[] = ['connection_id' => (int)$row['connection_id'], 'user_id' => (int)$row['user_id2']];
+        $outgoing[] = ['connection_id' => $row['connection_id'], 'user_id' => $row['user_id2']];
     }
 
     echo json_encode(['success' => true, 'incoming' => $incoming, 'outgoing' => $outgoing]);

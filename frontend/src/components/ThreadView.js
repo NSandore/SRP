@@ -25,6 +25,7 @@ import {
   FaChevronRight,
   FaEllipsisV, // add for 3-dot menu
 } from 'react-icons/fa';
+import { FiMessageCircle } from 'react-icons/fi';
 
 // Tiptap imports
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -37,9 +38,39 @@ import TiptapLink from '@tiptap/extension-link';
 
 // For sanitizing HTML
 import DOMPurify from 'dompurify';
+import ReportModal from './ReportModal';
 
-// For the reply icon
-import { FiMessageCircle } from 'react-icons/fi';
+// Helper: relative time formatter
+const timeAgo = (dateStr) => {
+  if (!dateStr) return '';
+  const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+  const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  const ts = parsed.getTime();
+  if (Number.isNaN(ts)) return '';
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 0) return 'just now';
+  if (seconds < 3600) { // up to 60 minutes show minutes
+    const mins = Math.max(1, Math.floor(seconds / 60));
+    return `${mins} minute${mins > 1 ? 's' : ''} ago`;
+  }
+  if (seconds < 86400) { // hours
+    const hours = Math.max(1, Math.round(seconds / 3600));
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+  const intervals = [
+    { label: 'year', secs: 31536000 },
+    { label: 'month', secs: 2592000 },
+    { label: 'week', secs: 604800 },
+    { label: 'day', secs: 86400 },
+  ];
+  for (const it of intervals) {
+    const count = Math.floor(seconds / it.secs);
+    if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
+  }
+  return 'just now';
+};
+
+const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
 /* --------------------------------------------------------------------------
    Toolbar for editing posts
@@ -365,6 +396,7 @@ function PostItem({
   handleToggleSavePost,
   handleVerifyPost, // NEW prop for verifying posts
   onRequireAuth,
+  onReport,
 }) {
   const [localReply, setLocalReply] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -383,6 +415,9 @@ function PostItem({
       setOpenMenu(false);
     }
   });
+
+  const postContext = stripHtml(post.content || '').slice(0, 200);
+  const reportLabel = post.reply_to ? 'comment' : 'post';
 
   // Check if post is saved
   const isSaved = savedPosts.some((pSaved) => Number(pSaved.post_id) === Number(post.post_id));  
@@ -572,8 +607,15 @@ function PostItem({
                   textAlign: 'left',
                   cursor: 'pointer',
                 }}
-                onClick={() => {
-                  alert(`Report post ID: ${post.post_id}`);
+              onClick={() => {
+                  if (onReport) {
+                    onReport({
+                      id: post.post_id,
+                      type: reportLabel,
+                      label: reportLabel,
+                      context: postContext,
+                    });
+                  }
                   setOpenMenu(false);
                 }}
               >
@@ -583,7 +625,7 @@ function PostItem({
           )}
           {Number(post.verified) === 1 && post.verified_at && (
             <div className="verified-info">
-              Verified Answer on {new Date(post.verified_at).toLocaleString()}
+              Verified Answer on {timeAgo(post.verified_at)}
             </div>
           )}
           {/* Reply header: avatar + meta */}
@@ -602,7 +644,7 @@ function PostItem({
                 </>
               )}
               <span className="middot">·</span>
-              <span className="meta-quiet">{new Date(post.created_at).toLocaleString()}</span>
+              <span className="meta-quiet">{timeAgo(post.created_at)}</span>
             </div>
           </div>
           <div
@@ -740,6 +782,7 @@ function PostItem({
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost} // pass the verify function down
               onRequireAuth={onRequireAuth}
+              onReport={onReport}
             />
           ))}
         </div>
@@ -764,6 +807,8 @@ function ThreadView({ userData, onRequireAuth }) {
   const [expandedReplyBox, setExpandedReplyBox] = useState(null);
   const [rootReplyOpen, setRootReplyOpen] = useState(false);
   const [rootReplyContent, setRootReplyContent] = useState('');
+  const [reportTarget, setReportTarget] = useState(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   const [replySortCriteria, setReplySortCriteria] = useState('mostRecent');
   const [savedPosts, setSavedPosts] = useState([]);
@@ -773,24 +818,6 @@ function ThreadView({ userData, onRequireAuth }) {
       0
     );
   const totalComments = useMemo(() => countReplies(postTree), [postTree]);
-  // Helpers for header formatting
-  const timeAgo = (dateStr) => {
-    if (!dateStr) return '';
-    const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-    const intervals = [
-      { label: 'year', secs: 31536000 },
-      { label: 'month', secs: 2592000 },
-      { label: 'week', secs: 604800 },
-      { label: 'day', secs: 86400 },
-      { label: 'hour', secs: 3600 },
-      { label: 'minute', secs: 60 },
-    ];
-    for (const it of intervals) {
-      const count = Math.floor(seconds / it.secs);
-      if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
-    }
-    return 'just now';
-  };
 
   const tagStyle = (tag) => {
     const t = String(tag || '').toLowerCase();
@@ -870,8 +897,55 @@ function ThreadView({ userData, onRequireAuth }) {
     }
   };
 
+  const handleOpenReport = (target) => {
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
+    if (!target || !target.id || !target.type) return;
+    setReportTarget({
+      ...target,
+      label: target.label || target.type,
+      context: target.context ? target.context.trim() : '',
+    });
+  };
+
+  const handleSubmitReport = async ({ reasonCode, reasonText, details }) => {
+    if (!reportTarget) return;
+    setIsSubmittingReport(true);
+    try {
+      const resp = await axios.post(
+        '/api/submit_report.php',
+        {
+          item_type: reportTarget.type,
+          item_id: reportTarget.id,
+          reason_code: reasonCode,
+          reason_text: reasonText,
+          details,
+        },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        setNotification({ type: 'success', message: 'Report submitted to moderators.' });
+        setReportTarget(null);
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Unable to submit report.' });
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setNotification({ type: 'error', message: 'An error occurred while submitting the report.' });
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   useEffect(() => {
     const fetchThread = async () => {
+      if (!thread_id) {
+        setIsLoadingThread(false);
+        setNotification({ type: 'error', message: 'Thread not found.' });
+        return;
+      }
       try {
         const res = await axios.get(`/api/fetch_thread.php?thread_id=${thread_id}`);
         setThreadData(res.data);
@@ -887,6 +961,11 @@ function ThreadView({ userData, onRequireAuth }) {
 
   // Build the nested structure of posts
   const fetchPosts = async () => {
+    if (!thread_id) {
+      setPostTree([]);
+      setIsLoadingPosts(false);
+      return;
+    }
     setIsLoadingPosts(true);
     try {
       let url = `/api/fetch_posts.php?thread_id=${thread_id}`;
@@ -896,18 +975,18 @@ function ThreadView({ userData, onRequireAuth }) {
       const res = await axios.get(url);
       const data = Array.isArray(res.data) ? res.data : [];
       console.log("Fetched Posts:", data);
-      const numericData = data.map((post) => ({
+      const normalizedData = data.map((post) => ({
         ...post,
         upvotes: Number(post.upvotes) || 0,
         downvotes: Number(post.downvotes) || 0,
         verified: Number(post.verified) || 0,
       }));
       // Identify original post (first root by created_at)
-      const rootCandidates = numericData.filter((p) => !p.reply_to);
+      const rootCandidates = normalizedData.filter((p) => !p.reply_to);
       rootCandidates.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       const op = rootCandidates[0] || null;
       setOriginalPost(op || null);
-      const repliesSource = op ? numericData.filter((p) => Number(p.post_id) !== Number(op.post_id)) : numericData;
+      const repliesSource = op ? normalizedData.filter((p) => p.post_id !== op.post_id) : normalizedData;
       let tree = buildReplyTree(repliesSource);
       tree = sortReplyNodes(tree, replySortCriteria);
       setPostTree(tree);
@@ -946,7 +1025,7 @@ function ThreadView({ userData, onRequireAuth }) {
   
     try {
       const response = await axios.post('/api/create_reply.php', {
-        thread_id: Number(thread_id),
+        thread_id,
         user_id: userData.user_id,
         content,
         reply_to: reply_to_post_id,
@@ -1059,7 +1138,7 @@ function ThreadView({ userData, onRequireAuth }) {
         user_id: userData.user_id,
         vote_type: 'up',
       });
-      const isRoot = originalPost && Number(originalPost.post_id) === Number(post_id);
+      const isRoot = originalPost && originalPost.post_id === post_id;
       if (isRoot) {
         setOriginalPost((prev) => {
           if (!prev) return prev;
@@ -1135,7 +1214,7 @@ function ThreadView({ userData, onRequireAuth }) {
         user_id: userData.user_id,
         vote_type: 'down',
       });
-      const isRoot = originalPost && Number(originalPost.post_id) === Number(post_id);
+      const isRoot = originalPost && originalPost.post_id === post_id;
       if (isRoot) {
         setOriginalPost((prev) => {
           if (!prev) return prev;
@@ -1297,6 +1376,20 @@ function ThreadView({ userData, onRequireAuth }) {
               <FiMessageCircle />
             </button>
             <span className="vote-count comment-count">{totalComments}</span>
+            <button
+              type="button"
+              className="report-inline-button"
+              onClick={() =>
+                handleOpenReport({
+                  id: originalPost.post_id,
+                  type: 'post',
+                  label: 'original post',
+                  context: stripHtml(originalPost.content || '').slice(0, 200),
+                })
+              }
+            >
+              Report
+            </button>
           </div>
       {rootReplyOpen && (
         <form className="reply-form" onSubmit={handleRootReplySubmit}>
@@ -1359,11 +1452,20 @@ function ThreadView({ userData, onRequireAuth }) {
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost}
               onRequireAuth={onRequireAuth}
+              onReport={handleOpenReport}
             />
           ))}
         </div>
       )}
   
+      <ReportModal
+        isOpen={!!reportTarget}
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+        onSubmit={handleSubmitReport}
+        submitting={isSubmittingReport}
+      />
+
       {/* Notification */}
       {notification && (
         <div className={`notification ${notification.type}`}>

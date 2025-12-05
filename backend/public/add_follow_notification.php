@@ -13,8 +13,8 @@ if (!isset($_POST['follower_id']) || !isset($_POST['followed_id'])) {
     exit;
 }
 
-$follower_id = intval($_POST['follower_id']);
-$followed_id = intval($_POST['followed_id']);
+$follower_id = normalizeId($_POST['follower_id']);
+$followed_id = normalizeId($_POST['followed_id']);
 
 try {
     $db = getDB();
@@ -32,8 +32,9 @@ try {
     $message = "$follower_name started following you.";
 
     // Insert the notification.
-    $insertStmt = $db->prepare("INSERT INTO notifications (recipient_user_id, actor_user_id, notification_type, reference_id, message) VALUES (?, ?, 'follow', ?, ?)");
-    $result = $insertStmt->execute([$followed_id, $follower_id, $follower_id, $message]);
+    $notificationId = generateUniqueId($db, 'notifications');
+    $insertStmt = $db->prepare("INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message) VALUES (?, ?, 'follow', ?, ?, ?)");
+    $result = $insertStmt->execute([$notificationId, $followed_id, $follower_id, $follower_id, $message]);
 
     if ($result) {
         echo json_encode(['success' => true]);

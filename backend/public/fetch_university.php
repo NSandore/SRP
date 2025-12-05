@@ -13,7 +13,8 @@ if (!isset($_GET['community_id'])) {
     exit;
 }
 
-$community_id = intval($_GET['community_id']);
+$community_id = normalizeId($_GET['community_id']);
+$viewer_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : null;
 
 try {
     $db = getDB();
@@ -30,6 +31,15 @@ try {
         http_response_code(404);
         echo json_encode(['success' => false, 'error' => 'University not found']);
         exit;
+    }
+    if ($viewer_id) {
+        $followStmt = $db->prepare(
+            "SELECT 1 FROM followed_communities WHERE community_id = :community_id AND user_id = :user_id LIMIT 1"
+        );
+        $followStmt->execute([':community_id' => $community_id, ':user_id' => $viewer_id]);
+        $university['is_following'] = (bool)$followStmt->fetchColumn();
+    } else {
+        $university['is_following'] = false;
     }
     echo json_encode(['success' => true, 'university' => $university]);
 } catch (PDOException $e) {

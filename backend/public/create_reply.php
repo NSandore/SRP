@@ -17,22 +17,22 @@ if (!isset($_SESSION['user_id'])) {
  * 2) Parse JSON input
  */
 $data = json_decode(file_get_contents('php://input'), true);
-$thread_id = (int)($data['thread_id'] ?? 0);
-$user_id   = (int)($data['user_id']   ?? 0);
+$thread_id = isset($data['thread_id']) ? normalizeId($data['thread_id']) : '';
+$user_id   = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
 $content   = trim($data['content']    ?? '');
-$reply_to  = isset($data['reply_to']) ? (int)$data['reply_to'] : null;
+$reply_to  = isset($data['reply_to']) ? normalizeId($data['reply_to']) : null;
 
 /**
  * 3) Validate input
  */
-if ($thread_id <= 0 || $user_id <= 0 || empty($content)) {
+if (empty($thread_id) || empty($user_id) || empty($content)) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid data for creating a reply (thread_id, user_id, content required).']);
     exit;
 }
 
 // Ensure user is replying as themselves
-if ($user_id !== (int)$_SESSION['user_id']) {
+if ($user_id !== normalizeId($_SESSION['user_id'])) {
     http_response_code(403);
     echo json_encode(['error' => 'You cannot reply as another user.']);
     exit;
@@ -43,20 +43,20 @@ if ($user_id !== (int)$_SESSION['user_id']) {
  */
 try {
     $db = getDB();
+    $post_id = generateUniqueId($db, 'posts');
 
     // Insert the reply into the posts table
     $stmt = $db->prepare("
-        INSERT INTO posts (thread_id, user_id, content, reply_to)
-        VALUES (:thread_id, :user_id, :content, :reply_to)
+        INSERT INTO posts (post_id, thread_id, user_id, content, reply_to)
+        VALUES (:post_id, :thread_id, :user_id, :content, :reply_to)
     ");
     $stmt->execute([
+        ':post_id' => $post_id,
         ':thread_id' => $thread_id,
         ':user_id'   => $user_id,
         ':content'   => $content,
         ':reply_to'  => $reply_to
     ]);
-
-    $post_id = $db->lastInsertId();
 
     /**
      * 5) Send a notification to the original post owner

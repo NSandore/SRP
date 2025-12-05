@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $inputData = json_decode(file_get_contents('php://input'), true);
 
-$userId = isset($inputData['user_id']) ? (int)$inputData['user_id'] : null;
+$userId = isset($inputData['user_id']) ? normalizeId($inputData['user_id']) : null;
 $schoolName = isset($inputData['schoolName']) ? trim($inputData['schoolName']) : null;
 $startDate = isset($inputData['startDate']) ? $inputData['startDate'] : null;
 $endDate = isset($inputData['endDate']) ? $inputData['endDate'] : null;
@@ -65,11 +65,13 @@ try {
     ]);
 
     // Add educational experience
+    $experienceId = generateUniqueId($db, 'educational_experience');
     $eeStmt = $db->prepare("
-        INSERT INTO educational_experience (user_id, community_id, start_date, end_date)
-        VALUES (:user_id, :community_id, :start_date, :end_date)
+        INSERT INTO educational_experience (id, user_id, community_id, start_date, end_date)
+        VALUES (:id, :user_id, :community_id, :start_date, :end_date)
     ");
     $eeStmt->execute([
+        ':id' => $experienceId,
         ':user_id' => $userId,
         ':community_id' => $communityId,
         ':start_date' => $startDate,
@@ -77,11 +79,13 @@ try {
     ]);
 
     // Follow the school
+    $followId = generateUniqueId($db, 'followed_communities');
     $followStmt = $db->prepare("
-        INSERT IGNORE INTO followed_communities (user_id, community_id)
-        VALUES (:user_id, :community_id)
+        INSERT IGNORE INTO followed_communities (id, user_id, community_id)
+        VALUES (:id, :user_id, :community_id)
     ");
     $followStmt->execute([
+        ':id' => $followId,
         ':user_id' => $userId,
         ':community_id' => $communityId
     ]);

@@ -23,6 +23,7 @@ export default function AppShell({
   lockedNavKeys,
 }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
   const pathname = location.pathname;
   const isWideLayout =
@@ -32,6 +33,8 @@ export default function AppShell({
     pathname.startsWith('/profile') ||
     pathname.startsWith('/user/');
   const isMessagesRoute = pathname.startsWith('/messages');
+  const isSearchRoute = pathname.startsWith('/search');
+  const isSettingsRoute = pathname.startsWith('/settings');
   const effectiveLockedKeys = lockedNavKeys ?? ['saved', 'connections', 'profile'];
 
   return (
@@ -69,12 +72,17 @@ export default function AppShell({
       {/* Main three-column grid */}
       <main className="app-shell-main">
         <div
-          className={`app-shell-grid ${isWideLayout ? 'communities-layout' : ''} ${
+          className={`app-shell-grid ${sidebarCollapsed ? 'nav-collapsed' : ''} ${isWideLayout ? 'communities-layout' : ''} ${
             isMessagesRoute ? 'messages-layout' : ''
-          }`}
+          } ${isSearchRoute ? 'search-layout' : ''} ${isSettingsRoute ? 'settings-layout' : ''}`}
         >
           <div className="left-rail">
-            <LeftSidebar userData={userData} lockedKeys={effectiveLockedKeys} />
+            <LeftSidebar
+              userData={userData}
+              lockedKeys={effectiveLockedKeys}
+              collapsed={sidebarCollapsed}
+              onToggle={() => setSidebarCollapsed((prev) => !prev)}
+            />
           </div>
           <div className="center-rail">
             {children}

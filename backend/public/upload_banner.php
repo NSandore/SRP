@@ -17,7 +17,7 @@ if (!isset($_POST['user_id']) || !isset($_FILES['banner'])) {
     exit;
 }
 
-$user_id = intval($_POST['user_id']);
+$user_id = normalizeId($_POST['user_id']);
 
 // Set upload directory path (adjust as needed)
 $uploadDir = __DIR__ . '/../../uploads/banners/';
@@ -51,7 +51,8 @@ $destination = $uploadDir . $filename;
 
 // Move the uploaded file
 if (move_uploaded_file($_FILES['banner']['tmp_name'], $destination)) {
-    $bannerPath = '/uploads/banners/' . $filename;
+$storedName = $filename;
+$bannerPath = appendBannerPath($storedName);
 
     try {
         $db = getDB(); // Get the PDO connection
@@ -61,9 +62,9 @@ if (move_uploaded_file($_FILES['banner']['tmp_name'], $destination)) {
         $stmt->execute([$user_id]);
         $current = $stmt->fetch();
         if ($current && isset($current['banner_path'])) {
-            $currentBanner = $current['banner_path'];
+            $currentBanner = appendBannerPath($current['banner_path']);
             // Delete the current file if it is not the default banner
-            if ($currentBanner !== '/uploads/banners/default-banner.jpg') {
+            if ($currentBanner !== '/uploads/banners/DefaultBanner.jpeg') {
                 $currentFile = __DIR__ . '/../../' . ltrim($currentBanner, '/');
                 if (file_exists($currentFile)) {
                     unlink($currentFile);
@@ -73,7 +74,7 @@ if (move_uploaded_file($_FILES['banner']['tmp_name'], $destination)) {
 
         // Update the user's banner path in the database
         $stmt = $db->prepare("UPDATE users SET banner_path = :bannerPath WHERE user_id = :user_id");
-        $stmt->bindParam(':bannerPath', $bannerPath);
+        $stmt->bindParam(':bannerPath', $storedName);
         $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
         if (!$stmt->execute()) {
             http_response_code(500);

@@ -19,7 +19,7 @@ if (isset($inputData['action']) && $inputData['action'] === 'updateInterests') {
         exit;
     }
 
-    $user_id = (int)$inputData['user_id'];
+    $user_id = normalizeId($inputData['user_id']);
     $selected_schools = $inputData['selected_schools'];
 
     try {
@@ -40,8 +40,13 @@ if (isset($inputData['action']) && $inputData['action'] === 'updateInterests') {
                 $existing = $checkStmt->fetch();
 
                 if (!$existing) {
-                    $insertStmt = $db->prepare("INSERT INTO followed_communities (user_id, community_id) VALUES (:user_id, :community_id)");
-                    $insertStmt->execute([':user_id' => $user_id, ':community_id' => $community_id]);
+                    $followId = generateUniqueId($db, 'followed_communities');
+                    $insertStmt = $db->prepare("INSERT INTO followed_communities (id, user_id, community_id) VALUES (:id, :user_id, :community_id)");
+                    $insertStmt->execute([
+                        ':id' => $followId,
+                        ':user_id' => $user_id,
+                        ':community_id' => $community_id
+                    ]);
                 }
             }
         }
@@ -80,14 +85,16 @@ $endDate = !empty($inputData['endDate']) ? $inputData['endDate'] : null;
 
 try {
     $db = getDB();
+    $user_id = generateUniqueId($db, 'users');
 
     // Insert user
     // role_id = 2 as default (e.g. prospective student)
     $stmt = $db->prepare(
-        "INSERT INTO users (role_id, first_name, last_name, email, phone, password_hash, education_status, is_over_18, is_public)
-        VALUES (:role_id, :first_name, :last_name, :email, :phone, :password_hash, :education_status, :is_over_18, :is_public)"
+        "INSERT INTO users (user_id, role_id, first_name, last_name, email, phone, password_hash, education_status, is_over_18, is_public)
+        VALUES (:user_id, :role_id, :first_name, :last_name, :email, :phone, :password_hash, :education_status, :is_over_18, :is_public)"
     );
     $stmt->execute([
+        ':user_id' => $user_id,
         ':role_id' => 2,
         ':first_name' => $firstName,
         ':last_name' => $lastName,
@@ -98,8 +105,6 @@ try {
         ':is_over_18' => $isOver18,
         ':is_public' => 1
     ]);
-
-    $user_id = $db->lastInsertId();
 
     if ($schoolName) {
         // Find community by name
@@ -115,24 +120,28 @@ try {
     
             // Insert into educational_experience if startDate and endDate are provided
             if ($startDate && $endDate) {
+                $educationId = generateUniqueId($db, 'educational_experience');
                 $eeStmt = $db->prepare("
-                    INSERT INTO educational_experience (user_id, community_id, start_date, end_date)
-                    VALUES (:user_id, :community_id, :start_date, :end_date)
+                    INSERT INTO educational_experience (id, user_id, community_id, start_date, end_date)
+                    VALUES (:id, :user_id, :community_id, :start_date, :end_date)
                 ");
                 $eeStmt->execute([
+                    ':id' => $educationId,
                     ':user_id' => $user_id,
                     ':community_id' => $community_id,
                     ':start_date' => $startDate,
                     ':end_date' => $endDate
                 ]);
             }
-    
+
             // Insert into followed_communities
+            $followId = generateUniqueId($db, 'followed_communities');
             $fuStmt = $db->prepare("
-                INSERT INTO followed_communities (user_id, community_id) 
-                VALUES (:user_id, :community_id)
+                INSERT INTO followed_communities (id, user_id, community_id) 
+                VALUES (:id, :user_id, :community_id)
             ");
             $fuStmt->execute([
+                ':id' => $followId,
                 ':user_id' => $user_id,
                 ':community_id' => $community_id
             ]);

@@ -17,7 +17,7 @@ if (empty($inputData['user_id']) || empty($inputData['code'])) {
     exit;
 }
 
-$userId = (int)$inputData['user_id'];
+$userId = normalizeId($inputData['user_id']);
 $submittedCode = trim($inputData['code']);
 
 try {
@@ -47,7 +47,7 @@ try {
     }
 
     // Update is_verified
-    $updateStmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE user_id = :user_id");
+    $updateStmt = $db->prepare("UPDATE users SET is_verified = 1, verification_code = NULL WHERE user_id = :user_id");
     $updateStmt->execute([':user_id' => $userId]);
 
     http_response_code(200);

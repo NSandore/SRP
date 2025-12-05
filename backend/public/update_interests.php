@@ -17,7 +17,7 @@ if (empty($inputData['user_id']) || empty($inputData['selected_schools'])) {
     exit;
 }
 
-$user_id = (int)$inputData['user_id'];
+$user_id = normalizeId($inputData['user_id']);
 $selected_schools = $inputData['selected_schools'];
 
 try {
@@ -37,9 +37,10 @@ try {
             $community_id = $community['id'];
 
             $insertStmt = $db->prepare(
-                "INSERT INTO followed_communities (user_id, community_id) VALUES (:user_id, :community_id)"
+                "INSERT INTO followed_communities (id, user_id, community_id) VALUES (:id, :user_id, :community_id)"
             );
             $insertStmt->execute([
+                ':id' => generateUniqueId($db, 'followed_communities'),
                 ':user_id' => $user_id,
                 ':community_id' => $community_id
             ]);

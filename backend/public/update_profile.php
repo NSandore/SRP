@@ -24,15 +24,15 @@ if (!isset($input['user_id'])) {
 }
 
 // Retrieve and sanitize the data.
-$user_id       = intval($input['user_id']);
+$user_id       = normalizeId($input['user_id']);
 $first_name    = isset($input['first_name']) ? trim($input['first_name']) : null;
 $last_name     = isset($input['last_name']) ? trim($input['last_name']) : null;
 $headline      = isset($input['headline']) ? trim($input['headline']) : null;
 $about         = isset($input['about']) ? trim($input['about']) : null;
 $is_public     = isset($input['is_public']) ? (int)$input['is_public'] : 1;
 $skills        = isset($input['skills']) ? (is_array($input['skills']) ? implode(", ", $input['skills']) : trim($input['skills'])) : null;
-$avatar_path   = isset($input['avatar_path']) ? trim($input['avatar_path']) : null;
-$banner_path   = isset($input['banner_path']) ? trim($input['banner_path']) : null;
+$avatar_path   = isset($input['avatar_path']) ? stripUploadPrefix(trim($input['avatar_path'])) : null;
+$banner_path   = isset($input['banner_path']) ? stripUploadPrefix(trim($input['banner_path'])) : null;
 $primary_color = isset($input['primary_color']) ? trim($input['primary_color']) : null;
 $secondary_color = isset($input['secondary_color']) ? trim($input['secondary_color']) : null;
 
@@ -79,7 +79,7 @@ $stmt->bindParam(':banner_path', $banner_path);
 $stmt->bindParam(':primary_color', $primary_color);
 $stmt->bindParam(':secondary_color', $secondary_color);
 $stmt->bindParam(':is_public', $is_public, PDO::PARAM_INT);
-$stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+$stmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
 
 if ($stmt->execute()) {
     // Update the session with new profile data
@@ -88,8 +88,8 @@ if ($stmt->execute()) {
     $_SESSION['headline'] = $headline;
     $_SESSION['about'] = $about;
     $_SESSION['skills'] = $skills;
-    $_SESSION['avatar_path'] = $avatar_path;          // Update this key
-    $_SESSION['banner_path'] = $banner_path;          // And this key
+    $_SESSION['avatar_path'] = appendAvatarPath($avatar_path);          // Update this key
+    $_SESSION['banner_path'] = appendBannerPath($banner_path);          // And this key
     $_SESSION['primary_color'] = $primary_color;
     $_SESSION['secondary_color'] = $secondary_color;
     $_SESSION['is_public'] = $is_public;

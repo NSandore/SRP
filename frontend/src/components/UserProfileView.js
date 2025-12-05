@@ -9,7 +9,7 @@ import { FaCheckCircle, FaEllipsisV } from "react-icons/fa";
 import useOnClickOutside from "../hooks/useOnClickOutside";
 import ThreadCard from "./ThreadCard";
 
-function UserProfileView({ userData }) {
+function UserProfileView({ userData, onFollowNotification, onNotificationsRefresh }) {
   const { user_id } = useParams();
   const [profile, setProfile] = useState(null);
 
@@ -49,11 +49,7 @@ function UserProfileView({ userData }) {
   const [userThreads, setUserThreads] = useState([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
   const [threadsError, setThreadsError] = useState(null);
-  const [userReplies, setUserReplies] = useState([]);
-  const [repliesLoading, setRepliesLoading] = useState(false);
-  const [repliesError, setRepliesError] = useState(null);
   const [hasLoadedThreads, setHasLoadedThreads] = useState(false);
-  const [hasLoadedReplies, setHasLoadedReplies] = useState(false);
 
   useEffect(() => {
     if (!userData) {
@@ -69,11 +65,8 @@ function UserProfileView({ userData }) {
 
   useEffect(() => {
     setUserThreads([]);
-    setUserReplies([]);
     setHasLoadedThreads(false);
-    setHasLoadedReplies(false);
     setThreadsError(null);
-    setRepliesError(null);
   }, [user_id, userData?.user_id]);
 
   // Fetch user profile
@@ -248,15 +241,19 @@ function UserProfileView({ userData }) {
       console.log(
         `Sending request to ${endpoint} for follower_id ${userData.user_id} to ${
           isFollowing ? "unfollow" : "follow"
-        } followed_user_id ${parseInt(user_id, 10)}`
+        } followed_user_id ${user_id}`
       );
       await axios.post(
         `/api/${endpoint}`,
-        { follower_id: userData.user_id, followed_user_id: parseInt(user_id, 10) },
+        { follower_id: userData.user_id, followed_user_id: user_id },
         { withCredentials: true }
       );
       setIsFollowing(!isFollowing);
       console.log(`Follow status toggled. New status: ${!isFollowing}`);
+      if (!isFollowing) {
+        onFollowNotification?.(user_id, userData.user_id);
+        onNotificationsRefresh?.();
+      }
     } catch (error) {
       console.error("Error toggling follow status:", error);
     }
@@ -268,7 +265,7 @@ function UserProfileView({ userData }) {
     try {
       const res = await axios.post(
         "/api/request_connection.php",
-        { user_id1: userData.user_id, user_id2: parseInt(user_id, 10) },
+        { user_id1: userData.user_id, user_id2: user_id },
         { withCredentials: true }
       );
       if (res.data.success) {
@@ -316,7 +313,7 @@ function UserProfileView({ userData }) {
     try {
       await axios.post(
         "/api/remove_connection.php",
-        { user_id1: userData.user_id, user_id2: parseInt(user_id, 10) },
+        { user_id1: userData.user_id, user_id2: user_id },
         { withCredentials: true }
       );
       setConnectionStatus("none");
@@ -396,37 +393,11 @@ function UserProfileView({ userData }) {
     }
   };
 
-  const fetchProfileReplies = async () => {
-    setRepliesLoading(true);
-    setRepliesError(null);
-    try {
-      let url = `/api/fetch_user_replies.php?user_id=${user_id}`;
-      if (userData?.user_id) {
-        url += `&viewer_id=${userData.user_id}`;
-      }
-      const res = await axios.get(url, { withCredentials: true });
-      if (res.data.success) {
-        setUserReplies(res.data.replies || []);
-      } else {
-        setRepliesError(res.data.error || "Unable to load replies.");
-      }
-    } catch (error) {
-      console.error("Error fetching profile replies:", error);
-      setRepliesError("Unable to load replies.");
-    } finally {
-      setRepliesLoading(false);
-      setHasLoadedReplies(true);
-    }
-  };
-
   useEffect(() => {
     if (activeTab === "posts" && !hasLoadedThreads) {
       fetchProfileThreads();
     }
-    if (activeTab === "replies" && !hasLoadedReplies) {
-      fetchProfileReplies();
-    }
-  }, [activeTab, hasLoadedThreads, hasLoadedReplies, user_id, userData?.user_id]);
+  }, [activeTab, hasLoadedThreads, user_id, userData?.user_id]);
 
   if (!profile) return <p>Loading profile...</p>;
 
@@ -434,30 +405,57 @@ function UserProfileView({ userData }) {
   const displayHeadline = profile.headline || "Student at Your University";
   const displayAbout = profile.about || "No about information provided yet.";
   const displaySkills = profile.skills || "";
-  const shouldBlurDetails = !userData;
+  const isDefaultAvatar = (profile.avatar_path || "").includes("DefaultAvatar.png");
+  const isOwnProfile = userData && Number(userData.user_id) === Number(user_id);
+  const hasAcceptedConnection = connectionStatus === "accepted";
+  const isPrivateProfile = Number(profile.is_public) === 0;
+  const profileVisibility = profile.profile_visibility || "network";
+  const isAmbassadorProfile = Number(profile.is_ambassador) === 1;
+  const viewerCommunityId = userData?.recent_university_id;
+  const ambassadorCommunityIds = Array.isArray(ambassadorCommunities)
+    ? ambassadorCommunities.map((c) => Number(c?.community_id ?? c?.id ?? c))
+    : [];
+  const sharesAmbassadorCommunity =
+    Boolean(viewerCommunityId) &&
+    ambassadorCommunityIds.some((cid) => Number(cid) === Number(viewerCommunityId));
+  const isNetworkRestricted =
+    profileVisibility === "network" &&
+    isAmbassadorProfile &&
+    !isOwnProfile &&
+    !hasAcceptedConnection &&
+    !sharesAmbassadorCommunity;
+  const isRestrictedForPrivacy =
+    (profileVisibility === "private" || isPrivateProfile) &&
+    !isOwnProfile &&
+    !hasAcceptedConnection;
+  const shouldBlurDetails = !userData || isRestrictedForPrivacy || isNetworkRestricted;
   const profileTabs = [
     { id: "about", label: "About" },
     { id: "posts", label: "Posts" },
-    { id: "replies", label: "Replies" },
   ];
+  const showOnline = Number(profile.show_online ?? 1) === 1;
+  const isOnline = showOnline && Boolean(profile.is_online);
 
   return (
     <div className="profile-view profile-container">
       <div className="hero-card profile-hero-card">
         <div className="hero-banner">
           <img
-            src={profile.banner_path || "/uploads/banners/default-banner.jpg"}
+            src={profile.banner_path || "/uploads/banners/DefaultBanner.jpeg"}
             alt="Profile Banner"
           />
         </div>
         <div className="hero-content">
           <div className="hero-left">
             <div className="user-hero-logo-wrap">
-              <img
-                src={profile.avatar_path || "/uploads/avatars/default-avatar.png"}
-                alt={`${fullName} Avatar`}
-                className="user-hero-logo"
-              />
+              <div className="avatar-presence">
+                <img
+                  src={profile.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
+                  alt={`${fullName} Avatar`}
+                  className={`user-hero-logo ${isDefaultAvatar ? "user-hero-logo--default" : ""}`}
+                />
+                {isOnline && <span className="presence-dot presence-dot--online" title="Online" />}
+              </div>
             </div>
             <div className="hero-text">
               <h1 className="hero-title">
@@ -560,16 +558,37 @@ function UserProfileView({ userData }) {
         {shouldBlurDetails && (
           <div className="profile-detail-cta">
             <p>
-              Want more details? Log in or create an account to unlock experience, education, and
-              skills.
+              {isRestrictedForPrivacy
+                ? "This user's account is private. Send a connection request to view their info."
+                : "Want more details? Log in or create an account to unlock experience, education, and skills."}
             </p>
             <div className="profile-detail-cta-actions">
-              <RouterLink to="/login" className="overlay-button primary">
-                Log In
-              </RouterLink>
-              <RouterLink to="/signup" className="overlay-button ghost">
-                Create Account
-              </RouterLink>
+              {isRestrictedForPrivacy ? (
+                connectionStatus === "pending" ? (
+                  isRequester ? (
+                    <button className="overlay-button ghost" disabled>
+                      Request pending
+                    </button>
+                  ) : (
+                    <button className="overlay-button primary" onClick={handleAccept}>
+                      Accept request to view
+                    </button>
+                  )
+                ) : (
+                  <button className="overlay-button primary" onClick={handleConnect}>
+                    Send connection request
+                  </button>
+                )
+              ) : (
+                <>
+                  <RouterLink to="/login" className="overlay-button primary">
+                    Log In
+                  </RouterLink>
+                  <RouterLink to="/signup" className="overlay-button ghost">
+                    Create Account
+                  </RouterLink>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -696,59 +715,6 @@ function UserProfileView({ userData }) {
                 </div>
               ) : (
                 <p>No posts yet.</p>
-              )}
-            </div>
-          )}
-
-          {activeTab === "replies" && (
-            <div className="profile-section">
-              <h3>Replies</h3>
-              {repliesLoading ? (
-                <p>Loading replies...</p>
-              ) : repliesError ? (
-                <p>{repliesError}</p>
-              ) : userReplies.length > 0 ? (
-                <div className="profile-replies-list">
-                  {userReplies.map((reply) => (
-                    <div key={reply.post_id} className="profile-reply-card">
-                      <div className="profile-reply-meta">
-                        <RouterLink
-                          to={`/info/forum/${reply.forum_id}/thread/${reply.thread_id}`}
-                          className="profile-reply-thread"
-                        >
-                          {reply.thread_title || "View Thread"}
-                        </RouterLink>
-                        <span className="middot" aria-hidden="true">
-                          •
-                        </span>
-                        <span className="meta-quiet">
-                          {new Date(reply.created_at).toLocaleString()}
-                        </span>
-                        {reply.community_name && reply.community_id && reply.community_type && (
-                          <>
-                            <span className="middot" aria-hidden="true">
-                              •
-                            </span>
-                            <RouterLink
-                              to={`/${reply.community_type}/${reply.community_id}`}
-                              className="profile-reply-community"
-                            >
-                              {reply.community_name}
-                            </RouterLink>
-                          </>
-                        )}
-                      </div>
-                      <div
-                        className="profile-reply-content"
-                        dangerouslySetInnerHTML={{
-                          __html: DOMPurify.sanitize(reply.content || ""),
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p>No replies yet.</p>
               )}
             </div>
           )}

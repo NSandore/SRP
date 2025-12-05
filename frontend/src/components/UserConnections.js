@@ -140,7 +140,7 @@ function UserConnections({ userData }) {
                   return (
                     <li key={uid} style={{ position: 'relative' }}>
                       <img
-                        src={user.avatar_path || '/uploads/avatars/default-avatar.png'}
+                        src={user.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
                         alt={`${user.first_name || ''} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />
@@ -181,7 +181,7 @@ function UserConnections({ userData }) {
                   return (
                     <li key={req.connection_id}>
                       <img
-                        src={user.avatar_path || '/uploads/avatars/default-avatar.png'}
+                        src={user.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
                         alt={`${user.first_name || ''} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />
@@ -211,7 +211,7 @@ function UserConnections({ userData }) {
                   return (
                     <li key={req.connection_id}>
                       <img
-                        src={user.avatar_path || '/uploads/avatars/default-avatar.png'}
+                        src={user.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
                         alt={`${user.first_name || ''} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />

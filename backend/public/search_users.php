@@ -19,10 +19,9 @@ try {
                   FROM users u
                   WHERE (u.first_name LIKE :term OR u.last_name LIKE :term OR u.email LIKE :term)
                     AND u.user_id NOT IN (
-                        SELECT u2.user_id
-                        FROM community_admins ca
-                        JOIN users u2 ON ca.user_email = u2.email
-                        WHERE ca.community_id = :community_id
+                        SELECT a.user_id
+                        FROM ambassadors a
+                        WHERE a.community_id = :community_id
                     )
                   ORDER BY u.first_name
                   LIMIT 10";

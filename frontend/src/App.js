@@ -53,8 +53,10 @@ import ContactUsButton from './components/ContactUsButton';
 import SearchResults from './components/SearchResults';
 import CommunityRequests from './components/CommunityRequests';
 import AuthOverlay from './components/AuthOverlay';
+import AccountSettings from './components/AccountSettings';
+import ReportedItems from './components/ReportedItems';
 
-const PROTECTED_ROUTES = ['/profile', '/saved', '/connections'];
+const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports'];
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -105,7 +107,6 @@ function App() {
         if (response.data?.loggedIn) {
           const user = response.data.user;
           user.role_id = Number(user.role_id);
-          user.user_id = Number(user.user_id);
           setUserData(user);
           fetchNotifications(user.user_id);
           fetchConversations(user.user_id);
@@ -153,7 +154,7 @@ function App() {
 
   const fetchNotifications = async (user_id) => {
     try {
-      const response = await axios.get('/api/fetch_notifications.php?user_id=${user_id}', {
+      const response = await axios.get(`/api/fetch_notifications.php?user_id=${user_id}`, {
         withCredentials: true
       });
 
@@ -162,6 +163,24 @@ function App() {
       }
     } catch (err) {
       console.error('Error fetching notifications:', err);
+    }
+  };
+
+  const sendFollowNotification = async (followedId, followerId) => {
+    const actorId = followerId || userData?.user_id;
+    if (!actorId || !followedId || Number(actorId) === Number(followedId)) return;
+    const payload = new URLSearchParams();
+    payload.append('follower_id', actorId);
+    payload.append('followed_id', followedId);
+    try {
+      await axios.post(
+        '/api/add_follow_notification.php',
+        payload,
+        { withCredentials: true }
+      );
+    } catch (err) {
+      // Non-blocking: log for visibility but don’t interrupt the UI
+      console.error('Error sending follow notification:', err);
     }
   };
 
@@ -183,6 +202,12 @@ function App() {
   // Toggle Notification Pop-up
   const toggleNotifications = () => {
     setIsNotificationsOpen((prev) => !prev);
+  };
+
+  const refreshNotifications = () => {
+    if (userData?.user_id) {
+      fetchNotifications(userData.user_id);
+    }
   };
 
   // Mark Notifications as Read
@@ -213,7 +238,6 @@ function App() {
   // Login
   const handleLogin = (user) => {
     user.role_id = Number(user.role_id);
-    user.user_id = Number(user.user_id);
     setUserData(user);
     fetchNotifications(user.user_id);
     fetchConversations(user.user_id);
@@ -283,6 +307,19 @@ function App() {
       });
     }
   }, [userData]);  
+
+  useEffect(() => {
+    if (!userData?.user_id) return undefined;
+    // Initial refresh when user state is set (e.g., session restore)
+    fetchNotifications(userData.user_id);
+    fetchConversations(userData.user_id);
+
+    const intervalId = setInterval(() => {
+      fetchNotifications(userData.user_id);
+    }, 60000);
+
+    return () => clearInterval(intervalId);
+  }, [userData]);
   
   const handleFollowAmbassador = async (ambassadorId) => {
     if (!userData) {
@@ -308,6 +345,9 @@ function App() {
             setFollowingAmbassadors(res.data.following || []);
           }
         });
+        if (!isFollowing) {
+          sendFollowNotification(ambassadorId, userData.user_id);
+        }
       } else {
         alert("Error: " + response.data.error);
       }
@@ -497,7 +537,11 @@ function App() {
           path="/user/:user_id"
           element={
             <AppShell navBarProps={navBarProps} userData={userData}>
-              <UserProfileView userData={userData} />
+              <UserProfileView
+                userData={userData}
+                onFollowNotification={sendFollowNotification}
+                onNotificationsRefresh={refreshNotifications}
+              />
             </AppShell>
           }
         />
@@ -568,6 +612,22 @@ function App() {
                   }
                 />
                 <Route
+                  path="/settings"
+                  element={
+                    userData ? (
+                      <AccountSettings userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
                   path="/funding"
                   element={
                     <Feed
@@ -610,7 +670,14 @@ function App() {
                 />
                 <Route
                   path="/university/:id"
-                  element={<UniversityProfile userData={userData} onRequireAuth={() => setRequireAuthOverlay(true)} />}
+                  element={
+                    <UniversityProfile
+                      userData={userData}
+                      onRequireAuth={() => setRequireAuthOverlay(true)}
+                      onFollowNotification={sendFollowNotification}
+                      onNotificationsRefresh={refreshNotifications}
+                    />
+                  }
                 />
                 <Route
                   path="/group/:id"
@@ -619,6 +686,22 @@ function App() {
                 <Route
                   path="/messages"
                   element={<Messages userData={userData} />}
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    userData ? (
+                      <ReportedItems userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
                 />
                 <Route path="/search" element={<SearchResults />} />
               </Routes>

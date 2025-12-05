@@ -9,10 +9,13 @@ import {
   Bookmark,
   UserCheck,
   UserCircle,
-  Lock
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  Flag
 } from 'lucide-react';
 
-const items = [
+const baseItems = [
   { to: '/home', label: 'Home', Icon: Home, color: '#2563EB', key: 'home' },
   { to: '/info', label: 'Info Board', Icon: Info, color: '#0EA5E9', key: 'info' },
   { to: '/funding', label: 'Funding', Icon: Medal, color: '#F59E0B', key: 'funding' },
@@ -22,9 +25,36 @@ const items = [
   { to: '/profile', label: 'My Profile', Icon: UserCircle, color: '#64748B', key: 'profile' },
 ];
 
-function LeftSidebar({ userData, lockedKeys = ['saved', 'connections', 'profile'] }) {
+function LeftSidebar({
+  userData,
+  lockedKeys = ['saved', 'connections', 'profile'],
+  collapsed = false,
+  onToggle = undefined,
+}) {
+  const isModerator = userData && (Number(userData.role_id) === 1 || Number(userData.is_ambassador) === 1);
+  const items = isModerator
+    ? [
+        ...baseItems,
+        { to: '/reports', label: 'Reported Items', Icon: Flag, color: '#F43F5E', key: 'reports' },
+      ]
+    : baseItems;
+
   return (
-    <nav className="left-sidebar" aria-label="Primary">
+    <nav className={`left-sidebar${collapsed ? ' collapsed' : ''}`} aria-label="Primary">
+      {onToggle && (
+        <div className="sidebar-toggle-container">
+          <button
+            type="button"
+            className="sidebar-toggle-button"
+            onClick={onToggle}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-pressed={collapsed}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        </div>
+      )}
       <ul className="sidebar-list">
         {items.map(({ to, label, Icon, color, key }) => {
           const isLocked = !userData && lockedKeys.includes(key);
@@ -40,9 +70,10 @@ function LeftSidebar({ userData, lockedKeys = ['saved', 'connections', 'profile'
                 }}
                 aria-label={label}
                 aria-disabled={isLocked}
+                title={label}
               >
                 <span
-                  className="icon-circle"
+                  className="icon-circle sidebar-icon"
                   style={{ backgroundColor: `${color}26`, color }}
                   aria-hidden="true"
                 >

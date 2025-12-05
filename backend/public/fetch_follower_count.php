@@ -18,7 +18,7 @@ if (!isset($_GET['user_id'])) {
 }
 
 // Sanitize and retrieve the user_id
-$user_id = (int) $_GET['user_id'];
+$user_id = normalizeId($_GET['user_id']);
 
 try {
     // Get the database connection

@@ -24,14 +24,16 @@ if (
     exit;
 }
 
-$follower_id = (int)$data['follower_id'];
-$followed_user_id = (int)$data['followed_user_id'];
+$follower_id = normalizeId($data['follower_id']);
+$followed_user_id = normalizeId($data['followed_user_id']);
 
 $db = getDB();
+$followId = generateUniqueId($db, 'user_follows');
 
 try {
-    $stmt = $db->prepare("INSERT INTO user_follows (follower_id, followed_user_id) VALUES (:follower_id, :followed_user_id)");
+    $stmt = $db->prepare("INSERT INTO user_follows (id, follower_id, followed_user_id) VALUES (:id, :follower_id, :followed_user_id)");
     $stmt->execute([
+        ':id' => $followId,
         ':follower_id'     => $follower_id,
         ':followed_user_id' => $followed_user_id
     ]);

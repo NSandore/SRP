@@ -13,21 +13,15 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
 }
 
 $role_id_session = (int)$_SESSION['role_id'];
-
-// 2) Only admins can edit forums (or if you had an owner concept, you'd add logic)
-if ($role_id_session !== 7) {
-    http_response_code(403);
-    echo json_encode(['error' => 'No permission to edit forums.']);
-    exit;
-}
+$user_id_session = normalizeId($_SESSION['user_id']);
 
 // 3) Decode JSON
 $data = json_decode(file_get_contents('php://input'), true);
-$forum_id = (int)($data['forum_id'] ?? 0);
+$forum_id = normalizeId($data['forum_id'] ?? '');
 $new_name = trim($data['name'] ?? '');
 $new_desc = trim($data['description'] ?? '');
 
-if ($forum_id <= 0 || empty($new_name)) {
+if ($forum_id === '' || $new_name === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid forum_id or missing name.']);
     exit;
@@ -35,6 +29,32 @@ if ($forum_id <= 0 || empty($new_name)) {
 
 try {
     $db = getDB();
+
+    // Fetch forum to get community scope
+    $forumStmt = $db->prepare("SELECT community_id FROM forums WHERE forum_id = :fid LIMIT 1");
+    $forumStmt->execute([':fid' => $forum_id]);
+    $forum = $forumStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$forum) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Forum not found.']);
+        exit;
+    }
+
+    $community_id = $forum['community_id'];
+
+    // Permission: super admins OR ambassadors for the community
+    if ($role_id_session !== 1) {
+        $ambStmt = $db->prepare("SELECT 1 FROM ambassadors WHERE user_id = :uid AND community_id = :cid");
+        $ambStmt->execute([
+            ':uid' => $user_id_session,
+            ':cid' => $community_id,
+        ]);
+        if (!$ambStmt->fetchColumn()) {
+            http_response_code(403);
+            echo json_encode(['error' => 'No permission to edit forums.']);
+            exit;
+        }
+    }
 
     // 4) Perform the update
     $stmt = $db->prepare("

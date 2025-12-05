@@ -14,8 +14,8 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
 
 $role_id_session = (int)$_SESSION['role_id'];
 
-// 2) Only role_id=7 is allowed
-if ($role_id_session !== 7) {
+// 2) Only role_id=1 is allowed
+if ($role_id_session !== 1) {
     http_response_code(403);
     echo json_encode(['error' => 'No permission to delete forums.']);
     exit;

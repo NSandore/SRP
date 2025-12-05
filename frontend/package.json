@@ -1,6 +1,7 @@
 {
   "name": "frontend",
   "version": "0.1.0",
+  "proxy": "http://172.16.11.133",
   "private": true,
   "dependencies": {
     "@tiptap/extension-image": "^2.11.3",

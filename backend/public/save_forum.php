@@ -11,14 +11,15 @@ if (!$input || !isset($input['user_id']) || !isset($input['forum_id'])) {
     exit;
 }
 
-$user_id = intval($input['user_id']);
-$forum_id = intval($input['forum_id']);
+$user_id = normalizeId($input['user_id']);
+$forum_id = normalizeId($input['forum_id']);
+$saveId = generateUniqueId($db, 'saved_forums');
 
 // Insert into saved_forums table (or update timestamp if already exists)
-$query = "INSERT INTO saved_forums (user_id, forum_id) VALUES (:user_id, :forum_id)
+$query = "INSERT INTO saved_forums (id, user_id, forum_id) VALUES (:id, :user_id, :forum_id)
           ON DUPLICATE KEY UPDATE saved_at = CURRENT_TIMESTAMP";
 $stmt = $db->prepare($query);
-if ($stmt->execute([':user_id' => $user_id, ':forum_id' => $forum_id])) {
+if ($stmt->execute([':id' => $saveId, ':user_id' => $user_id, ':forum_id' => $forum_id])) {
     echo json_encode(['success' => true]);
 } else {
     http_response_code(500);

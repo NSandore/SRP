@@ -34,13 +34,39 @@ if ($name === '' || $type === '' || $description === '') {
     exit;
 }
 
-$userId = (int)$_SESSION['user_id'];
+$userId = normalizeId($_SESSION['user_id']);
 $userEmail = $_SESSION['email'] ?? '';
+$roleId = $_SESSION['role_id'] ?? null;
 
 try {
     $db = getDB();
-    $stmt = $db->prepare("INSERT INTO community_creation_requests (user_email, name, community_type, description, tagline, location, website, primary_color, secondary_color, status, created_at) VALUES (:email, :name, :type, :description, :tagline, :location, :website, :primary_color, :secondary_color, 'pending', NOW())");
+    // If super admin, create community immediately
+    if ($roleId === 1 || $roleId === '1') {
+        $communityId = generateUniqueId($db, 'communities');
+        $insert = $db->prepare("
+            INSERT INTO communities (id, name, community_type, description, tagline, location, website, primary_color, secondary_color, created_at)
+            VALUES (:id, :name, :type, :description, :tagline, :location, :website, :primary_color, :secondary_color, NOW())
+        ");
+        $insert->execute([
+            ':id' => $communityId,
+            ':name' => $name,
+            ':type' => $type,
+            ':description' => $description,
+            ':tagline' => $tagline,
+            ':location' => $location,
+            ':website' => $website,
+            ':primary_color' => $primaryColor,
+            ':secondary_color' => $secondaryColor
+        ]);
+
+        echo json_encode(['success' => true, 'community_id' => $communityId, 'status' => 'created']);
+        exit;
+    }
+
+    $requestId = generateUniqueId($db, 'community_creation_requests');
+    $stmt = $db->prepare("INSERT INTO community_creation_requests (id, user_email, name, community_type, description, tagline, location, website, primary_color, secondary_color, status, created_at) VALUES (:id, :email, :name, :type, :description, :tagline, :location, :website, :primary_color, :secondary_color, 'pending', NOW())");
     $stmt->execute([
+        ':id' => $requestId,
         ':email' => $userEmail,
         ':name' => $name,
         ':type' => $type,
@@ -52,11 +78,9 @@ try {
         ':secondary_color' => $secondaryColor
     ]);
 
-    $requestId = $db->lastInsertId();
-
     // send email to admin
     try {
-        $mg = Mailgun::create('dba41dc21198fcc4ba525015085cc266-7c5e3295-2c874436');
+        $mg = Mailgun::create('MAILGUN_API_KEY');
         $domain = 'sandboxe67f4501277d44af9f736a2154a5b6cb.mailgun.org';
         $mg->messages()->send($domain, [
             'from' => 'noreply@studentsphere.com',

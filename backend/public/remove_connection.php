@@ -7,14 +7,20 @@ header('Content-Type: application/json');
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) { $input = $_POST; }
 
-if (!isset($input['user_id1']) || !isset($input['user_id2'])) {
+if (empty($input['user_id1']) || empty($input['user_id2'])) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Missing user_id1 or user_id2']);
     exit;
 }
 
-$user_id1 = (int)$input['user_id1'];
-$user_id2 = (int)$input['user_id2'];
+$user_id1 = normalizeId($input['user_id1']);
+$user_id2 = normalizeId($input['user_id2']);
+
+if ($user_id1 === '' || $user_id2 === '') {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Missing user_id1 or user_id2']);
+    exit;
+}
 
 try {
     $db = getDB();

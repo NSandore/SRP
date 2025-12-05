@@ -18,6 +18,7 @@ import ThreadCard from './ThreadCard';
 import CommunityRequestModal from './CommunityRequestModal';
 import FloatingComposer from './FloatingComposer';
 import ModalOverlay from './ModalOverlay';
+import ReportModal from './ReportModal';
 import './LockedFeature.css';
 import './CreationModal.css';
 
@@ -70,6 +71,8 @@ const extractForumTopicsFromForum = (forum) => {
   return Array.from(new Set(collected));
 };
 
+const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
 function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAuth }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -78,6 +81,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   const [isTopicDropdownOpen, setIsTopicDropdownOpen] = useState(false);
   const [communityFilter, setCommunityFilter] = useState('All'); // Options: "All", "Followed", "Unfollowed"
   const [selectedCommunityTab, setSelectedCommunityTab] = useState("university");
+  const [communitySort, setCommunitySort] = useState('popularity'); // 'popularity' | 'alpha'
   const [feedSort, setFeedSort] = useState('recent'); // 'recent' | 'trending'
 
   const [followedCommunities, setFollowedCommunities] = useState([]);
@@ -105,6 +109,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
 
   const [notification, setNotification] = useState(null);
   const [showFundingModal, setShowFundingModal] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   // For 3-dot menu
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -153,6 +159,58 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     setShowFundingModal(false);
     navigate('/home');
   };
+
+  const handleOpenReport = (target) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    if (!target || !target.id || !target.type) return;
+    setReportTarget({
+      ...target,
+      label: target.label || target.type,
+      context: target.context ? target.context.trim() : '',
+    });
+  };
+
+  const handleSubmitReport = async ({ reasonCode, reasonText, details }) => {
+    if (!reportTarget) return;
+    setIsSubmittingReport(true);
+    try {
+      const resp = await axios.post(
+        '/api/submit_report.php',
+        {
+          item_type: reportTarget.type,
+          item_id: reportTarget.id,
+          reason_code: reasonCode,
+          reason_text: reasonText,
+          details,
+        },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        setNotification({ type: 'success', message: 'Report submitted.' });
+        setReportTarget(null);
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Unable to submit report.' });
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setNotification({ type: 'error', message: 'An error occurred while submitting the report.' });
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  const reportModal = (
+    <ReportModal
+      isOpen={!!reportTarget}
+      target={reportTarget}
+      onClose={() => setReportTarget(null)}
+      onSubmit={handleSubmitReport}
+      submitting={isSubmittingReport}
+    />
+  );
 
   // ------------- THREAD VOTING -------------
   const handleThreadVoteClick = async (threadId, voteType) => {
@@ -826,18 +884,29 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   };
 
   // Filter communities by type (tab) and filter (All, Followed, Unfollowed)
-  const filteredCommunities = allCommunities.filter((community) => {
-    // Must match the selected tab type
-    if (community.community_type !== selectedCommunityTab) return false;
+  const filteredCommunities = allCommunities
+    .filter((community) => {
+      // Must match the selected tab type
+      if (community.community_type !== selectedCommunityTab) return false;
 
-    // Then apply filter
-    if (communityFilter === 'Followed') {
-      return isCommunityFollowed(community);
-    } else if (communityFilter === 'Unfollowed') {
-      return !isCommunityFollowed(community);
-    }
-    return true;
-  });
+      // Then apply filter
+      if (communityFilter === 'Followed') {
+        return isCommunityFollowed(community);
+      } else if (communityFilter === 'Unfollowed') {
+        return !isCommunityFollowed(community);
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const sortMode = communitySort || 'popularity';
+      if (sortMode === 'alpha') {
+        return a.name.localeCompare(b.name);
+      }
+      // popularity / fallback: sort by followers descending
+      const aFollowers = Number(a.followers_count || 0);
+      const bFollowers = Number(b.followers_count || 0);
+      return bFollowers - aFollowers;
+    });
 
   // Clear filters helper (for empty state action)
   const clearCommunityFilters = () => {
@@ -872,6 +941,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   if (activeSection === 'home') {
     return (
       <main>
+        {reportModal}
         <div className="feed-container">
           {/* Hero */}
           <div style={{ marginBottom: '0.5rem' }}>
@@ -970,6 +1040,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                     userData={userData}
                     onUpvote={handleThreadUpvoteClick}
                     onDownvote={handleThreadDownvoteClick}
+                    onReport={() =>
+                      handleOpenReport({
+                        id: thread.thread_id,
+                        type: 'thread',
+                        label: thread.title || 'thread',
+                        context: stripHtml(thread.title || ''),
+                      })
+                    }
                   />
                 ))
               )}
@@ -997,6 +1075,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   if (activeSection === 'communities') {
     return (
       <main>
+        {reportModal}
         <div className="feed-container">
           <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Communities</h1>
           {/* Top control bar: tabs + scope + search + action (sticky under header) */}
@@ -1075,14 +1154,32 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
               )}
 
               <div className="control-search">
-                <input
-                  id="community-search"
-                  type="text"
-                  placeholder="Search universities, groups…"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pill-search"
-                />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                  <input
+                    id="community-search"
+                    type="text"
+                    placeholder="Search universities, groups…"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pill-search"
+                    style={{ minWidth: '220px', flex: 1 }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label htmlFor="community-sort" className="sort-pill" style={{ margin: 0 }}>
+                      Sort
+                    </label>
+                    <select
+                      id="community-sort"
+                      value={communitySort}
+                      onChange={(e) => setCommunitySort(e.target.value)}
+                      className="sort-select"
+                    aria-label="Sort communities"
+                  >
+                    <option value="popularity">Most Followers</option>
+                    <option value="alpha">A-Z</option>
+                  </select>
+                </div>
+              </div>
               </div>
             </div>
           </div>
@@ -1107,13 +1204,17 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
               <div className="community-list space-y-3">
                 {filteredCommunities.map((community) => {
                   const isFollowed = isCommunityFollowed(community);
+                  const logoSrc =
+                    community.logo_path && community.logo_path.startsWith('/')
+                      ? community.logo_path
+                      : `/uploads/logos/${community.logo_path || 'default-logo.png'}`;
                   return (
                     <div
                       key={community.community_id}
                       className={`community-row-card${isFollowed ? ' followed' : ''}`}
                     >
                       <img
-                        src={community.logo_path || '/uploads/logos/default-logo.png'}
+                        src={logoSrc}
                         alt={`${community.name} Logo`}
                         className="community-row-logo"
                         loading="lazy"
@@ -1194,7 +1295,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                 disabled={currentPage === 1}
                 className="pagination-button"
               >
-                Previous
+                Last
               </button>
               <span className="pagination-info">
                 Page {currentPage} of {totalPages}
@@ -1244,6 +1345,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
 
     return (
       <main>
+        {reportModal}
         <div className="feed-container">
           <div
             className="feed-header"
@@ -1449,6 +1551,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                   openMenuId={openMenuId}
                   setOpenMenuId={setOpenMenuId}
                   toggleMenu={toggleMenu}
+                  onReport={(f) =>
+                    handleOpenReport({
+                      id: f.forum_id,
+                      type: 'forum',
+                      label: f.name || 'forum',
+                      context: stripHtml(f.description || f.name || '').slice(0, 200),
+                    })
+                  }
                   handleSaveForum={handleSaveForum}
                   handleDeleteForum={handleDeleteForum}
                   handleUpvoteClick={handleUpvoteClick}
@@ -1473,6 +1583,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   if (activeSection === 'funding') {
     return (
       <main>
+        {reportModal}
         <div className="feed-container">
           <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Funding</h1>
           <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
@@ -1511,6 +1622,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   if (activeSection === 'saved' && userData) {
     return (
       <main>
+        {reportModal}
         <div className="feed-container">
           <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Saved</h1>
           <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
@@ -1655,6 +1767,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   // If none of the above sections match, display fallback content (e.g., "connections", etc.)
   return (
     <main>
+      {reportModal}
       {['home', 'connections', 'funding'].includes(activeSection) &&
         activeSection !== 'info' &&
         activeSection !== 'communities' &&

@@ -11,8 +11,8 @@ if (!$input || !isset($input['user_id']) || !isset($input['forum_id'])) {
     exit;
 }
 
-$user_id = intval($input['user_id']);
-$forum_id = intval($input['forum_id']);
+$user_id = normalizeId($input['user_id']);
+$forum_id = normalizeId($input['forum_id']);
 
 $query = "DELETE FROM saved_forums WHERE user_id = :user_id AND forum_id = :forum_id";
 $stmt = $db->prepare($query);

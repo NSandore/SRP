@@ -5,8 +5,12 @@ import { FaCheckCircle } from 'react-icons/fa';
 function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
   const [step, setStep] = useState(1);
   const [userId, setUserId] = useState(null);
-  const [verificationMethod, setVerificationMethod] = useState('email');
   const [verificationCode, setVerificationCode] = useState('');
+  const [verificationError, setVerificationError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -36,27 +40,30 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
       return;
     }
 
+    setIsSubmitting(true);
+    setVerificationError('');
+    setNotice('');
     try {
       const res = await fetch('/api/init_register.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, email, phone, password, method: verificationMethod })
+        body: JSON.stringify({ firstName, lastName, email, phone, password })
       });
 
-    const text = await res.text();
-    console.log("Raw response:", text);
-    let data;
-    try {
+      const text = await res.text();
+      console.log("Raw response:", text);
+      let data;
+      try {
         data = JSON.parse(text);
-    } catch (err) {
+      } catch (err) {
         console.error("Invalid JSON response from init_register.php:", text);
         throw new Error("Server returned invalid JSON.");
-    }
-
+      }
 
       if (res.ok) {
         setUserId(data.user_id);
-        alert(`Verification code sent via ${verificationMethod}`);
+        setVerificationCode('');
+        setNotice(`Verification code sent to ${data.email || email}. Check your inbox.`);
         setStep(2);
       } else {
         alert(data.error || 'An error occurred during registration.');
@@ -64,40 +71,71 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
     } catch (err) {
       console.error("Error submitting basic info:", err);
       alert('Failed to register. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleVerify = async () => {
+  const handleVerifySubmit = async () => {
+    if (!verificationCode.trim()) {
+      setVerificationError('Enter the 6-digit code we emailed you.');
+      return;
+    }
+    setIsVerifying(true);
+    setVerificationError('');
+    setNotice('');
     try {
       const res = await fetch('/api/verify_user.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, code: verificationCode })
+        body: JSON.stringify({ user_id: userId, code: verificationCode.trim() })
       });
-
-      const text = await res.text();
-      let data = {};
-      try {
-        data = JSON.parse(text);
-      } catch (err) {
-        console.error("Invalid JSON:", text);
-        throw new Error("Server returned invalid JSON.");
-      }
-
+      const data = await res.json();
       if (res.ok) {
-        alert('Account verified!');
+        setNotice('Email verified! Finish your profile below.');
         setStep(3);
       } else {
-        alert(data.error || 'Invalid verification code.');
+        setVerificationError(data.error || 'Invalid verification code.');
       }
     } catch (err) {
-      console.error("Verification error:", err);
-      alert('Verification failed. Please try again.');
+      console.error('Error verifying code:', err);
+      setVerificationError('Could not verify right now. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!userId) return;
+    setIsResending(true);
+    setVerificationError('');
+    setNotice('');
+    try {
+      const res = await fetch('/api/resend_verification.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, email: formData.email })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNotice('Verification email re-sent. Check your inbox.');
+      } else {
+        setVerificationError(data.error || 'Could not resend code.');
+      }
+    } catch (err) {
+      console.error('Error resending code:', err);
+      setVerificationError('Could not resend code. Please try again.');
+    } finally {
+      setIsResending(false);
     }
   };
 
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
+    if (!userId) {
+      alert('Please start signup again so we can verify your account.');
+      return;
+    }
     const { schoolName, startDate, endDate } = formData;
     if (!schoolName || !startDate || !endDate) {
       alert('Please fill out education details.');
@@ -135,7 +173,7 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
 
   const stepTitles = {
     1: 'Tell us about yourself',
-    2: 'Verify your account',
+    2: 'Verify your email',
     3: 'Share your education details',
   };
 
@@ -149,15 +187,8 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
       <input name="phone" placeholder="Phone" value={formData.phone} onChange={handleChange} />
       <input type="password" name="password" placeholder="Password" value={formData.password} onChange={handleChange} />
       <input type="password" name="confirmPassword" placeholder="Confirm Password" value={formData.confirmPassword} onChange={handleChange} />
-      <label className="auth-select-label">
-        Preferred verification method
-        <select value={verificationMethod} onChange={(e) => setVerificationMethod(e.target.value)}>
-          <option value="email">Email</option>
-          <option value="sms">Text Message</option>
-        </select>
-      </label>
-      <button type="button" className="auth-primary" onClick={handleBasicSubmit}>
-        Send verification code
+      <button type="button" className="auth-primary" onClick={handleBasicSubmit} disabled={isSubmitting}>
+        {isSubmitting ? 'Creating account…' : 'Continue'}
       </button>
       <button type="button" className="auth-link" onClick={onShowLogin}>
         Already have an account? Log in
@@ -165,12 +196,33 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
     </div>
   );
 
-  const renderStepTwo = () => (
+  const renderVerificationStep = () => (
     <div className="auth-form">
-      <p className="auth-note">Enter the 6-digit code sent to your {verificationMethod}.</p>
-      <input value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} placeholder="Verification code" />
-      <button type="button" className="auth-primary" onClick={handleVerify}>
-        Verify code
+      <p>We sent a 6-digit verification code to <strong>{formData.email}</strong>. Enter it below to continue.</p>
+      <input
+        name="verificationCode"
+        placeholder="Verification code"
+        value={verificationCode}
+        onChange={(e) => setVerificationCode(e.target.value)}
+        maxLength={6}
+      />
+      {verificationError && <p className="auth-error">{verificationError}</p>}
+      {notice && <p className="auth-success">{notice}</p>}
+      <button
+        type="button"
+        className="auth-primary"
+        onClick={handleVerifySubmit}
+        disabled={isVerifying}
+      >
+        {isVerifying ? 'Verifying…' : 'Verify email'}
+      </button>
+      <button
+        type="button"
+        className="auth-link"
+        onClick={handleResendCode}
+        disabled={isResending}
+      >
+        {isResending ? 'Resending…' : 'Resend code'}
       </button>
       <button type="button" className="auth-link" onClick={onShowLogin}>
         Already verified? Log in
@@ -178,7 +230,7 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
     </div>
   );
 
-  const renderStepThree = () => (
+  const renderStepTwo = () => (
     <form className="auth-form" onSubmit={handleFinalSubmit}>
       <input name="schoolName" placeholder="School Name" value={formData.schoolName} onChange={handleChange} />
       <div className="auth-input-grid">
@@ -196,8 +248,8 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
 
   const renderStep = () => {
     if (step === 1) return renderStepOne();
-    if (step === 2) return renderStepTwo();
-    return renderStepThree();
+    if (step === 2) return renderVerificationStep();
+    return renderStepTwo();
   };
 
   const benefits = [

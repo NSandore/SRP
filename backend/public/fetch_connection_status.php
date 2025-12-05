@@ -10,8 +10,8 @@ if (!isset($_GET['user_id1']) || !isset($_GET['user_id2'])) {
     exit;
 }
 
-$user_id1 = (int)$_GET['user_id1'];
-$user_id2 = (int)$_GET['user_id2'];
+$user_id1 = normalizeId($_GET['user_id1']);
+$user_id2 = normalizeId($_GET['user_id2']);
 
 try {
     $db = getDB();
@@ -22,7 +22,7 @@ try {
         $response = [
             'success' => true,
             'status' => $row['status'],
-            'connection_id' => (int)$row['connection_id'],
+            'connection_id' => $row['connection_id'],
             'is_sender' => ($row['user_id1'] == $user_id1)
         ];
     } else {

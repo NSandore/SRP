@@ -20,10 +20,10 @@ if (!isset($data['follower_id']) || !isset($data['followed_user_id'])) {
     exit;
 }
 
-$follower_id = (int)$data['follower_id'];
-$followed_user_id = (int)$data['followed_user_id'];
+$follower_id = normalizeId($data['follower_id']);
+$followed_user_id = normalizeId($data['followed_user_id']);
 
-if ($follower_id <= 0 || $followed_user_id <= 0) {
+if ($follower_id === '' || $followed_user_id === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid follower_id or followed_user_id']);
     exit;

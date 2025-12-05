@@ -13,6 +13,35 @@ import {
 } from 'react-icons/fa';
 import IconBubble from './IconBubble';
 
+const timeAgo = (dateStr) => {
+  if (!dateStr) return '';
+  const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+  const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  const ts = parsed.getTime();
+  if (Number.isNaN(ts)) return '';
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 0) return 'just now';
+  if (seconds < 3600) {
+    const mins = Math.max(1, Math.floor(seconds / 60));
+    return `${mins} minute${mins > 1 ? 's' : ''} ago`;
+  }
+  if (seconds < 86400) {
+    const hours = Math.max(1, Math.round(seconds / 3600));
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+  const intervals = [
+    { label: 'year', secs: 31536000 },
+    { label: 'month', secs: 2592000 },
+    { label: 'week', secs: 604800 },
+    { label: 'day', secs: 86400 },
+  ];
+  for (const it of intervals) {
+    const count = Math.floor(seconds / it.secs);
+    if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
+  }
+  return 'just now';
+};
+
 function useOnClickOutside(ref, handler) {
   React.useEffect(() => {
     const listener = (event) => {
@@ -58,12 +87,13 @@ export default function ThreadCard({
   onEdit,
   onDelete,
   onToggleSave,
+  onReport,
   linkTo,
 }) {
   const hasUpvoted = thread.user_vote === 'up' || thread.vote_type === 'up';
   const hasDownvoted = thread.user_vote === 'down' || thread.vote_type === 'down';
   const canEditOrDelete =
-    userData && (Number(userData.role_id) === 7 || Number(userData.user_id) === Number(thread.user_id));
+    userData && (Number(userData.role_id) === 1 || Number(userData.user_id) === Number(thread.user_id));
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -100,7 +130,15 @@ export default function ThreadCard({
               {thread.saved ? 'Unsave' : 'Save'}
             </button>
           )}
-          <button className="dropdown-item" onClick={() => { alert(`Report thread ${thread.thread_id}`); setMenuOpen(false); }}>
+          <button
+            className="dropdown-item"
+            onClick={() => {
+              if (onReport) {
+                onReport(thread);
+              }
+              setMenuOpen(false);
+            }}
+          >
             Report
           </button>
           {canEditOrDelete && (
@@ -133,7 +171,7 @@ export default function ThreadCard({
           <Link to={`/${thread.community_type}/${thread.community_id}`} className="meta-community">{thread.community_name}</Link>
         )}
         <span className="middot">•</span>
-        <span className="meta-time">{new Date(thread.created_at).toLocaleString()}</span>
+        <span className="meta-time">{timeAgo(thread.created_at)}</span>
       </div>
 
       {/* Actions Row */}

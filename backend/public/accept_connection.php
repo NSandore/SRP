@@ -15,7 +15,7 @@ if (!isset($input['connection_id'])) {
     exit;
 }
 
-$connection_id = (int)$input['connection_id'];
+$connection_id = normalizeId($input['connection_id']);
 
 try {
     $db = getDB();
@@ -26,6 +26,24 @@ try {
         echo json_encode(['success' => false, 'error' => 'Connection not found']);
         exit;
     }
+
+    // Fetch connection participants for notifications
+    $connStmt = $db->prepare("SELECT user_id1, user_id2 FROM connections WHERE connection_id = :cid");
+    $connStmt->execute([':cid' => $connection_id]);
+    $connRow = $connStmt->fetch(PDO::FETCH_ASSOC);
+    if ($connRow) {
+        $recipient = $connRow['user_id1'];
+        $actor = $connRow['user_id2'];
+        $notificationId = generateUniqueId($db, 'notifications');
+        $refIdForNotif = is_numeric($connection_id) ? $connection_id : null;
+        $message = "Your connection request was accepted.";
+        $notif = $db->prepare("
+            INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message, created_at)
+            VALUES (?, ?, ?, 'connection', ?, ?, NOW())
+        ");
+        $notif->execute([$notificationId, $recipient, $actor, $refIdForNotif, $message]);
+    }
+
     echo json_encode(['success' => true]);
 } catch (PDOException $e) {
     http_response_code(500);

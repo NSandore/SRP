@@ -16,7 +16,7 @@ function ContactUsButton() {
     e.preventDefault();
     setStatus('');
     try {
-      const res = await fetch('http://172.16.11.133/api/send_feedback.php', {
+      const res = await fetch('/api/send_feedback.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

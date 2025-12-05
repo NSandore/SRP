@@ -9,10 +9,10 @@ if (!isset($_GET['thread_id'])) {
     exit;
 }
 
-$thread_id = (int)$_GET['thread_id'];
+$thread_id = normalizeId($_GET['thread_id']);
 
 // Retrieve user_id from query params if provided
-$user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+$user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : '';
 
 $db = getDB();
 
@@ -37,6 +37,7 @@ try {
                ON p.post_id = v.post_id
               AND v.user_id = :user_id
         WHERE p.thread_id = :thread_id
+          AND p.is_hidden = 0
         ORDER BY p.created_at ASC
     ");
     $stmt->execute([

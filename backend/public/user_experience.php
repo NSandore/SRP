@@ -8,13 +8,13 @@ $contentType = isset($_SERVER["CONTENT_TYPE"]) ? trim($_SERVER["CONTENT_TYPE"]) 
 
 if (strpos($contentType, 'application/json') !== false) {
     $data = json_decode(file_get_contents("php://input"), true);
-    $user_id = isset($data['user_id']) ? (int)$data['user_id'] : 0;
+    $user_id = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
 } else {
-    $user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+    $user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : '';
 }
 
 // Validate parameters
-if (!$user_id) {
+if ($user_id === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Missing or invalid user_id']);
     exit;
@@ -28,7 +28,7 @@ try {
     $pstmt->execute([':uid' => $user_id]);
     $is_public = (int)($pstmt->fetchColumn());
 
-    $viewer_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
+    $viewer_id = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
 
     // Determine if viewer and user are connected
     $isConnected = false;
@@ -42,7 +42,7 @@ try {
               FROM user_experience
               WHERE user_id = :user_id";
     $stmt = $db->prepare($query);
-    $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+    $stmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
     $stmt->execute();
 
     $experiences = [];

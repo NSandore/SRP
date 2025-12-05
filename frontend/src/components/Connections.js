@@ -16,7 +16,7 @@ function Connections({ userData }) {
     const fetchConnections = async () => {
       try {
         const response = await axios.get(
-          `http://172.16.11.133/api/fetch_connections_list.php?user_id=${userData.user_id}`,
+          `/api/fetch_connections_list.php?user_id=${userData.user_id}`,
           { withCredentials: true }
         );
 
@@ -46,7 +46,7 @@ function Connections({ userData }) {
       await Promise.all(
         userIds.map(async (userId) => {
           const response = await axios.get(
-            `http://172.16.11.133/api/fetch_user.php?user_id=${userId}`,
+            `/api/fetch_user.php?user_id=${userId}`,
             { withCredentials: true }
           );
 
@@ -63,7 +63,7 @@ function Connections({ userData }) {
 
   const handleFollowToggle = async (userId, isFollowing) => {
     try {
-      const endpoint = `http://172.16.11.133/api/${isFollowing ? 'unfollow_user' : 'follow_user'}.php`;
+      const endpoint = `/api/${isFollowing ? 'unfollow_user' : 'follow_user'}.php`;
   
       const response = await axios.post(
         endpoint,
@@ -126,7 +126,7 @@ function Connections({ userData }) {
                   return (
                     <li key={userId}>
                       <img
-                        src={user.avatar_path || "/uploads/avatars/default-avatar.png"}
+                        src={user.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
                         alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />
@@ -162,7 +162,7 @@ function Connections({ userData }) {
                   return (
                     <li key={userId}>
                       <img
-                        src={user.avatar_path || "/uploads/avatars/default-avatar.png"}
+                        src={user.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
                         alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />

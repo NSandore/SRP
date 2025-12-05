@@ -3,7 +3,7 @@ require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
-$user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : null;
+$user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : null;
 $isGuest = $user_id === null;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';

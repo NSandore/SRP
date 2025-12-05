@@ -21,7 +21,7 @@ export default function UpcomingWebinars() {
         className="widget-header"
         style={{ backgroundColor: '#F43F5E' }}
       >
-        <h3 className="widget-title">Upcoming Webinars</h3>
+        <h3 className="widget-title">Upcoming Events</h3>
       </div>
       <div className="widget-body">
         <ul className="widget-list" aria-label="Upcoming webinars">
@@ -39,4 +39,3 @@ export default function UpcomingWebinars() {
     </section>
   );
 }
-

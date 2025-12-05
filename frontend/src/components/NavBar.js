@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaUserCircle, FaEnvelope, FaBell, FaSearch, FaMoon, FaSun } from 'react-icons/fa';
+import { FaUserCircle, FaEnvelope, FaBell, FaSearch } from 'react-icons/fa';
 import DOMPurify from 'dompurify';
 import axios from 'axios';
 
@@ -25,19 +25,16 @@ function NavBar({
 }) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [suggestions, setSuggestions] = useState({ users: [], forums: [], threads: [], tags: [] });
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const unreadCount = notifications.filter(n => parseInt(n.is_read, 10) === 0).length;
+  const [notifList, setNotifList] = useState(notifications || []);
+  const [fadeMap, setFadeMap] = useState({});
+  const unreadCount = notifList.filter(n => parseInt(n.is_read, 10) === 0).length;
   const accountMenuRef = useRef(null);
 
   useEffect(() => {
-    // Check localStorage for saved theme preference
+    // Apply saved theme preference
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-      setIsDarkMode(true);
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
+    const isDark = savedTheme === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   }, []);
 
   useEffect(() => {
@@ -56,11 +53,25 @@ function NavBar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [accountMenuVisible, setAccountMenuVisible]);
 
-  const toggleDarkMode = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme ? 'dark' : 'light');
-    localStorage.setItem('theme', newTheme ? 'dark' : 'light');
+  useEffect(() => {
+    setNotifList(notifications || []);
+    setFadeMap({});
+  }, [notifications]);
+
+  const handleDismissNotification = async (id) => {
+    setFadeMap((prev) => ({ ...prev, [id]: true }));
+    try {
+      await axios.post(
+        '/api/delete_notification.php',
+        { notification_id: id },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      // ignore failure for UX; local removal still happens
+    }
+    setTimeout(() => {
+      setNotifList((prev) => prev.filter((n) => n.notification_id !== id));
+    }, 200);
   };
 
   const handleSectionClick = (section) => {
@@ -73,40 +84,16 @@ function NavBar({
     navigate(`/${section}`);
   };
 
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setShowSuggestions(false);
-      setSuggestions({ users: [], forums: [], threads: [], tags: [] });
-      return;
-    }
-    const controller = new AbortController();
-    axios
-      .get(`/api/search.php?q=${encodeURIComponent(searchQuery.trim())}&limit=5`, {
-        signal: controller.signal,
-      })
-      .then((res) => {
-        setSuggestions(res.data);
-        setShowSuggestions(true);
-      })
-      .catch((err) => {
-        if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
-          console.error('Search error:', err);
-        }
-      });
-    return () => controller.abort();
-  }, [searchQuery]);
+  const goToSettings = () => {
+    setAccountMenuVisible(false);
+    navigate('/settings');
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
-  };
-
-  const handleSuggestionClick = (path) => {
-    setShowSuggestions(false);
-    setSearchQuery('');
-    navigate(path);
   };
 
   return (
@@ -133,73 +120,17 @@ function NavBar({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
-              onFocus={() => setShowSuggestions(true)}
             />
             <button type="submit" className="search-button" aria-label="Search">
               <FaSearch size={14} />
             </button>
           </div>
-          {showSuggestions && (
-            <div className="search-suggestions" role="listbox">
-              {suggestions.users.map((u) => (
-                <div
-                  key={`u${u.user_id}`}
-                  className="search-suggestion-item"
-                  onClick={() => handleSuggestionClick(`/user/${u.user_id}`)}
-                  role="option"
-                >
-                  @{u.first_name} {u.last_name}
-                </div>
-              ))}
-              {suggestions.forums.map((f) => (
-                <div
-                  key={`f${f.forum_id}`}
-                  className="search-suggestion-item"
-                  onClick={() => handleSuggestionClick(`/info/forum/${f.forum_id}`)}
-                  role="option"
-                >
-                  {f.name}
-                </div>
-              ))}
-              {suggestions.threads.map((t) => (
-                <div
-                  key={`t${t.thread_id}`}
-                  className="search-suggestion-item"
-                  onClick={() => handleSuggestionClick(`/info/forum/${t.forum_id}/thread/${t.thread_id}`)}
-                  role="option"
-                >
-                  {t.title}
-                </div>
-              ))}
-              {suggestions.tags.map((tag) => (
-                <div
-                  key={`tag${tag}`}
-                  className="search-suggestion-item"
-                  onClick={() => handleSuggestionClick(`/search?q=%23${tag}`)}
-                  role="option"
-                >
-                  #{tag}
-                </div>
-              ))}
-            </div>
-          )}
         </form>
       </div>
 
       {/* Right: Icons and avatar */}
       <div className="nav-right">
         <div className="nav-icons" role="group" aria-label="Quick actions">
-          {/* Dark Mode Toggle */}
-          <button
-            className="nav-icon-button dark-mode-toggle"
-            onClick={toggleDarkMode}
-            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            aria-label={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            aria-pressed={isDarkMode}
-          >
-            {isDarkMode ? <FaSun className="nav-icon" /> : <FaMoon className="nav-icon" />}
-          </button>
-
           {userData && (
             <>
               {/* Messages link */}
@@ -233,22 +164,41 @@ function NavBar({
                 {isNotificationsOpen && (
                   <div id="notifications-dropdown" className="notifications-dropdown" role="dialog" aria-label="Notifications">
                     <h4>Notifications</h4>
-                    {notifications.length === 0 ? (
+                    {notifList.length === 0 ? (
                       <p>No notifications</p>
                     ) : (
                       <>
                         <ul>
-                          {notifications.map((notif) => (
+                          {notifList.map((notif) => (
                             <li
                               key={notif.notification_id}
-                              className={`notification-item ${notif.is_read === "0" ? 'unread' : ''}`}
+                              className={`notification-item ${notif.is_read === "0" ? 'unread' : ''} ${fadeMap[notif.notification_id] ? 'fade-out' : ''}`}
                             >
-                              <p dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notif.message) }} />
-                              <small>{new Date(notif.created_at).toLocaleString()}</small>
+                              <div className="notification-body">
+                                {notif.avatar_path ? (
+                                  <img
+                                    src={notif.avatar_path.startsWith('http') ? notif.avatar_path : `http://172.16.11.133${notif.avatar_path}`}
+                                    alt={`${notif.first_name || 'User'} ${notif.last_name || ''}`.trim()}
+                                    className="notification-avatar"
+                                  />
+                                ) : null}
+                                <div className="notification-copy">
+                                  <p dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notif.message) }} />
+                                  <small>{new Date(notif.created_at).toLocaleString()}</small>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="notification-dismiss"
+                                  aria-label="Dismiss notification"
+                                  onClick={() => handleDismissNotification(notif.notification_id)}
+                                >
+                                  ×
+                                </button>
+                              </div>
                             </li>
                           ))}
                         </ul>
-                        <button className="mark-read-button" onClick={markAllAsRead}>
+                        <button className="mark-read-button pill-button" onClick={markAllAsRead}>
                           Mark All as Read
                         </button>
                       </>
@@ -276,24 +226,31 @@ function NavBar({
                 }
               }}
             >
-              {userData.avatar_path ? (
-                <img
-                  src={`http://172.16.11.133${userData.avatar_path}`}
-                  alt="User Avatar"
-                  className="user-avatar"
-                />
-              ) : (
-                <FaUserCircle className="nav-icon" title="Account Menu" aria-hidden="true" />
-              )}
+              {(() => {
+                const apiBase = 'http://172.16.11.133';
+                const defaultAvatar = '/uploads/avatars/DefaultAvatar.png';
+                const src = userData.avatar_path
+                  ? (userData.avatar_path.startsWith('http')
+                      ? userData.avatar_path
+                      : `${apiBase}${userData.avatar_path}`)
+                  : `${apiBase}${defaultAvatar}`;
+                return (
+                  <img
+                    src={src}
+                    alt="User Avatar"
+                    className="user-avatar"
+                  />
+                );
+              })()}
               {accountMenuVisible && (
                 <div id="account-menu" className="account-menu" role="menu" aria-label="Account Menu">
                   <div
                     className="account-menu-item"
-                    onClick={() => alert('Account Settings')}
+                    onClick={goToSettings}
                     tabIndex={0}
                     role="menuitem"
                     onKeyPress={(e) => {
-                      if (e.key === 'Enter') alert('Account Settings');
+                      if (e.key === 'Enter') goToSettings();
                     }}
                   >
                     Account Settings

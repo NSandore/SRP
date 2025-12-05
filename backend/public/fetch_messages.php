@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/cors.php';
 session_start();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
@@ -9,8 +10,8 @@ if (!isset($_GET['conversation_id']) || !isset($_GET['user_id'])) {
     exit;
 }
 
-$conversation_id = (int)$_GET['conversation_id'];
-$user_id = (int)$_GET['user_id'];
+$conversation_id = normalizeId($_GET['conversation_id']);
+$user_id = normalizeId($_GET['user_id']);
 
 try {
     $db = getDB();

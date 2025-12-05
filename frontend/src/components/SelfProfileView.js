@@ -6,6 +6,35 @@ import DOMPurify from 'dompurify';
 import { FaCheckCircle } from 'react-icons/fa';
 import ThreadCard from './ThreadCard';
 
+const timeAgo = (dateStr) => {
+  if (!dateStr) return '';
+  const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+  const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  const ts = parsed.getTime();
+  if (Number.isNaN(ts)) return '';
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 0) return 'just now';
+  if (seconds < 3600) {
+    const mins = Math.max(1, Math.floor(seconds / 60));
+    return `${mins} minute${mins > 1 ? 's' : ''} ago`;
+  }
+  if (seconds < 86400) {
+    const hours = Math.max(1, Math.round(seconds / 3600));
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+  const intervals = [
+    { label: 'year', secs: 31536000 },
+    { label: 'month', secs: 2592000 },
+    { label: 'week', secs: 604800 },
+    { label: 'day', secs: 86400 },
+  ];
+  for (const it of intervals) {
+    const count = Math.floor(seconds / it.secs);
+    if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
+  }
+  return 'just now';
+};
+
 function SelfProfileView({ userData, onProfileUpdate }) {
   // 1) Full profile data from fetch_user.php
   const [profile, setProfile] = useState(null);
@@ -27,8 +56,8 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const [skills, setSkills] = useState('');
 
   // Avatar & Banner
-  const [avatarPath, setAvatarPath] = useState('/uploads/avatars/default-avatar.png');
-  const [bannerPath, setBannerPath] = useState('/uploads/banners/default-banner.jpg');
+  const [avatarPath, setAvatarPath] = useState('/uploads/avatars/DefaultAvatar.png');
+  const [bannerPath, setBannerPath] = useState('/uploads/banners/DefaultBanner.jpeg');
   const [avatarFile, setAvatarFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
 
@@ -47,10 +76,10 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const [userThreads, setUserThreads] = useState([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
   const [threadsError, setThreadsError] = useState(null);
+  const [hasLoadedThreads, setHasLoadedThreads] = useState(false);
   const [userReplies, setUserReplies] = useState([]);
   const [repliesLoading, setRepliesLoading] = useState(false);
   const [repliesError, setRepliesError] = useState(null);
-  const [hasLoadedThreads, setHasLoadedThreads] = useState(false);
   const [hasLoadedReplies, setHasLoadedReplies] = useState(false);
 
   const userId = userData?.user_id;
@@ -93,8 +122,8 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       setHeadline(profile.headline || '');
       setAbout(profile.about || '');
       setSkills(profile.skills || '');
-      setAvatarPath(profile.avatar_path || '/uploads/avatars/default-avatar.png');
-      setBannerPath(profile.banner_path || '/uploads/banners/default-banner.jpg');
+      setAvatarPath(profile.avatar_path || '/uploads/avatars/DefaultAvatar.png');
+      setBannerPath(profile.banner_path || '/uploads/banners/DefaultBanner.jpeg');
       setPrimaryColor(profile.primary_color || '#0077B5');
       setSecondaryColor(profile.secondary_color || '#005f8d');
       setVerified(profile.verified === '1' || profile.verified === 1);
@@ -206,10 +235,10 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   useEffect(() => {
     setActiveTab('about');
     setUserThreads([]);
-    setUserReplies([]);
     setHasLoadedThreads(false);
-    setHasLoadedReplies(false);
     setThreadsError(null);
+    setUserReplies([]);
+    setHasLoadedReplies(false);
     setRepliesError(null);
   }, [userId]);
 
@@ -363,6 +392,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const displayHeadline = profile ? profile.headline || 'Student at Your University' : '';
   const displayAbout = profile ? profile.about || 'No about information provided yet.' : '';
   const displaySkills = profile && profile.skills ? profile.skills : '';
+  const isDefaultAvatar = avatarPath?.includes('DefaultAvatar.png');
 
   const profileStyle = {
     '--primary-color': primaryColor,
@@ -382,7 +412,11 @@ function SelfProfileView({ userData, onProfileUpdate }) {
             <div className="hero-content">
               <div className="hero-left">
                 <div className="user-hero-logo-wrap">
-                  <img src={avatarPath} alt="Profile Avatar" className="user-hero-logo" />
+                  <img
+                    src={avatarPath}
+                    alt="Profile Avatar"
+                    className={`user-hero-logo ${isDefaultAvatar ? 'user-hero-logo--default' : ''}`}
+                  />
                 </div>
                 <div className="hero-text">
                   {isEditing ? (
@@ -644,7 +678,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                               •
                             </span>
                             <span className="meta-quiet">
-                              {new Date(reply.created_at).toLocaleString()}
+                              {timeAgo(reply.created_at)}
                             </span>
                             {reply.community_name && reply.community_id && reply.community_type && (
                               <>

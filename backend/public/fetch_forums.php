@@ -3,10 +3,10 @@ require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
-$community_id = intval($_GET['community_id'] ?? 0);
-$user_id = intval($_GET['user_id'] ?? 0); // Get user_id if logged in
+$community_id = isset($_GET['community_id']) ? normalizeId($_GET['community_id']) : '';
+$user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : ''; // Get user_id if logged in
 
-if ($community_id <= 0) {
+if ($community_id === '') {
     http_response_code(400); // Bad Request
     echo json_encode(["error" => "Invalid community_id"]);
     exit;
@@ -29,11 +29,12 @@ try {
         FROM forums f
         LEFT JOIN threads t ON f.forum_id = t.forum_id
         WHERE f.community_id = :community_id
+          AND f.is_hidden = 0
         GROUP BY f.forum_id, f.name, f.description, f.created_at
         ORDER BY f.name ASC
     ");
-    $stmt->bindParam(':community_id', $community_id, PDO::PARAM_INT);
-    $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+    $stmt->bindParam(':community_id', $community_id, PDO::PARAM_STR);
+    $stmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
     $stmt->execute();
 
     $forums = $stmt->fetchAll(PDO::FETCH_ASSOC);

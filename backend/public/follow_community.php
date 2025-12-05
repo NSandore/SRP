@@ -11,15 +11,17 @@ if (!$data || !isset($data['user_id']) || !isset($data['community_id'])) {
     exit;
 }
 
-$user_id = (int)$data['user_id'];
-$community_id = (int)$data['community_id'];
+$user_id = normalizeId($data['user_id']);
+$community_id = normalizeId($data['community_id']);
 
 $db = getDB();
+$followId = generateUniqueId($db, 'followed_communities');
 
 try {
     // Insert a new follow record
-    $stmt = $db->prepare("INSERT INTO followed_communities (user_id, community_id) VALUES (:user_id, :community_id)");
+    $stmt = $db->prepare("INSERT INTO followed_communities (id, user_id, community_id) VALUES (:id, :user_id, :community_id)");
     $stmt->execute([
+        ':id' => $followId,
         ':user_id' => $user_id,
         ':community_id' => $community_id
     ]);

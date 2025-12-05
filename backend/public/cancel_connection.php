@@ -13,10 +13,11 @@ if (!isset($input['connection_id'])) {
     exit;
 }
 
-$connection_id = (int)$input['connection_id'];
+$connection_id = normalizeId($input['connection_id']);
 
 try {
     $db = getDB();
+    // Only allow cancel of pending requests
     $stmt = $db->prepare("DELETE FROM connections WHERE connection_id = :cid AND status = 'pending'");
     $stmt->execute([':cid' => $connection_id]);
     if ($stmt->rowCount() === 0) {

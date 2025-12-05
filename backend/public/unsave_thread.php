@@ -10,8 +10,8 @@ try {
         echo json_encode(['success' => false, 'error' => 'Invalid input data']);
         exit;
     }
-    $user_id = intval($input['user_id']);
-    $thread_id = intval($input['thread_id']);
+    $user_id = normalizeId($input['user_id']);
+    $thread_id = normalizeId($input['thread_id']);
 
     $query = "DELETE FROM saved_threads WHERE user_id = :user_id AND thread_id = :thread_id";
     $stmt = $db->prepare($query);

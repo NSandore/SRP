@@ -13,8 +13,8 @@ if (!isset($_POST['post_id']) || !isset($_POST['voter_id']) || !isset($_POST['vo
     exit;
 }
 
-$post_id = intval($_POST['post_id']);
-$voter_id = intval($_POST['voter_id']);
+$post_id = normalizeId($_POST['post_id']);
+$voter_id = normalizeId($_POST['voter_id']);
 $vote_type_input = $_POST['vote_type']; // Expect 'up' or 'down'
 
 if ($vote_type_input === 'up') {
@@ -60,8 +60,9 @@ try {
     $message = "$voter_name " . ($vote_type === 'upvote' ? "upvoted" : "downvoted") . " your post.";
 
     // Insert the notification.
-    $insertStmt = $db->prepare("INSERT INTO notifications (recipient_user_id, actor_user_id, notification_type, reference_id, message) VALUES (?, ?, ?, ?, ?)");
-    $result = $insertStmt->execute([$post_owner_id, $voter_id, $vote_type, $post_id, $message]);
+    $notificationId = generateUniqueId($db, 'notifications');
+    $insertStmt = $db->prepare("INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message) VALUES (?, ?, ?, ?, ?, ?)");
+    $result = $insertStmt->execute([$notificationId, $post_owner_id, $voter_id, $vote_type, $post_id, $message]);
 
     if ($result) {
         echo json_encode(['success' => true]);

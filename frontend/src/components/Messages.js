@@ -15,7 +15,7 @@ function Messages({ userData }) {
   const [isSending, setIsSending] = useState(false);
   const [searchParams] = useSearchParams();
   const API_BASE = 'http://172.16.11.133';
-  const DEFAULT_AVATAR = '/uploads/avatars/default-avatar.png';
+  const DEFAULT_AVATAR = '/uploads/avatars/DefaultAvatar.png';
 
   const buildAvatarSrc = (path) => {
     if (!path) return DEFAULT_AVATAR;
@@ -206,7 +206,7 @@ function Messages({ userData }) {
             />
           </label>
           {searchResults.length > 0 && (
-            <ul className="search-results">
+            <ul className="conversation-search-results">
               {searchResults.map((u) => (
                 <li key={u.user_id} onClick={() => handleSearchPick(u)}>
                   <img src={buildAvatarSrc(u.avatar_path)} alt={`${u.first_name} ${u.last_name}`} />

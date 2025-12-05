@@ -21,7 +21,7 @@ $email = trim($input['email']);
 $message = trim($input['message']);
 
 try {
-    $mg = Mailgun::create('dba41dc21198fcc4ba525015085cc266-7c5e3295-2c874436');
+    $mg = Mailgun::create('MAILGUN_API_KEY');
     $domain = 'sandboxe67f4501277d44af9f736a2154a5b6cb.mailgun.org';
 
     $mg->messages()->send($domain, [

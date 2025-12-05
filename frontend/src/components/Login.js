@@ -23,7 +23,7 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
     }
 
     try {
-      const response = await axios.post('http://172.16.11.133/api/login_user.php', {
+      const response = await axios.post('/api/login_user.php', {
         email,
         password,
       });
@@ -53,7 +53,7 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
     }
 
     try {
-      const response = await axios.post('http://172.16.11.133/api/reset_password.php', {
+      const response = await axios.post('/api/reset_password.php', {
         email,
         new_password: newPassword,
       });

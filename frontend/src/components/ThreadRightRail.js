@@ -12,6 +12,7 @@ export default function ThreadRightRail() {
 
   useEffect(() => {
     const load = async () => {
+      if (!thread_id) return;
       try {
         const tRes = await axios.get(`/api/fetch_thread.php?thread_id=${thread_id}`);
         setThread(tRes.data);
@@ -142,4 +143,3 @@ export default function ThreadRightRail() {
     </div>
   );
 }
-

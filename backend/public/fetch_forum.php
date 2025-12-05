@@ -9,11 +9,11 @@ if (!isset($_GET['forum_id'])) {
     exit;
 }
 
-$forum_id = (int)$_GET['forum_id'];
+$forum_id = normalizeId($_GET['forum_id']);
 $db = getDB();
 
 try {
-$stmt = $db->prepare("SELECT forum_id, community_id, name, description FROM forums WHERE forum_id = :forum_id");
+$stmt = $db->prepare("SELECT forum_id, community_id, name, description FROM forums WHERE forum_id = :forum_id AND is_hidden = 0");
     $stmt->execute([':forum_id' => $forum_id]);
     $forum = $stmt->fetch(PDO::FETCH_ASSOC);
 

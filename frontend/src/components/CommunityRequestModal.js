@@ -2,7 +2,17 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import './CommunityRequestModal.css';
 
-function CommunityRequestModal({ isVisible, onClose, onSubmit, formData, setFormData, isSubmitting }) {
+function CommunityRequestModal({
+  isVisible,
+  onClose,
+  onSubmit,
+  formData,
+  setFormData,
+  isSubmitting,
+  title,
+  submitLabel,
+  lockType
+}) {
   if (!isVisible) return null;
 
   const handleChange = (e) => {
@@ -13,7 +23,7 @@ function CommunityRequestModal({ isVisible, onClose, onSubmit, formData, setForm
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="request-modal-title">
       <div className="modal-content">
-        <h3 id="request-modal-title">Request New Community</h3>
+        <h3 id="request-modal-title">{title || 'Request New Community'}</h3>
         <form onSubmit={onSubmit}>
           <div className="form-group">
             <label htmlFor="community-name">Name:</label>
@@ -80,17 +90,24 @@ function CommunityRequestModal({ isVisible, onClose, onSubmit, formData, setForm
           </div>
           <div className="form-group">
             <label htmlFor="community-type">Type:</label>
-            <select
-              id="community-type"
-              name="type"
-              value={formData.type}
-              onChange={handleChange}
-              required
-            >
-              <option value="">Select...</option>
-              <option value="university">University</option>
-              <option value="group">Group</option>
-            </select>
+            {lockType ? (
+              <>
+                <input type="hidden" name="type" value={formData.type} />
+                <div style={{ padding: '8px 0' }}>{formData.type || 'group'}</div>
+              </>
+            ) : (
+              <select
+                id="community-type"
+                name="type"
+                value={formData.type}
+                onChange={handleChange}
+                required
+              >
+                <option value="">Select...</option>
+                <option value="university">University</option>
+                <option value="group">Group</option>
+              </select>
+            )}
           </div>
           <div className="form-group">
             <label htmlFor="community-description">Description:</label>
@@ -103,7 +120,7 @@ function CommunityRequestModal({ isVisible, onClose, onSubmit, formData, setForm
             ></textarea>
           </div>
           <div className="form-actions">
-            <button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Submitting...' : 'Submit'}</button>
+            <button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Submitting...' : (submitLabel || 'Submit')}</button>
             <button type="button" onClick={onClose}>Cancel</button>
           </div>
         </form>
@@ -119,6 +136,9 @@ CommunityRequestModal.propTypes = {
   formData: PropTypes.object.isRequired,
   setFormData: PropTypes.func.isRequired,
   isSubmitting: PropTypes.bool.isRequired,
+  title: PropTypes.string,
+  submitLabel: PropTypes.string,
+  lockType: PropTypes.bool,
 };
 
 export default CommunityRequestModal;

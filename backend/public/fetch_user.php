@@ -20,14 +20,39 @@ if (!isset($_GET['user_id'])) {
 }
 
 // Safely retrieve and sanitize the user_id
-$user_id = (int) $_GET['user_id'];
+$user_id = normalizeId($_GET['user_id']);
 
 try {
     // Call getDB() to get the PDO connection
     $db = getDB();
 
-    // Fetch user data from the `user_profiles` view instead of `users`
-    $query = "SELECT * FROM user_profiles WHERE user_id = :user_id";
+    // Fetch user data directly from users (avoid view dependency/mismatched schema)
+    $query = "
+        SELECT 
+            user_id,
+            role_id,
+            first_name,
+            last_name,
+            email,
+            phone,
+            headline,
+            about,
+            skills,
+            avatar_path,
+            banner_path,
+            primary_color,
+            secondary_color,
+            verified,
+            verified_community_id,
+            is_public,
+            is_ambassador,
+            recent_university_id,
+            login_count,
+            NULL AS community_ambassador_of
+        FROM users
+        WHERE user_id = :user_id
+        LIMIT 1
+    ";
     $stmt = $db->prepare($query);
     $stmt->execute([':user_id' => $user_id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -45,8 +70,37 @@ try {
     $pstmt = $db->prepare("SELECT is_public FROM users WHERE user_id = :uid");
     $pstmt->execute([':uid' => $user_id]);
     $is_public = (int)($pstmt->fetchColumn());
+    $user['is_public'] = $is_public;
 
-    $viewer_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
+    // Account settings: visibility + online preference + last_seen
+    $settingsStmt = $db->prepare("
+        SELECT 
+            profile_visibility, 
+            show_online, 
+            JSON_UNQUOTE(JSON_EXTRACT(extras, '$.last_seen_at')) AS last_seen_at
+        FROM account_settings 
+        WHERE user_id = :uid
+    ");
+    $settingsStmt->execute([':uid' => $user_id]);
+    $settings = $settingsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    $profile_visibility = $settings['profile_visibility'] ?? 'network';
+    $show_online = isset($settings['show_online']) ? (int)$settings['show_online'] : 1;
+    $last_seen_at = $settings['last_seen_at'] ?? null;
+
+    $isOnline = false;
+    if ($last_seen_at) {
+        $lastSeenTs = strtotime($last_seen_at);
+        if ($lastSeenTs !== false) {
+            $isOnline = (time() - $lastSeenTs) <= 300; // 5 minute window
+        }
+    }
+
+    $user['profile_visibility'] = $profile_visibility;
+    $user['show_online'] = $show_online;
+    $user['is_online'] = $show_online ? $isOnline : false;
+
+    $viewer_id = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
 
     // Determine if the viewer is connected to this user
     $isConnected = false;
@@ -74,6 +128,10 @@ try {
             $user['phone'] = null;
         }
     }
+
+    // Normalize media paths
+    $user['avatar_path'] = appendAvatarPath($user['avatar_path'] ?? null);
+    $user['banner_path'] = appendBannerPath($user['banner_path'] ?? null);
 
     // Return the user data
     echo json_encode([

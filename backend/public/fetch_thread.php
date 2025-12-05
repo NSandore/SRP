@@ -9,8 +9,8 @@ if (!isset($_GET['thread_id'])) {
     exit;
 }
 
-$thread_id = (int)$_GET['thread_id'];
-$user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0; // Optional user_id for vote tracking
+$thread_id = normalizeId($_GET['thread_id']);
+$user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : ''; // Optional user_id for vote tracking
 $db = getDB();
 
 try {
@@ -28,6 +28,8 @@ try {
         FROM threads t
         JOIN forums f ON t.forum_id = f.forum_id
         WHERE t.thread_id = :thread_id
+          AND t.is_hidden = 0
+          AND f.is_hidden = 0
     ");
     $stmt->execute([':thread_id' => $thread_id, ':user_id' => $user_id]);
     $thread = $stmt->fetch(PDO::FETCH_ASSOC);

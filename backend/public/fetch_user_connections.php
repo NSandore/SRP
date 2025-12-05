@@ -10,7 +10,12 @@ if (!isset($_GET['user_id'])) {
     exit;
 }
 
-$user_id = (int)$_GET['user_id'];
+$user_id = normalizeId($_GET['user_id']);
+if ($user_id === '') {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Missing user_id']);
+    exit;
+}
 
 try {
     $db = getDB();
@@ -18,7 +23,7 @@ try {
     $stmt->execute([':uid' => $user_id]);
     $connections = [];
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $connections[] = ($row['user_id1'] == $user_id) ? (int)$row['user_id2'] : (int)$row['user_id1'];
+        $connections[] = ($row['user_id1'] == $user_id) ? $row['user_id2'] : $row['user_id1'];
     }
     echo json_encode(['success' => true, 'connections' => $connections]);
 } catch (PDOException $e) {

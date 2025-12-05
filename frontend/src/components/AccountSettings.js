@@ -80,6 +80,7 @@ function AccountSettings({ userData }) {
   const navigate = useNavigate();
 
   const [settings, setSettings] = useState(createDefaultSettings);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [status, setStatus] = useState('');
   const statusTimerRef = useRef(null);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -127,6 +128,15 @@ function AccountSettings({ userData }) {
           if (typeof res.data.user.is_ambassador !== 'undefined') {
             setFetchedIsAmbassador(res.data.user.is_ambassador);
           }
+          if (typeof res.data.user.show_online !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              profile: {
+                ...prev.profile,
+                showOnline: Boolean(Number(res.data.user.show_online)),
+              },
+            }));
+          }
         }
       } catch (err) {
         console.error('Error loading profile visibility', err);
@@ -167,6 +177,22 @@ function AccountSettings({ userData }) {
     }
   };
 
+  const persistShowOnline = async (visible) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          show_online: visible,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving online visibility', err);
+    }
+  };
+
   const updateSetting = (section, key, value) => {
     if (section === 'profile' && key === 'profileVisibility' && value === 'network' && !isAmbassador) {
       flashStatus('This option is only available for group ambassadors');
@@ -182,12 +208,31 @@ function AccountSettings({ userData }) {
     if (section === 'profile' && key === 'profileVisibility') {
       persistProfileVisibility(value);
     }
+    if (section === 'profile' && key === 'showOnline') {
+      persistShowOnline(value);
+    }
     flashStatus('Saved');
   };
 
   const resetSettings = () => {
     setSettings(createDefaultSettings());
     flashStatus('Reset to defaults');
+  };
+
+  // Theme handling
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    const dark = savedTheme === 'dark';
+    setIsDarkMode(dark);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  }, []);
+
+  const toggleDarkMode = () => {
+    const next = !isDarkMode;
+    setIsDarkMode(next);
+    document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
+    localStorage.setItem('theme', next ? 'dark' : 'light');
+    flashStatus('Theme updated');
   };
 
   const confirmReset = () => {
@@ -347,6 +392,21 @@ function AccountSettings({ userData }) {
                 type="checkbox"
                 checked={settings.profile.discoverable}
                 onChange={(e) => updateSetting('profile', 'discoverable', e.target.checked)}
+              />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+
+          <div className="setting-row">
+            <div className="setting-text">
+              <div className="setting-label">Dark mode</div>
+              <p className="setting-help">Switch the app theme between light and dark.</p>
+            </div>
+            <label className="setting-toggle">
+              <input
+                type="checkbox"
+                checked={isDarkMode}
+                onChange={toggleDarkMode}
               />
               <span className="toggle-slider" />
             </label>
@@ -926,7 +986,7 @@ function AccountSettings({ userData }) {
         </div>
       )}
 
-      <p className="settings-footnote">Settings are stored locally for now; wire these toggles to backend endpoints to persist per user.</p>
+      <p className="settings-footnote">Profile visibility and online status save to your account; remaining toggles are local-only for now.</p>
     </div>
   );
 }

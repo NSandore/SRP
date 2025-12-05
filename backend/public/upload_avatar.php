@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['avatar']) || !isset
     exit;
 }
 
-$user_id = intval($_POST['user_id']);
+$user_id = normalizeId($_POST['user_id']);
 $uploadDir = __DIR__ . '/../../uploads/avatars/'; // Adjust the path as needed
 
 // Ensure the upload directory exists and is writable
@@ -50,7 +50,8 @@ $destination = $uploadDir . $filename;
 
 // Move the uploaded file
 if (move_uploaded_file($_FILES['avatar']['tmp_name'], $destination)) {
-    $relativePath = '/uploads/avatars/' . $filename;
+    $storedName = $filename;
+    $relativePath = appendAvatarPath($storedName);
 
     try {
         $db = getDB(); // Get the PDO connection
@@ -60,9 +61,9 @@ if (move_uploaded_file($_FILES['avatar']['tmp_name'], $destination)) {
         $stmt->execute([$user_id]);
         $current = $stmt->fetch();
         if ($current && isset($current['avatar_path'])) {
-            $currentAvatar = $current['avatar_path'];
+            $currentAvatar = appendAvatarPath($current['avatar_path']);
             // Delete the current file if it is not the default
-            if ($currentAvatar !== '/uploads/avatars/default-avatar.png') {
+            if ($currentAvatar !== '/uploads/avatars/DefaultAvatar.png') {
                 // Build the absolute file path (adjust the prefix as needed)
                 $currentFile = __DIR__ . '/../../' . ltrim($currentAvatar, '/');
                 if (file_exists($currentFile)) {
@@ -73,7 +74,7 @@ if (move_uploaded_file($_FILES['avatar']['tmp_name'], $destination)) {
 
         // Update the user's avatar path in the database
         $stmt = $db->prepare("UPDATE users SET avatar_path = ? WHERE user_id = ?");
-        $stmt->execute([$relativePath, $user_id]);
+        $stmt->execute([$storedName, $user_id]);
 
         echo json_encode(['success' => true, 'avatar_path' => $relativePath]);
     } catch (PDOException $e) {

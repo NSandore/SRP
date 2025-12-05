@@ -4,7 +4,7 @@
 .app-shell-grid {
   display: grid;
   grid-template-columns: 240px 1fr 320px;
-  gap: 18px;
+  gap: 30px;
   width: min(1400px, 98vw);
   margin: 16px auto 24px;
   align-items: start;
@@ -21,7 +21,9 @@
   align-self: start;
   justify-self: center;
   width: 240px;
-  max-height: calc(100vh - 80px);
+  height: auto;
+  max-height: calc(100vh - 120px);
+  min-height: 0;
   overflow-x: visible;
   transition: width 0.2s ease-in-out;
   will-change: width;
@@ -30,15 +32,18 @@
 .app-shell-grid.nav-collapsed .left-rail {
   width: 80px;
 }
-.center-rail { min-width: 0; justify-self: center; width: 100%; max-width: 880px; }
+.center-rail { min-width: 0; justify-self: center; width: 100%; max-width: 1000px; }
 .right-rail {
   position: sticky;
   top: 80px; /* below fixed navbar */
   align-self: start;
   justify-self: center;
   width: 340px;
-  max-height: calc(100vh - 80px);
-  overflow: auto;
+  height: auto;
+  max-height: calc(100vh - 120px);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Communities route: hide right rail and widen/center main column */
