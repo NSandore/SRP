@@ -12,11 +12,11 @@ $input = json_decode(file_get_contents('php://input'), true);
 
 // If JSON was provided, use it; otherwise, fallback to $_POST.
 if ($input && is_array($input)) {
-    $post_id = isset($input['post_id']) ? intval($input['post_id']) : null;
-    $replier_id = isset($input['replier_id']) ? intval($input['replier_id']) : null;
+    $post_id = isset($input['post_id']) ? normalizeId($input['post_id']) : null;
+    $replier_id = isset($input['replier_id']) ? normalizeId($input['replier_id']) : null;
 } else {
-    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
-    $replier_id = isset($_POST['replier_id']) ? intval($_POST['replier_id']) : null;
+    $post_id = isset($_POST['post_id']) ? normalizeId($_POST['post_id']) : null;
+    $replier_id = isset($_POST['replier_id']) ? normalizeId($_POST['replier_id']) : null;
 }
 
 if (!$post_id || !$replier_id) {
@@ -63,8 +63,12 @@ try {
     $message = "$replier_name replied to your post.";
 
     // Insert the notification into the notifications table
-    $insertStmt = $db->prepare("INSERT INTO notifications (recipient_user_id, actor_user_id, notification_type, reference_id, message) VALUES (?, ?, 'reply', ?, ?)");
-    $result = $insertStmt->execute([$post_owner_id, $replier_id, $post_id, $message]);
+    $notificationId = generateUniqueId($db, 'notifications');
+    $insertStmt = $db->prepare("
+        INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message)
+        VALUES (?, ?, ?, 'reply', NULL, ?)
+    ");
+    $result = $insertStmt->execute([$notificationId, $post_owner_id, $replier_id, $message]);
 
     if ($result) {
         echo json_encode(['success' => true]);

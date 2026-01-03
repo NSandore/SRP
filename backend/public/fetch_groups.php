@@ -25,6 +25,7 @@ try {
         SELECT 
             c.id AS community_id, 
             c.community_type,  -- Include community_type
+            c.parent_community_id,
             c.name, 
             c.location, 
             c.tagline, 
@@ -32,7 +33,7 @@ try {
             COUNT(fc.user_id) AS followers_count
         FROM communities c
         LEFT JOIN followed_communities fc ON fc.community_id = c.id
-        GROUP BY c.id, c.community_type, c.name, c.location, c.tagline, c.logo_path
+        GROUP BY c.id, c.community_type, c.parent_community_id, c.name, c.location, c.tagline, c.logo_path
     ");
 
     // Prepare the main query with search, filtering by community_type = 'group', and pagination

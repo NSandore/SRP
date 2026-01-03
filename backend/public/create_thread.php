@@ -5,23 +5,26 @@ require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
 // Check if the user is logged in and has the appropriate role_id
-// Assuming role_id = 7 corresponds to users who can create threads
-if (!isset($_SESSION['role_id']) || $_SESSION['role_id'] != 7) {
+// Super admin only
+if (!isset($_SESSION['role_id']) || $_SESSION['role_id'] != 1) {
     echo json_encode(['error' => 'You do not have permission to create threads.']);
     exit;
 }
 
-// Retrieve and decode the JSON input
+// Retrieve and decode the JSON input (fallback to $_POST)
 $data = json_decode(file_get_contents('php://input'), true);
+if (!$data || !is_array($data)) {
+    $data = $_POST;
+}
 
 // Extract and sanitize input data
-$forum_id         = isset($data['forum_id']) ? (int)$data['forum_id'] : 0;
-$user_id          = isset($data['user_id']) ? (int)$data['user_id'] : 0;
+$forum_id         = isset($data['forum_id']) ? normalizeId($data['forum_id']) : '';
+$user_id          = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
 $title           = isset($data['title']) ? trim($data['title']) : '';
 $firstPostContent = isset($data['firstPostContent']) ? trim($data['firstPostContent']) : '';
 
 // Validate required fields
-if ($forum_id <= 0 || $user_id <= 0 || empty($title) || empty($firstPostContent)) {
+if (empty($forum_id) || empty($user_id) || empty($title) || empty($firstPostContent)) {
     echo json_encode(['error' => 'Missing required fields.']);
     exit;
 }
@@ -41,24 +44,24 @@ try {
     $db->beginTransaction();
     
     // 1) Insert Thread
-    $stmt = $db->prepare("INSERT INTO threads (forum_id, user_id, title, created_at) VALUES (:forum_id, :user_id, :title, NOW())");
+    $thread_id = generateUniqueId($db, 'threads');
+    $stmt = $db->prepare("INSERT INTO threads (thread_id, forum_id, user_id, title, created_at) VALUES (:thread_id, :forum_id, :user_id, :title, NOW())");
     $stmt->execute([
+        ':thread_id' => $thread_id,
         ':forum_id' => $forum_id,
         ':user_id'  => $user_id,
         ':title'    => $title
     ]);
 
-    $thread_id = $db->lastInsertId();
-
     // 2) Insert First Post
-    $stmt2 = $db->prepare("INSERT INTO posts (thread_id, user_id, content, created_at) VALUES (:thread_id, :user_id, :content, NOW())");
+    $post_id = generateUniqueId($db, 'posts');
+    $stmt2 = $db->prepare("INSERT INTO posts (post_id, thread_id, user_id, content, created_at) VALUES (:post_id, :thread_id, :user_id, :content, NOW())");
     $stmt2->execute([
+        ':post_id' => $post_id,
         ':thread_id' => $thread_id,
         ':user_id'   => $user_id,
         ':content'   => $sanitized_content
     ]);
-
-    $post_id = $db->lastInsertId();
 
     // Commit the transaction
     $db->commit();

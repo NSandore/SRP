@@ -1,14 +1,15 @@
 // src/components/RightSidebar.js
 import React from 'react';
+import { useLocation } from 'react-router-dom';
+import RightRail from '../widgets/RightRail';
+import ThreadRightRail from './ThreadRightRail';
 
-function RightSidebar() {
+function RightSidebar({ userData }) {
+  const location = useLocation();
+  const isThreadView = /\/thread\//.test(location.pathname);
   return (
     <aside className="right-sidebar">
-      <h3>Trending Topics</h3>
-      <ul>
-        <li>#FinancialAid</li>
-        <li>#Admissions</li>
-      </ul>
+      {isThreadView ? <ThreadRightRail /> : <RightRail userData={userData} />}
     </aside>
   );
 }

@@ -17,8 +17,8 @@ if (!isset($data['community_id'], $data['item_id'], $data['item_type'])) {
     exit;
 }
 
-$community_id = (int) $data['community_id'];
-$item_id = (int) $data['item_id'];
+$community_id = normalizeId($data['community_id']);
+$item_id = normalizeId($data['item_id']);
 $item_type = $data['item_type'];
 
 // Validate the item type
@@ -35,10 +35,12 @@ try {
     // Insert the pin record into a table (community_pins)
     // Ensure you have created the table 'community_pins' with columns such as:
     // id (auto_increment), community_id, item_id, item_type, pinned_at (timestamp)
-    $query = "INSERT INTO community_pins (community_id, item_id, item_type, pinned_at) 
-              VALUES (:community_id, :item_id, :item_type, NOW())";
+    $pinId = generateUniqueId($db, 'community_pins');
+    $query = "INSERT INTO community_pins (id, community_id, item_id, item_type, pinned_at) 
+              VALUES (:id, :community_id, :item_id, :item_type, NOW())";
     $stmt = $db->prepare($query);
     $stmt->execute([
+        ':id' => $pinId,
         ':community_id' => $community_id,
         ':item_id' => $item_id,
         ':item_type' => $item_type

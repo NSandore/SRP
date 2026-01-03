@@ -10,6 +10,8 @@ header('Content-Type: application/json');
 // Include the database connection
 require_once __DIR__ . '/../db_connection.php';
 
+session_start();
+
 // Only allow POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -23,8 +25,8 @@ function getPostValue($key, $default = null) {
 }
 
 // Retrieve and validate required fields
-$community_id = isset($_POST['community_id']) ? (int)$_POST['community_id'] : 0;
-if ($community_id <= 0) {
+$community_id = isset($_POST['community_id']) ? normalizeId($_POST['community_id']) : '';
+if ($community_id === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid or missing community_id.']);
     exit;
@@ -45,6 +47,30 @@ $secondary_color = getPostValue('secondary_color', '#005f8d');
 
 // Get a database connection
 $db = getDB();
+
+// Permission: super admin (role_id=1) OR ambassador admin for this community
+$sessionUserId = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
+$sessionRoleId = isset($_SESSION['role_id']) ? (int)$_SESSION['role_id'] : null;
+if (!$sessionUserId) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Not authenticated.']);
+    exit;
+}
+
+if ($sessionRoleId !== 1) {
+    $permStmt = $db->prepare("
+        SELECT role FROM ambassadors
+        WHERE community_id = :cid AND user_id = :uid
+        LIMIT 1
+    ");
+    $permStmt->execute([':cid' => $community_id, ':uid' => $sessionUserId]);
+    $role = $permStmt->fetchColumn();
+    if ($role !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'No permission to update this community.']);
+        exit;
+    }
+}
 
 // Define upload directories (adjust these paths according to your folder structure)
 $logoUploadDir = __DIR__ . '/../../uploads/logos/';
@@ -159,7 +185,7 @@ if ($newLogoPath !== null) {
 if ($newBannerPath !== null) {
     $stmt->bindParam(':banner_path', $newBannerPath);
 }
-$stmt->bindParam(':community_id', $community_id, PDO::PARAM_INT);
+$stmt->bindParam(':community_id', $community_id, PDO::PARAM_STR);
 
 // Execute the query and return the updated university data
 if ($stmt->execute()) {

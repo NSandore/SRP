@@ -10,8 +10,8 @@ try {
         echo json_encode(['success' => false, 'error' => 'Invalid input data']);
         exit;
     }
-    $user_id = intval($input['user_id']);
-    $post_id = intval($input['post_id']);
+    $user_id = normalizeId($input['user_id']);
+    $post_id = normalizeId($input['post_id']);
 
     $query = "DELETE FROM saved_posts WHERE user_id = :user_id AND post_id = :post_id";
     $stmt = $db->prepare($query);

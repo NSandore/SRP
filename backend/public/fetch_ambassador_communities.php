@@ -14,7 +14,7 @@ if (!isset($_GET['user_id'])) {
     exit;
 }
 
-$user_id = (int) $_GET['user_id'];
+$user_id = normalizeId($_GET['user_id']);
 
 try {
     $db = getDB();

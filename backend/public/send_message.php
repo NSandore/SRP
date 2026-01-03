@@ -1,5 +1,6 @@
 <?php
 // send_message.php
+require_once __DIR__ . '/cors.php';
 session_start();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
@@ -16,8 +17,8 @@ if (!isset($data['sender_id'], $data['recipient_id'], $data['content'])) {
     exit;
 }
 
-$sender_id = (int)$data['sender_id'];
-$recipient_id = (int)$data['recipient_id'];
+$sender_id = normalizeId($data['sender_id']);
+$recipient_id = normalizeId($data['recipient_id']);
 $content = trim($data['content']);
 
 try {
@@ -32,35 +33,33 @@ try {
     $stmt->execute([':s' => $sender_id, ':r' => $recipient_id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($row) {
+    if ($row && !empty($row['conversation_id'])) {
         $conversation_id = (int)$row['conversation_id'];
     } else {
-        // Create a new conversation id
-        $stmt = $db->query("SELECT IFNULL(MAX(conversation_id),0)+1 AS next_id FROM messages");
-        $conversation_id = (int)$stmt->fetchColumn();
+        // Generate a numeric conversation_id (int) since the column is int
+        $nextStmt = $db->prepare("SELECT IFNULL(MAX(conversation_id), 0) + 1 AS next_id FROM messages");
+        $nextStmt->execute();
+        $conversation_id = (int)$nextStmt->fetchColumn();
+        if ($conversation_id <= 0) {
+            $conversation_id = 1;
+        }
     }
 
     // Insert the message
+    $message_id = generateUniqueId($db, 'messages');
     $insert = $db->prepare(
         "INSERT INTO messages
-            (sender_id, recipient_id, conversation_id, content, is_read, created_at, updated_at)
+            (message_id, sender_id, recipient_id, conversation_id, content, is_read, created_at, updated_at)
          VALUES
-            (:sender_id, :recipient_id, :conversation_id, :content, 0, NOW(), NOW())"
+            (:message_id, :sender_id, :recipient_id, :conversation_id, :content, 0, NOW(), NOW())"
     );
     $insert->execute([
+        ':message_id' => $message_id,
         ':sender_id' => $sender_id,
         ':recipient_id' => $recipient_id,
         ':conversation_id' => $conversation_id,
         ':content' => $content,
     ]);
-
-    // Add a notification for the recipient
-    $notif = $db->prepare(
-        "INSERT INTO notifications
-            (recipient_user_id, actor_user_id, notification_type, reference_id, message, created_at)
-         VALUES (?, ?, 'message', ?, 'New message', NOW())"
-    );
-    $notif->execute([$recipient_id, $sender_id, $conversation_id]);
 
     echo json_encode(['success' => true, 'conversation_id' => $conversation_id]);
 } catch (PDOException $e) {

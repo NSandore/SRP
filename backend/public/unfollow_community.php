@@ -11,8 +11,8 @@ if (!$data || !isset($data['user_id']) || !isset($data['community_id'])) {
     exit;
 }
 
-$user_id = (int)$data['user_id'];
-$community_id = (int)$data['community_id'];
+$user_id = normalizeId($data['user_id']);
+$community_id = normalizeId($data['community_id']);
 
 $db = getDB();
 

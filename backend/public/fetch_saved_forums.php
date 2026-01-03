@@ -12,7 +12,7 @@ try {
         exit;
     }
 
-    $user_id = intval($_GET['user_id']);
+    $user_id = normalizeId($_GET['user_id']);
 
     $query = "SELECT sf.forum_id, f.name, f.description, sf.saved_at
               FROM saved_forums sf

@@ -22,11 +22,11 @@ if (!isset($_SESSION['user_id'])) {
 $data = json_decode(file_get_contents('php://input'), true);
 
 // 3. Extract and validate necessary fields
-$thread_id = (int)($data['thread_id'] ?? 0);
-$user_id   = (int)($data['user_id']   ?? 0);
+$thread_id = isset($data['thread_id']) ? normalizeId($data['thread_id']) : '';
+$user_id   = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
 $content   = trim($data['content']    ?? '');
 
-if ($thread_id <= 0 || $user_id <= 0 || empty($content)) {
+if (empty($thread_id) || empty($user_id) || empty($content)) {
     http_response_code(400); // Bad Request
     echo json_encode(['error' => 'Invalid data for creating a post.']);
     exit;
@@ -42,20 +42,19 @@ if ($thread_id <= 0 || $user_id <= 0 || empty($content)) {
 try {
     // 4. Get the DB connection
     $db = getDB(); // Must match the same function you use in create_forum.php, etc.
+    $post_id = generateUniqueId($db, 'posts');
 
     // 5. Insert a new row into `posts`
     $stmt = $db->prepare("
-        INSERT INTO posts (thread_id, user_id, content)
-        VALUES (:thread_id, :user_id, :content)
+        INSERT INTO posts (post_id, thread_id, user_id, content)
+        VALUES (:post_id, :thread_id, :user_id, :content)
     ");
     $stmt->execute([
+        ':post_id' => $post_id,
         ':thread_id' => $thread_id,
         ':user_id'   => $user_id,
         ':content'   => $content
     ]);
-
-    // 6. Retrieve the newly inserted post_id
-    $post_id = $db->lastInsertId();
 
     // 7. Return success
     echo json_encode([

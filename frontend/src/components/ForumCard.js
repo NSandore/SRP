@@ -1,33 +1,52 @@
 // src/components/ForumCard.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import {
-  FaEllipsisV,
-  FaArrowAltCircleUp,
-  FaRegArrowAltCircleUp,
-  FaArrowAltCircleDown,
-  FaRegArrowAltCircleDown
-} from 'react-icons/fa';
+import { FaEllipsisV } from 'react-icons/fa';
 
 const ForumCard = ({
   forum,
   userData,
   openMenuId,
   toggleMenu,
+  onReport,
   handleSaveForum,
   handleDeleteForum,
   handleUpvoteClick,
   handleDownvoteClick,
   startEditingForum
 }) => {
-  // Determine vote status for this forum
-  const hasUpvoted = forum.vote_type === 'up';
-  const hasDownvoted = forum.vote_type === 'down';
-
   // Only admins can edit/delete forums (for this example)
-  const canEditOrDelete = userData && Number(userData.role_id) === 7;
+  const canEditOrDelete = userData && Number(userData.role_id) === 1;
+  const timeAgo = (dateStr) => {
+    if (!dateStr) return '';
+    const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+    const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+    const ts = parsed.getTime();
+    if (Number.isNaN(ts)) return '';
+    const seconds = Math.floor((Date.now() - ts) / 1000);
+    if (seconds < 0) return 'just now';
+    if (seconds < 3600) {
+      const mins = Math.max(1, Math.floor(seconds / 60));
+      return `${mins} minute${mins > 1 ? 's' : ''} ago`;
+    }
+    if (seconds < 86400) {
+      const hours = Math.max(1, Math.round(seconds / 3600));
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    }
+    const intervals = [
+      { label: 'year', secs: 31536000 },
+      { label: 'month', secs: 2592000 },
+      { label: 'week', secs: 604800 },
+      { label: 'day', secs: 86400 },
+    ];
+    for (const it of intervals) {
+      const count = Math.floor(seconds / it.secs);
+      if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
+    }
+    return 'just now';
+  };
 
   // State for ambassador submenu
   const [ambassadorCommunities, setAmbassadorCommunities] = useState([]);
@@ -53,23 +72,50 @@ const ForumCard = ({
     }
   }, [userData]);
 
+  const menuRef = useRef(null);
+  useEffect(() => {
+    const onClick = (e) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target)) toggleMenu(null);
+    };
+    if (openMenuId === forum.forum_id) {
+      document.addEventListener('mousedown', onClick);
+      document.addEventListener('touchstart', onClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('touchstart', onClick);
+    };
+  }, [openMenuId, forum.forum_id, toggleMenu]);
+
+  // Meta data helpers
+  const threadCount = forum.thread_count || 0;
+  const lastUpdated = forum.updated_at || forum.created_at;
+
   return (
-    <div key={forum.forum_id} className="forum-card" style={{ marginBottom: '1rem', position: 'relative' }}>
+    <div
+      key={forum.forum_id}
+      className="forum-card card-lift"
+      style={{ position: 'relative' }}
+    >
       {/* 3-dot menu icon */}
       <FaEllipsisV
-        className="menu-icon"
+        className="menu-icon kebab-button"
         style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
         onClick={() => toggleMenu(forum.forum_id)}
+        aria-haspopup="menu"
+        aria-expanded={openMenuId === forum.forum_id}
       />
       {openMenuId === forum.forum_id && (
         <div
+          ref={menuRef}
           className="dropdown-menu"
           style={{
             position: 'absolute',
             top: '30px',
             right: '8px',
-            backgroundColor: '#fff',
-            border: '1px solid #ddd',
+            backgroundColor: 'var(--bg-card, var(--card-background))',
+            border: '1px solid var(--card-border)',
             borderRadius: '4px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             zIndex: 10,
@@ -100,7 +146,7 @@ const ForumCard = ({
                         style={{
                           padding: '6px 8px',
                           cursor: 'pointer',
-                          borderTop: '1px solid #eee'
+                          borderTop: '1px solid var(--card-border)'
                         }}
                         onClick={() => {
                           console.log(
@@ -142,7 +188,7 @@ const ForumCard = ({
               )}
             </div>
           )}
-          {userData && (
+          {handleSaveForum && (
             <button
               className="dropdown-item"
               style={{
@@ -171,65 +217,69 @@ const ForumCard = ({
               cursor: 'pointer'
             }}
             onClick={() => {
-              alert(`Report forum with ID ${forum.forum_id}`);
+              if (onReport) {
+                onReport(forum);
+              }
               toggleMenu(null);
             }}
           >
             Report
           </button>
+          {canEditOrDelete && (
+            <>
+              <button
+                className="dropdown-item"
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  background: 'none',
+                  padding: '8px',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  startEditingForum(forum);
+                  toggleMenu(null);
+                }}
+              >
+                Edit
+              </button>
+              <button
+                className="dropdown-item"
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  background: 'none',
+                  padding: '8px',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  handleDeleteForum(forum.forum_id);
+                  toggleMenu(null);
+                }}
+              >
+                Delete
+              </button>
+            </>
+          )}
         </div>
       )}
 
-      {/* Vote Row */}
-      <div className="vote-row">
-        <button
-          type="button"
-          className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
-          onClick={() => handleUpvoteClick(forum.forum_id)}
-          title="Upvote"
-          aria-label="Upvote"
-        >
-          {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
-        </button>
-        <span className="vote-count">{forum.upvotes}</span>
-        <button
-          type="button"
-          className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
-          onClick={() => handleDownvoteClick(forum.forum_id)}
-          title="Downvote"
-          aria-label="Downvote"
-        >
-          {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
-        </button>
-        <span className="vote-count">{forum.downvotes}</span>
+      {/* Left block: title, description, meta */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', lineHeight: 1.5 }}>
+        <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <h3 className="forum-title" style={{ margin: 0 }}>{forum.name}</h3>
+        </Link>
+        <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <p className="forum-description" style={{ margin: 0 }}>{forum.description}</p>
+        </Link>
+        <div className="meta-row" style={{ marginTop: '4px' }}>
+          <span className="meta-quiet">{threadCount} threads</span>
+          <span className="middot">·</span>
+          <span className="meta-quiet">Last updated {lastUpdated ? timeAgo(lastUpdated) : '—'}</span>
+        </div>
       </div>
-
-      {/* Forum Details Link */}
-      <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-        <h3 className="forum-title">{forum.name}</h3>
-        <p className="forum-thread-count">{forum.thread_count || 0} Threads</p>
-        <p className="forum-description">{forum.description}</p>
-      </Link>
-
-      {/* Edit/Delete actions */}
-      {canEditOrDelete && (
-        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
-          <button
-            className="edit-button"
-            style={{ backgroundColor: '#ffa500', color: '#fff', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer' }}
-            onClick={() => startEditingForum(forum)}
-          >
-            Edit
-          </button>
-          <button
-            className="delete-button"
-            style={{ backgroundColor: '#ff6961', color: '#fff', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer' }}
-            onClick={() => handleDeleteForum(forum.forum_id)}
-          >
-            Delete
-          </button>
-        </div>
-      )}
     </div>
   );
 };

@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  BrowserRouter as Router,
   Route,
   Routes,
   Link,
   useNavigate,
+  useLocation,
   Navigate
 } from 'react-router-dom';
 import axios from 'axios';
@@ -30,7 +30,7 @@ import {
 } from 'react-icons/fa';
 import { TbWriting } from 'react-icons/tb';
 import { BiInfoCircle } from 'react-icons/bi';
-import Connections from './components/Connections';
+import UserConnections from './components/UserConnections';
 import { RiMedalFill } from 'react-icons/ri';
 import SignUp from './components/SignUp';
 import InterestSelection from './components/InterestSelection';
@@ -46,18 +46,27 @@ import GroupProfile from './components/GroupProfile';
 import Messages from './components/Messages'; // New Messages component
 import useOnClickOutside from './hooks/useOnClickOutside';  // Hook to close popups when clicking outside
 import RightSidebar from './components/RightSidebar';
-import LeftSidebar from './components/LeftSidebar';
-import NavBar from './components/NavBar';
+import AppShell from './layout/AppShell';
 import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
+import ContactUsButton from './components/ContactUsButton';
+import SearchResults from './components/SearchResults';
+import CommunityRequests from './components/CommunityRequests';
+import AuthOverlay from './components/AuthOverlay';
+import AccountSettings from './components/AccountSettings';
+import ReportedItems from './components/ReportedItems';
+import EventManagement from './components/EventManagement';
 
+const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events'];
 
 function App() {
-  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [selectedSchools, setSelectedSchools] = useState([]);
-  const [activeFeed, setActiveFeed] = useState('yourFeed');
+  const [activeFeed, setActiveFeed] = useState(() => {
+    if (typeof window === 'undefined') return 'explore';
+    return localStorage.getItem('defaultFeed') || 'explore';
+  });
   const [activeSection, setActiveSection] = useState('home');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [accountMenuVisible, setAccountMenuVisible] = useState(false);
@@ -65,23 +74,58 @@ function App() {
   const [ambassadors, setAmbassadors] = useState([]);
   const [loadingAmbassadors, setLoadingAmbassadors] = useState(false);
   const [errorAmbassadors, setErrorAmbassadors] = useState(null);
-
-
+  const [requireAuthOverlay, setRequireAuthOverlay] = useState(false);
   const [followingAmbassadors, setFollowingAmbassadors] = useState([]);
+  const [lastAccessiblePath, setLastAccessiblePath] = useState('/home');
+  const [pendingProtectedReturnPath, setPendingProtectedReturnPath] = useState(null);
 
   const [notifications, setNotifications] = useState([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [toasts, setToasts] = useState([]);
+  const prevUnreadNotifs = useRef(0);
+  const prevUnreadMessages = useRef(0);
+  const notifInitRef = useRef(false);
+  const messageInitRef = useRef(false);
+  const audioRef = useRef(null);
+  const [soundUnlocked, setSoundUnlocked] = useState(false);
 
   const [showWelcome, setShowWelcome] = useState(false);
 
+  const getInitials = (firstName = '', lastName = '') => {
+    const first = firstName.trim().charAt(0);
+    const last = lastName.trim().charAt(0);
+    return `${first}${last}`.toUpperCase() || 'A';
+  };
+
+  const pushToast = (message) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const playNotificationSound = () => {
+    if (!soundUnlocked) return;
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
+  };
+
   const notificationRef = useRef(null); // Ref to handle click outside notifications
   useOnClickOutside(notificationRef, () => setIsNotificationsOpen(false));
+  const navigate = useNavigate();
+  const location = useLocation();
+  const authRoutes = ['/login', '/signup'];
+  const isAuthPage = authRoutes.includes(location.pathname);
+  const previousPathRef = useRef(location.pathname);
 
   useEffect(() => {
     const checkUserSession = async () => {
       try {
-        const response = await axios.get('http://172.16.11.133/api/check_session.php', {
+        const response = await axios.get('/api/check_session.php', {
           withCredentials: true
         });
 
@@ -90,10 +134,17 @@ function App() {
         if (response.data?.loggedIn) {
           const user = response.data.user;
           user.role_id = Number(user.role_id);
-          user.user_id = Number(user.user_id);
           setUserData(user);
           fetchNotifications(user.user_id);
           fetchConversations(user.user_id);
+          // Apply default feed preference: server setting > localStorage > fallback
+          if (typeof window !== 'undefined') {
+            const stored = user.default_feed || localStorage.getItem('defaultFeed');
+            const mapped = stored === 'yourFeed' ? 'explore' : stored; // map legacy
+            const finalFeed = stored ? stored : 'explore';
+            setActiveFeed(finalFeed);
+            localStorage.setItem('defaultFeed', finalFeed);
+          }
         }
       } catch (err) {
         console.error('Error checking session:', err);
@@ -104,6 +155,22 @@ function App() {
 
     checkUserSession();
   }, []); // ✅ useEffect is always called in the same order
+
+  useEffect(() => {
+    const prevPath = previousPathRef.current;
+    const isProtectedRoute = PROTECTED_ROUTES.some((route) => location.pathname.startsWith(route));
+
+    // Only track non-auth, non-protected routes as "last accessible" so guest continue has a real destination
+    if (!isProtectedRoute && !isAuthPage) {
+      setLastAccessiblePath(location.pathname);
+      setPendingProtectedReturnPath(null);
+    } else if (!userData) {
+      const fallback = prevPath === location.pathname ? lastAccessiblePath : prevPath;
+      setPendingProtectedReturnPath(fallback || '/home');
+    }
+
+    previousPathRef.current = location.pathname;
+  }, [location.pathname, userData, lastAccessiblePath, isAuthPage]);
 
   // Inside your App component
   useEffect(() => {
@@ -122,27 +189,59 @@ function App() {
 
   const fetchNotifications = async (user_id) => {
     try {
-      const response = await axios.get('http://172.16.11.133/api/fetch_notifications.php?user_id=${user_id}', {
+      const response = await axios.get(`/api/fetch_notifications.php?user_id=${user_id}`, {
         withCredentials: true
       });
 
       if (response.data.success) {
-        setNotifications(response.data.notifications || []);
+        const list = response.data.notifications || [];
+        setNotifications(list);
+        const unread = list.filter((n) => parseInt(n.is_read, 10) === 0).length;
+        if (notifInitRef.current && unread > prevUnreadNotifs.current) {
+          pushToast('You have new notifications');
+          playNotificationSound();
+        }
+        notifInitRef.current = true;
+        prevUnreadNotifs.current = unread;
       }
     } catch (err) {
       console.error('Error fetching notifications:', err);
     }
   };
 
+  const sendFollowNotification = async (followedId, followerId) => {
+    const actorId = followerId || userData?.user_id;
+    if (!actorId || !followedId || Number(actorId) === Number(followedId)) return;
+    const payload = new URLSearchParams();
+    payload.append('follower_id', actorId);
+    payload.append('followed_id', followedId);
+    try {
+      await axios.post(
+        '/api/add_follow_notification.php',
+        payload,
+        { withCredentials: true }
+      );
+    } catch (err) {
+      // Non-blocking: log for visibility but don’t interrupt the UI
+      console.error('Error sending follow notification:', err);
+    }
+  };
+
   const fetchConversations = async (user_id) => {
     try {
-      const response = await axios.get(`http://172.16.11.133/api/fetch_conversations.php?user_id=${user_id}`, {
+      const response = await axios.get(`/api/fetch_conversations.php?user_id=${user_id}`, {
         withCredentials: true,
       });
       if (response.data.success) {
         const convs = response.data.conversations || [];
         const total = convs.reduce((sum, c) => sum + Number(c.unread_count || 0), 0);
         setUnreadMessages(total);
+        if (messageInitRef.current && total > prevUnreadMessages.current) {
+          pushToast('You have new messages');
+          playNotificationSound();
+        }
+        messageInitRef.current = true;
+        prevUnreadMessages.current = total;
       }
     } catch (err) {
       console.error('Error fetching conversations:', err);
@@ -154,10 +253,16 @@ function App() {
     setIsNotificationsOpen((prev) => !prev);
   };
 
+  const refreshNotifications = () => {
+    if (userData?.user_id) {
+      fetchNotifications(userData.user_id);
+    }
+  };
+
   // Mark Notifications as Read
   const markAllAsRead = async () => {
     try {
-      await axios.post('http://172.16.11.133/api/mark_notifications_read.php', { user_id: userData.user_id }, {
+      await axios.post('/api/mark_notifications_read.php', { user_id: userData.user_id }, {
         withCredentials: true
       });
 
@@ -171,34 +276,43 @@ function App() {
   // Onboarding steps
   const handleNext = (formData) => {
     setUserData(formData);
-    setStep(3);
+    navigate('/interest-selection');
   };
 
   const handleInterestComplete = (schools) => {
     setSelectedSchools(schools);
-    setStep(0);
+    navigate('/home');
   };
 
   // Login
   const handleLogin = (user) => {
     user.role_id = Number(user.role_id);
-    user.user_id = Number(user.user_id);
     setUserData(user);
     fetchNotifications(user.user_id);
     fetchConversations(user.user_id);
-    setStep(0);
+    navigate('/home');
   };
 
   // Logout
   const handleLogout = async () => {
     try {
-      await axios.post('http://172.16.11.133/api/logout.php', {}, { withCredentials: true });
+      await axios.post('/api/logout.php', {}, { withCredentials: true });
       setUserData(null);
       setAccountMenuVisible(false);
+      navigate('/login');
     } catch (err) {
       console.error('Error logging out:', err);
     }
   };
+  const openSignUpPage = () => navigate('/signup');
+  const openLoginPage = () => navigate('/login');
+  const continueAsGuest = () => {
+    const target = pendingProtectedReturnPath || lastAccessiblePath || '/home';
+    setPendingProtectedReturnPath(null);
+    navigate(target);
+  };
+  const closeProtectedOverlay = () => continueAsGuest();
+  const dismissAuthPrompt = () => setRequireAuthOverlay(false);
 
   const fetchAmbassadors = async () => {
     if (!userData) return;
@@ -207,12 +321,12 @@ function App() {
   
     try {
       const response = await axios.get(
-        `http://172.16.11.133/api/fetch_all_community_ambassadors.php?user_id=${userData.user_id}`,
+        `/api/fetch_all_community_ambassadors.php?user_id=${userData.user_id}`,
         { withCredentials: true }
       );
   
       if (response.data.success) {
-        setAmbassadors(response.data.ambassadors);
+        setAmbassadors(response.data.ambassadors || []);
       } else {
         setErrorAmbassadors(response.data.error || "Failed to load ambassadors.");
       }
@@ -226,7 +340,7 @@ function App() {
 
   useEffect(() => {
     if (userData) {
-      axios.get(`http://172.16.11.133/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
+      axios.get(`/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
         withCredentials: true
       })
       .then(response => {
@@ -242,10 +356,62 @@ function App() {
       });
     }
   }, [userData]);  
+
+  useEffect(() => {
+    if (!userData?.user_id) return undefined;
+    // Initial refresh when user state is set (e.g., session restore)
+    fetchNotifications(userData.user_id);
+    fetchConversations(userData.user_id);
+
+    const pollIntervalMs = 10000;
+    const intervalId = setInterval(() => {
+      fetchNotifications(userData.user_id);
+      fetchConversations(userData.user_id);
+    }, pollIntervalMs);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications(userData.user_id);
+        fetchConversations(userData.user_id);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [userData]);
+
+  useEffect(() => {
+    const unlockSound = () => {
+      if (!audioRef.current || soundUnlocked) return;
+      // Attempt a muted play/pause to satisfy user-gesture policies
+      const el = audioRef.current;
+      const prevMuted = el.muted;
+      el.muted = true;
+      el.currentTime = 0;
+      el.play().then(() => {
+        el.pause();
+        el.muted = prevMuted;
+        setSoundUnlocked(true);
+      }).catch(() => {
+        el.muted = prevMuted;
+      });
+    };
+    window.addEventListener('click', unlockSound, { once: true });
+    window.addEventListener('touchstart', unlockSound, { once: true });
+    window.addEventListener('keydown', unlockSound, { once: true });
+    return () => {
+      window.removeEventListener('click', unlockSound);
+      window.removeEventListener('touchstart', unlockSound);
+      window.removeEventListener('keydown', unlockSound);
+    };
+  }, [soundUnlocked]);
   
   const handleFollowAmbassador = async (ambassadorId) => {
     if (!userData) {
-      alert("You must be logged in to follow an ambassador.");
+      setRequireAuthOverlay(true);
       return;
     }
   
@@ -260,13 +426,16 @@ function App() {
   
       if (response.data.success) {
         // Refetch the connections list to update following state
-        axios.get(`http://172.16.11.133/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
+        axios.get(`/api/fetch_connections_list.php?user_id=${userData.user_id}`, {
           withCredentials: true
         }).then(res => {
           if (res.data.success) {
             setFollowingAmbassadors(res.data.following || []);
           }
         });
+        if (!isFollowing) {
+          sendFollowNotification(ambassadorId, userData.user_id);
+        }
       } else {
         alert("Error: " + response.data.error);
       }
@@ -275,247 +444,400 @@ function App() {
     }
   };  
   
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  const navBarProps = {
+    activeFeed,
+    setActiveFeed,
+    activeSection,
+    setActiveSection,
+    userData,
+    accountMenuVisible,
+    setAccountMenuVisible,
+    handleLogout,
+    toggleNotifications,
+    notifications,
+    isNotificationsOpen,
+    notificationRef,
+    markAllAsRead,
+    unreadMessages,
+    onOpenLogin: openLoginPage,
+  };
+
+  const shouldShowOverlays = !isAuthPage;
+
   return (
-    <div>
-      {loading ? (
-        <div>Loading...</div> // ✅ No early return, so all hooks are always called
-      ) : (
-        <Router>
-          <div className="app-container">
-            {/* Welcome Overlay */}
-            {showWelcome && (
-              <div className="welcome-overlay">
-                <div className="welcome-message">
-                  <h1>Welcome to StudentSphere!</h1>
-                  <p>Start your journey by following ambassadors who can guide you.</p>
-                  <button
-                    className="get-started-button"
-                    onClick={() => {
-                      setShowWelcome(false); // Close welcome overlay
-                      setShowAmbassadorOverlay(true); // Show ambassador overlay
-                      fetchAmbassadors();
-                    }}
-                  >
-                    Get Started
-                  </button>
-                  <button onClick={() => setShowWelcome(false)}>Close</button>
-                </div>
-              </div>
-            )}
-  
-            {/* Ambassador Overlay */}
-            {showAmbassadorOverlay && (
-              <div className="overlay">
-                <div className="overlay-content">
-                  <h2>Ambassador List</h2>
-                  {loadingAmbassadors ? (
-                    <p>Loading ambassadors...</p>
-                  ) : errorAmbassadors ? (
-                    <p>{errorAmbassadors}</p>
-                  ) : (
-                    <ul className="ambassador-list">
-                      {ambassadors.map((amb) => {
-                        const isFollowing = followingAmbassadors.includes(amb.user_id);
-                        return (
-                          <li key={amb.id} className="ambassador-item">
-                            <img
-                              src={amb.avatar_path || "/uploads/avatars/default-avatar.png"}
-                              alt={`${amb.first_name} ${amb.last_name}`}
-                              className="ambassador-avatar"
-                            />
-                            <div className="ambassador-info">
-                              <p className="ambassador-name">
-                                <Link to={`/user/${amb.user_id}`}>
-                                  {amb.first_name} {amb.last_name}
-                                </Link>
-                              </p>
-                              <p className="ambassador-headline">{amb.headline}</p>
-                            </div>
-  
-                            {/* Dynamic Follow/Unfollow Button */}
-                            <button
-                              className={`follow-button ${isFollowing ? "unfollow" : "follow"}`}
-                              onClick={() => handleFollowAmbassador(amb.user_id)}
-                            >
-                              {isFollowing ? "Unfollow" : "Follow"}
-                            </button>
-  
-                            <button className="message-button" onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}>
-                              Message
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  <button onClick={() => setShowAmbassadorOverlay(false)}>Close</button>
-                </div>
-              </div>
-            )}
-  
-            {step === 1 && <SignUp onNext={handleNext} />}
-            {step === 2 && <Login onLogin={handleLogin} onGoToSignUp={() => setStep(1)} />}
-            {step === 3 && <InterestSelection onComplete={handleInterestComplete} />}
-  
-            {step === 0 && (
-              <>
-                <NavBar
-                  activeFeed={activeFeed}
-                  setStep={setStep}
-                  setActiveFeed={setActiveFeed}
-                  activeSection={activeSection}
-                  setActiveSection={setActiveSection}
-                  userData={userData}
-                  accountMenuVisible={accountMenuVisible}
-                  setAccountMenuVisible={setAccountMenuVisible}
-                  handleLogout={handleLogout}
-                  toggleNotifications={toggleNotifications}
-                  notifications={notifications}
-                  isNotificationsOpen={isNotificationsOpen}
-                  notificationRef={notificationRef}
-                  markAllAsRead={markAllAsRead}
-                  unreadMessages={unreadMessages}
-                />
-  
-                <Routes>
-                  {/* Profile and User Profile Views (2-column layout) */}
-                  <Route
-                    path="/profile"
-                    element={
-                      <div className="profile-page-main-content">
-                        {userData ? <SelfProfileView userData={userData} /> : <Navigate to="/login" />}
-                        <RightSidebar />
-                      </div>
-                    }
-                  />
-                  
-                  <Route
-                    path="/user/:user_id"
-                    element={
-                      <div className="profile-page-main-content">
-                        <UserProfileView userData={userData} />
-                        <RightSidebar />
-                      </div>
-                    }
-                  />
-  
-                  {/* Default layout for all other routes */}
-                  <Route
-                    path="*"
-                    element={
-                      <div className="main-content">
-                        <LeftSidebar />
-                        <Routes>
-                          {/* Home */}
-                          <Route
-                            path="/home"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="home"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Info */}
-                          <Route
-                            path="/info"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="info"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Saved */}
-                          <Route
-                            path="/saved"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="saved"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Connections (requires login) */}
-                          <Route
-                            path="/connections"
-                            element={
-                              userData ? <Connections userData={userData} /> : <Navigate to="/login" />
-                            }
-                          />
-
-                          {/* Funding */}
-                          <Route
-                            path="/funding"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="funding"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Communities */}
-                          <Route
-                            path="/communities"
-                            element={
-                              <Feed
-                                activeFeed={activeFeed}
-                                setActiveFeed={setActiveFeed}
-                                activeSection="communities"
-                                userData={userData}
-                              />
-                            }
-                          />
-
-                          {/* Forum & Thread Views */}
-                          <Route
-                            path="/info/forum/:forum_id"
-                            element={<ForumView userData={userData} />}
-                          />
-                          <Route
-                            path="/info/forum/:forum_id/thread/:thread_id"
-                            element={<ThreadView userData={userData} />}
-                          />
-
-                          {/* University & Group Profiles */}
-                          <Route
-                            path="/university/:id"
-                            element={<UniversityProfile userData={userData} />}
-                          />
-                          <Route
-                            path="/group/:id"
-                            element={<GroupProfile userData={userData} />}
-                          />
-
-                          {/* Messages */}
-                          <Route
-                            path="/messages"
-                            element={<Messages userData={userData} />}
-                          />
-                        </Routes>
-                        <RightSidebar />
-                      </div>
-                    }
-                  />
-                </Routes>
-              </>
-            )}
+    <div className={`app-container ${isAuthPage ? 'auth-page' : ''}`}>
+      <audio ref={audioRef} src="/notification.wav" preload="auto" />
+      <div className="toast-stack" aria-live="polite" aria-atomic="true">
+        {toasts.map((t) => (
+          <div key={t.id} className="toast">
+            {t.message}
           </div>
-        </Router>
+        ))}
+      </div>
+      {shouldShowOverlays && showWelcome && (
+        <div className="welcome-overlay">
+          <div className="welcome-message">
+            <h1>Welcome to StudentSphere!</h1>
+            <p>Start your journey by following ambassadors who can guide you.</p>
+            <button
+              className="get-started-button"
+              onClick={() => {
+                setShowWelcome(false);
+                setShowAmbassadorOverlay(true);
+                fetchAmbassadors();
+              }}
+            >
+              Get Started
+            </button>
+            <button onClick={() => setShowWelcome(false)}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {shouldShowOverlays && showAmbassadorOverlay && (
+        <div
+          className="overlay ambassador-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ambassador-overlay-title"
+        >
+          <div className="overlay-content">
+            <div className="ambassador-overlay__header">
+              <div>
+                <p className="ambassador-overlay__eyebrow">Community ambassadors</p>
+                <h2 id="ambassador-overlay-title">Ambassador List</h2>
+                <p className="ambassador-overlay__subtitle">
+                  Connect with students and counselors ready to help.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="ambassador-overlay__close"
+                aria-label="Close ambassador list"
+                onClick={() => setShowAmbassadorOverlay(false)}
+              >
+                &times;
+              </button>
+            </div>
+
+            {loadingAmbassadors ? (
+              <p className="ambassador-overlay__status">Loading ambassadors...</p>
+            ) : errorAmbassadors ? (
+              <p className="ambassador-overlay__status">{errorAmbassadors}</p>
+            ) : ambassadors.length === 0 ? (
+              <p className="ambassador-overlay__status">No current ambassadors.</p>
+            ) : (
+              <ul className="ambassador-list" aria-label="Ambassador list">
+                {ambassadors.map((amb) => {
+                  const isFollowing = followingAmbassadors.includes(amb.user_id);
+                  const initials = getInitials(amb.first_name, amb.last_name);
+                  const avatarKey = amb.user_id || amb.id || initials;
+                  const avatarNode = amb.avatar_path ? (
+                    <img
+                      src={amb.avatar_path}
+                      alt={`${amb.first_name} ${amb.last_name}`}
+                      className="ambassador-avatar"
+                    />
+                  ) : (
+                    <div
+                      className="ambassador-avatar ambassador-avatar--initial"
+                      aria-label={`${amb.first_name} ${amb.last_name}`}
+                    >
+                      {initials}
+                    </div>
+                  );
+
+                  return (
+                    <li key={avatarKey} className="ambassador-item">
+                      {avatarNode}
+                      <div className="ambassador-info">
+                        <p className="ambassador-name">
+                          <Link to={`/user/${amb.user_id}`}>
+                            {amb.first_name} {amb.last_name}
+                          </Link>
+                        </p>
+                        <p className="ambassador-headline">{amb.headline}</p>
+                      </div>
+
+                      <div className="ambassador-actions">
+                        <button
+                          className={`follow-button ${isFollowing ? 'unfollow' : 'follow'}`}
+                          onClick={() => handleFollowAmbassador(amb.user_id)}
+                        >
+                          {isFollowing ? 'Unfollow' : 'Follow'}
+                        </button>
+
+                        <button
+                          className="message-button"
+                          onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}
+                        >
+                          Message
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <div className="ambassador-overlay__footer">
+              <button
+                type="button"
+                className="overlay-ghost"
+                onClick={() => setShowAmbassadorOverlay(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Routes>
+        <Route
+          path="/signup"
+          element={<SignUp onNext={handleNext} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} />}
+        />
+        <Route
+          path="/login"
+          element={<Login onLogin={handleLogin} onGoToSignUp={openSignUpPage} onContinueAsGuest={continueAsGuest} />}
+        />
+        <Route
+          path="/interest-selection"
+          element={<InterestSelection onComplete={handleInterestComplete} />}
+        />
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route
+          path="/profile"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              {userData ? (
+                <SelfProfileView userData={userData} />
+              ) : (
+                <AuthOverlay
+                  isOpen
+                  onClose={closeProtectedOverlay}
+                  onLogin={handleLogin}
+                  onGoToSignUp={openSignUpPage}
+                  onContinueAsGuest={continueAsGuest}
+                />
+              )}
+            </AppShell>
+          }
+        />
+        <Route
+          path="/user/:user_id"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <UserProfileView
+                userData={userData}
+                onFollowNotification={sendFollowNotification}
+                onNotificationsRefresh={refreshNotifications}
+              />
+            </AppShell>
+          }
+        />
+        <Route
+          path="*"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <Routes>
+                <Route
+                  path="/home"
+                  element={
+                    <Feed
+                      activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
+                      activeSection="home"
+                      userData={userData}
+                      onRequireAuth={() => setRequireAuthOverlay(true)}
+                    />
+                  }
+                />
+                <Route
+                  path="/info"
+                  element={
+                    <Feed
+                      activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
+                      activeSection="info"
+                      userData={userData}
+                      onRequireAuth={() => setRequireAuthOverlay(true)}
+                    />
+                  }
+                />
+                <Route
+                  path="/saved"
+                  element={
+                    userData ? (
+                      <Feed
+                        activeFeed={activeFeed}
+                        setActiveFeed={setActiveFeed}
+                        activeSection="saved"
+                        userData={userData}
+                      />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/connections"
+                  element={
+                    userData ? (
+                      <UserConnections userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    userData ? (
+                      <AccountSettings userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/funding"
+                  element={
+                    <Feed
+                      activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
+                      activeSection="funding"
+                      userData={userData}
+                    />
+                  }
+                />
+                <Route
+                  path="/communities"
+                  element={
+                    <Feed
+                      activeFeed={activeFeed}
+                      setActiveFeed={setActiveFeed}
+                      activeSection="communities"
+                      userData={userData}
+                      onRequireAuth={() => setRequireAuthOverlay(true)}
+                    />
+                  }
+                />
+                <Route
+                  path="/community-requests"
+                  element={
+                    userData && userData.email === 'n.sandore5140@gmail.com' ? (
+                      <CommunityRequests />
+                    ) : (
+                      <Navigate to="/communities" />
+                    )
+                  }
+                />
+                <Route
+                  path="/info/forum/:forum_id"
+                  element={<ForumView userData={userData} onRequireAuth={() => setRequireAuthOverlay(true)} />}
+                />
+                <Route
+                  path="/info/forum/:forum_id/thread/:thread_id"
+                  element={<ThreadView userData={userData} onRequireAuth={() => setRequireAuthOverlay(true)} />}
+                />
+                <Route
+                  path="/university/:id"
+                  element={
+                    <UniversityProfile
+                      userData={userData}
+                      onRequireAuth={() => setRequireAuthOverlay(true)}
+                      onFollowNotification={sendFollowNotification}
+                      onNotificationsRefresh={refreshNotifications}
+                    />
+                  }
+                />
+                <Route
+                  path="/group/:id"
+                  element={<GroupProfile userData={userData} onRequireAuth={() => setRequireAuthOverlay(true)} />}
+                />
+                <Route
+                  path="/messages"
+                  element={<Messages userData={userData} />}
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    userData ? (
+                      <ReportedItems userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/events"
+                  element={
+                    userData ? (
+                      <EventManagement userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route path="/search" element={<SearchResults />} />
+              </Routes>
+            </AppShell>
+          }
+        />
+      </Routes>
+      {requireAuthOverlay && (
+        <AuthOverlay
+          isOpen
+          onClose={dismissAuthPrompt}
+          onLogin={(user) => {
+            setRequireAuthOverlay(false);
+            handleLogin(user);
+          }}
+          onGoToSignUp={() => {
+            setRequireAuthOverlay(false);
+            openSignUpPage();
+          }}
+          onContinueAsGuest={dismissAuthPrompt}
+        />
       )}
     </div>
-  );  
+  );
 }
+
 export default App;

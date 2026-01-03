@@ -10,13 +10,15 @@ try {
         echo json_encode(['success' => false, 'error' => 'Invalid input data']);
         exit;
     }
-    $user_id = intval($input['user_id']);
-    $thread_id = intval($input['thread_id']);
+    $user_id = normalizeId($input['user_id']);
+    $thread_id = normalizeId($input['thread_id']);
+    $saveId = generateUniqueId($db, 'saved_threads');
 
-    $query = "INSERT INTO saved_threads (user_id, thread_id) VALUES (:user_id, :thread_id)
+    $query = "INSERT INTO saved_threads (id, user_id, thread_id) VALUES (:id, :user_id, :thread_id)
               ON DUPLICATE KEY UPDATE saved_at = CURRENT_TIMESTAMP";
     $stmt = $db->prepare($query);
     $stmt->execute([
+      ':id' => $saveId,
       ':user_id' => $user_id,
       ':thread_id' => $thread_id
     ]);

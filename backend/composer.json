@@ -5,7 +5,16 @@
         "slim/slim": "^4.14",
         "doctrine/orm": "^2.20",
         "ezyang/htmlpurifier": "*",
-        "symfony/polyfill-php80": "^1.31"
+        "symfony/polyfill-php80": "^1.31",
+        "mailgun/mailgun-php": "^4.2",
+        "nyholm/psr7": "^1.8",
+        "php-http/guzzle7-adapter": "^1.1",
+        "twilio/sdk": "^8.6"
     },
-    "license": "MIT"
+    "license": "MIT",
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
 }

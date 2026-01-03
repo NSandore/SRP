@@ -3,14 +3,8 @@ require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
-// Check if user_id is provided
-if (!isset($_GET['user_id'])) {
-    http_response_code(400);
-    echo json_encode(['error' => 'user_id is required']);
-    exit;
-}
-
-$user_id = (int)$_GET['user_id'];
+$user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : null;
+$isGuest = $user_id === null;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $limit = 10; // Number of communities per page
@@ -25,6 +19,7 @@ try {
         SELECT 
             c.id AS community_id, 
             c.community_type, 
+            c.parent_community_id,
             c.name, 
             c.location, 
             c.tagline, 
@@ -32,21 +27,31 @@ try {
             COUNT(fc.user_id) AS followers_count
         FROM communities c
         LEFT JOIN followed_communities fc ON fc.community_id = c.id
-        GROUP BY c.id, c.community_type, c.name, c.location, c.tagline, c.logo_path
+        GROUP BY c.id, c.community_type, c.parent_community_id, c.name, c.location, c.tagline, c.logo_path
     ");
 
     // Prepare the main query with search, filtering by community_type = 'group', and pagination
-    $query = "
-        SELECT 
-            aud.*, 
-            CASE WHEN fc.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_followed
-        FROM all_community_data aud
-        LEFT JOIN followed_communities fc 
-            ON aud.community_id = fc.community_id AND fc.user_id = :user_id
-        WHERE aud.community_type = 'group'
-    ";
-
-    $params = [':user_id' => $user_id];
+    if ($isGuest) {
+        $query = "
+            SELECT 
+                aud.*, 
+                0 AS is_followed
+            FROM all_community_data aud
+            WHERE aud.community_type = 'group'
+        ";
+        $params = [];
+    } else {
+        $query = "
+            SELECT 
+                aud.*, 
+                CASE WHEN fc.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_followed
+            FROM all_community_data aud
+            LEFT JOIN followed_communities fc 
+                ON aud.community_id = fc.community_id AND fc.user_id = :user_id
+            WHERE aud.community_type = 'group'
+        ";
+        $params = [':user_id' => $user_id];
+    }
 
     // Add search condition if a search term is provided
     if ($search !== '') {

@@ -1,13 +1,15 @@
 // src/components/UserProfileView.js
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { useParams, Link as RouterLink } from "react-router-dom"; // Using RouterLink for navigation
+import { useParams, Link as RouterLink } from "react-router-dom";
 import "./ProfileView.css";
 import DOMPurify from "dompurify";
-import { FaCheckCircle } from "react-icons/fa"; // Verification badge icon
+import { FaCheckCircle, FaEllipsisV } from "react-icons/fa";
+import useOnClickOutside from "../hooks/useOnClickOutside";
+import ThreadCard from "./ThreadCard";
 
-function UserProfileView({ userData }) {
+function UserProfileView({ userData, onFollowNotification, onNotificationsRefresh }) {
   const { user_id } = useParams();
   const [profile, setProfile] = useState(null);
 
@@ -17,14 +19,39 @@ function UserProfileView({ userData }) {
 
   // Ambassador states
   const [ambassadorCommunities, setAmbassadorCommunities] = useState([]);
-  const [communityLogos, setCommunityLogos] = useState({}); // { community_id: logo_path }
-  const [communityNames, setCommunityNames] = useState({}); // { community_id: name }
+  const [communityLogos, setCommunityLogos] = useState({});
+  const [communityNames, setCommunityNames] = useState({});
 
-  // Follow state for this profile (does the logged-in user follow this profile?)
+  // Follow state
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadingFollowStatus, setLoadingFollowStatus] = useState(true);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [messageRestriction, setMessageRestriction] = useState("");
 
-  // Log if no userData is passed from the parent
+  const [openMenu, setOpenMenu] = useState(false);
+  const menuRef = useRef(null);
+  useOnClickOutside(menuRef, () => setOpenMenu(false));
+
+  // Connection state
+  const [connectionStatus, setConnectionStatus] = useState("none");
+  const [connectionId, setConnectionId] = useState(null);
+  const [isRequester, setIsRequester] = useState(false);
+
+  // Experience & Education states
+  const [experience, setExperience] = useState([]);
+  const [education, setEducation] = useState([]);
+  const [loadingExp, setLoadingExp] = useState(true);
+  const [loadingEdu, setLoadingEdu] = useState(true);
+  const [errorExp, setErrorExp] = useState(null);
+  const [errorEdu, setErrorEdu] = useState(null);
+
+  // Profile tabs
+  const [activeTab, setActiveTab] = useState("about");
+  const [userThreads, setUserThreads] = useState([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [threadsError, setThreadsError] = useState(null);
+  const [hasLoadedThreads, setHasLoadedThreads] = useState(false);
+
   useEffect(() => {
     if (!userData) {
       console.log("No logged-in user data available.");
@@ -33,9 +60,17 @@ function UserProfileView({ userData }) {
     }
   }, [userData]);
 
-  // --------------------------------------------------------------------------
-  // Fetch user profile (includes verification and ambassador fields)
-  // --------------------------------------------------------------------------
+  useEffect(() => {
+    setActiveTab("about");
+  }, [user_id]);
+
+  useEffect(() => {
+    setUserThreads([]);
+    setHasLoadedThreads(false);
+    setThreadsError(null);
+  }, [user_id, userData?.user_id]);
+
+  // Fetch user profile
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
@@ -47,7 +82,7 @@ function UserProfileView({ userData }) {
           setProfile(response.data.user);
           console.log("Fetched user profile:", response.data.user);
 
-          // Check if the user is verified
+          // Verified
           if (
             response.data.user.verified === 1 ||
             response.data.user.verified === "1"
@@ -58,18 +93,17 @@ function UserProfileView({ userData }) {
             setVerified(true);
           }
 
-          // Check if the user is an ambassador in any communities
+          // Ambassador communities
           if (response.data.user.community_ambassador_of) {
             let communityIds;
             try {
-              communityIds = JSON.parse(response.data.user.community_ambassador_of);
-              // Ensure it's an array (if a single value, wrap it in an array)
+              const raw = response.data.user.community_ambassador_of;
+              communityIds = typeof raw === "string" ? JSON.parse(raw) : raw;
               if (!Array.isArray(communityIds)) {
                 communityIds = [communityIds];
               }
               console.log("Detected ambassador communities:", communityIds);
               setAmbassadorCommunities(communityIds);
-              // Fetch logos (and names) for these communities
               fetchCommunityLogos(communityIds);
             } catch (error) {
               console.error(
@@ -77,9 +111,11 @@ function UserProfileView({ userData }) {
                 error,
                 response.data.user.community_ambassador_of
               );
+              setAmbassadorCommunities([]);
             }
           } else {
             console.log("User is not an ambassador in any communities.");
+            setAmbassadorCommunities([]);
           }
         } else {
           console.error("Error fetching user:", response.data.error);
@@ -92,9 +128,7 @@ function UserProfileView({ userData }) {
     fetchUserProfile();
   }, [user_id]);
 
-  // --------------------------------------------------------------------------
-  // Check follow status: does the logged-in user follow this profile?
-  // --------------------------------------------------------------------------
+  // Check follow status
   useEffect(() => {
     const checkFollowStatus = async () => {
       if (!userData || !userData.user_id) {
@@ -106,13 +140,11 @@ function UserProfileView({ userData }) {
         console.log(
           `Checking follow status: logged-in user ${userData.user_id} -> target user ${user_id}`
         );
-        // Note: using 'follower_id' and 'followed_user_id' as required by your API.
         const res = await axios.get(
           `/api/fetch_following_status.php?follower_id=${userData.user_id}&followed_user_id=${user_id}`,
           { withCredentials: true }
         );
         if (res.data.success) {
-          // The API returns "isFollowing" in camelCase
           console.log(
             `Follow status for logged-in user ${userData.user_id} on profile ${user_id}:`,
             res.data.isFollowing
@@ -131,9 +163,78 @@ function UserProfileView({ userData }) {
     checkFollowStatus();
   }, [userData, user_id]);
 
-  // --------------------------------------------------------------------------
-  // Handle follow/unfollow toggle
-  // --------------------------------------------------------------------------
+  // Fetch connection status
+  useEffect(() => {
+    const fetchConnectionStatus = async () => {
+      if (!userData || !userData.user_id) return;
+      try {
+        const res = await axios.get(
+          `/api/fetch_connection_status.php?user_id1=${userData.user_id}&user_id2=${user_id}`
+        );
+        if (res.data.success) {
+          setConnectionStatus(res.data.status);
+          if (res.data.connection_id) {
+            setConnectionId(res.data.connection_id);
+            setIsRequester(!!res.data.is_sender);
+          } else {
+            setConnectionId(null);
+            setIsRequester(false);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching connection status:", err);
+      }
+    };
+
+    fetchConnectionStatus();
+  }, [userData, user_id]);
+
+  // Fetch follower count
+  useEffect(() => {
+    const fetchFollowerCount = async () => {
+      try {
+        const res = await axios.get(`/api/fetch_follower_count.php?user_id=${user_id}`);
+        if (res.data.success) {
+          setFollowerCount(res.data.follower_count);
+        }
+      } catch (err) {
+        console.error("Error fetching follower count:", err);
+      }
+    };
+
+    fetchFollowerCount();
+  }, [user_id]);
+
+  // Fetch experience & education
+  useEffect(() => {
+    setLoadingExp(true);
+    axios
+      .get(`/api/user_experience.php?user_id=${user_id}`, { withCredentials: true })
+      .then((res) => {
+        setExperience(res.data);
+        setLoadingExp(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching experience:", err);
+        setErrorExp("Error fetching experience");
+        setLoadingExp(false);
+      });
+
+    setLoadingEdu(true);
+    axios
+      .get(`/api/user_education.php?user_id=${user_id}`, { withCredentials: true })
+      .then((res) => {
+        setEducation(res.data);
+        setLoadingEdu(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching education:", err);
+        setErrorEdu("Error fetching education");
+        setLoadingEdu(false);
+      });
+  }, [user_id]);
+
+  // Follow/unfollow
   const handleFollowToggle = async () => {
     if (!userData || !userData.user_id) {
       console.log("Cannot toggle follow status: No logged-in user data.");
@@ -144,23 +245,88 @@ function UserProfileView({ userData }) {
       console.log(
         `Sending request to ${endpoint} for follower_id ${userData.user_id} to ${
           isFollowing ? "unfollow" : "follow"
-        } followed_user_id ${parseInt(user_id, 10)}`
+        } followed_user_id ${user_id}`
       );
       await axios.post(
         `/api/${endpoint}`,
-        { follower_id: userData.user_id, followed_user_id: parseInt(user_id, 10) },
+        { follower_id: userData.user_id, followed_user_id: user_id },
         { withCredentials: true }
       );
       setIsFollowing(!isFollowing);
       console.log(`Follow status toggled. New status: ${!isFollowing}`);
+      if (!isFollowing) {
+        onFollowNotification?.(user_id, userData.user_id);
+        onNotificationsRefresh?.();
+      }
     } catch (error) {
       console.error("Error toggling follow status:", error);
     }
   };
 
-  // --------------------------------------------------------------------------
-  // Fetch verification community name if user is verified
-  // --------------------------------------------------------------------------
+  // Connection actions
+  const handleConnect = async () => {
+    if (!userData || !userData.user_id) return;
+    try {
+      const res = await axios.post(
+        "/api/request_connection.php",
+        { user_id1: userData.user_id, user_id2: user_id },
+        { withCredentials: true }
+      );
+      if (res.data.success) {
+        setConnectionStatus("pending");
+        if (res.data.connection_id) {
+          setConnectionId(res.data.connection_id);
+        }
+        setIsRequester(true);
+      }
+    } catch (err) {
+      console.error("Error sending connection request:", err);
+    }
+  };
+
+  const handleAccept = async () => {
+    try {
+      await axios.post(
+        "/api/accept_connection.php",
+        { connection_id: connectionId, user_id1: userData?.user_id, user_id2: user_id },
+        { withCredentials: true }
+      );
+      setConnectionStatus("accepted");
+    } catch (err) {
+      console.error("Error accepting connection:", err);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!connectionId) return;
+    try {
+      await axios.post(
+        "/api/cancel_connection.php",
+        { connection_id: connectionId },
+        { withCredentials: true }
+      );
+      setConnectionStatus("none");
+      setConnectionId(null);
+    } catch (err) {
+      console.error("Error cancelling connection:", err);
+    }
+  };
+
+  const handleRemoveConnection = async () => {
+    try {
+      await axios.post(
+        "/api/remove_connection.php",
+        { user_id1: userData.user_id, user_id2: user_id },
+        { withCredentials: true }
+      );
+      setConnectionStatus("none");
+      setConnectionId(null);
+    } catch (err) {
+      console.error("Error removing connection:", err);
+    }
+  };
+
+  // Fetch verification community name
   useEffect(() => {
     const fetchVerificationCommunity = async (communityId) => {
       console.log(`Fetching verification community name for community_id: ${communityId}`);
@@ -180,9 +346,7 @@ function UserProfileView({ userData }) {
     }
   }, [verified, profile]);
 
-  // --------------------------------------------------------------------------
-  // Fetch community logos (and names) for ambassador communities
-  // --------------------------------------------------------------------------
+  // Fetch community logos & names for ambassador communities
   const fetchCommunityLogos = async (communityIds) => {
     let logos = {};
     let names = {};
@@ -196,7 +360,7 @@ function UserProfileView({ userData }) {
         if (response.data.success && response.data.community) {
           console.log(`Fetched data for community_id ${communityId}:`, response.data.community);
           logos[communityId] = response.data.community.logo_path;
-          names[communityId] = response.data.community.name; // For tooltip
+          names[communityId] = response.data.community.name;
         } else {
           console.warn(`No data found for community_id: ${communityId}`);
         }
@@ -209,100 +373,444 @@ function UserProfileView({ userData }) {
     setCommunityNames(names);
   };
 
-  // If profile is still loading, show a message
+  const fetchProfileThreads = async () => {
+    setThreadsLoading(true);
+    setThreadsError(null);
+    try {
+      let url = `/api/fetch_user_threads.php?user_id=${user_id}`;
+      if (userData?.user_id) {
+        url += `&viewer_id=${userData.user_id}`;
+      }
+      const res = await axios.get(url, { withCredentials: true });
+      if (res.data.success) {
+        setUserThreads(res.data.threads || []);
+      } else {
+        setThreadsError(res.data.error || "Unable to load posts.");
+      }
+    } catch (error) {
+      console.error("Error fetching profile threads:", error);
+      setThreadsError("Unable to load posts.");
+    } finally {
+      setThreadsLoading(false);
+      setHasLoadedThreads(true);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "posts" && !hasLoadedThreads) {
+      fetchProfileThreads();
+    }
+  }, [activeTab, hasLoadedThreads, user_id, userData?.user_id]);
+
   if (!profile) return <p>Loading profile...</p>;
 
-  // Prepare display values
   const fullName = `${profile.first_name} ${profile.last_name}`;
   const displayHeadline = profile.headline || "Student at Your University";
   const displayAbout = profile.about || "No about information provided yet.";
   const displaySkills = profile.skills || "";
+  const isDefaultAvatar = (profile.avatar_path || "").includes("DefaultAvatar.png");
+  const isOwnProfile = userData && Number(userData.user_id) === Number(user_id);
+  const hasAcceptedConnection = connectionStatus === "accepted";
+  const isPrivateProfile = Number(profile.is_public) === 0;
+  const profileVisibility = profile.profile_visibility || "network";
+  const isAmbassadorProfile = Number(profile.is_ambassador) === 1;
+  const viewerCommunityId = userData?.recent_university_id;
+  const ambassadorCommunityIds = Array.isArray(ambassadorCommunities)
+    ? ambassadorCommunities.map((c) => Number(c?.community_id ?? c?.id ?? c))
+    : [];
+  const sharesAmbassadorCommunity =
+    Boolean(viewerCommunityId) &&
+    ambassadorCommunityIds.some((cid) => Number(cid) === Number(viewerCommunityId));
+  const isNetworkRestricted =
+    profileVisibility === "network" &&
+    isAmbassadorProfile &&
+    !isOwnProfile &&
+    !hasAcceptedConnection &&
+    !sharesAmbassadorCommunity;
+  const isRestrictedForPrivacy =
+    (profileVisibility === "private" || isPrivateProfile) &&
+    !isOwnProfile &&
+    !hasAcceptedConnection;
+  const shouldBlurDetails = !userData || isRestrictedForPrivacy || isNetworkRestricted;
+  const profileTabs = [
+    { id: "about", label: "About" },
+    { id: "posts", label: "Posts" },
+  ];
+  // Presence temporarily disabled
+  const showOnline = false;
+  const isOnline = false;
+  const onlineLabel = "";
+  const allowMessagesFrom = String(profile?.allow_messages_from || profile?.allowMessagesFrom || "everyone").toLowerCase();
+  const isConnected = connectionStatus === "accepted";
+  const sharesCommunity =
+    profile?.recent_university_id &&
+    userData?.recent_university_id &&
+    String(profile.recent_university_id) === String(userData.recent_university_id);
+  const contactVisibilityRaw = profile?.show_email;
+  const contactVisibility = Number(
+    contactVisibilityRaw === true ? 2 : contactVisibilityRaw || 0
+  ); // 0 hidden, 1 connections, 2 everyone
+  const emailVisibleFlag =
+    profile?.email_visible === true ||
+    profile?.email_visible === "1" ||
+    Number(profile?.email_visible) === 1;
+  const contactEmail = profile?.email || "";
+  const viewerCanSeeEmail =
+    isOwnProfile ||
+    emailVisibleFlag ||
+    contactVisibility === 2 ||
+    (contactVisibility === 1 && isConnected);
+  const canDisplayEmailValue = viewerCanSeeEmail && Boolean(contactEmail);
+  const canMessageUser = () => {
+    if (!userData?.user_id) return false;
+    if (allowMessagesFrom === "everyone") return true;
+    if (allowMessagesFrom === "connections") return isConnected;
+    if (allowMessagesFrom === "community") return isConnected || sharesCommunity;
+    return true;
+  };
+  const handleMessageClick = (e) => {
+    if (canMessageUser()) {
+      setMessageRestriction("");
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    let reason = "Connect with this user first to send messages.";
+    if (allowMessagesFrom === "community") {
+      reason = "Join the same community or connect to message this user.";
+    }
+    setMessageRestriction(reason);
+  };
 
   return (
-    <div className="profile-view">
-      {/* Banner Section */}
-      <div className="profile-banner">
-        <img
-          src={profile.banner_path || "/uploads/banners/default-banner.jpg"}
-          alt="Profile Banner"
-          className="profile-banner-img"
-        />
-      </div>
-
-      {/* Header Section */}
-      <div className="profile-header">
-        <div className="avatar-container">
+    <div className="profile-view profile-container">
+      <div className="hero-card profile-hero-card">
+        <div className="hero-banner">
           <img
-            src={profile.avatar_path || "/uploads/avatars/default-avatar.png"}
-            alt={`${fullName} Avatar`}
-            className="profile-avatar"
+            src={profile.banner_path || "/uploads/banners/DefaultBanner.jpeg"}
+            alt="Profile Banner"
           />
         </div>
-        <div className="profile-info">
-          <h2 className="profile-name">
-            {fullName}{" "}
-            {verified && (
-              <FaCheckCircle
-                className="verified-badge"
-                style={{ pointerEvents: "auto" }}
-                title={`Verified from ${verifiedCommunityName}`}
-              />
-            )}
-          </h2>
-          <p className="profile-headline">{displayHeadline}</p>
-
-          {/* Follow/Unfollow and Message Buttons (only if viewing another user's profile) */}
-          {userData && userData.user_id !== parseInt(user_id, 10) && (
-            <div className="profile-actions">
-              <button
-                className={`follow-button ${isFollowing ? "unfollow" : "follow"}`}
-                onClick={handleFollowToggle}
-                disabled={loadingFollowStatus}
-              >
-                {loadingFollowStatus ? "Loading..." : isFollowing ? "Unfollow" : "Follow"}
-              </button>
-              <RouterLink to={`/messages?user=${user_id}`} className="message-button">Message</RouterLink>
+        <div className="hero-content">
+          <div className="hero-left">
+            <div className="user-hero-logo-wrap">
+              <div className="avatar-presence">
+                <img
+                  src={profile.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
+                  alt={`${fullName} Avatar`}
+                  className={`user-hero-logo ${isDefaultAvatar ? "user-hero-logo--default" : ""}`}
+                />
+                {isOnline && <span className="presence-dot presence-dot--online" title="Online" aria-label="Online" />}
+              </div>
             </div>
-          )}
-
-          {/* Display ambassador community logos as clickable links */}
-          {ambassadorCommunities.length > 0 && (
-            <div className="ambassador-logos">
-              {ambassadorCommunities.map((communityId) => (
-                <RouterLink key={communityId} to={`/university/${communityId}`}>
-                  <img
-                    src={communityLogos[communityId] || "/uploads/logos/default-logo.png"}
-                    alt="Ambassador Community"
-                    className="community-logo"
-                    title={`${communityNames[communityId] || "Unknown"} Ambassador`}
+            <div className="hero-text">
+              <h1 className="hero-title">
+                {fullName}
+                {verified && (
+                  <FaCheckCircle
+                    className="verified-badge"
+                    style={{ pointerEvents: "auto" }}
+                    title={`Verified from ${verifiedCommunityName}`}
                   />
-                </RouterLink>
-              ))}
+                )}
+                {onlineLabel && (
+                  <span className={`online-status-text ${isOnline ? "online" : "offline"}`}>
+                    {onlineLabel}
+                  </span>
+                )}
+                {/* Presence badge disabled for now */}
+              </h1>
+              <p className="hero-sub">{displayHeadline}</p>
+              <p className="hero-sub">{followerCount} Followers</p>
+              {ambassadorCommunities.length > 0 && (
+                <div className="ambassador-logos">
+                  {ambassadorCommunities.map((communityId) => (
+                    <RouterLink key={communityId} to={`/university/${communityId}`}>
+                      <img
+                        src={communityLogos[communityId] || "/uploads/logos/default-logo.png"}
+                        alt="Ambassador Community"
+                        className="community-logo"
+                        title={`${communityNames[communityId] || "Unknown"} Ambassador`}
+                      />
+                    </RouterLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          {messageRestriction && (
+            <div className="info-banner" style={{ marginTop: 8 }}>
+              {messageRestriction}
             </div>
           )}
+          <div className="hero-right hero-actions">
+            {userData && userData.user_id !== parseInt(user_id, 10) && (
+              <div className="profile-actions" style={{ position: "relative" }}>
+                {connectionStatus === "accepted" ? (
+                  <RouterLink
+                    to={`/messages?user=${user_id}`}
+                    className="message-button"
+                    onClick={handleMessageClick}
+                  >
+                    Message
+                  </RouterLink>
+                ) : connectionStatus === "pending" ? (
+                  isRequester ? (
+                    <button className="connect-button pending" onClick={handleCancel}>
+                      Pending
+                    </button>
+                  ) : (
+                    <button className="connect-button" onClick={handleAccept}>
+                      Accept
+                    </button>
+                  )
+                ) : (
+                  <button className="connect-button" onClick={handleConnect}>
+                    Connect
+                  </button>
+                )}
+                <FaEllipsisV
+                  className="menu-icon"
+                  onClick={() => setOpenMenu((prev) => !prev)}
+                  style={{ marginLeft: "8px" }}
+                />
+                {openMenu && (
+                  <div ref={menuRef} className="dropdown-menu" style={{ right: 0 }}>
+                    <button
+                      className="dropdown-item"
+                      onClick={handleFollowToggle}
+                      disabled={loadingFollowStatus}
+                    >
+                      {isFollowing ? "Unfollow" : "Follow"}
+                    </button>
+                    {connectionStatus === "accepted" && (
+                      <button className="dropdown-item" onClick={handleRemoveConnection}>
+                        Remove Connection
+                      </button>
+                    )}
+                    <button
+                      className="dropdown-item"
+                      onClick={() => alert("Report/Block coming soon")}
+                    >
+                      Report or Block
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="tabs-underline">
+          {profileTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`tab-link ${activeTab === tab.id ? "active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+              disabled={shouldBlurDetails}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* About Section */}
-      <div className="profile-section">
-        <h3>About</h3>
-        <p>{DOMPurify.sanitize(displayAbout)}</p>
-      </div>
-
-      {/* Skills Section */}
-      <div className="profile-section">
-        <h3>Skills</h3>
-        {displaySkills ? (
-          <ul className="skills-list">
-            {displaySkills.split(",").map((skill, index) => (
-              <li key={index} className="skill-item">
-                {skill.trim()}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No skills listed yet.</p>
+      <div className="profile-detail-wrapper">
+        {shouldBlurDetails && (
+          <div className="profile-detail-cta">
+            <p>
+              {isRestrictedForPrivacy
+                ? "This user's account is private. Send a connection request to view their info."
+                : "Want more details? Log in or create an account to unlock experience, education, and skills."}
+            </p>
+            <div className="profile-detail-cta-actions">
+              {isRestrictedForPrivacy ? (
+                connectionStatus === "pending" ? (
+                  isRequester ? (
+                    <button className="overlay-button ghost" disabled>
+                      Request pending
+                    </button>
+                  ) : (
+                    <button className="overlay-button primary" onClick={handleAccept}>
+                      Accept request to view
+                    </button>
+                  )
+                ) : (
+                  <button className="overlay-button primary" onClick={handleConnect}>
+                    Send connection request
+                  </button>
+                )
+              ) : (
+                <>
+                  <RouterLink to="/login" className="overlay-button primary">
+                    Log In
+                  </RouterLink>
+                  <RouterLink to="/signup" className="overlay-button ghost">
+                    Create Account
+                  </RouterLink>
+                </>
+              )}
+            </div>
+          </div>
         )}
+
+        <div className={`profile-detail-sections ${shouldBlurDetails ? "restricted" : ""}`}>
+          {shouldBlurDetails && (
+            <div className="profile-detail-overlay" aria-hidden="true"></div>
+          )}
+
+          {activeTab === "about" && (
+            <div className="profile-grid">
+              <div className="profile-main">
+                <div className={`profile-section about-section ${shouldBlurDetails ? "restricted" : ""}`}>
+                  <h3>About</h3>
+                  <p>{DOMPurify.sanitize(displayAbout)}</p>
+                </div>
+
+                <div className="profile-section">
+                  <h3>Experience</h3>
+                  {loadingExp ? (
+                    <p>Loading experience...</p>
+                  ) : errorExp ? (
+                    <p>{errorExp}</p>
+                  ) : experience.length > 0 ? (
+                    experience.map((exp, index) => (
+                      <div key={index} className="experience-item">
+                        <h4>
+                          {exp.title} at {exp.company}
+                        </h4>
+                        {exp.start_date && (
+                          <div className="experience-dates">
+                            {exp.start_date} - {exp.end_date ? exp.end_date : "Present"}
+                          </div>
+                        )}
+                        <div className="experience-meta">
+                          <span className="experience-type">{exp.employment_type}</span>
+                          <span className="experience-location">
+                            {exp.location_city}
+                            {exp.location_state ? `, ${exp.location_state}` : ""}
+                          </span>
+                        </div>
+                        <p>{exp.description}</p>
+                        {exp.responsibilities && exp.responsibilities.length > 0 && (
+                          <ul className="responsibilities-list">
+                            {exp.responsibilities.map((resp, idx) => (
+                              <li key={idx}>{resp}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p>No experience added yet.</p>
+                  )}
+                </div>
+
+                <div className="profile-section">
+                  <h3>Education</h3>
+                  {loadingEdu ? (
+                    <p>Loading education...</p>
+                  ) : errorEdu ? (
+                    <p>{errorEdu}</p>
+                  ) : education.length > 0 ? (
+                    education.map((edu, index) => (
+                      <div key={index} className="education-item">
+                        <h4>
+                          {edu.degree} in {edu.field_of_study}
+                        </h4>
+                        <div className="education-institution">{edu.institution}</div>
+                        {edu.start_date && (
+                          <div className="education-dates">
+                            {edu.start_date} - {edu.end_date ? edu.end_date : "Present"}
+                          </div>
+                        )}
+                        {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
+                        {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
+                        {edu.activities_societies && (
+                          <div className="education-activities">
+                            Activities: {edu.activities_societies}
+                          </div>
+                        )}
+                        {edu.achievements && edu.achievements.length > 0 && (
+                          <ul className="achievements-list">
+                            {edu.achievements.map((ach, idx) => (
+                              <li key={idx}>{ach}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p>No education details added yet.</p>
+                  )}
+                </div>
+
+                <div className="profile-section">
+                  <h3>Skills</h3>
+                  {displaySkills ? (
+                    <ul className="skills-list">
+                      {displaySkills.split(",").map((skill, index) => (
+                        <li key={index} className="skill-item">
+                          {skill.trim()}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No skills listed yet.</p>
+                  )}
+                </div>
+              </div>
+
+              <aside className="profile-aside">
+                <div className="info-card">
+                  <h3>Contact Me</h3>
+                {viewerCanSeeEmail ? (
+                  canDisplayEmailValue ? (
+                    <a className="contact-email" href={`mailto:${contactEmail}`}>
+                      {contactEmail}
+                    </a>
+                  ) : (
+                    <p className="muted">No email provided.</p>
+                  )
+                ) : isOwnProfile ? (
+                  contactVisibility === 1 ? (
+                    <p className="muted">
+                      Only your connections can view this email. Change it in Account Settings to share more widely.
+                    </p>
+                  ) : (
+                    <p className="muted">
+                      Your email is hidden. Switch to &quot;Connections only&quot; or &quot;Everyone&quot; in Account Settings to share it.
+                    </p>
+                  )
+                ) : contactVisibility === 1 ? (
+                  <p className="muted">Only this user's connections can view their email.</p>
+                ) : (
+                  <p className="muted">This user has chosen to hide their email.</p>
+                )}
+              </div>
+              </aside>
+            </div>
+          )}
+
+          {activeTab === "posts" && (
+            <div className="profile-section">
+              <h3>Posts</h3>
+              {threadsLoading ? (
+                <p>Loading posts...</p>
+              ) : threadsError ? (
+                <p>{threadsError}</p>
+              ) : userThreads.length > 0 ? (
+                <div className="profile-thread-list">
+                  {userThreads.map((thread) => (
+                    <ThreadCard key={thread.thread_id} thread={thread} userData={userData} />
+                  ))}
+                </div>
+              ) : (
+                <p>No posts yet.</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

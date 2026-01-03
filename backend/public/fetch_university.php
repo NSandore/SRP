@@ -13,11 +13,18 @@ if (!isset($_GET['community_id'])) {
     exit;
 }
 
-$community_id = intval($_GET['community_id']);
+$community_id = normalizeId($_GET['community_id']);
+$viewer_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : null;
 
 try {
     $db = getDB();
-    $stmt = $db->prepare("SELECT * FROM communities WHERE id = :id AND community_type = 'university'");
+    $stmt = $db->prepare(
+        "SELECT c.*, COUNT(fc.user_id) AS followers_count
+         FROM communities c
+         LEFT JOIN followed_communities fc ON fc.community_id = c.id
+         WHERE c.id = :id AND c.community_type = 'university'
+         GROUP BY c.id"
+    );
     $stmt->execute([':id' => $community_id]);
     $university = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$university) {
@@ -25,6 +32,21 @@ try {
         echo json_encode(['success' => false, 'error' => 'University not found']);
         exit;
     }
+    if ($viewer_id) {
+        $followStmt = $db->prepare(
+            "SELECT 1 FROM followed_communities WHERE community_id = :community_id AND user_id = :user_id LIMIT 1"
+        );
+        $followStmt->execute([':community_id' => $community_id, ':user_id' => $viewer_id]);
+        $university['is_following'] = (bool)$followStmt->fetchColumn();
+    } else {
+        $university['is_following'] = false;
+    }
+
+    // Count direct sub-communities for display (e.g., departments).
+    $childStmt = $db->prepare("SELECT COUNT(*) FROM communities WHERE parent_community_id = :pid");
+    $childStmt->execute([':pid' => $community_id]);
+    $university['child_count'] = (int)$childStmt->fetchColumn();
+
     echo json_encode(['success' => true, 'university' => $university]);
 } catch (PDOException $e) {
     http_response_code(500);

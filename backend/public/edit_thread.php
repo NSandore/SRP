@@ -12,17 +12,18 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
     exit;
 }
 
-$user_id_session = (int) $_SESSION['user_id'];
+$user_id_session = normalizeId($_SESSION['user_id']);
 $role_id_session = (int) $_SESSION['role_id'];
+$is_ambassador = isset($_SESSION['is_ambassador']) && (int) $_SESSION['is_ambassador'] === 1;
 
 // 2. Parse the JSON input
 $data = json_decode(file_get_contents('php://input'), true);
 
-$thread_id = (int) ($data['thread_id'] ?? 0);
+$thread_id = isset($data['thread_id']) ? normalizeId($data['thread_id']) : '';
 $new_title = trim($data['new_title'] ?? '');
 
 // Basic validation
-if ($thread_id <= 0 || empty($new_title)) {
+if ($thread_id === '' || $new_title === '') {
     http_response_code(400); // Bad Request
     echo json_encode(['error' => 'Invalid thread_id or title.']);
     exit;
@@ -33,8 +34,7 @@ try {
 
     // 3. Fetch the thread to see who owns it
     $stmt = $db->prepare("SELECT user_id FROM threads WHERE thread_id = :thread_id");
-    $stmt->bindValue(':thread_id', $thread_id, PDO::PARAM_INT);
-    $stmt->execute();
+    $stmt->execute([':thread_id' => $thread_id]);
     $threadRow = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$threadRow) {
@@ -43,10 +43,10 @@ try {
         exit;
     }
 
-    $thread_owner_id = (int) $threadRow['user_id'];
+    $thread_owner_id = normalizeId($threadRow['user_id']);
 
-    // 4. Check permission: user must be admin (role_id=7) or thread owner
-    if ($role_id_session !== 7 && $thread_owner_id !== $user_id_session) {
+    // 4. Check permission: user must be admin, ambassador, or thread owner
+    if ($role_id_session !== 1 && !$is_ambassador && $thread_owner_id !== $user_id_session) {
         http_response_code(403); // Forbidden
         echo json_encode(['error' => 'No permission to edit this thread.']);
         exit;
@@ -67,7 +67,6 @@ try {
     if ($updateStmt->rowCount() > 0) {
         echo json_encode(['success' => true, 'message' => 'Thread updated successfully.']);
     } else {
-        // Possibly the same title was provided, so no change
         echo json_encode([
             'success' => false,
             'message' => 'No changes were made to the thread title.'
@@ -77,3 +76,4 @@ try {
     http_response_code(500); // Server error
     echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
 }
+?>

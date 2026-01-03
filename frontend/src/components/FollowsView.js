@@ -73,7 +73,7 @@ function FollowsView({ userData }) {
                 {followers.map((follower) => (
                   <li key={follower.user_id} className="follow-item">
                     <img
-                      src={follower.avatar_path || '/uploads/avatars/default-avatar.png'}
+                      src={follower.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
                       alt={`${follower.first_name} ${follower.last_name}`}
                       className="avatar"
                     />
@@ -97,7 +97,7 @@ function FollowsView({ userData }) {
                 {following.map((followed) => (
                   <li key={followed.user_id} className="follow-item">
                     <img
-                      src={followed.avatar_path || '/uploads/avatars/default-avatar.png'}
+                      src={followed.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
                       alt={`${followed.first_name} ${followed.last_name}`}
                       className="avatar"
                     />

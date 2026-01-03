@@ -16,7 +16,7 @@ function Connections({ userData }) {
     const fetchConnections = async () => {
       try {
         const response = await axios.get(
-          `http://172.16.11.133/api/fetch_connections_list.php?user_id=${userData.user_id}`,
+          `/api/fetch_connections_list.php?user_id=${userData.user_id}`,
           { withCredentials: true }
         );
 
@@ -46,7 +46,7 @@ function Connections({ userData }) {
       await Promise.all(
         userIds.map(async (userId) => {
           const response = await axios.get(
-            `http://172.16.11.133/api/fetch_user.php?user_id=${userId}`,
+            `/api/fetch_user.php?user_id=${userId}`,
             { withCredentials: true }
           );
 
@@ -63,7 +63,7 @@ function Connections({ userData }) {
 
   const handleFollowToggle = async (userId, isFollowing) => {
     try {
-      const endpoint = `http://172.16.11.133/api/${isFollowing ? 'unfollow_user' : 'follow_user'}.php`;
+      const endpoint = `/api/${isFollowing ? 'unfollow_user' : 'follow_user'}.php`;
   
       const response = await axios.post(
         endpoint,
@@ -87,18 +87,26 @@ function Connections({ userData }) {
   };  
 
   return (
-    <div className="connections-container">
-      <div className="feed-header">
-        <h2>Connections</h2>
-        <div className="feed-toggle-buttons">
+    <div className="feed-container connections-container">
+      <div style={{ marginBottom: '0.5rem' }}>
+        <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Connections</h1>
+        <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
+          Review who you follow and who follows you.
+        </p>
+      </div>
+      <div className="section-controls">
+        <span className="sort-pill">View</span>
+        <div className="chips-row">
           <button
-            className={`feed-option-button ${activeTab === 'following' ? 'active' : ''}`}
+            type="button"
+            className={`chip ${activeTab === 'following' ? 'active' : ''}`}
             onClick={() => setActiveTab('following')}
           >
             Following
           </button>
           <button
-            className={`feed-option-button ${activeTab === 'followers' ? 'active' : ''}`}
+            type="button"
+            className={`chip ${activeTab === 'followers' ? 'active' : ''}`}
             onClick={() => setActiveTab('followers')}
           >
             Followers
@@ -118,7 +126,7 @@ function Connections({ userData }) {
                   return (
                     <li key={userId}>
                       <img
-                        src={user.avatar_path || "/uploads/avatars/default-avatar.png"}
+                        src={user.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
                         alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />
@@ -154,7 +162,7 @@ function Connections({ userData }) {
                   return (
                     <li key={userId}>
                       <img
-                        src={user.avatar_path || "/uploads/avatars/default-avatar.png"}
+                        src={user.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
                         alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />

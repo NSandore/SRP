@@ -1,9 +1,10 @@
 // src/components/ThreadView.js
 import './ThreadView.css';
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import useOnClickOutside from '../hooks/useOnClickOutside'; // <--- import the hook
 import axios from 'axios';
+import debounce from 'lodash.debounce';
 import {
   FaArrowAltCircleUp,
   FaRegArrowAltCircleUp,
@@ -25,6 +26,7 @@ import {
   FaChevronRight,
   FaEllipsisV, // add for 3-dot menu
 } from 'react-icons/fa';
+import { FiMessageCircle } from 'react-icons/fi';
 
 // Tiptap imports
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -37,9 +39,57 @@ import TiptapLink from '@tiptap/extension-link';
 
 // For sanitizing HTML
 import DOMPurify from 'dompurify';
+import ReportModal from './ReportModal';
 
-// For the reply icon
-import { FiMessageCircle } from 'react-icons/fi';
+// Helper: relative time formatter
+const timeAgo = (dateStr) => {
+  if (!dateStr) return '';
+  const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+  const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  const ts = parsed.getTime();
+  if (Number.isNaN(ts)) return '';
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 0) return 'just now';
+  if (seconds < 3600) { // up to 60 minutes show minutes
+    const mins = Math.max(1, Math.floor(seconds / 60));
+    return `${mins} minute${mins > 1 ? 's' : ''} ago`;
+  }
+  if (seconds < 86400) { // hours
+    const hours = Math.max(1, Math.round(seconds / 3600));
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+  const intervals = [
+    { label: 'year', secs: 31536000 },
+    { label: 'month', secs: 2592000 },
+    { label: 'week', secs: 604800 },
+    { label: 'day', secs: 86400 },
+  ];
+  for (const it of intervals) {
+    const count = Math.floor(seconds / it.secs);
+    if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
+  }
+  return 'just now';
+};
+
+const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+const buildAvatarSrc = (path) => {
+  const fallback = '/uploads/avatars/DefaultAvatar.png';
+  if (!path) return fallback;
+  if (path.startsWith('http')) return path;
+  // If we already have a root-relative path, use as-is; otherwise prepend uploads path
+  return path.startsWith('/') ? path : `/uploads/avatars/${path}`;
+};
+
+const getDisplayName = (author, viewerId) => {
+  const first = author?.first_name || 'User';
+  const last = author?.last_name || '';
+  const isSelf = viewerId && String(viewerId) === String(author?.user_id);
+  const isConnection = Number(author?.is_connection) === 1;
+  const showFullLast = isSelf || isConnection;
+  const lastPortion = last ? (showFullLast ? last : `${last.charAt(0)}.`) : '';
+  return `${first}${lastPortion ? ` ${lastPortion}` : ''}`;
+};
 
 /* --------------------------------------------------------------------------
    Toolbar for editing posts
@@ -364,6 +414,8 @@ function PostItem({
   savedPosts,
   handleToggleSavePost,
   handleVerifyPost, // NEW prop for verifying posts
+  onRequireAuth,
+  onReport,
 }) {
   const [localReply, setLocalReply] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -382,6 +434,9 @@ function PostItem({
       setOpenMenu(false);
     }
   });
+
+  const postContext = stripHtml(post.content || '').slice(0, 200);
+  const reportLabel = post.reply_to ? 'comment' : 'post';
 
   // Check if post is saved
   const isSaved = savedPosts.some((pSaved) => Number(pSaved.post_id) === Number(post.post_id));  
@@ -462,21 +517,23 @@ function PostItem({
   const hasUpvoted = post.user_vote === 'up';
   const hasDownvoted = post.user_vote === 'down';
 
-  const upvoteIcon = hasUpvoted ? (
-    <FaArrowAltCircleUp />
-  ) : (
-    <FaRegArrowAltCircleUp />
-  );
-  const downvoteIcon = hasDownvoted ? (
-    <FaArrowAltCircleDown />
-  ) : (
-    <FaRegArrowAltCircleDown />
-  );
+  const getDescendantCount = (nodes = []) =>
+    nodes.reduce(
+      (sum, node) => sum + 1 + (node.children && node.children.length > 0 ? getDescendantCount(node.children) : 0),
+      0
+    );
+  const childReplyCount = getDescendantCount(post.children || []);
 
   // Determine if the reply box for this post is open
   const isReplyBoxOpen = expandedReplyBox === post.post_id;
 
   const handleToggleReplyBox = () => {
+    if (!userData) {
+      if (onRequireAuth) {
+        onRequireAuth();
+      }
+      return;
+    }
     if (isReplyBoxOpen) {
       setExpandedReplyBox(null);
     } else {
@@ -492,9 +549,11 @@ function PostItem({
   const computedClassName = `forum-card reply-card level-${level} ${
     Number(post.verified) === 1 ? 'verified' : ''
   }`;
+  const isAmbassador = Number(userData?.is_ambassador) === 1;
+  const canVerify = userData && ([5, 6, 7].includes(Number(userData.role_id)) || isAmbassador);
   
   return (
-    <div className={`post-card level-${level} ${post.verified === 1 ? 'verified' : ''}`}>
+    <div className={`post-card card-lift level-${level} ${post.verified === 1 ? 'verified' : ''}`}>
       {isEditing ? (
         <form onSubmit={confirmEdit} className="edit-form" style={{ marginBottom: '1rem' }}>
           {/* Show the same toolbar from TextEditor.js */}
@@ -522,7 +581,6 @@ function PostItem({
             className="menu-icon"
             onClick={() => setOpenMenu((prev) => !prev)}
             style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
-            //onClick={toggleMenu}
           />
           {openMenu && (
             <div
@@ -537,10 +595,10 @@ function PostItem({
                 borderRadius: '4px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                 zIndex: 10,
-                width: '120px',
+                width: '150px',
               }}
             >
-              {userData && (
+              {handleToggleSavePost && (
                 <button
                   className="dropdown-item"
                   style={{
@@ -570,35 +628,77 @@ function PostItem({
                   cursor: 'pointer',
                 }}
                 onClick={() => {
-                  alert(`Report post ID: ${post.post_id}`);
+                  if (onReport) {
+                    onReport({
+                      id: post.post_id,
+                      type: reportLabel,
+                      label: reportLabel,
+                      context: postContext,
+                    });
+                  }
                   setOpenMenu(false);
                 }}
               >
-                Report
+                Report {reportLabel === 'comment' ? 'comment' : 'post'}
               </button>
+              {canVerify && post.verified !== 1 && (
+                <button
+                  className="dropdown-item"
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    background: 'none',
+                    padding: '8px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    handleVerifyPost(post.post_id);
+                    setOpenMenu(false);
+                  }}
+                >
+                  Verify answer
+                </button>
+              )}
             </div>
           )}
           {Number(post.verified) === 1 && post.verified_at && (
             <div className="verified-info">
-              Verified Answer on {new Date(post.verified_at).toLocaleString()}
+              Verified Answer on {timeAgo(post.verified_at)}
             </div>
           )}
+          {/* Reply header: avatar + meta */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
+            <div className="avatar-wrapper">
+              <img
+                src={buildAvatarSrc(post.avatar_path)}
+                alt={getDisplayName(post, userData?.user_id)}
+                className="avatar-image"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = buildAvatarSrc(null);
+                }}
+              />
+            </div>
+            <div className="post-meta" style={{ margin: 0 }}>
+              <div>
+                <RouterLink to={`/user/${post.user_id}`} style={{ color: 'var(--text-color)', textDecoration: 'none', fontWeight: 600 }}>
+                  {getDisplayName(post, userData?.user_id)}
+                </RouterLink>
+              </div>
+              <div className="meta-quiet" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                {post.school_name && <span>{post.school_name}</span>}
+                <span>{timeAgo(post.created_at)}</span>
+              </div>
+            </div>
+          </div>
           <div
             className="forum-description"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
           />
-          <small>
-            Posted by{' '}
-            <RouterLink to={`/user/${post.user_id}`}>
-              {post.first_name ? post.first_name : 'User'}{' '}
-              {post.last_name ? post.last_name.charAt(0) + '.' : ''}
-            </RouterLink>{' '}
-            on {new Date(post.created_at).toLocaleString()}
-          </small>
   
-          {/* Upvote/Downvote + Reply Icon row */}
+          {/* Upvote count + Reply */}
           <div className="vote-row">
-            {/* Upvote Button */}
             <button
               type="button"
               className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
@@ -606,11 +706,9 @@ function PostItem({
               title="Upvote"
               aria-label="Upvote"
             >
-              {upvoteIcon}
+              {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
             </button>
             <span className="vote-count">{post.upvotes}</span>
-  
-            {/* Downvote Button */}
             <button
               type="button"
               className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
@@ -618,11 +716,11 @@ function PostItem({
               title="Downvote"
               aria-label="Downvote"
             >
-              {downvoteIcon}
+              {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
             </button>
             <span className="vote-count">{post.downvotes}</span>
-  
-            {/* Speech Bubble Reply Icon */}
+
+            {/* Reply Button */}
             <button
               type="button"
               className="reply-button"
@@ -632,6 +730,7 @@ function PostItem({
             >
               <FiMessageCircle />
             </button>
+            <span className="vote-count comment-count">{childReplyCount}</span>
   
             {/* Collapse/Expand Replies Button */}
             {post.children && post.children.length > 0 && (
@@ -646,19 +745,6 @@ function PostItem({
                 <span className="collapse-text">
                   {isCollapsed ? 'Show Replies' : 'Hide Replies'}
                 </span>
-              </button>
-            )}
-            {/* NEW: Verify Answer button for admins */}
-            {userData && [5, 6, 7].includes(Number(userData.role_id)) && post.verified === 0 && (
-              console.log(`Rendering Verify Button for post: ${post.post_id}`),
-              <button
-                type="button"
-                className="verify-button"
-                onClick={() => handleVerifyPost(post.post_id)}
-                title="Verify Answer"
-                aria-label="Verify Answer"
-              >
-                Verify Answer
               </button>
             )}
           </div>
@@ -727,6 +813,8 @@ function PostItem({
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost} // pass the verify function down
+              onRequireAuth={onRequireAuth}
+              onReport={onReport}
             />
           ))}
         </div>
@@ -738,24 +826,50 @@ function PostItem({
 /* --------------------------------------------------------------------------
    Main ThreadView Component
 -------------------------------------------------------------------------- */
-function ThreadView({ userData }) {
+function ThreadView({ userData, onRequireAuth }) {
   const { thread_id } = useParams();
 
   const [threadData, setThreadData] = useState(null);
   const [postTree, setPostTree] = useState([]);
+  const [originalPost, setOriginalPost] = useState(null);
   const [isLoadingThread, setIsLoadingThread] = useState(true);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
 
   const [notification, setNotification] = useState(null);
   const [expandedReplyBox, setExpandedReplyBox] = useState(null);
+  const [rootReplyOpen, setRootReplyOpen] = useState(false);
+  const [rootReplyContent, setRootReplyContent] = useState('');
+  const [reportTarget, setReportTarget] = useState(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   const [replySortCriteria, setReplySortCriteria] = useState('mostRecent');
   const [savedPosts, setSavedPosts] = useState([]);
+  const countReplies = (nodes = []) =>
+    nodes.reduce(
+      (sum, node) => sum + 1 + (node.children && node.children.length > 0 ? countReplies(node.children) : 0),
+      0
+    );
+  const totalComments = useMemo(() => countReplies(postTree), [postTree]);
+
+  const tagStyle = (tag) => {
+    const t = String(tag || '').toLowerCase();
+    if (t.includes('hous')) return { background: '#ffedd5', color: '#9a3412', borderColor: '#fed7aa' }; // amber
+    if (t.includes('campus')) return { background: '#e0e7ff', color: '#3730a3', borderColor: '#c7d2fe' }; // indigo
+    if (t.includes('academ')) return { background: '#dbeafe', color: '#1d4ed8', borderColor: '#bfdbfe' }; // blue
+    if (t.includes('admiss')) return { background: '#dcfce7', color: '#166534', borderColor: '#bbf7d0' }; // green
+    return {};
+  };
+
+  const promptAuthOverlay = () => {
+    if (onRequireAuth) {
+      onRequireAuth();
+    }
+  };
 
   // Toggle save for posts
   const handleToggleSavePost = async (postId, alreadySaved) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to save posts.' });
+      promptAuthOverlay();
       return;
     }
     const url = alreadySaved ? '/api/unsave_post.php' : '/api/save_post.php';
@@ -794,7 +908,8 @@ function ThreadView({ userData }) {
 
   // NEW: Function to verify a post
   const handleVerifyPost = async (post_id) => {
-    if (!userData || Number(userData.role_id) < 5) {
+    const isAllowed = userData && ([5, 6, 7].includes(Number(userData.role_id)) || Number(userData.is_ambassador) === 1);
+    if (!isAllowed) {
       setNotification({ type: 'error', message: 'You are not authorized to verify posts.' });
       return;
     }
@@ -815,8 +930,55 @@ function ThreadView({ userData }) {
     }
   };
 
+  const handleOpenReport = (target) => {
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
+    if (!target || !target.id || !target.type) return;
+    setReportTarget({
+      ...target,
+      label: target.label || target.type,
+      context: target.context ? target.context.trim() : '',
+    });
+  };
+
+  const handleSubmitReport = async ({ reasonCode, reasonText, details }) => {
+    if (!reportTarget) return;
+    setIsSubmittingReport(true);
+    try {
+      const resp = await axios.post(
+        '/api/submit_report.php',
+        {
+          item_type: reportTarget.type,
+          item_id: reportTarget.id,
+          reason_code: reasonCode,
+          reason_text: reasonText,
+          details,
+        },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        setNotification({ type: 'success', message: 'Report submitted to moderators.' });
+        setReportTarget(null);
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Unable to submit report.' });
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setNotification({ type: 'error', message: 'An error occurred while submitting the report.' });
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   useEffect(() => {
     const fetchThread = async () => {
+      if (!thread_id) {
+        setIsLoadingThread(false);
+        setNotification({ type: 'error', message: 'Thread not found.' });
+        return;
+      }
       try {
         const res = await axios.get(`/api/fetch_thread.php?thread_id=${thread_id}`);
         setThreadData(res.data);
@@ -832,6 +994,11 @@ function ThreadView({ userData }) {
 
   // Build the nested structure of posts
   const fetchPosts = async () => {
+    if (!thread_id) {
+      setPostTree([]);
+      setIsLoadingPosts(false);
+      return;
+    }
     setIsLoadingPosts(true);
     try {
       let url = `/api/fetch_posts.php?thread_id=${thread_id}`;
@@ -841,13 +1008,19 @@ function ThreadView({ userData }) {
       const res = await axios.get(url);
       const data = Array.isArray(res.data) ? res.data : [];
       console.log("Fetched Posts:", data);
-      const numericData = data.map((post) => ({
+      const normalizedData = data.map((post) => ({
         ...post,
         upvotes: Number(post.upvotes) || 0,
         downvotes: Number(post.downvotes) || 0,
         verified: Number(post.verified) || 0,
       }));
-      let tree = buildReplyTree(numericData);
+      // Identify original post (first root by created_at)
+      const rootCandidates = normalizedData.filter((p) => !p.reply_to);
+      rootCandidates.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const op = rootCandidates[0] || null;
+      setOriginalPost(op || null);
+      const repliesSource = op ? normalizedData.filter((p) => p.post_id !== op.post_id) : normalizedData;
+      let tree = buildReplyTree(repliesSource);
       tree = sortReplyNodes(tree, replySortCriteria);
       setPostTree(tree);
     } catch (err) {
@@ -866,6 +1039,11 @@ function ThreadView({ userData }) {
     }
   }, [thread_id, userData]);
 
+  useEffect(() => {
+    setRootReplyOpen(false);
+    setRootReplyContent('');
+  }, [originalPost?.post_id]);
+
   // Re-sort the reply tree when sort criteria changes.
   useEffect(() => {
     setPostTree((prevTree) => sortReplyNodes([...prevTree], replySortCriteria));
@@ -874,13 +1052,13 @@ function ThreadView({ userData }) {
 
   const handleReplySubmit = async (reply_to_post_id, content) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to reply.' });
+      promptAuthOverlay();
       return;
     }
   
     try {
       const response = await axios.post('/api/create_reply.php', {
-        thread_id: Number(thread_id),
+        thread_id,
         user_id: userData.user_id,
         content,
         reply_to: reply_to_post_id,
@@ -906,10 +1084,37 @@ function ThreadView({ userData }) {
     }
   };  
 
+  const handleOpenRootReply = () => {
+    if (!originalPost) return;
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
+    setRootReplyOpen(true);
+  };
+
+  const handleRootReplySubmit = async (e) => {
+    e.preventDefault();
+    if (!originalPost) return;
+    await handleReplySubmit(originalPost.post_id, rootReplyContent);
+    setRootReplyContent('');
+    setRootReplyOpen(false);
+  };
+
+  const handleCancelRootReply = () => {
+    setRootReplyContent('');
+    setRootReplyOpen(false);
+  };
+
+  const originalHasUpvoted = originalPost?.user_vote === 'up';
+  const originalHasDownvoted = originalPost?.user_vote === 'down';
+  const originalUpvotes = Number(originalPost?.upvotes) || 0;
+  const originalDownvotes = Number(originalPost?.downvotes) || 0;
+
   // handleDeletePost
   const handleDeletePost = async (post_id) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to delete a post.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -925,7 +1130,7 @@ function ThreadView({ userData }) {
   // handleEditPost for root post editing
   const handleEditPost = async (post_id, newContent) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to edit a post.' });
+      promptAuthOverlay();
       return false;
     }
     try {
@@ -957,7 +1162,7 @@ function ThreadView({ userData }) {
   // Upvote
   const handleUpvoteClick = async (post_id) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to upvote.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -966,6 +1171,28 @@ function ThreadView({ userData }) {
         user_id: userData.user_id,
         vote_type: 'up',
       });
+      const isRoot = originalPost && originalPost.post_id === post_id;
+      if (isRoot) {
+        setOriginalPost((prev) => {
+          if (!prev) return prev;
+          let newUpvotes = prev.upvotes;
+          let newDownvotes = prev.downvotes;
+          let newUserVote = prev.user_vote;
+          if (prev.user_vote === 'up') {
+            newUpvotes -= 1;
+            newUserVote = null;
+          } else if (prev.user_vote === 'down') {
+            newDownvotes -= 1;
+            newUpvotes += 1;
+            newUserVote = 'up';
+          } else {
+            newUpvotes += 1;
+            newUserVote = 'up';
+          }
+          return { ...prev, upvotes: newUpvotes, downvotes: newDownvotes, user_vote: newUserVote };
+        });
+        return;
+      }
       // Update the post vote counts without refreshing
       setPostTree((prevPostTree) => {
         const updateVotes = (posts) =>
@@ -1011,7 +1238,7 @@ function ThreadView({ userData }) {
   // Downvote
   const handleDownvoteClick = async (post_id) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to downvote.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -1020,6 +1247,28 @@ function ThreadView({ userData }) {
         user_id: userData.user_id,
         vote_type: 'down',
       });
+      const isRoot = originalPost && originalPost.post_id === post_id;
+      if (isRoot) {
+        setOriginalPost((prev) => {
+          if (!prev) return prev;
+          let newUpvotes = prev.upvotes;
+          let newDownvotes = prev.downvotes;
+          let newUserVote = prev.user_vote;
+          if (prev.user_vote === 'down') {
+            newDownvotes -= 1;
+            newUserVote = null;
+          } else if (prev.user_vote === 'up') {
+            newUpvotes -= 1;
+            newDownvotes += 1;
+            newUserVote = 'down';
+          } else {
+            newDownvotes += 1;
+            newUserVote = 'down';
+          }
+          return { ...prev, upvotes: newUpvotes, downvotes: newDownvotes, user_vote: newUserVote };
+        });
+        return;
+      }
       // Update the post vote counts without refreshing
       setPostTree((prevPostTree) => {
         const updateVotes = (posts) =>
@@ -1069,33 +1318,158 @@ function ThreadView({ userData }) {
   // Final return block
   return (
     <div className="feed-container thread-view">
-      {/* Header Row */}
-      <div className="feed-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {/* Left side: arrow + thread title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <RouterLink to={`/info/forum/${threadData?.forum_id || ''}`} className="arrow-link">
-            ←
+      {/* Breadcrumbs */}
+      <nav className="breadcrumbs" aria-label="Breadcrumb">
+        <RouterLink to="/info">Info Board</RouterLink>
+        <span className="breadcrumb-sep">/</span>
+        {threadData?.forum_id ? (
+          <RouterLink to={`/info/forum/${threadData.forum_id}`}>
+            {threadData?.forum_name || 'Category'}
           </RouterLink>
-          <h2 className="thread-title">
-            {threadData?.title || `Thread ${thread_id}`}
-          </h2>
+        ) : (
+          <span>{threadData?.forum_name || 'Category'}</span>
+        )}
+        <span className="breadcrumb-sep">/</span>
+        {/*<span className="breadcrumb-current" aria-current="page">
+          {threadData?.title || `Thread ${thread_id}`}
+        </span>*/}
+      </nav>
+      {/* Title */}
+      <h1 className="h1" style={{ margin: 0 }}>
+        {threadData?.title || `Thread ${thread_id}`}
+      </h1>
+
+      {/* Author row + sort pill moved into original post card */}
+
+      {/* Tags under title */}
+      {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
+        <div className="chips-row" style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
+          {threadData.tags.map((tag, idx) => (
+            <span key={idx} className="chip" style={{ ...tagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}>
+              {tag}
+            </span>
+          ))}
         </div>
-      </div>
-  
-      {/* Reply Sort Options */}
-      <div className="reply-sort-options">
-        <label htmlFor="replySort">Sort Replies:</label>
+      )}
+
+      {/* Original Post at top */}
+      {originalPost && (
+        <div className="post-card card-lift original-post">
+          {/* Use the thread-top-row pattern inside the card */}
+          <div className="thread-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div className="avatar-wrapper">
+                <img
+                  src={buildAvatarSrc(originalPost.avatar_path)}
+                  alt={getDisplayName(originalPost, userData?.user_id)}
+                  className="avatar-image"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = buildAvatarSrc(null);
+                  }}
+                />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <RouterLink to={`/user/${originalPost.user_id}`} style={{ textDecoration: 'none', color: 'var(--text-color)', fontWeight: 700 }}>
+                    {getDisplayName(originalPost, userData?.user_id)}
+                  </RouterLink>
+                  {originalPost.user_role && <span className="meta-quiet">· {originalPost.user_role}</span>}
+                </div>
+                <div className="meta-quiet">{timeAgo(originalPost.created_at)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="post-content"
+            style={{ marginTop: '8px' }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
+          />
+          <div className="vote-row">
+            <button
+              type="button"
+              className={`vote-button upvote-button ${originalHasUpvoted ? 'active' : ''}`}
+              onClick={() => handleUpvoteClick(originalPost.post_id)}
+              title="Upvote"
+              aria-label="Upvote"
+            >
+              {originalHasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+            </button>
+            <span className="vote-count">{originalUpvotes}</span>
+            <button
+              type="button"
+              className={`vote-button downvote-button ${originalHasDownvoted ? 'active' : ''}`}
+              onClick={() => handleDownvoteClick(originalPost.post_id)}
+              title="Downvote"
+              aria-label="Downvote"
+            >
+              {originalHasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+            </button>
+            <span className="vote-count">{originalDownvotes}</span>
+            <button
+              type="button"
+              className="reply-button"
+              onClick={handleOpenRootReply}
+              title="Leave a comment"
+              aria-label="Leave a comment"
+            >
+              <FiMessageCircle />
+            </button>
+            <span className="vote-count comment-count">{totalComments}</span>
+            <button
+              type="button"
+              className="report-inline-button"
+              onClick={() =>
+                handleOpenReport({
+                  id: originalPost.post_id,
+                  type: 'post',
+                  label: 'original post',
+                  context: stripHtml(originalPost.content || '').slice(0, 200),
+                })
+              }
+            >
+              Report
+            </button>
+          </div>
+      {rootReplyOpen && (
+        <form className="reply-form" onSubmit={handleRootReplySubmit}>
+          <textarea
+            className="reply-textarea"
+            rows={4}
+            value={rootReplyContent}
+            onChange={(e) => setRootReplyContent(e.target.value)}
+            placeholder="Share your thoughts..."
+            required
+          />
+          <div className="reply-form-actions">
+            <button type="submit" className="create-button reply-button">
+              Submit
+            </button>
+            <button type="button" className="create-button cancel-button" onClick={handleCancelRootReply}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      <hr className="thread-divider" />
+    </div>
+  )}
+
+  <div className="reply-sort-controls">
+        <label htmlFor="replySort" className="sr-only">Sort Replies</label>
         <select
           id="replySort"
           value={replySortCriteria}
           onChange={(e) => setReplySortCriteria(e.target.value)}
+          className="sort-select"
         >
-          <option value="mostRecent">Most Recent</option>
+          <option value="mostRecent">Sort by Newest</option>
           <option value="mostUpvoted">Most Upvoted</option>
           <option value="mostPopular">Most Popular</option>
         </select>
       </div>
-  
+
       {/* Post Tree */}
       {postTree.length === 0 ? (
         <p>No replies found.</p>
@@ -1118,11 +1492,21 @@ function ThreadView({ userData }) {
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost}
+              onRequireAuth={onRequireAuth}
+              onReport={handleOpenReport}
             />
           ))}
         </div>
       )}
   
+      <ReportModal
+        isOpen={!!reportTarget}
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+        onSubmit={handleSubmitReport}
+        submitting={isSubmittingReport}
+      />
+
       {/* Notification */}
       {notification && (
         <div className={`notification ${notification.type}`}>

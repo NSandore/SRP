@@ -5,7 +5,7 @@ header('Content-Type: application/json');
 
 try {
     $db = getDB();
-    $stmt = $db->query("SELECT name, tagline, logo_path FROM communities ORDER BY name ASC");
+    $stmt = $db->query("SELECT id, name, tagline, logo_path, parent_community_id FROM communities ORDER BY name ASC");
     $communities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode($communities);

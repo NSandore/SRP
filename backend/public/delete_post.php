@@ -12,7 +12,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
     exit;
 }
 
-$user_id_session = (int) $_SESSION['user_id'];
+$user_id_session = normalizeId($_SESSION['user_id']);
 $role_id_session = (int) $_SESSION['role_id'];
 
 // 2. Parse JSON input from the client
@@ -23,10 +23,10 @@ if (!isset($data['post_id'])) {
     exit;
 }
 
-$post_id = (int) $data['post_id'];
+$post_id = normalizeId($data['post_id']);
 
 // 3. Validate post_id
-if ($post_id <= 0) {
+if ($post_id === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid post_id.']);
     exit;
@@ -48,8 +48,8 @@ try {
         exit;
     }
 
-    // 6. Check if session user is post owner OR role_id=7
-    if ($role_id_session !== 7 && $post['user_id'] != $user_id_session) {
+    // 6. Check if session user is post owner OR role_id=1
+    if ($role_id_session !== 1 && $post['user_id'] != $user_id_session) {
         // No permission
         http_response_code(403); // Forbidden
         echo json_encode(['error' => 'You do not have permission to delete this post.']);

@@ -3,15 +3,14 @@ require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
-if (!isset($_GET['forum_id'])) {
+$forum_id = isset($_GET['forum_id']) ? normalizeId($_GET['forum_id']) : '';
+if ($forum_id === '') {
     http_response_code(400);
     echo json_encode(['error' => 'forum_id is required']);
     exit;
 }
-
-$forum_id = (int)$_GET['forum_id'];
-// Get the current user's ID if provided; default to 0 if not logged in
-$user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+// Get the current user's ID if provided; default to empty if not logged in
+$user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : '';
 $db = getDB();
 
 try {
@@ -31,8 +30,9 @@ try {
         FROM threads t
         LEFT JOIN posts p ON t.thread_id = p.thread_id
         WHERE t.forum_id = :forum_id
+          AND t.is_hidden = 0
         GROUP BY t.thread_id, t.forum_id, t.user_id, t.title, t.created_at
-        ORDER BY t.created_at ASC
+        ORDER BY t.created_at DESC
     ");
     $stmt->execute([
       ':forum_id' => $forum_id,

@@ -10,13 +10,15 @@ try {
         echo json_encode(['success' => false, 'error' => 'Invalid input data']);
         exit;
     }
-    $user_id = intval($input['user_id']);
-    $post_id = intval($input['post_id']);
+    $user_id = normalizeId($input['user_id']);
+    $post_id = normalizeId($input['post_id']);
+    $saveId = generateUniqueId($db, 'saved_posts');
 
-    $query = "INSERT INTO saved_posts (user_id, post_id) VALUES (:user_id, :post_id)
+    $query = "INSERT INTO saved_posts (id, user_id, post_id) VALUES (:id, :user_id, :post_id)
               ON DUPLICATE KEY UPDATE saved_at = CURRENT_TIMESTAMP";
     $stmt = $db->prepare($query);
     $stmt->execute([
+      ':id' => $saveId,
       ':user_id' => $user_id,
       ':post_id' => $post_id
     ]);

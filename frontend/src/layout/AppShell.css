@@ -1,0 +1,196 @@
+/* AppShell layout */
+.app-shell-main { margin-top: 0; display: flex; justify-content: center; }
+
+.app-shell-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr 320px;
+  gap: 30px;
+  width: min(1400px, 98vw);
+  margin: 16px auto 24px;
+  align-items: start;
+  transition: grid-template-columns 0.2s ease-in-out;
+}
+
+.app-shell-grid.nav-collapsed {
+  grid-template-columns: 80px 1fr 320px;
+}
+
+.left-rail {
+  position: sticky;
+  top: calc(var(--nav-height, 64px) + 16px); /* below fixed navbar */
+  align-self: start;
+  justify-self: center;
+  width: 240px;
+  height: auto;
+  max-height: calc(100vh - 120px);
+  min-height: 0;
+  overflow-x: visible;
+  transition: width 0.2s ease-in-out;
+  will-change: width;
+}
+
+.app-shell-grid.nav-collapsed .left-rail {
+  width: 80px;
+}
+.center-rail { min-width: 0; justify-self: center; width: 100%; max-width: 1000px; }
+.right-rail {
+  position: sticky;
+  top: calc(var(--nav-height, 64px) + 16px); /* below fixed navbar */
+  align-self: start;
+  justify-self: center;
+  width: 340px;
+  height: auto;
+  max-height: calc(100vh - 120px);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Communities route: hide right rail and widen/center main column */
+.app-shell-grid.communities-layout {
+  grid-template-columns: 240px 1fr;
+}
+.app-shell-grid.communities-layout .right-rail {
+  display: none;
+}
+.app-shell-grid.communities-layout .center-rail {
+  max-width: 1200px; /* allow wider profile/communities layouts */
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.app-shell-grid.nav-collapsed.communities-layout {
+  grid-template-columns: 80px 1fr;
+}
+
+.app-shell-grid.messages-layout {
+  grid-template-columns: 240px 1fr;
+}
+.app-shell-grid.messages-layout .right-rail {
+  display: none;
+}
+.app-shell-grid.messages-layout .center-rail {
+  max-width: 1100px;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.app-shell-grid.nav-collapsed.messages-layout {
+  grid-template-columns: 80px 1fr;
+}
+
+.app-shell-grid.search-layout {
+  grid-template-columns: 240px 1fr;
+}
+.app-shell-grid.search-layout .right-rail {
+  display: none;
+}
+.app-shell-grid.search-layout .center-rail {
+  max-width: 1200px;
+}
+
+.app-shell-grid.nav-collapsed.search-layout {
+  grid-template-columns: 80px 1fr;
+}
+
+.app-shell-grid.settings-layout {
+  grid-template-columns: 1fr;
+  width: min(1400px, 98vw);
+}
+.app-shell-grid.settings-layout .left-rail,
+.app-shell-grid.settings-layout .right-rail {
+  display: none;
+}
+.app-shell-grid.settings-layout .center-rail {
+  max-width: 1400px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Hide right rail below xl (1280px) */
+@media (max-width: 1279px) {
+  .app-shell-grid {
+    grid-template-columns: 240px 1fr;
+  }
+  .right-rail { display: none; }
+
+  .app-shell-grid.nav-collapsed {
+    grid-template-columns: 80px 1fr;
+  }
+}
+
+/* Convert left rail to drawer below lg (1024px) */
+@media (max-width: 1023px) {
+  .app-shell-main {
+    padding: 0 12px 24px;
+  }
+  .app-shell-grid {
+    grid-template-columns: 1fr;
+    width: 100%;
+    margin: 12px auto 20px;
+    gap: 16px;
+  }
+  .app-shell-grid.nav-collapsed {
+    grid-template-columns: 1fr;
+  }
+  .left-rail { display: none; }
+  .center-rail { max-width: 100%; }
+  .right-rail { display: none; }
+  .left-drawer { width: min(85vw, 320px); }
+  .drawer-toggle {
+    display: inline-flex;
+    right: 12px;
+    left: auto;
+  }
+}
+
+/* Drawer and overlay */
+.drawer-toggle {
+  position: fixed;
+  top: calc(var(--nav-height, 64px) + 8px);
+  left: 12px;
+  z-index: 1050;
+  background: #2563EB;
+  color: #fff;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  display: none; /* shown via media query */
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+.drawer-toggle:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.left-drawer {
+  position: fixed;
+  top: var(--nav-height, 64px);
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background: var(--card-background);
+  border-right: 1px solid var(--card-border);
+  transform: translateX(-100%);
+  transition: transform 250ms ease;
+  z-index: 1100;
+  overflow-y: auto;
+}
+.left-drawer.open { transform: translateX(0); }
+
+.drawer-backdrop {
+  position: fixed;
+  top: var(--nav-height, 64px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+  z-index: 1090;
+}
+.drawer-backdrop.open { opacity: 1; pointer-events: auto; }

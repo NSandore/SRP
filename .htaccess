@@ -2,12 +2,16 @@
   RewriteEngine On
   RewriteBase /
 
-  # Redirect root (/) to /home
-  RewriteCond %{REQUEST_URI} ^/$
-  RewriteRule ^ /home [R=301,L]
+  # Exclude /api and /uploads from rewriting
+  RewriteCond %{REQUEST_URI} ^/(api|uploads) [NC]
+  RewriteRule ^ - [L]
 
-  # Ensure requests are handled properly by index.html
+  # Redirect root (empty URI) to /home
+  RewriteRule ^$ /home [R=301,L]
+
+  # For all other requests not corresponding to an existing file or directory,
+  # serve index.html to allow React Router to handle the routing.
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^ index.html [L]
+  RewriteRule . /index.html [L]
 </IfModule>

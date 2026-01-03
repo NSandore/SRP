@@ -1,17 +1,14 @@
 // src/components/ForumView.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import TextEditor from './TextEditor';
 import './ForumView.css';  // Adjusted to match feed styling
-import useOnClickOutside from '../hooks/useOnClickOutside';
-import {
-  FaEllipsisV,
-  FaArrowAltCircleUp,
-  FaRegArrowAltCircleUp,
-  FaArrowAltCircleDown,
-  FaRegArrowAltCircleDown
-} from 'react-icons/fa';
+import './CreationModal.css';
+import ModalOverlay from './ModalOverlay';
+import { FaEllipsisV, FaArrowAltCircleUp, FaRegArrowAltCircleUp, FaArrowAltCircleDown, FaRegArrowAltCircleDown } from 'react-icons/fa';
+import ThreadCard from './ThreadCard';
+import ReportModal from './ReportModal';
 
 // Sorting function
 const sortItems = (items, criteria) => {
@@ -34,7 +31,9 @@ const sortItems = (items, criteria) => {
   return sorted;
 };
 
-function ForumView({ userData }) {
+const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+function ForumView({ userData, onRequireAuth }) {
   const { forum_id } = useParams();
 
   // Forum data & threads
@@ -62,9 +61,14 @@ function ForumView({ userData }) {
   // Saved Threads
   const [savedThreads, setSavedThreads] = useState([]);
 
-  // 3-dot menu
-  const [openMenuThreadId, setOpenMenuThreadId] = useState(null);
-  const menuRef = useRef(null);
+  // Ambassador communities for visibility gating
+  const [ambassadorCommunities, setAmbassadorCommunities] = useState([]);
+
+  // Reporting modal
+  const [reportTarget, setReportTarget] = useState(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  // kebab menu handled inside ThreadCard
 
   // Helper to detect if a thread is saved
   const isThreadSaved = (threadId) =>
@@ -119,20 +123,38 @@ function ForumView({ userData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forum_id, userData]);
 
+  // Load ambassador communities when user is ambassador
+  useEffect(() => {
+    const loadAmbassadorCommunities = async () => {
+      if (!userData || Number(userData.is_ambassador) !== 1) return;
+      try {
+        const res = await axios.get(`/api/fetch_ambassador_communities.php?user_id=${userData.user_id}`);
+        const list = Array.isArray(res.data) ? res.data : (res.data.communities || res.data.ambassador_communities || []);
+        setAmbassadorCommunities(list);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('Error fetching ambassador communities:', e);
+        setAmbassadorCommunities([]);
+      }
+    };
+    loadAmbassadorCommunities();
+  }, [userData]);
+
   // Sort threads
   const sortedThreads = sortItems(threads, sortBy);
 
-  // === 3-dot menu handling ===
-  useOnClickOutside(menuRef, () => setOpenMenuThreadId(null));
+  // kebab menu handled inside ThreadCard
 
-  const toggleMenu = (threadId) => {
-    setOpenMenuThreadId((prev) => (prev === threadId ? null : threadId));
+  const promptAuthOverlay = () => {
+    if (onRequireAuth) {
+      onRequireAuth();
+    }
   };
 
   // === Thread CRUD / Voting ===
   const handleToggleSaveThread = async (threadId) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to save threads.' });
+      promptAuthOverlay();
       return;
     }
 
@@ -160,11 +182,14 @@ function ForumView({ userData }) {
       console.error('Error saving/unsaving thread:', error);
       setNotification({ type: 'error', message: 'Error saving/unsaving thread.' });
     }
-    setOpenMenuThreadId(null);
+    // ThreadCard manages its own kebab menu state
   };
 
   const handleUpvoteClick = async (threadId) => {
-    if (!userData) return alert('You must be logged in to vote.');
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
     try {
       await axios.post('/api/vote_thread.php', {
         thread_id: threadId,
@@ -178,7 +203,10 @@ function ForumView({ userData }) {
   };
 
   const handleDownvoteClick = async (threadId) => {
-    if (!userData) return alert('You must be logged in to vote.');
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
     try {
       await axios.post('/api/vote_thread.php', {
         thread_id: threadId,
@@ -194,13 +222,13 @@ function ForumView({ userData }) {
   const handleCreateThreadSubmit = async (e) => {
     e.preventDefault();
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to create threads.' });
+      promptAuthOverlay();
       return;
     }
     setIsCreatingThread(true);
     try {
       const resp = await axios.post('/api/create_thread.php', {
-        forum_id: Number(forum_id),
+        forum_id,
         user_id: userData.user_id,
         title: threadTitle,
         firstPostContent,
@@ -228,9 +256,16 @@ function ForumView({ userData }) {
     }
   };
 
+  const handleDismissCreateThreadModal = () => {
+    setShowCreateThreadModal(false);
+    setThreadTitle('');
+    setFirstPostContent('');
+    setIsCreatingThread(false);
+  };
+
   const handleDeleteThread = async (threadId) => {
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to delete a thread.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -253,6 +288,48 @@ function ForumView({ userData }) {
     }
   };
 
+  const handleOpenReport = (target) => {
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
+    if (!target || !target.id || !target.type) return;
+    setReportTarget({
+      ...target,
+      label: target.label || target.type,
+      context: target.context ? target.context.trim() : '',
+    });
+  };
+
+  const handleSubmitReport = async ({ reasonCode, reasonText, details }) => {
+    if (!reportTarget) return;
+    setIsSubmittingReport(true);
+    try {
+      const resp = await axios.post(
+        '/api/submit_report.php',
+        {
+          item_type: reportTarget.type,
+          item_id: reportTarget.id,
+          reason_code: reasonCode,
+          reason_text: reasonText,
+          details,
+        },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        setNotification({ type: 'success', message: 'Report submitted.' });
+        setReportTarget(null);
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Unable to submit report.' });
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setNotification({ type: 'error', message: 'An error occurred while submitting the report.' });
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   const startEditingThread = (thread) => {
     setEditThreadId(thread.thread_id);
     setEditThreadTitle(thread.title);
@@ -268,7 +345,7 @@ function ForumView({ userData }) {
   const handleEditThreadSubmit = async (e) => {
     e.preventDefault();
     if (!userData) {
-      setNotification({ type: 'error', message: 'You must be logged in to edit a thread.' });
+      promptAuthOverlay();
       return;
     }
     try {
@@ -306,8 +383,28 @@ function ForumView({ userData }) {
     );
   }
 
+  const isAdmin = Number(userData?.role_id) === 1;
+  const isAmbassador = Number(userData?.is_ambassador) === 1;
+  const communityId = forumData?.community_id;
+  const ambassadorHasAccess =
+    isAmbassador &&
+    communityId &&
+    ambassadorCommunities.some((c) => {
+      const id = c?.community_id ?? c?.id ?? c;
+      return Number(id) === Number(communityId);
+    });
+  const canCreateThread = Boolean(userData && (isAdmin || ambassadorHasAccess));
+
   return (
     <div className="feed-container forum-view">
+    {/* Breadcrumbs */}
+    <nav className="breadcrumbs" aria-label="Breadcrumb">
+      <Link to="/info">Info Board</Link>
+      <span className="breadcrumb-sep">&gt;</span>
+      {/*<span className="breadcrumb-current" aria-current="page">
+        {forumData?.name ? forumData.name : `Forum ${forum_id}`}
+      </span>*/}
+    </nav>
     {/* Top Header Row */}
     <div
       className="feed-header"
@@ -323,12 +420,31 @@ function ForumView({ userData }) {
         </h2>
       </div>
 
-      {/* Right side: "Create Thread" button (if logged in) */}
-      {userData && (
-        <button className="create-button" onClick={() => setShowCreateThreadModal(true)}>
-          + New Thread
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button
+          type="button"
+          className="pill-button ghost"
+          onClick={() =>
+            handleOpenReport({
+              id: forum_id,
+              type: 'forum',
+              label: forumData?.name || 'forum',
+              context: stripHtml(forumData?.description || '').slice(0, 200),
+            })
+          }
+        >
+          Report
         </button>
-      )}
+        {canCreateThread && (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setShowCreateThreadModal(true)}
+          >
+            New Thread
+          </button>
+        )}
+      </div>
     </div>
     
       {/* Sorting */}
@@ -350,162 +466,92 @@ function ForumView({ userData }) {
         <p>No threads available.</p>
       ) : (
         <div className="forum-list">
-          {sortedThreads.map((thread) => {
-            const hasUpvoted = thread.vote_type === 'up';
-            const hasDownvoted = thread.vote_type === 'down';
-
-            const canEditOrDelete =
-              userData &&
-              (Number(userData.role_id) === 7 || Number(userData.user_id) === Number(thread.user_id));
-
-            return (
-              <div key={thread.thread_id} className="forum-card" style={{ position: 'relative' }}>
-                {/* 3-dot menu */}
-                <FaEllipsisV
-                  className="menu-icon"
-                  style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
-                  onClick={() => toggleMenu(thread.thread_id)}
-                />
-                {openMenuThreadId === thread.thread_id && (
-                  <div
-                    ref={menuRef}
-                    className="dropdown-menu"
-                    style={{
-                      position: 'absolute',
-                      top: '30px',
-                      right: '8px',
-                      backgroundColor: '#fff',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                      zIndex: 10,
-                      width: '120px',
-                    }}
-                  >
-                    {userData && (
-                      <button
-                        className="dropdown-item"
-                        style={{ padding: '8px', textAlign: 'left', cursor: 'pointer' }}
-                        onClick={() => handleToggleSaveThread(thread.thread_id)}
-                      >
-                        {isThreadSaved(thread.thread_id) ? 'Unsave' : 'Save'}
-                      </button>
-                    )}
-                    <button
-                      className="dropdown-item"
-                      style={{ padding: '8px', textAlign: 'left', cursor: 'pointer' }}
-                      onClick={() => {
-                        alert(`Report thread ${thread.thread_id}`);
-                        setOpenMenuThreadId(null);
-                      }}
-                    >
-                      Report
-                    </button>
-                  </div>
-                )}
-
-                {/* Thread link */}
-                <Link
-                  to={`/info/forum/${forum_id}/thread/${thread.thread_id}`}
-                  className="thread-link"
-                >
-                  <h3 className="thread-title">{thread.title}</h3>
-                  <p className="thread-post-count">
-                    {thread.post_count || 0} Posts
-                  </p>
-                  <p className="thread-description">
-                    Started by User {thread.user_id} on{' '}
-                    {new Date(thread.created_at).toLocaleString()}
-                  </p>
-                </Link>
-
-                {/* Voting row */}
-                <div className="vote-row">
-                  <button
-                    type="button"
-                    className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
-                    title="Upvote"
-                    onClick={() => handleUpvoteClick(thread.thread_id)}
-                  >
-                    {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
-                  </button>
-                  <span className="vote-count">{thread.upvotes}</span>
-
-                  <button
-                    type="button"
-                    className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
-                    title="Downvote"
-                    onClick={() => handleDownvoteClick(thread.thread_id)}
-                  >
-                    {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
-                  </button>
-                  <span className="vote-count">{thread.downvotes}</span>
-                </div>
-
-                {/* Edit / Delete buttons */}
-                {canEditOrDelete && (
-                  <div className="thread-actions">
-                    <button
-                      className="create-button edit-button"
-                      onClick={() => startEditingThread(thread)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="create-button delete-button"
-                      onClick={() => handleDeleteThread(thread.thread_id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {sortedThreads.map((thread) => (
+            <ThreadCard
+              key={thread.thread_id}
+              thread={thread}
+              userData={userData}
+              onUpvote={handleUpvoteClick}
+              onDownvote={handleDownvoteClick}
+              onEdit={startEditingThread}
+              onDelete={handleDeleteThread}
+              onToggleSave={() => handleToggleSaveThread(thread.thread_id)}
+              onReport={() =>
+                handleOpenReport({
+                  id: thread.thread_id,
+                  type: 'thread',
+                  label: thread.title || 'thread',
+                  context: stripHtml(thread.title || ''),
+                })
+              }
+              linkTo={`/info/forum/${forum_id}/thread/${thread.thread_id}`}
+            />
+          ))}
         </div>
       )}
 
       {/* CREATE THREAD MODAL */}
-      {showCreateThreadModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Create a New Thread</h3>
-            <form onSubmit={handleCreateThreadSubmit}>
-              <div className="form-group">
-                <label htmlFor="thread-title">Thread Title:</label>
-                <input
-                  type="text"
-                  id="thread-title"
-                  value={threadTitle}
-                  onChange={(e) => setThreadTitle(e.target.value)}
-                  required
-                />
+      {canCreateThread && showCreateThreadModal && (
+        <ModalOverlay
+          isOpen={showCreateThreadModal}
+          onClose={handleDismissCreateThreadModal}
+        >
+          <div className="creation-modal">
+            <div className="creation-modal__form">
+              <div className="creation-modal__header">
+                <div>
+                  <p className="creation-modal__meta">
+                    {forumData?.name ? forumData.name : `Forum ${forum_id}`}
+                  </p>
+                  <h3 className="creation-modal__title">Create a new thread</h3>
+                  <p className="creation-modal__sub">
+                    Set the tone with a sharp title and a first post that spells out what you need.
+                  </p>
+                  <ul className="creation-points">
+                    <li>Lead with a clear, specific title</li>
+                    <li>Add the background readers need to respond fast</li>
+                    <li>Highlight what kind of replies you&apos;re looking for</li>
+                  </ul>
+                </div>
               </div>
-              <div className="form-group">
-                <label>First Post Content:</label>
-                <TextEditor
-                  value={firstPostContent}
-                  onChange={(content) => setFirstPostContent(content)}
-                />
-              </div>
-              <div className="form-actions">
-                <button type="submit" disabled={isCreatingThread}>
-                  {isCreatingThread ? 'Creating...' : 'Create'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCreateThreadModal(false);
-                    setThreadTitle('');
-                    setFirstPostContent('');
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              <form className="creation-fields" onSubmit={handleCreateThreadSubmit}>
+                <div className="creation-field">
+                  <label htmlFor="thread-title">Thread title</label>
+                  <input
+                    type="text"
+                    id="thread-title"
+                    value={threadTitle}
+                    onChange={(e) => setThreadTitle(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="creation-field">
+                  <label>First post</label>
+                  <TextEditor
+                    value={firstPostContent}
+                    onChange={(content) => setFirstPostContent(content)}
+                  />
+                </div>
+                <div className="creation-actions">
+                  <button
+                    type="button"
+                    className="creation-ghost"
+                    onClick={handleDismissCreateThreadModal}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="creation-primary"
+                    disabled={isCreatingThread}
+                  >
+                    {isCreatingThread ? 'Publishing...' : 'Publish thread'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* EDIT THREAD MODAL */}
@@ -532,6 +578,14 @@ function ForumView({ userData }) {
           </div>
         </div>
       )}
+
+      <ReportModal
+        isOpen={!!reportTarget}
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+        onSubmit={handleSubmitReport}
+        submitting={isSubmittingReport}
+      />
 
       {/* Notification */}
       {notification && (
