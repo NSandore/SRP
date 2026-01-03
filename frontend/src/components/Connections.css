@@ -86,18 +86,6 @@
   margin-right: 15px;
 }
 
-.presence-avatar {
-  position: relative;
-  display: inline-flex;
-}
-
-.presence-avatar .presence-dot {
-  width: 10px;
-  height: 10px;
-  border: 2px solid #fff;
-  top: 2px;
-  right: 2px;
-}
   
   /* User Info */
   .connection-info {

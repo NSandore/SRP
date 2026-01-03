@@ -46,7 +46,8 @@ function getIdConfig(): array {
         'forum_votes' => ['prefix' => 'v', 'column' => 'id'],
         'thread_votes' => ['prefix' => 'v', 'column' => 'id'],
         'post_votes' => ['prefix' => 'v', 'column' => 'id'],
-        'reports' => ['prefix' => 'rp', 'column' => 'report_id']
+        'reports' => ['prefix' => 'rp', 'column' => 'report_id'],
+        'announcements' => ['prefix' => 'an', 'column' => 'announcement_id']
     ];
 }
 

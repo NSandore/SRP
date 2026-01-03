@@ -4,7 +4,6 @@ import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
 import ContactUsButton from '../components/ContactUsButton';
 import NavBar from '../components/NavBar';
-import { Menu } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 type NavBarProps = any; // Narrow types later as needed
@@ -37,22 +36,22 @@ export default function AppShell({
   const isSettingsRoute = pathname.startsWith('/settings');
   const effectiveLockedKeys = lockedNavKeys ?? ['saved', 'connections', 'profile'];
 
+  const [announcementHeight, setAnnouncementHeight] = useState(0);
+
+  // Listen for announcement bar height changes from NavBar
+  const handleAnnouncementHeight = (height: number) => {
+    setAnnouncementHeight(height);
+  };
+
   return (
     <div className="app-shell">
       {/* TopBar */}
-      <NavBar {...navBarProps} />
-
-      {/* Drawer trigger for < lg */}
-      <button
-        type="button"
-        className="drawer-toggle"
-        onClick={() => setDrawerOpen(true)}
-        aria-label="Open navigation menu"
-        aria-expanded={drawerOpen}
-        aria-controls="left-drawer"
-      >
-        <Menu size={18} /> Menu
-      </button>
+      <NavBar
+        {...navBarProps}
+        onOpenDrawer={() => setDrawerOpen(true)}
+        onCloseDrawer={() => setDrawerOpen(false)}
+        onAnnouncementHeight={handleAnnouncementHeight}
+      />
 
       {/* Drawer + backdrop (mobile) */}
       <div
@@ -66,11 +65,15 @@ export default function AppShell({
         role="dialog"
         aria-label="Navigation drawer"
       >
-        <LeftSidebar userData={userData} lockedKeys={effectiveLockedKeys} />
+        <LeftSidebar
+          userData={userData}
+          lockedKeys={effectiveLockedKeys}
+          onNavigate={() => setDrawerOpen(false)}
+        />
       </aside>
 
       {/* Main three-column grid */}
-      <main className="app-shell-main">
+      <main className="app-shell-main" style={{ paddingTop: announcementHeight ? `${announcementHeight}px` : undefined }}>
         <div
           className={`app-shell-grid ${sidebarCollapsed ? 'nav-collapsed' : ''} ${isWideLayout ? 'communities-layout' : ''} ${
             isMessagesRoute ? 'messages-layout' : ''
@@ -88,7 +91,7 @@ export default function AppShell({
             {children}
           </div>
           <div className="right-rail">
-            <RightSidebar />
+            <RightSidebar userData={userData} />
             <div style={{ marginTop: '1rem' }}>
               <ContactUsButton />
             </div>

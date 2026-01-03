@@ -26,6 +26,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadingFollowStatus, setLoadingFollowStatus] = useState(true);
   const [followerCount, setFollowerCount] = useState(0);
+  const [messageRestriction, setMessageRestriction] = useState("");
 
   const [openMenu, setOpenMenu] = useState(false);
   const menuRef = useRef(null);
@@ -284,11 +285,10 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   };
 
   const handleAccept = async () => {
-    if (!connectionId) return;
     try {
       await axios.post(
         "/api/accept_connection.php",
-        { connection_id: connectionId },
+        { connection_id: connectionId, user_id1: userData?.user_id, user_id2: user_id },
         { withCredentials: true }
       );
       setConnectionStatus("accepted");
@@ -436,13 +436,51 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
     { id: "about", label: "About" },
     { id: "posts", label: "Posts" },
   ];
-  const showOnline = Number(profile.show_online ?? 1) === 1 || String(profile.show_online).toLowerCase() === 'true';
-  const isOnline =
-    showOnline &&
-    (profile.is_online === true ||
-      profile.is_online === 1 ||
-      profile.is_online === '1' ||
-      String(profile.is_online).toLowerCase() === 'true');
+  // Presence temporarily disabled
+  const showOnline = false;
+  const isOnline = false;
+  const onlineLabel = "";
+  const allowMessagesFrom = String(profile?.allow_messages_from || profile?.allowMessagesFrom || "everyone").toLowerCase();
+  const isConnected = connectionStatus === "accepted";
+  const sharesCommunity =
+    profile?.recent_university_id &&
+    userData?.recent_university_id &&
+    String(profile.recent_university_id) === String(userData.recent_university_id);
+  const contactVisibilityRaw = profile?.show_email;
+  const contactVisibility = Number(
+    contactVisibilityRaw === true ? 2 : contactVisibilityRaw || 0
+  ); // 0 hidden, 1 connections, 2 everyone
+  const emailVisibleFlag =
+    profile?.email_visible === true ||
+    profile?.email_visible === "1" ||
+    Number(profile?.email_visible) === 1;
+  const contactEmail = profile?.email || "";
+  const viewerCanSeeEmail =
+    isOwnProfile ||
+    emailVisibleFlag ||
+    contactVisibility === 2 ||
+    (contactVisibility === 1 && isConnected);
+  const canDisplayEmailValue = viewerCanSeeEmail && Boolean(contactEmail);
+  const canMessageUser = () => {
+    if (!userData?.user_id) return false;
+    if (allowMessagesFrom === "everyone") return true;
+    if (allowMessagesFrom === "connections") return isConnected;
+    if (allowMessagesFrom === "community") return isConnected || sharesCommunity;
+    return true;
+  };
+  const handleMessageClick = (e) => {
+    if (canMessageUser()) {
+      setMessageRestriction("");
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    let reason = "Connect with this user first to send messages.";
+    if (allowMessagesFrom === "community") {
+      reason = "Join the same community or connect to message this user.";
+    }
+    setMessageRestriction(reason);
+  };
 
   return (
     <div className="profile-view profile-container">
@@ -462,7 +500,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                   alt={`${fullName} Avatar`}
                   className={`user-hero-logo ${isDefaultAvatar ? "user-hero-logo--default" : ""}`}
                 />
-                {isOnline && <span className="presence-dot presence-dot--online" title="Online" />}
+                {isOnline && <span className="presence-dot presence-dot--online" title="Online" aria-label="Online" />}
               </div>
             </div>
             <div className="hero-text">
@@ -475,6 +513,12 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                     title={`Verified from ${verifiedCommunityName}`}
                   />
                 )}
+                {onlineLabel && (
+                  <span className={`online-status-text ${isOnline ? "online" : "offline"}`}>
+                    {onlineLabel}
+                  </span>
+                )}
+                {/* Presence badge disabled for now */}
               </h1>
               <p className="hero-sub">{displayHeadline}</p>
               <p className="hero-sub">{followerCount} Followers</p>
@@ -494,11 +538,20 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
               )}
             </div>
           </div>
+          {messageRestriction && (
+            <div className="info-banner" style={{ marginTop: 8 }}>
+              {messageRestriction}
+            </div>
+          )}
           <div className="hero-right hero-actions">
             {userData && userData.user_id !== parseInt(user_id, 10) && (
               <div className="profile-actions" style={{ position: "relative" }}>
                 {connectionStatus === "accepted" ? (
-                  <RouterLink to={`/messages?user=${user_id}`} className="message-button">
+                  <RouterLink
+                    to={`/messages?user=${user_id}`}
+                    className="message-button"
+                    onClick={handleMessageClick}
+                  >
                     Message
                   </RouterLink>
                 ) : connectionStatus === "pending" ? (
@@ -607,105 +660,136 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
           )}
 
           {activeTab === "about" && (
-            <>
-              <div className={`profile-section about-section ${shouldBlurDetails ? "restricted" : ""}`}>
-                <h3>About</h3>
-                <p>{DOMPurify.sanitize(displayAbout)}</p>
-              </div>
+            <div className="profile-grid">
+              <div className="profile-main">
+                <div className={`profile-section about-section ${shouldBlurDetails ? "restricted" : ""}`}>
+                  <h3>About</h3>
+                  <p>{DOMPurify.sanitize(displayAbout)}</p>
+                </div>
 
-              <div className="profile-section">
-                <h3>Experience</h3>
-                {loadingExp ? (
-                  <p>Loading experience...</p>
-                ) : errorExp ? (
-                  <p>{errorExp}</p>
-                ) : experience.length > 0 ? (
-                  experience.map((exp, index) => (
-                    <div key={index} className="experience-item">
-                      <h4>
-                        {exp.title} at {exp.company}
-                      </h4>
-                      {exp.start_date && (
-                        <div className="experience-dates">
-                          {exp.start_date} - {exp.end_date ? exp.end_date : "Present"}
+                <div className="profile-section">
+                  <h3>Experience</h3>
+                  {loadingExp ? (
+                    <p>Loading experience...</p>
+                  ) : errorExp ? (
+                    <p>{errorExp}</p>
+                  ) : experience.length > 0 ? (
+                    experience.map((exp, index) => (
+                      <div key={index} className="experience-item">
+                        <h4>
+                          {exp.title} at {exp.company}
+                        </h4>
+                        {exp.start_date && (
+                          <div className="experience-dates">
+                            {exp.start_date} - {exp.end_date ? exp.end_date : "Present"}
+                          </div>
+                        )}
+                        <div className="experience-meta">
+                          <span className="experience-type">{exp.employment_type}</span>
+                          <span className="experience-location">
+                            {exp.location_city}
+                            {exp.location_state ? `, ${exp.location_state}` : ""}
+                          </span>
                         </div>
-                      )}
-                      <div className="experience-meta">
-                        <span className="experience-type">{exp.employment_type}</span>
-                        <span className="experience-location">
-                          {exp.location_city}
-                          {exp.location_state ? `, ${exp.location_state}` : ""}
-                        </span>
+                        <p>{exp.description}</p>
+                        {exp.responsibilities && exp.responsibilities.length > 0 && (
+                          <ul className="responsibilities-list">
+                            {exp.responsibilities.map((resp, idx) => (
+                              <li key={idx}>{resp}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
-                      <p>{exp.description}</p>
-                      {exp.responsibilities && exp.responsibilities.length > 0 && (
-                        <ul className="responsibilities-list">
-                          {exp.responsibilities.map((resp, idx) => (
-                            <li key={idx}>{resp}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p>No experience added yet.</p>
-                )}
+                    ))
+                  ) : (
+                    <p>No experience added yet.</p>
+                  )}
+                </div>
+
+                <div className="profile-section">
+                  <h3>Education</h3>
+                  {loadingEdu ? (
+                    <p>Loading education...</p>
+                  ) : errorEdu ? (
+                    <p>{errorEdu}</p>
+                  ) : education.length > 0 ? (
+                    education.map((edu, index) => (
+                      <div key={index} className="education-item">
+                        <h4>
+                          {edu.degree} in {edu.field_of_study}
+                        </h4>
+                        <div className="education-institution">{edu.institution}</div>
+                        {edu.start_date && (
+                          <div className="education-dates">
+                            {edu.start_date} - {edu.end_date ? edu.end_date : "Present"}
+                          </div>
+                        )}
+                        {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
+                        {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
+                        {edu.activities_societies && (
+                          <div className="education-activities">
+                            Activities: {edu.activities_societies}
+                          </div>
+                        )}
+                        {edu.achievements && edu.achievements.length > 0 && (
+                          <ul className="achievements-list">
+                            {edu.achievements.map((ach, idx) => (
+                              <li key={idx}>{ach}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p>No education details added yet.</p>
+                  )}
+                </div>
+
+                <div className="profile-section">
+                  <h3>Skills</h3>
+                  {displaySkills ? (
+                    <ul className="skills-list">
+                      {displaySkills.split(",").map((skill, index) => (
+                        <li key={index} className="skill-item">
+                          {skill.trim()}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No skills listed yet.</p>
+                  )}
+                </div>
               </div>
 
-              <div className="profile-section">
-                <h3>Education</h3>
-                {loadingEdu ? (
-                  <p>Loading education...</p>
-                ) : errorEdu ? (
-                  <p>{errorEdu}</p>
-                ) : education.length > 0 ? (
-                  education.map((edu, index) => (
-                    <div key={index} className="education-item">
-                      <h4>
-                        {edu.degree} in {edu.field_of_study}
-                      </h4>
-                      <div className="education-institution">{edu.institution}</div>
-                      {edu.start_date && (
-                        <div className="education-dates">
-                          {edu.start_date} - {edu.end_date ? edu.end_date : "Present"}
-                        </div>
-                      )}
-                      {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
-                      {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
-                      {edu.activities_societies && (
-                        <div className="education-activities">
-                          Activities: {edu.activities_societies}
-                        </div>
-                      )}
-                      {edu.achievements && edu.achievements.length > 0 && (
-                        <ul className="achievements-list">
-                          {edu.achievements.map((ach, idx) => (
-                            <li key={idx}>{ach}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))
+              <aside className="profile-aside">
+                <div className="info-card">
+                  <h3>Contact Me</h3>
+                {viewerCanSeeEmail ? (
+                  canDisplayEmailValue ? (
+                    <a className="contact-email" href={`mailto:${contactEmail}`}>
+                      {contactEmail}
+                    </a>
+                  ) : (
+                    <p className="muted">No email provided.</p>
+                  )
+                ) : isOwnProfile ? (
+                  contactVisibility === 1 ? (
+                    <p className="muted">
+                      Only your connections can view this email. Change it in Account Settings to share more widely.
+                    </p>
+                  ) : (
+                    <p className="muted">
+                      Your email is hidden. Switch to &quot;Connections only&quot; or &quot;Everyone&quot; in Account Settings to share it.
+                    </p>
+                  )
+                ) : contactVisibility === 1 ? (
+                  <p className="muted">Only this user's connections can view their email.</p>
                 ) : (
-                  <p>No education details added yet.</p>
+                  <p className="muted">This user has chosen to hide their email.</p>
                 )}
               </div>
-
-              <div className="profile-section">
-                <h3>Skills</h3>
-                {displaySkills ? (
-                  <ul className="skills-list">
-                    {displaySkills.split(",").map((skill, index) => (
-                      <li key={index} className="skill-item">
-                        {skill.trim()}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>No skills listed yet.</p>
-                )}
-              </div>
-            </>
+              </aside>
+            </div>
           )}
 
           {activeTab === "posts" && (

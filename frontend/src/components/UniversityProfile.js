@@ -52,6 +52,22 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editStatus, setEditStatus] = useState('');
   const [menuOpenFor, setMenuOpenFor] = useState(null);
+  const [subcommunities, setSubcommunities] = useState([]);
+  const [loadingSubcommunities, setLoadingSubcommunities] = useState(false);
+  const [subcommunitiesError, setSubcommunitiesError] = useState('');
+  const [showCreateSubModal, setShowCreateSubModal] = useState(false);
+  const [createSubData, setCreateSubData] = useState({
+    name: '',
+    tagline: '',
+    location: '',
+    website: '',
+    primary_color: '',
+    secondary_color: ''
+  });
+  const [isCreatingSub, setIsCreatingSub] = useState(false);
+  const [createSubStatus, setCreateSubStatus] = useState('');
+  const [childFollowBusy, setChildFollowBusy] = useState({});
+  const hasSubcommunities = subcommunities.length > 0;
 
   const canViewAmbassadors = Boolean(userData);
   const isAmbassador =
@@ -203,6 +219,78 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, userData]);
 
+  // --------------------------------------------------------------------------
+  // Sub-communities: load and manage follows
+  // --------------------------------------------------------------------------
+  const loadSubcommunities = async () => {
+    setLoadingSubcommunities(true);
+    setSubcommunitiesError('');
+    try {
+      const params = new URLSearchParams();
+      params.append('parent_id', id);
+      if (userData?.user_id) {
+        params.append('user_id', userData.user_id);
+      }
+      const res = await axios.get(`/api/fetch_subcommunities.php?${params.toString()}`);
+      if (res.data.success) {
+        setSubcommunities(res.data.subcommunities || []);
+      } else {
+        setSubcommunities([]);
+        setSubcommunitiesError(res.data.error || 'Unable to load sub-communities.');
+      }
+    } catch (err) {
+      setSubcommunities([]);
+      setSubcommunitiesError('Unable to load sub-communities.');
+    } finally {
+      setLoadingSubcommunities(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSubcommunities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, userData?.user_id]);
+
+  const handleChildFollowToggle = async (communityId, isFollowingNow) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    setChildFollowBusy((prev) => ({ ...prev, [communityId]: true }));
+    try {
+      const endpoint = isFollowingNow ? '/api/unfollow_community.php' : '/api/follow_community.php';
+      const res = await axios.post(
+        endpoint,
+        { user_id: userData.user_id, community_id: communityId },
+        { withCredentials: true }
+      );
+      if (res.data.error) {
+        alert(res.data.error);
+        return;
+      }
+      setSubcommunities((prev) =>
+        prev.map((c) => {
+          if (String(c.community_id) !== String(communityId)) return c;
+          const nextFollowers =
+            Number(c.followers_count || 0) + (isFollowingNow ? -1 : 1);
+          return {
+            ...c,
+            is_following: !isFollowingNow,
+            followers_count: Math.max(0, nextFollowers)
+          };
+        })
+      );
+    } catch (err) {
+      alert('Unable to update follow status right now.');
+    } finally {
+      setChildFollowBusy((prev) => {
+        const next = { ...prev };
+        delete next[communityId];
+        return next;
+      });
+    }
+  };
+
   const handleSubmitQuestion = async (e) => {
     e.preventDefault();
     if (!userData) {
@@ -314,6 +402,61 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     } finally {
       setIsTogglingFollow(false);
     }
+  };
+
+  useEffect(() => {
+    if (university) {
+      setCreateSubData((prev) => ({
+        ...prev,
+        primary_color: prev.primary_color || university.primary_color || '#0077B5',
+        secondary_color: prev.secondary_color || university.secondary_color || '#005f8d'
+      }));
+    }
+  }, [university]);
+
+  const handleCreateSubcommunity = async (e) => {
+    e.preventDefault();
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    setIsCreatingSub(true);
+    setCreateSubStatus('');
+    try {
+      const payload = {
+        ...createSubData,
+        type: 'group',
+        parent_community_id: id,
+        primary_color: createSubData.primary_color || university?.primary_color || '#0077B5',
+        secondary_color: createSubData.secondary_color || university?.secondary_color || '#005f8d'
+      };
+      const res = await axios.post('/api/create_community.php', payload, { withCredentials: true });
+      if (res.data.success) {
+        setCreateSubStatus('Sub-community created.');
+        setShowCreateSubModal(false);
+        setCreateSubData({
+          name: '',
+          tagline: '',
+          location: '',
+          website: '',
+          primary_color: university?.primary_color || '#0077B5',
+          secondary_color: university?.secondary_color || '#005f8d'
+        });
+        loadSubcommunities();
+      } else {
+        setCreateSubStatus(res.data.error || 'Unable to create sub-community.');
+      }
+    } catch (err) {
+      console.error('Error creating sub-community:', err);
+      setCreateSubStatus('Unable to create sub-community.');
+    } finally {
+      setIsCreatingSub(false);
+      setTimeout(() => setCreateSubStatus(''), 2500);
+    }
+  };
+
+  const handleSubFieldChange = (field, value) => {
+    setCreateSubData((prev) => ({ ...prev, [field]: value }));
   };
 
   // Handle form submission to update university details
@@ -434,6 +577,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     university.logo_path && university.logo_path.startsWith('/')
       ? university.logo_path
       : `/uploads/logos/${university.logo_path || 'default-logo.png'}`;
+  const subCommunityCount = Number(university.child_count || 0);
 
   return (
     <div className="profile-container" style={{
@@ -478,6 +622,9 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
               <p className="muted" style={{ marginTop: 6, textAlign: 'right' }}>
                 {followersCount} follower{followersCount === 1 ? '' : 's'}
               </p>
+              <p className="muted" style={{ margin: '4px 0 0 0', textAlign: 'right' }}>
+                {subCommunityCount} sub-community{subCommunityCount === 1 ? '' : 'ies'}
+              </p>
               {canEditCommunity && (
                 <button
                   type="button"
@@ -497,6 +644,15 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
             >
               Overview
             </button>
+            {(hasSubcommunities || canEditCommunity) && (
+              <button
+                type="button"
+                className={`tab-link ${activeTab === 'subgroups' ? 'active' : ''}`}
+                onClick={() => setActiveTab('subgroups')}
+              >
+                Sub-Groups
+              </button>
+            )}
             <button
               type="button"
               className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
@@ -518,6 +674,123 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
         <div className={`profile-split ${activeTab === 'qa' ? 'fullwidth' : ''}`}>
           <div className="split-main">
             {activeTab === 'overview' && null}
+
+            {activeTab === 'subgroups' && (
+              <div className="content-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Sub-Groups</h3>
+                    <p className="muted">Departments, programs, and teams managed by {university.name}.</p>
+                  </div>
+                  {canEditCommunity && (
+                    <button
+                      type="button"
+                      className="pill-button"
+                      onClick={() => {
+                        if (!userData) {
+                          onRequireAuth?.();
+                          return;
+                        }
+                        setShowCreateSubModal(true);
+                        setCreateSubStatus('');
+                        setCreateSubData({
+                          name: '',
+                          tagline: '',
+                          location: '',
+                          website: '',
+                          primary_color: university?.primary_color || '#0077B5',
+                          secondary_color: university?.secondary_color || '#005f8d'
+                        });
+                      }}
+                    >
+                      Create sub-community
+                    </button>
+                  )}
+                </div>
+
+                {loadingSubcommunities ? (
+                  <p>Loading sub-groups...</p>
+                ) : subcommunitiesError ? (
+                  <p>{subcommunitiesError}</p>
+                ) : subcommunities.length === 0 ? (
+                  <p className="muted">No sub-groups yet.</p>
+                ) : (
+                  <div className="community-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {subcommunities.map((child) => {
+                      const isFollowingChild =
+                        child.is_following === true ||
+                        child.is_following === 1 ||
+                        child.is_following === '1';
+                      const logoSrc =
+                        child.logo_path && child.logo_path.startsWith('/')
+                          ? child.logo_path
+                          : `/uploads/logos/${child.logo_path || 'default-logo.png'}`;
+                      return (
+                        <div
+                          key={child.community_id}
+                          className={`community-row-card${isFollowingChild ? ' followed' : ''}`}
+                        >
+                          <img
+                            src={logoSrc}
+                            alt={`${child.name} Logo`}
+                            className="community-row-logo"
+                            loading="lazy"
+                          />
+                          <div className="community-row-content">
+                            <div className="community-row-header">
+                              <h4 className="community-name" style={{ margin: 0 }}>
+                                <RouterLink
+                                  to={`/${child.community_type}/${child.community_id}`}
+                                  style={{ textDecoration: 'none', color: 'inherit' }}
+                                >
+                                  <span className="truncate-38ch">{child.name}</span>
+                                </RouterLink>
+                              </h4>
+                              <span className="pill-button secondary" style={{ padding: '4px 10px' }}>
+                                {child.community_type === 'group' ? 'Group' : 'University'}
+                              </span>
+                            </div>
+                            {child.tagline && (
+                              <p className="community-slogan" style={{ margin: '2px 0' }}>{child.tagline}</p>
+                            )}
+                            <div className="community-row-meta">
+                              {child.location && (
+                                <span className="community-location">{child.location}</span>
+                              )}
+                              <span
+                                className="followers-count"
+                                style={{ marginLeft: child.location ? 12 : 0 }}
+                              >
+                                Followers: {child.followers_count || 0}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="community-row-actions">
+                            <button
+                              type="button"
+                              className={`follow-button ${isFollowingChild ? 'unfollow' : 'follow'} ${!userData ? 'locked' : ''}`}
+                              onClick={() => handleChildFollowToggle(child.community_id, isFollowingChild)}
+                              aria-disabled={!userData || childFollowBusy[child.community_id]}
+                              disabled={childFollowBusy[child.community_id]}
+                              title={!userData ? 'Log in to follow communities' : isFollowingChild ? 'Unfollow community' : 'Follow community'}
+                            >
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                {!userData && <FaLock size={12} />}
+                                {childFollowBusy[child.community_id]
+                                  ? 'Updating…'
+                                  : isFollowingChild
+                                  ? 'Unfollow'
+                                  : 'Follow'}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeTab === 'posts' && (
               <div className="content-card">
@@ -792,6 +1065,93 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
               </button>
             </div>
             {editStatus && <p className="muted" style={{ marginTop: 6 }}>{editStatus}</p>}
+          </form>
+        </div>
+      </ModalOverlay>
+
+      <ModalOverlay
+        isOpen={showCreateSubModal}
+        onClose={() => {
+          setShowCreateSubModal(false);
+          setCreateSubStatus('');
+        }}
+      >
+        <div className="content-card">
+          <div className="qa-header">
+            <div>
+              <h3>Create sub-community</h3>
+              <p className="muted">Add a department or program under {university.name}.</p>
+            </div>
+          </div>
+          <form className="qa-form" onSubmit={handleCreateSubcommunity}>
+            <label className="qa-label" htmlFor="sub-name">Name</label>
+            <input
+              id="sub-name"
+              type="text"
+              value={createSubData.name}
+              onChange={(e) => handleSubFieldChange('name', e.target.value)}
+              placeholder="Financial Services Department"
+              required
+            />
+            <label className="qa-label" htmlFor="sub-tagline">Tagline</label>
+            <input
+              id="sub-tagline"
+              type="text"
+              value={createSubData.tagline}
+              onChange={(e) => handleSubFieldChange('tagline', e.target.value)}
+              placeholder="Helping students manage finances"
+            />
+            <label className="qa-label" htmlFor="sub-location">Location</label>
+            <input
+              id="sub-location"
+              type="text"
+              value={createSubData.location}
+              onChange={(e) => handleSubFieldChange('location', e.target.value)}
+            />
+            <label className="qa-label" htmlFor="sub-website">Website</label>
+            <input
+              id="sub-website"
+              type="url"
+              value={createSubData.website}
+              onChange={(e) => handleSubFieldChange('website', e.target.value)}
+            />
+            <label className="qa-label" htmlFor="sub-primary-color">Primary Color</label>
+            <input
+              id="sub-primary-color"
+              type="color"
+              value={createSubData.primary_color || '#0077B5'}
+              onChange={(e) => handleSubFieldChange('primary_color', e.target.value)}
+            />
+            <label className="qa-label" htmlFor="sub-secondary-color">Secondary Color</label>
+            <input
+              id="sub-secondary-color"
+              type="color"
+              value={createSubData.secondary_color || '#005f8d'}
+              onChange={(e) => handleSubFieldChange('secondary_color', e.target.value)}
+            />
+            <div className="qa-actions">
+              <button
+                type="submit"
+                className="pill-button"
+                disabled={isCreatingSub}
+              >
+                {isCreatingSub ? 'Creating…' : 'Create sub-community'}
+              </button>
+              <button
+                type="button"
+                className="pill-button secondary"
+                onClick={() => {
+                  setShowCreateSubModal(false);
+                  setCreateSubStatus('');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+            {createSubStatus && <p className="muted" style={{ marginTop: 6 }}>{createSubStatus}</p>}
+            <p className="muted" style={{ marginTop: 6 }}>
+              Type is locked to <strong>group</strong> so it appears as a child of this university.
+            </p>
           </form>
         </div>
       </ModalOverlay>

@@ -64,8 +64,11 @@ try {
 
     // Insert the notification into the notifications table
     $notificationId = generateUniqueId($db, 'notifications');
-    $insertStmt = $db->prepare("INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message) VALUES (?, ?, 'reply', ?, ?, ?)");
-    $result = $insertStmt->execute([$notificationId, $post_owner_id, $replier_id, $post_id, $message]);
+    $insertStmt = $db->prepare("
+        INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message)
+        VALUES (?, ?, ?, 'reply', NULL, ?)
+    ");
+    $result = $insertStmt->execute([$notificationId, $post_owner_id, $replier_id, $message]);
 
     if ($result) {
         echo json_encode(['success' => true]);

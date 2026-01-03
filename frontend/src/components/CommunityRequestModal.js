@@ -11,14 +11,31 @@ function CommunityRequestModal({
   isSubmitting,
   title,
   submitLabel,
-  lockType
+  lockType,
+  allowSubCommunity = false,
+  parentCommunities = [],
+  isLoadingParents = false
 }) {
-  if (!isVisible) return null;
+  const [parentSearch, setParentSearch] = React.useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    // Reset parent if type changes away from sub-community
+    if (name === 'type' && value !== 'sub_community') {
+      setFormData(prev => ({ ...prev, [name]: value, parent_community_id: '' }));
+      return;
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  const filteredParents = React.useMemo(() => {
+    if (!parentSearch) return parentCommunities;
+    return parentCommunities.filter((c) =>
+      (c.name || '').toLowerCase().includes(parentSearch.toLowerCase())
+    );
+  }, [parentSearch, parentCommunities]);
+
+  if (!isVisible) return null;
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="request-modal-title">
@@ -106,9 +123,42 @@ function CommunityRequestModal({
                 <option value="">Select...</option>
                 <option value="university">University</option>
                 <option value="group">Group</option>
+                {allowSubCommunity && <option value="sub_community">Sub-Community</option>}
               </select>
             )}
           </div>
+          {formData.type === 'sub_community' && (
+            <div className="form-group">
+              <label htmlFor="parent-community">Parent Community:</label>
+              <input
+                type="text"
+                placeholder="Search communities..."
+                value={parentSearch}
+                onChange={(e) => setParentSearch(e.target.value)}
+                style={{ marginBottom: '8px' }}
+              />
+              <select
+                id="parent-community"
+                name="parent_community_id"
+                value={formData.parent_community_id || ''}
+                onChange={handleChange}
+                required
+                disabled={isLoadingParents}
+              >
+                <option value="">{isLoadingParents ? 'Loading communities...' : 'Select parent'}</option>
+                {filteredParents.map((c) => (
+                  <option key={c.community_id || c.id} value={c.community_id || c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <p className="muted" style={{ marginTop: 6 }}>
+                {isLoadingParents
+                  ? 'Loading communities...'
+                  : 'Choose the community to nest under.'}
+              </p>
+            </div>
+          )}
           <div className="form-group">
             <label htmlFor="community-description">Description:</label>
             <textarea
@@ -139,6 +189,13 @@ CommunityRequestModal.propTypes = {
   title: PropTypes.string,
   submitLabel: PropTypes.string,
   lockType: PropTypes.bool,
+  allowSubCommunity: PropTypes.bool,
+  parentCommunities: PropTypes.arrayOf(PropTypes.shape({
+    community_id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    name: PropTypes.string
+  })),
+  isLoadingParents: PropTypes.bool,
 };
 
 export default CommunityRequestModal;

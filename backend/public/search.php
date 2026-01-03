@@ -23,30 +23,52 @@ if ($q === '') {
 }
 
 try {
-    $viewer_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
+    $viewer_id = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
 
     // Users (supports @prefix)
     $userTerm = $q[0] === '@' ? substr($q, 1) : $q;
     if ($userTerm !== '') {
+        // Fetch viewer connections for discoverability "connections" handling
+        $connections = [];
+        if ($viewer_id) {
+            $cstmt = $db->prepare("
+                SELECT CASE WHEN user_id1 = :vid THEN user_id2 ELSE user_id1 END AS other_id
+                FROM connections
+                WHERE (user_id1 = :vid OR user_id2 = :vid) AND status = 'accepted'
+            ");
+            $cstmt->execute([':vid' => $viewer_id]);
+            $connections = $cstmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        }
+
         $stmt = $db->prepare("
-            SELECT u.user_id, u.first_name, u.last_name, u.avatar_path, u.is_public
+            SELECT u.user_id, u.first_name, u.last_name, u.avatar_path, u.is_public, COALESCE(s.discoverable, 2) AS discoverable
             FROM users u
-            WHERE CONCAT(u.first_name, ' ', u.last_name) LIKE :uq
-               OR u.email LIKE :uq
+            LEFT JOIN account_settings s ON s.user_id = u.user_id
+            WHERE (CONCAT(u.first_name, ' ', u.last_name) LIKE :uq OR u.email LIKE :uq)
             ORDER BY u.login_count DESC, u.user_id DESC
             LIMIT :lim
         ");
         $stmt->bindValue(':uq', '%' . $userTerm . '%', PDO::PARAM_STR);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':viewer', $viewer_id, PDO::PARAM_STR);
         $stmt->execute();
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($users as &$u) {
-            if ((int)$u['is_public'] === 0 && $viewer_id !== (int)$u['user_id']) {
+        $filteredUsers = [];
+        foreach ($users as $u) {
+            $isViewer = $viewer_id !== '' && $u['user_id'] === $viewer_id;
+            $disc = (int)$u['discoverable'];
+            $isConnection = $isViewer ? false : in_array($u['user_id'], $connections, true);
+            $canShow = $disc === 2 || ($disc === 1 && $isConnection) || $isViewer;
+            if (!$canShow) {
+                continue;
+            }
+            if ((int)$u['is_public'] === 0 && !$isViewer) {
                 $u['last_name'] = substr($u['last_name'], 0, 1) . '.';
             }
-            unset($u['is_public']);
+            unset($u['is_public'], $u['discoverable']);
+            $filteredUsers[] = $u;
         }
-        $results['users'] = $users;
+        $results['users'] = $filteredUsers;
     }
 
     // Tags (supports #prefix)
@@ -67,10 +89,20 @@ try {
 
     // Communities (universities/groups)
     $stmt = $db->prepare("
-        SELECT id, community_type, name, tagline, location, logo_path, created_at
-        FROM communities
-        WHERE name LIKE :q OR tagline LIKE :q OR location LIKE :q
-        ORDER BY created_at DESC
+        SELECT 
+            c.id, 
+            c.community_type, 
+            c.parent_community_id,
+            c.name, 
+            c.tagline, 
+            c.location, 
+            c.logo_path, 
+            c.created_at,
+            p.name AS parent_name
+        FROM communities c
+        LEFT JOIN communities p ON p.id = c.parent_community_id
+        WHERE c.name LIKE :q OR c.tagline LIKE :q OR c.location LIKE :q
+        ORDER BY c.created_at DESC
         LIMIT :lim
     ");
     $stmt->bindValue(':q', '%' . $q . '%', PDO::PARAM_STR);

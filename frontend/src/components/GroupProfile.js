@@ -1,6 +1,6 @@
 // src/components/GroupProfile.js
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link as RouterLink } from 'react-router-dom';
 import axios from 'axios';
 import { FaLock } from 'react-icons/fa';
 import './GroupProfile.css';
@@ -44,6 +44,11 @@ function GroupProfile({ userData, onRequireAuth }) {
   const [errorAmbassadors, setErrorAmbassadors] = useState(null);
   const [ambassadorsLoaded, setAmbassadorsLoaded] = useState(false);
   const [menuOpenFor, setMenuOpenFor] = useState(null);
+  const [subcommunities, setSubcommunities] = useState([]);
+  const [loadingSubcommunities, setLoadingSubcommunities] = useState(false);
+  const [subcommunitiesError, setSubcommunitiesError] = useState('');
+  const [childFollowBusy, setChildFollowBusy] = useState({});
+  const hasSubcommunities = subcommunities.length > 0;
 
   const currentAmbassador = ambassadors.find((a) => String(a.user_id) === String(userData?.user_id));
   const viewerRole = (currentAmbassador?.role || '').toLowerCase() || 'viewer';
@@ -178,6 +183,35 @@ function GroupProfile({ userData, onRequireAuth }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, userData]);
+
+  const loadSubcommunities = async () => {
+    setLoadingSubcommunities(true);
+    setSubcommunitiesError('');
+    try {
+      const params = new URLSearchParams();
+      params.append('parent_id', id);
+      if (userData?.user_id) {
+        params.append('user_id', userData.user_id);
+      }
+      const res = await axios.get(`/api/fetch_subcommunities.php?${params.toString()}`);
+      if (res.data.success) {
+        setSubcommunities(res.data.subcommunities || []);
+      } else {
+        setSubcommunities([]);
+        setSubcommunitiesError(res.data.error || 'Unable to load sub-communities.');
+      }
+    } catch (err) {
+      setSubcommunities([]);
+      setSubcommunitiesError('Unable to load sub-communities.');
+    } finally {
+      setLoadingSubcommunities(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSubcommunities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, userData?.user_id]);
 
   useEffect(() => {
     const fetchPostsForGroup = async () => {
@@ -337,6 +371,46 @@ function GroupProfile({ userData, onRequireAuth }) {
     }
   };
 
+  const handleChildFollowToggle = async (communityId, isFollowingNow) => {
+    if (!isLoggedIn) {
+      onRequireAuth?.();
+      return;
+    }
+    setChildFollowBusy((prev) => ({ ...prev, [communityId]: true }));
+    try {
+      const endpoint = isFollowingNow ? '/api/unfollow_community.php' : '/api/follow_community.php';
+      const res = await axios.post(
+        endpoint,
+        { user_id: userData.user_id, community_id: communityId },
+        { withCredentials: true }
+      );
+      if (res.data.error) {
+        alert(res.data.error);
+        return;
+      }
+      setSubcommunities((prev) =>
+        prev.map((c) => {
+          if (String(c.community_id) !== String(communityId)) return c;
+          const nextFollowers = Number(c.followers_count || 0) + (isFollowingNow ? -1 : 1);
+          return {
+            ...c,
+            is_following: !isFollowingNow,
+            followers_count: Math.max(0, nextFollowers)
+          };
+        })
+      );
+    } catch (err) {
+      console.error('Error updating follow status:', err);
+      alert('Unable to update follow status right now.');
+    } finally {
+      setChildFollowBusy((prev) => {
+        const next = { ...prev };
+        delete next[communityId];
+        return next;
+      });
+    }
+  };
+
   if (loading) return <p>Loading...</p>;
   if (error) return <p>{error}</p>;
   if (!group) return <p>No group found.</p>;
@@ -448,6 +522,17 @@ function GroupProfile({ userData, onRequireAuth }) {
               </div>
               <div className="hero-text">
                 <h1 className="hero-title">{group.name}</h1>
+                {group.parent_name && group.parent_community_id && (
+                  <p className="hero-sub" style={{ marginTop: 4 }}>
+                    Part of{' '}
+                    <RouterLink
+                      to={`/${group.parent_type || 'university'}/${group.parent_community_id}`}
+                      style={{ color: 'inherit', fontWeight: 600 }}
+                    >
+                      {group.parent_name}
+                    </RouterLink>
+                  </p>
+                )}
                 <p className="muted" style={{ marginTop: 6 }}>
                   {followersCount} follower{followersCount === 1 ? '' : 's'}
                 </p>
@@ -489,6 +574,15 @@ function GroupProfile({ userData, onRequireAuth }) {
             >
               Overview
             </button>
+            {(hasSubcommunities || isLoggedIn) && (
+              <button
+                type="button"
+                className={`tab-link ${activeTab === 'subgroups' ? 'active' : ''}`}
+                onClick={() => setActiveTab('subgroups')}
+              >
+                Sub-Groups
+              </button>
+            )}
             <button
               type="button"
               className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
@@ -510,6 +604,98 @@ function GroupProfile({ userData, onRequireAuth }) {
         <div className={`profile-split ${activeTab === 'qa' ? 'fullwidth' : ''}`}>
           <div className="split-main">
             {activeTab === 'overview' && null}
+
+            {activeTab === 'subgroups' && (
+              <div className="content-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Sub-Groups</h3>
+                    <p className="muted">Teams or programs inside {group.name}.</p>
+                  </div>
+                </div>
+                {loadingSubcommunities ? (
+                  <p>Loading sub-groups...</p>
+                ) : subcommunitiesError ? (
+                  <p>{subcommunitiesError}</p>
+                ) : subcommunities.length === 0 ? (
+                  <p className="muted">No sub-groups yet.</p>
+                ) : (
+                  <div className="community-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {subcommunities.map((child) => {
+                      const isFollowingChild =
+                        child.is_following === true ||
+                        child.is_following === 1 ||
+                        child.is_following === '1';
+                      const logoSrc =
+                        child.logo_path && child.logo_path.startsWith('/')
+                          ? child.logo_path
+                          : `/uploads/logos/${child.logo_path || 'default-logo.png'}`;
+                      return (
+                        <div
+                          key={child.community_id}
+                          className={`community-row-card${isFollowingChild ? ' followed' : ''}`}
+                        >
+                          <img
+                            src={logoSrc}
+                            alt={`${child.name} Logo`}
+                            className="community-row-logo"
+                            loading="lazy"
+                          />
+                          <div className="community-row-content">
+                            <div className="community-row-header">
+                              <h4 className="community-name" style={{ margin: 0 }}>
+                                <RouterLink
+                                  to={`/${child.community_type}/${child.community_id}`}
+                                  style={{ textDecoration: 'none', color: 'inherit' }}
+                                >
+                                  <span className="truncate-38ch">{child.name}</span>
+                                </RouterLink>
+                              </h4>
+                              <span className="pill-button secondary" style={{ padding: '4px 10px' }}>
+                                {child.community_type === 'group' ? 'Group' : 'University'}
+                              </span>
+                            </div>
+                            {child.tagline && (
+                              <p className="community-slogan" style={{ margin: '2px 0' }}>{child.tagline}</p>
+                            )}
+                            <div className="community-row-meta">
+                              {child.location && (
+                                <span className="community-location">{child.location}</span>
+                              )}
+                              <span
+                                className="followers-count"
+                                style={{ marginLeft: child.location ? 12 : 0 }}
+                              >
+                                Followers: {child.followers_count || 0}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="community-row-actions">
+                            <button
+                              type="button"
+                              className={`follow-button ${isFollowingChild ? 'unfollow' : 'follow'} ${!isLoggedIn ? 'locked' : ''}`}
+                              onClick={() => handleChildFollowToggle(child.community_id, isFollowingChild)}
+                              aria-disabled={!isLoggedIn || childFollowBusy[child.community_id]}
+                              disabled={childFollowBusy[child.community_id]}
+                              title={!isLoggedIn ? 'Log in to follow communities' : isFollowingChild ? 'Unfollow community' : 'Follow community'}
+                            >
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                {!isLoggedIn && <FaLock size={12} />}
+                                {childFollowBusy[child.community_id]
+                                  ? 'Updating…'
+                                  : isFollowingChild
+                                  ? 'Unfollow'
+                                  : 'Follow'}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeTab === 'posts' && (
               <div className="content-card">

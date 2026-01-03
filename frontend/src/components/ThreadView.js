@@ -4,6 +4,7 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import useOnClickOutside from '../hooks/useOnClickOutside'; // <--- import the hook
 import axios from 'axios';
+import debounce from 'lodash.debounce';
 import {
   FaArrowAltCircleUp,
   FaRegArrowAltCircleUp,
@@ -71,6 +72,24 @@ const timeAgo = (dateStr) => {
 };
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+const buildAvatarSrc = (path) => {
+  const fallback = '/uploads/avatars/DefaultAvatar.png';
+  if (!path) return fallback;
+  if (path.startsWith('http')) return path;
+  // If we already have a root-relative path, use as-is; otherwise prepend uploads path
+  return path.startsWith('/') ? path : `/uploads/avatars/${path}`;
+};
+
+const getDisplayName = (author, viewerId) => {
+  const first = author?.first_name || 'User';
+  const last = author?.last_name || '';
+  const isSelf = viewerId && String(viewerId) === String(author?.user_id);
+  const isConnection = Number(author?.is_connection) === 1;
+  const showFullLast = isSelf || isConnection;
+  const lastPortion = last ? (showFullLast ? last : `${last.charAt(0)}.`) : '';
+  return `${first}${lastPortion ? ` ${lastPortion}` : ''}`;
+};
 
 /* --------------------------------------------------------------------------
    Toolbar for editing posts
@@ -530,6 +549,8 @@ function PostItem({
   const computedClassName = `forum-card reply-card level-${level} ${
     Number(post.verified) === 1 ? 'verified' : ''
   }`;
+  const isAmbassador = Number(userData?.is_ambassador) === 1;
+  const canVerify = userData && ([5, 6, 7].includes(Number(userData.role_id)) || isAmbassador);
   
   return (
     <div className={`post-card card-lift level-${level} ${post.verified === 1 ? 'verified' : ''}`}>
@@ -560,7 +581,6 @@ function PostItem({
             className="menu-icon"
             onClick={() => setOpenMenu((prev) => !prev)}
             style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
-            //onClick={toggleMenu}
           />
           {openMenu && (
             <div
@@ -575,7 +595,7 @@ function PostItem({
                 borderRadius: '4px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                 zIndex: 10,
-                width: '120px',
+                width: '150px',
               }}
             >
               {handleToggleSavePost && (
@@ -607,7 +627,7 @@ function PostItem({
                   textAlign: 'left',
                   cursor: 'pointer',
                 }}
-              onClick={() => {
+                onClick={() => {
                   if (onReport) {
                     onReport({
                       id: post.post_id,
@@ -619,8 +639,27 @@ function PostItem({
                   setOpenMenu(false);
                 }}
               >
-                Report
+                Report {reportLabel === 'comment' ? 'comment' : 'post'}
               </button>
+              {canVerify && post.verified !== 1 && (
+                <button
+                  className="dropdown-item"
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    background: 'none',
+                    padding: '8px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    handleVerifyPost(post.post_id);
+                    setOpenMenu(false);
+                  }}
+                >
+                  Verify answer
+                </button>
+              )}
             </div>
           )}
           {Number(post.verified) === 1 && post.verified_at && (
@@ -630,21 +669,27 @@ function PostItem({
           )}
           {/* Reply header: avatar + meta */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
-            <div className="avatar-circle" aria-hidden>
-              {((post.first_name || '')[0] || 'U').toUpperCase()}
+            <div className="avatar-wrapper">
+              <img
+                src={buildAvatarSrc(post.avatar_path)}
+                alt={getDisplayName(post, userData?.user_id)}
+                className="avatar-image"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = buildAvatarSrc(null);
+                }}
+              />
             </div>
             <div className="post-meta" style={{ margin: 0 }}>
-              <RouterLink to={`/user/${post.user_id}`} style={{ color: 'var(--text-color)', textDecoration: 'none', fontWeight: 600 }}>
-                {post.first_name ? post.first_name : 'User'} {post.last_name ? post.last_name.charAt(0) + '.' : ''}
-              </RouterLink>
-              {post.school_name && (
-                <>
-                  <span className="middot">·</span>
-                  <span className="meta-quiet">{post.school_name}</span>
-                </>
-              )}
-              <span className="middot">·</span>
-              <span className="meta-quiet">{timeAgo(post.created_at)}</span>
+              <div>
+                <RouterLink to={`/user/${post.user_id}`} style={{ color: 'var(--text-color)', textDecoration: 'none', fontWeight: 600 }}>
+                  {getDisplayName(post, userData?.user_id)}
+                </RouterLink>
+              </div>
+              <div className="meta-quiet" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                {post.school_name && <span>{post.school_name}</span>}
+                <span>{timeAgo(post.created_at)}</span>
+              </div>
             </div>
           </div>
           <div
@@ -700,19 +745,6 @@ function PostItem({
                 <span className="collapse-text">
                   {isCollapsed ? 'Show Replies' : 'Hide Replies'}
                 </span>
-              </button>
-            )}
-            {/* NEW: Verify Answer button for admins */}
-            {userData && [5, 6, 7].includes(Number(userData.role_id)) && post.verified === 0 && (
-              console.log(`Rendering Verify Button for post: ${post.post_id}`),
-              <button
-                type="button"
-                className="verify-button"
-                onClick={() => handleVerifyPost(post.post_id)}
-                title="Verify Answer"
-                aria-label="Verify Answer"
-              >
-                Verify Answer
               </button>
             )}
           </div>
@@ -876,7 +908,8 @@ function ThreadView({ userData, onRequireAuth }) {
 
   // NEW: Function to verify a post
   const handleVerifyPost = async (post_id) => {
-    if (!userData || Number(userData.role_id) < 5) {
+    const isAllowed = userData && ([5, 6, 7].includes(Number(userData.role_id)) || Number(userData.is_ambassador) === 1);
+    if (!isAllowed) {
       setNotification({ type: 'error', message: 'You are not authorized to verify posts.' });
       return;
     }
@@ -1325,13 +1358,21 @@ function ThreadView({ userData, onRequireAuth }) {
           {/* Use the thread-top-row pattern inside the card */}
           <div className="thread-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className="avatar-circle" aria-hidden>
-                {((originalPost.first_name || '')[0] || 'U').toUpperCase()}
+              <div className="avatar-wrapper">
+                <img
+                  src={buildAvatarSrc(originalPost.avatar_path)}
+                  alt={getDisplayName(originalPost, userData?.user_id)}
+                  className="avatar-image"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = buildAvatarSrc(null);
+                  }}
+                />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <RouterLink to={`/user/${originalPost.user_id}`} style={{ textDecoration: 'none', color: 'var(--text-color)', fontWeight: 700 }}>
-                    {originalPost.first_name ? originalPost.first_name : 'User'} {originalPost.last_name ? originalPost.last_name : ''}
+                    {getDisplayName(originalPost, userData?.user_id)}
                   </RouterLink>
                   {originalPost.user_role && <span className="meta-quiet">· {originalPost.user_role}</span>}
                 </div>

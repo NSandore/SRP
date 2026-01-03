@@ -18,10 +18,23 @@ $db = getDB();
 try {
     $db->beginTransaction();
 
+    // Load post owner for notifications
+    $ownerStmt = $db->prepare("SELECT user_id FROM posts WHERE post_id = :pid");
+    $ownerStmt->execute([':pid' => $post_id]);
+    $postOwnerId = $ownerStmt->fetchColumn();
+    if (!$postOwnerId) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Post not found']);
+        exit;
+    }
+
     // Check if there's already a vote by this user on this post
     $stmt = $db->prepare("SELECT vote_type FROM post_votes WHERE post_id = :post_id AND user_id = :user_id");
     $stmt->execute([':post_id' => $post_id, ':user_id' => $user_id]);
     $existingVote = $stmt->fetchColumn(); // returns 'up', 'down', or false/null if none
+
+    $shouldNotify = false;
+    $notifyType = null;
 
     if ($existingVote) {
         if ($existingVote === $vote_type) {
@@ -52,6 +65,8 @@ try {
                 $adj = $db->prepare("UPDATE posts SET downvotes = downvotes - 1, upvotes = upvotes + 1 WHERE post_id = :post_id");
                 $adj->execute([':post_id' => $post_id]);
             }
+            $shouldNotify = true;
+            $notifyType = $vote_type === 'up' ? 'upvote' : 'downvote';
         }
     } else {
         // No existing vote => insert a new row
@@ -67,9 +82,44 @@ try {
             $inc = $db->prepare("UPDATE posts SET downvotes = downvotes + 1 WHERE post_id = :post_id");
             $inc->execute([':post_id' => $post_id]);
         }
+        $shouldNotify = true;
+        $notifyType = $vote_type === 'up' ? 'upvote' : 'downvote';
     }
 
     $db->commit();
+    // Notify the post owner (unless self-vote) only when a new vote or type change happens
+    if ($shouldNotify && $postOwnerId && $postOwnerId !== $user_id) {
+        // Check recipient preference for vote notifications
+        $prefStmt = $db->prepare("SELECT JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_votes')) AS notify_votes FROM account_settings WHERE user_id = :rid");
+        $prefStmt->execute([':rid' => $postOwnerId]);
+        $prefRow = $prefStmt->fetch(PDO::FETCH_ASSOC);
+        $notifyPref = isset($prefRow['notify_votes']) ? (int)$prefRow['notify_votes'] : 1;
+        if ($notifyPref !== 1) {
+            echo json_encode(['success' => true]);
+            exit;
+        }
+        $notifId = generateUniqueId($db, 'notifications');
+        // Build actor display
+        $actorStmt = $db->prepare("SELECT first_name, last_name FROM users WHERE user_id = :uid");
+        $actorStmt->execute([':uid' => $user_id]);
+        $actor = $actorStmt->fetch(PDO::FETCH_ASSOC);
+        $actorName = $actor ? ($actor['first_name'] . ' ' . substr($actor['last_name'], 0, 1) . '.') : 'Someone';
+        $message = $notifyType === 'upvote'
+            ? "$actorName upvoted your post."
+            : "$actorName downvoted your post.";
+        $notifStmt = $db->prepare("
+            INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message)
+            VALUES (:nid, :rid, :aid, :ntype, NULL, :msg)
+        ");
+        $notifStmt->execute([
+            ':nid' => $notifId,
+            ':rid' => $postOwnerId,
+            ':aid' => $user_id,
+            ':ntype' => $notifyType,
+            ':msg' => $message,
+        ]);
+    }
+
     echo json_encode(['success' => true]);
 } catch (PDOException $e) {
     if ($db->inTransaction()) {

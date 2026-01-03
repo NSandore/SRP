@@ -12,7 +12,28 @@ if (!isset($_SESSION['user_id']) || $_SESSION['email'] !== 'n.sandore5140@gmail.
 
 try {
     $db = getDB();
-    $stmt = $db->query("SELECT r.id, r.name, r.community_type, r.description, r.tagline, r.location, r.website, r.primary_color, r.secondary_color, r.status, r.created_at, u.email AS requester_email FROM community_creation_requests r JOIN users u ON r.user_email = u.email WHERE r.status = 'pending' ORDER BY r.created_at DESC");
+    $stmt = $db->query("
+        SELECT 
+            r.id, 
+            r.name, 
+            r.community_type, 
+            r.parent_community_id,
+            r.description, 
+            r.tagline, 
+            r.location, 
+            r.website, 
+            r.primary_color, 
+            r.secondary_color, 
+            r.status, 
+            r.created_at, 
+            u.email AS requester_email,
+            p.name AS parent_name
+        FROM community_creation_requests r 
+        JOIN users u ON r.user_email = u.email 
+        LEFT JOIN communities p ON p.id = r.parent_community_id
+        WHERE r.status = 'pending' 
+        ORDER BY r.created_at DESC
+    ");
     $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['success' => true, 'requests' => $requests]);
 } catch (PDOException $e) {

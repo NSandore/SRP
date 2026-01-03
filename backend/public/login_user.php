@@ -58,6 +58,13 @@ try {
         $_SESSION['is_ambassador'] = $user['is_ambassador'];
         $_SESSION['login_count'] = $user['login_count'];
         $_SESSION['is_public'] = $user['is_public'];
+        $sessionId = session_id();
+        $userAgent = substr($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown device', 0, 255);
+        $ipAddress = substr(
+            $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0',
+            0,
+            45
+        );
 
         // Fetch communities where this user is an ambassador admin
         $adminCommunities = [];
@@ -66,6 +73,19 @@ try {
         $adminCommunities = $cStmt->fetchAll(PDO::FETCH_COLUMN);
         $_SESSION['admin_community_ids'] = $adminCommunities;
         $user['admin_community_ids'] = $adminCommunities;
+
+        // Track this session
+        $sessionStmt = $db->prepare("
+            INSERT INTO user_sessions (session_id, user_id, user_agent, ip_address, created_at, last_active_at)
+            VALUES (:sid, :uid, :ua, :ip, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE user_agent = VALUES(user_agent), ip_address = VALUES(ip_address), last_active_at = NOW(), revoked_at = NULL
+        ");
+        $sessionStmt->execute([
+            ':sid' => $sessionId,
+            ':uid' => $user['user_id'],
+            ':ua' => $userAgent,
+            ':ip' => $ipAddress,
+        ]);
 
         echo json_encode([
             "success" => true,

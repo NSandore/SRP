@@ -67,7 +67,8 @@ function SearchResults() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const API_BASE = process.env.REACT_APP_API_BASE || 'http://172.16.11.133';
+  const API_BASE = (process.env.REACT_APP_API_BASE || window.location.origin || '').replace(/\/$/, '');
+  const buildApiUrl = (path) => `${API_BASE}${path}`;
   const tabs = React.useMemo(
     () => [
       { id: 'users', label: 'Users' },
@@ -178,7 +179,7 @@ function SearchResults() {
     setError('');
     const controller = new AbortController();
     axios
-      .get(`${API_BASE}/api/search.php?q=${encodeURIComponent(query)}&limit=8`, {
+      .get(buildApiUrl(`/api/search.php?q=${encodeURIComponent(query)}&limit=8`), {
         withCredentials: true,
         signal: controller.signal,
       })
@@ -312,10 +313,12 @@ function SearchResults() {
                       <div className="community-row-meta">
                         {c.tagline && <span>{c.tagline}</span>}
                         {c.location && (
-                          <>
-                            <span className="dot-sep">•</span>
-                            <span>{c.location}</span>
-                          </>
+                          <span style={{ marginLeft: c.tagline ? 12 : 0 }}>{c.location}</span>
+                        )}
+                        {c.parent_name && (
+                          <span className="muted" style={{ marginLeft: (c.tagline || c.location) ? 12 : 0 }}>
+                            Part of {c.parent_name}
+                          </span>
                         )}
                       </div>
                     </div>

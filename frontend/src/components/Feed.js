@@ -125,9 +125,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     location: '',
     website: '',
     primary_color: '',
-    secondary_color: ''
+    secondary_color: '',
+    parent_community_id: ''
   });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [adminCommunities, setAdminCommunities] = useState([]);
+  const [isLoadingAdminCommunities, setIsLoadingAdminCommunities] = useState(false);
+  const [allCommunitiesSimple, setAllCommunitiesSimple] = useState([]);
+  const [isLoadingAllParents, setIsLoadingAllParents] = useState(false);
 
   // ============== S A V E D ==============
   // We’ll store arrays for savedForums, savedThreads, savedPosts
@@ -152,6 +157,23 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
       setShowFundingModal(true);
     }
   }, [activeSection]);
+
+  useEffect(() => {
+    if (userData) {
+      fetchAdminCommunities();
+    } else {
+      setAdminCommunities([]);
+    }
+  }, [userData]);
+
+  useEffect(() => {
+    if (showRequestModal && userData) {
+      fetchAdminCommunities();
+      if (userData.role_id === 1) {
+        fetchAllCommunitiesSimple();
+      }
+    }
+  }, [showRequestModal, userData]);
 
   const handleDismissFundingModal = () => setShowFundingModal(false);
 
@@ -330,8 +352,12 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     // Set default type based on tab
     setRequestData((prev) => ({
       ...prev,
-      type: selectedCommunityTab === 'group' ? 'group' : 'university'
+      type: selectedCommunityTab === 'group' ? 'group' : 'university',
+      parent_community_id: ''
     }));
+    if (userData.role_id === 1 && allCommunitiesSimple.length === 0) {
+      fetchAllCommunitiesSimple();
+    }
     setShowRequestModal(true);
   };
 
@@ -376,6 +402,44 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
       setFollowedCommunities([]);
     } finally {
       setIsLoadingFollowed(false);
+    }
+  };
+
+  const fetchAdminCommunities = async () => {
+    if (!userData) {
+      setAdminCommunities([]);
+      return;
+    }
+    setIsLoadingAdminCommunities(true);
+    try {
+      const res = await axios.get('/api/get_user_community_admins.php', { withCredentials: true });
+      if (res.data.success && Array.isArray(res.data.communities)) {
+        setAdminCommunities(res.data.communities);
+      } else {
+        setAdminCommunities([]);
+      }
+    } catch (err) {
+      console.error('Error fetching admin communities:', err);
+      setAdminCommunities([]);
+    } finally {
+      setIsLoadingAdminCommunities(false);
+    }
+  };
+
+  const fetchAllCommunitiesSimple = async () => {
+    setIsLoadingAllParents(true);
+    try {
+      const res = await axios.get('/api/fetch_communities.php');
+      if (Array.isArray(res.data)) {
+        setAllCommunitiesSimple(res.data);
+      } else {
+        setAllCommunitiesSimple([]);
+      }
+    } catch (err) {
+      console.error('Error fetching all communities:', err);
+      setAllCommunitiesSimple([]);
+    } finally {
+      setIsLoadingAllParents(false);
     }
   };
 
@@ -822,14 +886,33 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   const handleCommunityRequestSubmit = async (e) => {
     e.preventDefault();
     if (!userData) return;
+
+    const isSubCommunity = requestData.type === 'sub_community';
+    if (isSubCommunity && !requestData.parent_community_id) {
+      setNotification({ type: 'error', message: 'Select a parent community for the sub-community.' });
+      return;
+    }
+
     setIsSubmittingRequest(true);
     try {
-      const endpoint =
-        isSuperAdmin && selectedCommunityTab === 'group'
-          ? '/api/create_community.php'
-          : '/api/request_community.php';
+      const endpoint = isSuperAdmin ? '/api/create_community.php' : '/api/request_community.php';
+      const payload = {
+        ...requestData,
+        type: isSubCommunity ? 'sub_community' : requestData.type,
+        parent_community_id: isSubCommunity ? requestData.parent_community_id : ''
+      };
 
-      const resp = await axios.post(endpoint, requestData, { withCredentials: true });
+      // Map to DB types when super admin creates directly
+      if (endpoint === '/api/create_community.php' && payload.type === 'sub_community') {
+        payload.type = 'group';
+        if (!payload.parent_community_id) {
+          setNotification({ type: 'error', message: 'Select a parent community for the sub-community.' });
+          setIsSubmittingRequest(false);
+          return;
+        }
+      }
+
+      const resp = await axios.post(endpoint, payload, { withCredentials: true });
       if (resp.data.success) {
         setRequestData({
           name: '',
@@ -839,12 +922,13 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
           location: '',
           website: '',
           primary_color: '',
-          secondary_color: ''
+          secondary_color: '',
+          parent_community_id: ''
         });
         setShowRequestModal(false);
         const successMsg =
           endpoint === '/api/create_community.php'
-            ? 'Group created.'
+            ? 'Community created.'
             : 'Request submitted.';
         setNotification({ type: 'success', message: successMsg });
       } else {
@@ -1237,18 +1321,21 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                           {community.location && (
                             <span className="community-location">{community.location}</span>
                           )}
-                          <span className="dot-sep">•</span>
-                          <span className="followers-count">Followers: {community.followers_count || 0}</span>
+                          <span className="followers-count" style={{ marginLeft: community.location ? 12 : 0 }}>
+                            Followers: {community.followers_count || 0}
+                          </span>
                           {typeof community.following_count !== 'undefined' && (
                             <>
-                              <span className="dot-sep">•</span>
-                              <span className="following-count">Following: {community.following_count}</span>
+                              <span className="following-count" style={{ marginLeft: 12 }}>
+                                Following: {community.following_count}
+                              </span>
                             </>
                           )}
                           {typeof community.admin_count !== 'undefined' && (
                             <>
-                              <span className="dot-sep">•</span>
-                              <span className="admin-count">Admins: {community.admin_count}</span>
+                              <span className="admin-count" style={{ marginLeft: 12 }}>
+                                Admins: {community.admin_count}
+                              </span>
                             </>
                           )}
                         </div>
@@ -1324,7 +1411,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                 : 'Request New Community'
             }
             submitLabel={isSuperAdmin && selectedCommunityTab === 'group' ? 'Create' : 'Submit'}
-            lockType={selectedCommunityTab === 'group'}
+            lockType={false}
+            allowSubCommunity={isSuperAdmin || adminCommunities.length > 0}
+            parentCommunities={
+              isSuperAdmin ? allCommunitiesSimple : adminCommunities
+            }
+            isLoadingParents={
+              isSuperAdmin ? isLoadingAllParents : isLoadingAdminCommunities
+            }
           />
         )}
       </main>

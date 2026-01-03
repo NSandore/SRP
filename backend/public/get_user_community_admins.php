@@ -11,9 +11,15 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['email'])) {
 
 try {
     $db = getDB();
-    $stmt = $db->prepare("SELECT community_id FROM ambassadors WHERE user_id = :uid AND role = 'admin'");
+    $stmt = $db->prepare("
+        SELECT c.id AS community_id, c.name, c.community_type, c.parent_community_id
+        FROM ambassadors a
+        JOIN communities c ON c.id = a.community_id
+        WHERE a.user_id = :uid AND a.role = 'admin'
+        ORDER BY c.name ASC
+    ");
     $stmt->execute([':uid' => $_SESSION['user_id']]);
-    $communities = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $communities = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['success' => true, 'communities' => $communities]);
 } catch (PDOException $e) {
     http_response_code(500);

@@ -147,6 +147,7 @@ function UserConnections({ userData }) {
                       <div className="connection-info">
                         <p className="connection-name">
                           <Link to={`/user/${uid}`}>{user.first_name} {user.last_name}</Link>
+                          {/* Presence temporarily disabled */}
                         </p>
                         <p className="connection-headline">{user.headline || 'No headline'}</p>
                       </div>
@@ -188,6 +189,7 @@ function UserConnections({ userData }) {
                       <div className="connection-info">
                         <p className="connection-name">
                           <Link to={`/user/${req.user_id}`}>{user.first_name} {user.last_name}</Link>
+                          {/* Presence temporarily disabled */}
                         </p>
                         <p className="connection-headline">{user.headline || 'No headline'}</p>
                       </div>
@@ -218,6 +220,7 @@ function UserConnections({ userData }) {
                       <div className="connection-info">
                         <p className="connection-name">
                           <Link to={`/user/${req.user_id}`}>{user.first_name} {user.last_name}</Link>
+                          {/* Presence temporarily disabled */}
                         </p>
                         <p className="connection-headline">{user.headline || 'No headline'}</p>
                       </div>

@@ -41,6 +41,12 @@ try {
     } else {
         $university['is_following'] = false;
     }
+
+    // Count direct sub-communities for display (e.g., departments).
+    $childStmt = $db->prepare("SELECT COUNT(*) FROM communities WHERE parent_community_id = :pid");
+    $childStmt->execute([':pid' => $community_id]);
+    $university['child_count'] = (int)$childStmt->fetchColumn();
+
     echo json_encode(['success' => true, 'university' => $university]);
 } catch (PDOException $e) {
     http_response_code(500);

@@ -41,6 +41,23 @@ try {
     } else {
         $group['is_following'] = false;
     }
+
+    // Resolve parent community details if present.
+    if (!empty($group['parent_community_id'])) {
+        $pstmt = $db->prepare("SELECT id, name, community_type FROM communities WHERE id = :pid LIMIT 1");
+        $pstmt->execute([':pid' => $group['parent_community_id']]);
+        $parent = $pstmt->fetch(PDO::FETCH_ASSOC);
+        if ($parent) {
+            $group['parent_name'] = $parent['name'];
+            $group['parent_type'] = $parent['community_type'];
+        }
+    }
+
+    // Count direct sub-communities (if any nested groups exist).
+    $childStmt = $db->prepare("SELECT COUNT(*) FROM communities WHERE parent_community_id = :pid");
+    $childStmt->execute([':pid' => $community_id]);
+    $group['child_count'] = (int)$childStmt->fetchColumn();
+
     echo json_encode(['success' => true, 'group' => $group]);
 } catch (PDOException $e) {
     http_response_code(500);

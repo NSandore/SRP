@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './Messages.css';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -13,13 +13,21 @@ function Messages({ userData }) {
   const [searchResults, setSearchResults] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [searchParams] = useSearchParams();
-  const API_BASE = 'http://172.16.11.133';
+  const API_BASE = (process.env.REACT_APP_API_BASE || window.location.origin || '').replace(/\/$/, '');
+  const buildApiUrl = (path) => `${API_BASE}${path}`;
   const DEFAULT_AVATAR = '/uploads/avatars/DefaultAvatar.png';
+  const messagesEndRef = useRef(null);
+  const threadRef = useRef(null);
+  const oldestMessageIdRef = useRef(null);
+  const skipAutoScrollRef = useRef(false);
 
   const buildAvatarSrc = (path) => {
     if (!path) return DEFAULT_AVATAR;
-    return path.startsWith('http') ? path : `${API_BASE}${path}`;
+    if (path.startsWith('http')) return path;
+    return path.startsWith('/') ? path : `/uploads/avatars/${path}`;
   };
 
   const formatTimestamp = (timestamp) => {
@@ -67,7 +75,7 @@ function Messages({ userData }) {
 
   const fetchConversations = async () => {
     try {
-      const resp = await axios.get(`${API_BASE}/api/fetch_conversations.php?user_id=${userData.user_id}`, { withCredentials: true });
+      const resp = await axios.get(buildApiUrl(`/api/fetch_conversations.php?user_id=${userData.user_id}`), { withCredentials: true });
       if (resp.data.success) {
         setConversations(resp.data.conversations || []);
       }
@@ -78,10 +86,17 @@ function Messages({ userData }) {
 
   const fetchMessages = async (conversation_id, other_user_id, meta = {}) => {
     setLoadingMessages(true);
+    oldestMessageIdRef.current = null;
+    setHasMore(true);
     try {
-      const resp = await axios.get(`${API_BASE}/api/fetch_messages.php?conversation_id=${conversation_id}&user_id=${userData.user_id}`, { withCredentials: true });
+      const resp = await axios.get(buildApiUrl(`/api/fetch_messages.php?conversation_id=${conversation_id}&user_id=${userData.user_id}`), { withCredentials: true });
       if (resp.data.success) {
-        setMessages(resp.data.messages || []);
+        const list = resp.data.messages || [];
+        setMessages(list);
+        if (list.length) {
+          oldestMessageIdRef.current = list[0].message_id;
+          setHasMore(Boolean(resp.data.has_more));
+        }
         setActiveConv({ conversation_id, other_user_id, ...meta });
         fetchConversations();
       }
@@ -92,9 +107,45 @@ function Messages({ userData }) {
     }
   };
 
+  const fetchOlderMessages = async () => {
+    if (!activeConv?.conversation_id || !hasMore || loadingOlder || !oldestMessageIdRef.current) return;
+    setLoadingOlder(true);
+    skipAutoScrollRef.current = true;
+    try {
+      const resp = await axios.get(
+        buildApiUrl(
+          `/api/fetch_messages.php?conversation_id=${activeConv.conversation_id}&user_id=${userData.user_id}&before_id=${oldestMessageIdRef.current}`
+        ),
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        const older = resp.data.messages || [];
+        if (older.length) {
+          oldestMessageIdRef.current = older[0].message_id;
+          setMessages((prev) => [...older, ...prev]);
+          setHasMore(Boolean(resp.data.has_more));
+          if (threadRef.current) {
+            const prevHeight = threadRef.current.scrollHeight;
+            requestAnimationFrame(() => {
+              const newHeight = threadRef.current.scrollHeight;
+              threadRef.current.scrollTop = newHeight - prevHeight;
+            });
+          }
+        } else {
+          setHasMore(false);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading older messages:', err);
+    } finally {
+      setLoadingOlder(false);
+      skipAutoScrollRef.current = false;
+    }
+  };
+
   const fetchUserProfile = async (userId) => {
     try {
-      const resp = await axios.get(`${API_BASE}/api/fetch_user.php?user_id=${userId}`, { withCredentials: true });
+      const resp = await axios.get(buildApiUrl(`/api/fetch_user.php?user_id=${userId}`), { withCredentials: true });
       if (resp.data.success) {
         return resp.data.user;
       }
@@ -146,7 +197,7 @@ function Messages({ userData }) {
     if (!newMessage.trim() || !activeConv) return;
     setIsSending(true);
     try {
-      const resp = await axios.post(`${API_BASE}/api/send_message.php`, {
+      const resp = await axios.post(buildApiUrl(`/api/send_message.php`), {
         sender_id: userData.user_id,
         recipient_id: activeConv.other_user_id,
         content: newMessage
@@ -166,11 +217,29 @@ function Messages({ userData }) {
     }
   };
 
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+      }
+      if (threadRef.current) {
+        threadRef.current.scrollTop = threadRef.current.scrollHeight;
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (skipAutoScrollRef.current) return;
+    if (!loadingMessages && messages.length) {
+      scrollToBottom();
+    }
+  }, [messages, loadingMessages, activeConv]);
+
   const searchUsers = async (term) => {
     setSearchTerm(term);
     if (!term) { setSearchResults([]); return; }
     try {
-      const resp = await axios.get(`${API_BASE}/api/search_users.php?term=${encodeURIComponent(term)}`, { withCredentials: true });
+      const resp = await axios.get(buildApiUrl(`/api/search_users.php?term=${encodeURIComponent(term)}`), { withCredentials: true });
       if (resp.data.success) setSearchResults(resp.data.users);
     } catch (err) { console.error('Error searching users:', err); }
   };
@@ -273,15 +342,31 @@ function Messages({ userData }) {
                     <p>Loading conversation...</p>
                   </div>
                 ) : messages.length > 0 ? (
-                  messages.map((m) => (
-                    <div
-                      key={m.message_id}
-                      className={`message-bubble ${m.sender_id === userData.user_id ? 'message-out' : 'message-in'}`}
-                    >
-                      <p>{m.content}</p>
-                      <span>{formatTimestamp(m.created_at)}</span>
-                    </div>
-                  ))
+                  <div
+                    className="message-virtualizer"
+                    ref={threadRef}
+                    onScroll={(e) => {
+                      if (e.currentTarget.scrollTop < 60 && hasMore && !loadingOlder) {
+                        fetchOlderMessages();
+                      }
+                    }}
+                  >
+                    {loadingOlder && (
+                      <p className="muted" style={{ textAlign: 'center', margin: '4px 0' }}>
+                        Loading earlier messages…
+                      </p>
+                    )}
+                    {messages.map((m) => (
+                      <div
+                        key={m.message_id}
+                        className={`message-bubble ${m.sender_id === userData.user_id ? 'message-out' : 'message-in'}`}
+                      >
+                        <p>{m.content}</p>
+                        <span>{formatTimestamp(m.created_at)}</span>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
                 ) : (
                   <div className="empty-copy">
                     <h4>No messages yet</h4>

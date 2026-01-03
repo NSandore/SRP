@@ -12,7 +12,8 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
-  Flag
+  Flag,
+  CalendarRange
 } from 'lucide-react';
 
 const baseItems = [
@@ -30,14 +31,22 @@ function LeftSidebar({
   lockedKeys = ['saved', 'connections', 'profile'],
   collapsed = false,
   onToggle = undefined,
+  onNavigate = undefined,
 }) {
-  const isModerator = userData && (Number(userData.role_id) === 1 || Number(userData.is_ambassador) === 1);
-  const items = isModerator
-    ? [
-        ...baseItems,
-        { to: '/reports', label: 'Reported Items', Icon: Flag, color: '#F43F5E', key: 'reports' },
-      ]
-    : baseItems;
+  const isSuperAdmin = userData && Number(userData.role_id) === 1;
+  const adminCommunityIds = Array.isArray(userData?.admin_community_ids) ? userData.admin_community_ids : [];
+  const isCommunityAdmin = adminCommunityIds.length > 0;
+  const isModerator = userData && (isSuperAdmin || Number(userData.is_ambassador) === 1);
+
+  const items = [
+    ...baseItems,
+    ...(isSuperAdmin || isCommunityAdmin
+      ? [{ to: '/events', label: 'Event Management', Icon: CalendarRange, color: '#22C55E', key: 'events' }]
+      : []),
+    ...(isModerator
+      ? [{ to: '/reports', label: 'Reported Items', Icon: Flag, color: '#F43F5E', key: 'reports' }]
+      : []),
+  ];
 
   return (
     <nav className={`left-sidebar${collapsed ? ' collapsed' : ''}`} aria-label="Primary">
@@ -71,6 +80,9 @@ function LeftSidebar({
                 aria-label={label}
                 aria-disabled={isLocked}
                 title={label}
+                onClick={() => {
+                  if (!isLocked && onNavigate) onNavigate();
+                }}
               >
                 <span
                   className="icon-circle sidebar-icon"

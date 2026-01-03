@@ -393,6 +393,17 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const displayAbout = profile ? profile.about || 'No about information provided yet.' : '';
   const displaySkills = profile && profile.skills ? profile.skills : '';
   const isDefaultAvatar = avatarPath?.includes('DefaultAvatar.png');
+  const contactVisibilityRaw = profile?.show_email;
+  const contactVisibility = Number(
+    contactVisibilityRaw === true ? 2 : contactVisibilityRaw || 0
+  ); // 0 hidden, 1 connections, 2 everyone
+  const emailVisibleFlag =
+    profile?.email_visible === true ||
+    profile?.email_visible === '1' ||
+    Number(profile?.email_visible) === 1;
+  const contactEmail = profile?.email || '';
+  const viewerCanSeeEmail = true; // Self profile view always allows owner visibility
+  const canDisplayEmailValue = viewerCanSeeEmail && Boolean(contactEmail);
 
   const profileStyle = {
     '--primary-color': primaryColor,
@@ -525,116 +536,145 @@ function SelfProfileView({ userData, onProfileUpdate }) {
           <div className="profile-detail-wrapper">
             <div className="profile-detail-sections">
               {activeTab === 'about' && (
-                <>
-                  <div className="profile-section about-section">
-                    <h3>About</h3>
-                    {isEditing ? (
-                      <textarea
-                        value={about}
-                        onChange={(e) => setAbout(e.target.value)}
-                        placeholder="Tell us about yourself..."
-                      />
-                    ) : (
-                      <p>{DOMPurify.sanitize(displayAbout)}</p>
-                    )}
-                  </div>
+                <div className="profile-grid">
+                  <div className="profile-main">
+                    <div className="profile-section about-section">
+                      <h3>About</h3>
+                      {isEditing ? (
+                        <textarea
+                          value={about}
+                          onChange={(e) => setAbout(e.target.value)}
+                          placeholder="Tell us about yourself..."
+                        />
+                      ) : (
+                        <p>{DOMPurify.sanitize(displayAbout)}</p>
+                      )}
+                    </div>
 
-                  <div className="profile-section">
-                    <h3>Experience</h3>
-                    {loadingExp ? (
-                      <p>Loading experience...</p>
-                    ) : errorExp ? (
-                      <p>{errorExp}</p>
-                    ) : experience.length > 0 ? (
-                      experience.map((exp, index) => (
-                        <div key={index} className="experience-item">
-                          <h4>
-                            {exp.title} at {exp.company}
-                          </h4>
-                          <div className="experience-dates">
-                            {exp.start_date} - {exp.end_date ? exp.end_date : 'Present'}
-                          </div>
-                          <div className="experience-meta">
-                            <span className="experience-type">{exp.employment_type}</span>
-                            <span className="experience-location">
-                              {exp.location_city}
-                              {exp.location_state ? `, ${exp.location_state}` : ''}
-                            </span>
-                          </div>
-                          <p>{exp.description}</p>
-                          {exp.responsibilities && exp.responsibilities.length > 0 && (
-                            <ul className="responsibilities-list">
-                              {exp.responsibilities.map((resp, idx) => (
-                                <li key={idx}>{resp}</li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p>No experience added yet.</p>
-                    )}
-                  </div>
-
-                  <div className="profile-section">
-                    <h3>Education</h3>
-                    {loadingEdu ? (
-                      <p>Loading education...</p>
-                    ) : errorEdu ? (
-                      <p>{errorEdu}</p>
-                    ) : education.length > 0 ? (
-                      education.map((edu, index) => (
-                        <div key={index} className="education-item">
-                          <h4>
-                            {edu.degree} in {edu.field_of_study}
-                          </h4>
-                          <div className="education-institution">{edu.institution}</div>
-                          <div className="education-dates">
-                            {edu.start_date} - {edu.end_date ? edu.end_date : 'Present'}
-                          </div>
-                          {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
-                          {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
-                          {edu.activities_societies && (
-                            <div className="education-activities">
-                              Activities: {edu.activities_societies}
+                    <div className="profile-section">
+                      <h3>Experience</h3>
+                      {loadingExp ? (
+                        <p>Loading experience...</p>
+                      ) : errorExp ? (
+                        <p>{errorExp}</p>
+                      ) : experience.length > 0 ? (
+                        experience.map((exp, index) => (
+                          <div key={index} className="experience-item">
+                            <h4>
+                              {exp.title} at {exp.company}
+                            </h4>
+                            <div className="experience-dates">
+                              {exp.start_date} - {exp.end_date ? exp.end_date : 'Present'}
                             </div>
-                          )}
-                          {edu.achievements && edu.achievements.length > 0 && (
-                            <ul className="achievements-list">
-                              {edu.achievements.map((ach, idx) => (
-                                <li key={idx}>{ach}</li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p>No education details added yet.</p>
-                    )}
+                            <div className="experience-meta">
+                              <span className="experience-type">{exp.employment_type}</span>
+                              <span className="experience-location">
+                                {exp.location_city}
+                                {exp.location_state ? `, ${exp.location_state}` : ''}
+                              </span>
+                            </div>
+                            <p>{exp.description}</p>
+                            {exp.responsibilities && exp.responsibilities.length > 0 && (
+                              <ul className="responsibilities-list">
+                                {exp.responsibilities.map((resp, idx) => (
+                                  <li key={idx}>{resp}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p>No experience added yet.</p>
+                      )}
+                    </div>
+
+                    <div className="profile-section">
+                      <h3>Education</h3>
+                      {loadingEdu ? (
+                        <p>Loading education...</p>
+                      ) : errorEdu ? (
+                        <p>{errorEdu}</p>
+                      ) : education.length > 0 ? (
+                        education.map((edu, index) => (
+                          <div key={index} className="education-item">
+                            <h4>
+                              {edu.degree} in {edu.field_of_study}
+                            </h4>
+                            <div className="education-institution">{edu.institution}</div>
+                            <div className="education-dates">
+                              {edu.start_date} - {edu.end_date ? edu.end_date : 'Present'}
+                            </div>
+                            {edu.gpa && <div className="education-gpa">GPA: {edu.gpa}</div>}
+                            {edu.honors && <div className="education-honors">Honors: {edu.honors}</div>}
+                            {edu.activities_societies && (
+                              <div className="education-activities">
+                                Activities: {edu.activities_societies}
+                              </div>
+                            )}
+                            {edu.achievements && edu.achievements.length > 0 && (
+                              <ul className="achievements-list">
+                                {edu.achievements.map((ach, idx) => (
+                                  <li key={idx}>{ach}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p>No education details added yet.</p>
+                      )}
+                    </div>
+
+                    <div className="profile-section">
+                      <h3>Skills</h3>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={skills}
+                          onChange={(e) => setSkills(e.target.value)}
+                          placeholder="Enter skills, separated by commas"
+                        />
+                      ) : displaySkills ? (
+                        <ul className="skills-list">
+                          {displaySkills.split(',').map((skill, index) => (
+                            <li key={index} className="skill-item">
+                              {skill.trim()}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>No skills listed yet.</p>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="profile-section">
-                    <h3>Skills</h3>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={skills}
-                        onChange={(e) => setSkills(e.target.value)}
-                        placeholder="Enter skills, separated by commas"
-                      />
-                    ) : displaySkills ? (
-                      <ul className="skills-list">
-                        {displaySkills.split(',').map((skill, index) => (
-                          <li key={index} className="skill-item">
-                            {skill.trim()}
-                          </li>
-                        ))}
-                      </ul>
+                  <aside className="profile-aside">
+                    <div className="info-card">
+                      <h3>Contact Me</h3>
+                    {viewerCanSeeEmail ? (
+                      canDisplayEmailValue ? (
+                        <>
+                          <a className="contact-email" href={`mailto:${contactEmail}`}>
+                            {contactEmail}
+                          </a>
+                          {contactVisibility === 0 && (
+                            <p className="muted">
+                              Hidden from others. Switch to &quot;Connections only&quot; or &quot;Everyone&quot; in Account Settings to share it.
+                            </p>
+                          )}
+                          {contactVisibility === 1 && (
+                            <p className="muted">Visible to your connections only.</p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="muted">No email provided.</p>
+                      )
                     ) : (
-                      <p>No skills listed yet.</p>
-                    )}
-                  </div>
-                </>
+                        <p className="muted">Email hidden by your privacy settings.</p>
+                      )}
+                    </div>
+                  </aside>
+                </div>
               )}
 
               {activeTab === 'posts' && (

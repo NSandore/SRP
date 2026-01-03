@@ -50,6 +50,11 @@ function CommunityRequests() {
           {requests.map(req => (
             <li key={req.id} className="request-item">
               <h4>{req.name} ({req.community_type})</h4>
+              {req.parent_name && (
+                <p className="muted" style={{ margin: '4px 0' }}>
+                  Parent: {req.parent_name}
+                </p>
+              )}
               <p>{req.description}</p>
               <button
                 className="request-toggle"

@@ -91,7 +91,7 @@
   padding: var(--hero-logo-pad);
   background: #fff;
   border-radius: 50%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 [data-theme="dark"] .user-hero-logo-wrap {
@@ -103,7 +103,7 @@
   height: var(--hero-logo-size);
   border-radius: 50%;
   object-fit: cover;
-  border: 4px solid var(--light-bg);
+  position: relative;
 }
 
 .user-hero-logo.user-hero-logo--default {
@@ -210,6 +210,12 @@
   height: 3px;
   background: var(--primary-color);
   border-radius: 2px;
+}
+
+.contact-email {
+  color: var(--primary-color);
+  font-weight: 600;
+  word-break: break-all;
 }
 
 /* ===================== */

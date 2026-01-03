@@ -80,12 +80,13 @@ try {
                 $replier_name = $replier['first_name'] . ' ' . substr($replier['last_name'], 0, 1) . '.';
                 $message = "$replier_name replied to your post.";
 
-                // Insert the notification
+                // Insert the notification (reference_id is nullable/int, so leave NULL for string post IDs)
+                $notificationId = generateUniqueId($db, 'notifications');
                 $insertStmt = $db->prepare("
-                    INSERT INTO notifications (recipient_user_id, actor_user_id, notification_type, reference_id, message)
-                    VALUES (?, ?, 'reply', ?, ?)
+                    INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message)
+                    VALUES (?, ?, ?, 'reply', NULL, ?)
                 ");
-                $insertStmt->execute([$original_poster_id, $user_id, $post_id, $message]);
+                $insertStmt->execute([$notificationId, $original_poster_id, $user_id, $message]);
             }
         }
     }

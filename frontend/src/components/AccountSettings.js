@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -15,15 +15,16 @@ const createDefaultSettings = () => ({
   profile: {
     profileVisibility: 'network',
     showOnline: true,
-    allowMessagesFrom: 'followers',
-    showEmail: false,
-    discoverable: true,
+    allowMessagesFrom: 'connections',
+    showEmail: 'hidden', // hidden | connections | everyone
+    discoverable: 'everyone', // no_one | connections | everyone
   },
   notifications: {
     inApp: true,
     email: true,
     mentions: true,
     replies: true,
+    votes: true,
     messages: true,
     communityAnnouncements: true,
     weeklyDigest: true,
@@ -114,11 +115,11 @@ function AccountSettings({ userData }) {
         const res = await axios.get(`/api/fetch_user.php?user_id=${userData.user_id}`, {
           withCredentials: true,
         });
-        if (res.data?.success && res.data.user) {
-          if (res.data.user.profile_visibility) {
-            const vis = res.data.user.profile_visibility;
-            setSettings((prev) => ({
-              ...prev,
+          if (res.data?.success && res.data.user) {
+            if (res.data.user.profile_visibility) {
+              const vis = res.data.user.profile_visibility;
+              setSettings((prev) => ({
+                ...prev,
               profile: {
                 ...prev.profile,
                 profileVisibility: vis,
@@ -137,6 +138,70 @@ function AccountSettings({ userData }) {
               },
             }));
           }
+          if (res.data.user.allow_messages_from) {
+            setSettings((prev) => ({
+              ...prev,
+              profile: {
+                ...prev.profile,
+                allowMessagesFrom: res.data.user.allow_messages_from,
+              },
+            }));
+          }
+          if (typeof res.data.user.show_email !== 'undefined') {
+            const raw = Number(res.data.user.show_email);
+            const mapped = raw === 2 ? 'everyone' : raw === 1 ? 'connections' : 'hidden';
+            setSettings((prev) => ({
+              ...prev,
+              profile: {
+                ...prev.profile,
+                showEmail: mapped,
+              },
+            }));
+          }
+          if (typeof res.data.user.discoverable !== 'undefined') {
+            const discRaw = Number(res.data.user.discoverable);
+            const mappedDisc = discRaw === 2 ? 'everyone' : discRaw === 1 ? 'connections' : 'no_one';
+            setSettings((prev) => ({
+              ...prev,
+              profile: {
+                ...prev.profile,
+                discoverable: mappedDisc,
+              },
+            }));
+          }
+          if (typeof res.data.user.notify_votes !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              notifications: {
+                ...prev.notifications,
+                votes: Boolean(Number(res.data.user.notify_votes)),
+              },
+            }));
+          }
+          if (typeof res.data.user.session_timeout_minutes !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              security: {
+                ...prev.security,
+                sessionTimeout: String(res.data.user.session_timeout_minutes),
+              },
+            }));
+          }
+          const serverDefaultFeed = res.data.user.default_feed;
+          if (serverDefaultFeed) {
+            setSettings((prev) => ({
+              ...prev,
+              feed: {
+                ...prev.feed,
+                defaultFeed: serverDefaultFeed,
+              },
+            }));
+            try {
+              localStorage.setItem('defaultFeed', serverDefaultFeed);
+            } catch (err) {
+              // ignore storage issues
+            }
+          }
         }
       } catch (err) {
         console.error('Error loading profile visibility', err);
@@ -144,6 +209,20 @@ function AccountSettings({ userData }) {
     };
     fetchVisibility();
   }, [userData]);
+
+  useEffect(() => {
+    // If no server value yet but a stored value exists, hydrate the dropdown
+    const storedDefaultFeed = typeof window !== 'undefined' ? localStorage.getItem('defaultFeed') : null;
+    if (storedDefaultFeed) {
+      setSettings((prev) => ({
+        ...prev,
+        feed: {
+          ...prev.feed,
+          defaultFeed: storedDefaultFeed,
+        },
+      }));
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAmbassador && settings.profile.profileVisibility === 'network') {
@@ -193,6 +272,92 @@ function AccountSettings({ userData }) {
     }
   };
 
+  const persistAllowMessages = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          allow_messages_from: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving DM preference', err);
+    }
+  };
+
+  const persistShowEmail = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          show_email: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving email visibility', err);
+    }
+  };
+
+  const persistDiscoverable = async (value) => {
+    if (!userData?.user_id) return;
+    const map = {
+      no_one: 0,
+      connections: 1,
+      everyone: 2,
+    };
+    const payloadVal = map[value] ?? 0;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          discoverable: payloadVal,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving discoverability', err);
+    }
+  };
+
+  const persistVotesPref = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          notify_votes: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving vote notifications preference', err);
+    }
+  };
+
+  const persistSessionTimeout = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          session_timeout_minutes: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving session timeout', err);
+    }
+  };
+
   const updateSetting = (section, key, value) => {
     if (section === 'profile' && key === 'profileVisibility' && value === 'network' && !isAmbassador) {
       flashStatus('This option is only available for group ambassadors');
@@ -210,6 +375,38 @@ function AccountSettings({ userData }) {
     }
     if (section === 'profile' && key === 'showOnline') {
       persistShowOnline(value);
+    }
+    if (section === 'profile' && key === 'allowMessagesFrom') {
+      persistAllowMessages(value);
+    }
+    if (section === 'profile' && key === 'showEmail') {
+      persistShowEmail(value);
+    }
+    if (section === 'profile' && key === 'discoverable') {
+      persistDiscoverable(value);
+    }
+    if (section === 'security' && key === 'sessionTimeout') {
+      persistSessionTimeout(value);
+    }
+    if (section === 'notifications' && key === 'votes') {
+      persistVotesPref(value);
+    }
+    if (section === 'feed' && key === 'defaultFeed') {
+      try {
+        localStorage.setItem('defaultFeed', value);
+      } catch (err) {
+        // ignore storage errors
+      }
+      if (userData?.user_id) {
+        axios.post(
+          '/api/update_account_settings.php',
+          {
+            user_id: userData.user_id,
+            default_feed: value,
+          },
+          { withCredentials: true }
+        ).catch((err) => console.error('Error saving default feed', err));
+      }
     }
     flashStatus('Saved');
   };
@@ -246,19 +443,98 @@ function AccountSettings({ userData }) {
 
   const handleCancelReset = () => setShowResetModal(false);
 
-  const activeSessions = useMemo(
-    () => [
-      { id: 'current', device: 'MacBook Pro · Chrome', location: 'Chicago, IL', lastActive: 'Active now', trusted: true, current: true },
-      { id: 'mobile', device: 'iPhone · Safari', location: 'Chicago, IL', lastActive: '3h ago', trusted: true, current: false },
-      { id: 'lab', device: 'Windows · Edge', location: 'Campus lab', lastActive: '2d ago', trusted: false, current: false },
-    ],
-    []
-  );
+  const [sessions, setSessions] = useState([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [sessionsError, setSessionsError] = useState('');
+  const [liveBadge] = useState('Live');
   useEffect(() => {
     if (tabs.length && !tabs.some((t) => t.id === activeTab)) {
       setActiveTab(tabs[0].id);
     }
   }, [tabs, activeTab]);
+
+  const loadSessions = useCallback(async () => {
+    if (!userData?.user_id) return;
+    setLoadingSessions(true);
+    setSessionsError('');
+    try {
+      const res = await axios.get('/api/fetch_sessions.php', { withCredentials: true });
+      if (res.data?.success) {
+        setSessions(res.data.sessions || []);
+      } else {
+        setSessionsError(res.data?.error || 'Unable to load sessions.');
+      }
+    } catch (err) {
+      console.error('Error loading sessions', err);
+      setSessionsError('Unable to load sessions.');
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, [userData]);
+
+  useEffect(() => {
+    if (activeTab === 'sessions') {
+      loadSessions();
+    }
+  }, [activeTab, loadSessions]);
+
+  const revokeSession = async (sessionId) => {
+    const target = sessions.find((s) => s.session_id === sessionId);
+    const isCurrent = target?.current;
+    try {
+      await axios.post(
+        '/api/revoke_session.php',
+        { session_id: sessionId },
+        { withCredentials: true }
+      );
+      if (isCurrent) {
+        window.location.href = '/login';
+      } else {
+        setSessions((prev) =>
+          prev.map((s) => (s.session_id === sessionId ? { ...s, revoked_at: new Date().toISOString() } : s))
+        );
+      }
+    } catch (err) {
+      console.error('Error revoking session', err);
+      flashStatus('Unable to sign out that session.');
+    }
+  };
+
+  const parseUserAgent = (ua) => {
+    if (!ua) return { os: 'Unknown OS', browser: 'Unknown browser' };
+    let os = 'Unknown OS';
+    if (/Mac OS X ([0-9_\.]+)/i.test(ua)) {
+      os = `Mac OS X ${RegExp.$1.replace(/_/g, '.')}`;
+    } else if (/Windows NT ([0-9\.]+)/i.test(ua)) {
+      os = `Windows ${RegExp.$1}`;
+    } else if (/Android ([0-9\.]+)/i.test(ua)) {
+      os = `Android ${RegExp.$1}`;
+    } else if (/iPhone OS ([0-9_]+)/i.test(ua)) {
+      os = `iOS ${RegExp.$1.replace(/_/g, '.')}`;
+    }
+
+    let browser = 'Browser';
+    if (/Firefox\/([\d\.]+)/i.test(ua)) {
+      browser = `Firefox/${RegExp.$1}`;
+    } else if (/Edg\/([\d\.]+)/i.test(ua)) {
+      browser = `Edge/${RegExp.$1}`;
+    } else if (/Chrome\/([\d\.]+)/i.test(ua) && !/Edg\//i.test(ua)) {
+      browser = `Chrome/${RegExp.$1}`;
+    } else if (/Version\/([\d\.]+).*Safari/i.test(ua)) {
+      browser = `Safari/${RegExp.$1}`;
+    }
+
+    return { os, browser };
+  };
+
+  const formatSessionMeta = (s) => {
+    const last = s.last_active_at ? new Date(s.last_active_at) : null;
+    const lastLabel = last ? last.toLocaleString() : 'Unknown';
+    const { os, browser } = parseUserAgent(s.user_agent);
+    const headline = `${os} · ${browser}`;
+    const location = s.location || s.ip_address || 'Location unavailable';
+    return { headline, location, lastLabel };
+  };
 
   return (
     <div className="settings-page">
@@ -318,7 +594,7 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Profile visibility</div>
+              <div className="setting-label">Profile visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
               <p className="setting-help">Limit profile details to your campus network or followers.</p>
             </div>
             <select
@@ -339,67 +615,52 @@ function AccountSettings({ userData }) {
 
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Show online status</div>
-              <p className="setting-help">Toggle your active status in messages and connection suggestions.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.profile.showOnline}
-                onChange={(e) => updateSetting('profile', 'showOnline', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Direct messages</div>
+              <div className="setting-label">Direct messages <span className="settings-badge live-badge">{liveBadge}</span></div>
               <p className="setting-help">Choose who can start conversations with you.</p>
             </div>
             <select
               value={settings.profile.allowMessagesFrom}
               onChange={(e) => updateSetting('profile', 'allowMessagesFrom', e.target.value)}
             >
-              <option value="followers">Followers only</option>
-              <option value="campus">Campus network</option>
+              <option value="connections">Connections only</option>
+              <option value="community">Community only</option>
               <option value="everyone">Everyone</option>
             </select>
           </div>
 
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Show email on profile</div>
-              <p className="setting-help">Keep contact info private except for verified university staff.</p>
+              <div className="setting-label">Contact visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
+              <p className="setting-help">Choose who can see your email on your profile.</p>
             </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.profile.showEmail}
-                onChange={(e) => updateSetting('profile', 'showEmail', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
+            <select
+              value={settings.profile.showEmail}
+              onChange={(e) => updateSetting('profile', 'showEmail', e.target.value)}
+            >
+              <option value="hidden">Hidden</option>
+              <option value="connections">Connections only</option>
+              <option value="everyone">Everyone</option>
+            </select>
           </div>
 
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Discoverability</div>
+              <div className="setting-label">Discoverability <span className="settings-badge live-badge">{liveBadge}</span></div>
               <p className="setting-help">Allow others to find you in search and recommendations.</p>
             </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.profile.discoverable}
-                onChange={(e) => updateSetting('profile', 'discoverable', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
+            <select
+              value={settings.profile.discoverable}
+              onChange={(e) => updateSetting('profile', 'discoverable', e.target.value)}
+            >
+              <option value="no_one">No one</option>
+              <option value="connections">Connections only</option>
+              <option value="everyone">Everyone</option>
+            </select>
           </div>
 
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Dark mode</div>
+              <div className="setting-label">Dark mode <span className="settings-badge live-badge">{liveBadge}</span></div>
               <p className="setting-help">Switch the app theme between light and dark.</p>
             </div>
             <label className="setting-toggle">
@@ -424,21 +685,6 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">In-app alerts</div>
-              <p className="setting-help">Badges and toasts for new messages and replies.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.notifications.inApp}
-                onChange={(e) => updateSetting('notifications', 'inApp', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
               <div className="setting-label">Email updates</div>
               <p className="setting-help">Security alerts and activity summaries.</p>
             </div>
@@ -454,23 +700,8 @@ function AccountSettings({ userData }) {
 
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Mentions</div>
-              <p className="setting-help">Alert me when I am tagged in threads or comments.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.notifications.mentions}
-                onChange={(e) => updateSetting('notifications', 'mentions', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Replies and votes</div>
-              <p className="setting-help">Notify me when my posts get replies or vote swings.</p>
+              <div className="setting-label">Replies <span className="settings-badge live-badge">{liveBadge}</span></div>
+              <p className="setting-help">Notify me when my posts get replies.</p>
             </div>
             <label className="setting-toggle">
               <input
@@ -484,29 +715,14 @@ function AccountSettings({ userData }) {
 
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Community announcements</div>
-              <p className="setting-help">Highlights from forums you follow.</p>
+              <div className="setting-label">Votes <span className="settings-badge live-badge">{liveBadge}</span></div>
+              <p className="setting-help">Notify me when my posts get upvotes or downvotes.</p>
             </div>
             <label className="setting-toggle">
               <input
                 type="checkbox"
-                checked={settings.notifications.communityAnnouncements}
-                onChange={(e) => updateSetting('notifications', 'communityAnnouncements', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Weekly digest</div>
-              <p className="setting-help">Top posts and invites delivered once a week.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.notifications.weeklyDigest}
-                onChange={(e) => updateSetting('notifications', 'weeklyDigest', e.target.checked)}
+                checked={settings.notifications.votes}
+                onChange={(e) => updateSetting('notifications', 'votes', e.target.checked)}
               />
               <span className="toggle-slider" />
             </label>
@@ -554,7 +770,7 @@ function AccountSettings({ userData }) {
 
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Session timeout</div>
+              <div className="setting-label">Session timeout <span className="settings-badge live-badge">{liveBadge}</span></div>
               <p className="setting-help">Log me out after inactivity.</p>
             </div>
             <select
@@ -566,21 +782,6 @@ function AccountSettings({ userData }) {
               <option value="60">1 hour</option>
               <option value="240">4 hours</option>
             </select>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Trusted devices only</div>
-              <p className="setting-help">Block sign-ins that skip device verification.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.security.trustedDevicesOnly}
-                onChange={(e) => updateSetting('security', 'trustedDevicesOnly', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
           </div>
         </section>
         )}
@@ -595,7 +796,7 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Default feed</div>
+              <div className="setting-label">Default feed <span className="settings-badge live-badge">{liveBadge}</span></div>
               <p className="setting-help">Where to drop you after sign-in.</p>
             </div>
             <select
@@ -606,66 +807,6 @@ function AccountSettings({ userData }) {
               <option value="explore">Explore</option>
               <option value="info">Info board</option>
             </select>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Autoplay media</div>
-              <p className="setting-help">Mute gifs and videos until you tap.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.feed.autoplayMedia}
-                onChange={(e) => updateSetting('feed', 'autoplayMedia', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Open links in new tab</div>
-              <p className="setting-help">Keep your place in the feed when opening threads.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.feed.openLinksInNewTab}
-                onChange={(e) => updateSetting('feed', 'openLinksInNewTab', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Followed communities first</div>
-              <p className="setting-help">Prioritize threads from communities you follow.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.feed.filterFollowedCommunities}
-                onChange={(e) => updateSetting('feed', 'filterFollowedCommunities', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Show campus events</div>
-              <p className="setting-help">Include events and funding posts in your feed.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.feed.includeEvents}
-                onChange={(e) => updateSetting('feed', 'includeEvents', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
           </div>
         </section>
         )}
@@ -703,36 +844,6 @@ function AccountSettings({ userData }) {
                 type="checkbox"
                 checked={settings.community.allowInvites}
                 onChange={(e) => updateSetting('community', 'allowInvites', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Show achievements</div>
-              <p className="setting-help">Display badges such as ambassador or moderator roles.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.community.showAchievements}
-                onChange={(e) => updateSetting('community', 'showAchievements', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Hide sensitive content</div>
-              <p className="setting-help">Blur media flagged by community moderators.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.community.hideNSFW}
-                onChange={(e) => updateSetting('community', 'hideNSFW', e.target.checked)}
               />
               <span className="toggle-slider" />
             </label>
@@ -914,26 +1025,36 @@ function AccountSettings({ userData }) {
             <p>Sign out devices you do not recognize.</p>
           </div>
           <div className="session-list">
-            {activeSessions.map((session) => (
+            {loadingSessions && <p>Loading sessions…</p>}
+            {sessionsError && <p className="error-text">{sessionsError}</p>}
+            {!loadingSessions && !sessionsError && sessions.length === 0 && (
+              <p className="muted">No active sessions found.</p>
+            )}
+            {!loadingSessions && !sessionsError && sessions.map((session) => (
+              (() => {
+                const meta = formatSessionMeta(session);
+                return (
               <div
-                key={session.id}
-                className={`session-item${session.current ? ' current' : ''}`}
+                key={session.session_id}
+                className={`session-item${session.current ? ' current' : ''}${session.revoked_at ? ' revoked' : ''}`}
               >
                 <div className="session-meta">
-                  <div className="setting-label">{session.device}</div>
-                  <div className="setting-help">{session.location} · {session.lastActive}</div>
+                  <div className="setting-label">{meta.headline}</div>
+                  <div className="setting-help">{meta.location}</div>
+                  <div className="setting-help">Last active {meta.lastLabel}</div>
                 </div>
                 <div className="session-actions">
-                  {session.trusted && <span className="settings-badge subtle">Trusted</span>}
-                  {session.current ? (
-                    <span className="settings-badge positive">This device</span>
-                  ) : (
-                    <button type="button" className="pill-button secondary small">
+                  {session.current && <span className="settings-badge positive">This device</span>}
+                  {session.revoked_at && <span className="settings-badge danger">Signed out</span>}
+                  {!session.current && !session.revoked_at && (
+                    <button type="button" className="pill-button secondary small" onClick={() => revokeSession(session.session_id)}>
                       Sign out
                     </button>
                   )}
                 </div>
               </div>
+                );
+              })()
             ))}
           </div>
         </section>

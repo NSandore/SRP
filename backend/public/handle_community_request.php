@@ -40,18 +40,31 @@ try {
     }
 
     if ($action === 'approve') {
+        $parentName = null;
+        if (!empty($request['parent_community_id'])) {
+            $pstmt = $db->prepare("SELECT name FROM communities WHERE id = :pid LIMIT 1");
+            $pstmt->execute([':pid' => $request['parent_community_id']]);
+            $parentName = $pstmt->fetchColumn();
+            if (!$parentName) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Parent community not found for this request.']);
+                exit;
+            }
+        }
+
         // create community with provided info
         $communityId = generateUniqueId($db, 'communities');
         $defaultLogo = ($request['community_type'] === 'group') ? 'DefaultGroup.png' : 'default-logo.png';
         $defaultBanner = '/uploads/banners/DefaultBanner.jpeg';
 
         $stmt = $db->prepare(
-            "INSERT INTO communities (id, community_type, name, tagline, location, website, primary_color, secondary_color, logo_path, banner_path) " .
-            "VALUES (:id, :type, :name, :tagline, :location, :website, :primary_color, :secondary_color, :logo_path, :banner_path)"
+            "INSERT INTO communities (id, community_type, parent_community_id, name, tagline, location, website, primary_color, secondary_color, logo_path, banner_path) " .
+            "VALUES (:id, :type, :parent_id, :name, :tagline, :location, :website, :primary_color, :secondary_color, :logo_path, :banner_path)"
         );
         $stmt->execute([
             ':id' => $communityId,
             ':type' => $request['community_type'],
+            ':parent_id' => empty($request['parent_community_id']) ? null : $request['parent_community_id'],
             ':name' => $request['name'],
             ':tagline' => $request['tagline'],
             ':location' => $request['location'],
@@ -67,7 +80,7 @@ try {
         $stmt->execute([':id' => $adminId, ':cid' => $communityId, ':email' => $request['email']]);
         $status = 'approved';
     } else {
-        $status = 'declined';
+        $status = 'rejected';
     }
 
     $stmt = $db->prepare("UPDATE community_creation_requests SET status = :status WHERE id = :id");

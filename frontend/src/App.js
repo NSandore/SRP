@@ -55,14 +55,18 @@ import CommunityRequests from './components/CommunityRequests';
 import AuthOverlay from './components/AuthOverlay';
 import AccountSettings from './components/AccountSettings';
 import ReportedItems from './components/ReportedItems';
+import EventManagement from './components/EventManagement';
 
-const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports'];
+const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events'];
 
 function App() {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [selectedSchools, setSelectedSchools] = useState([]);
-  const [activeFeed, setActiveFeed] = useState('explore');
+  const [activeFeed, setActiveFeed] = useState(() => {
+    if (typeof window === 'undefined') return 'explore';
+    return localStorage.getItem('defaultFeed') || 'explore';
+  });
   const [activeSection, setActiveSection] = useState('home');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [accountMenuVisible, setAccountMenuVisible] = useState(false);
@@ -78,6 +82,13 @@ function App() {
   const [notifications, setNotifications] = useState([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [toasts, setToasts] = useState([]);
+  const prevUnreadNotifs = useRef(0);
+  const prevUnreadMessages = useRef(0);
+  const notifInitRef = useRef(false);
+  const messageInitRef = useRef(false);
+  const audioRef = useRef(null);
+  const [soundUnlocked, setSoundUnlocked] = useState(false);
 
   const [showWelcome, setShowWelcome] = useState(false);
 
@@ -85,6 +96,22 @@ function App() {
     const first = firstName.trim().charAt(0);
     const last = lastName.trim().charAt(0);
     return `${first}${last}`.toUpperCase() || 'A';
+  };
+
+  const pushToast = (message) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const playNotificationSound = () => {
+    if (!soundUnlocked) return;
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
   };
 
   const notificationRef = useRef(null); // Ref to handle click outside notifications
@@ -110,6 +137,14 @@ function App() {
           setUserData(user);
           fetchNotifications(user.user_id);
           fetchConversations(user.user_id);
+          // Apply default feed preference: server setting > localStorage > fallback
+          if (typeof window !== 'undefined') {
+            const stored = user.default_feed || localStorage.getItem('defaultFeed');
+            const mapped = stored === 'yourFeed' ? 'explore' : stored; // map legacy
+            const finalFeed = stored ? stored : 'explore';
+            setActiveFeed(finalFeed);
+            localStorage.setItem('defaultFeed', finalFeed);
+          }
         }
       } catch (err) {
         console.error('Error checking session:', err);
@@ -159,7 +194,15 @@ function App() {
       });
 
       if (response.data.success) {
-        setNotifications(response.data.notifications || []);
+        const list = response.data.notifications || [];
+        setNotifications(list);
+        const unread = list.filter((n) => parseInt(n.is_read, 10) === 0).length;
+        if (notifInitRef.current && unread > prevUnreadNotifs.current) {
+          pushToast('You have new notifications');
+          playNotificationSound();
+        }
+        notifInitRef.current = true;
+        prevUnreadNotifs.current = unread;
       }
     } catch (err) {
       console.error('Error fetching notifications:', err);
@@ -193,6 +236,12 @@ function App() {
         const convs = response.data.conversations || [];
         const total = convs.reduce((sum, c) => sum + Number(c.unread_count || 0), 0);
         setUnreadMessages(total);
+        if (messageInitRef.current && total > prevUnreadMessages.current) {
+          pushToast('You have new messages');
+          playNotificationSound();
+        }
+        messageInitRef.current = true;
+        prevUnreadMessages.current = total;
       }
     } catch (err) {
       console.error('Error fetching conversations:', err);
@@ -314,12 +363,51 @@ function App() {
     fetchNotifications(userData.user_id);
     fetchConversations(userData.user_id);
 
+    const pollIntervalMs = 10000;
     const intervalId = setInterval(() => {
       fetchNotifications(userData.user_id);
-    }, 60000);
+      fetchConversations(userData.user_id);
+    }, pollIntervalMs);
 
-    return () => clearInterval(intervalId);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications(userData.user_id);
+        fetchConversations(userData.user_id);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [userData]);
+
+  useEffect(() => {
+    const unlockSound = () => {
+      if (!audioRef.current || soundUnlocked) return;
+      // Attempt a muted play/pause to satisfy user-gesture policies
+      const el = audioRef.current;
+      const prevMuted = el.muted;
+      el.muted = true;
+      el.currentTime = 0;
+      el.play().then(() => {
+        el.pause();
+        el.muted = prevMuted;
+        setSoundUnlocked(true);
+      }).catch(() => {
+        el.muted = prevMuted;
+      });
+    };
+    window.addEventListener('click', unlockSound, { once: true });
+    window.addEventListener('touchstart', unlockSound, { once: true });
+    window.addEventListener('keydown', unlockSound, { once: true });
+    return () => {
+      window.removeEventListener('click', unlockSound);
+      window.removeEventListener('touchstart', unlockSound);
+      window.removeEventListener('keydown', unlockSound);
+    };
+  }, [soundUnlocked]);
   
   const handleFollowAmbassador = async (ambassadorId) => {
     if (!userData) {
@@ -382,6 +470,14 @@ function App() {
 
   return (
     <div className={`app-container ${isAuthPage ? 'auth-page' : ''}`}>
+      <audio ref={audioRef} src="/notification.wav" preload="auto" />
+      <div className="toast-stack" aria-live="polite" aria-atomic="true">
+        {toasts.map((t) => (
+          <div key={t.id} className="toast">
+            {t.message}
+          </div>
+        ))}
+      </div>
       {shouldShowOverlays && showWelcome && (
         <div className="welcome-overlay">
           <div className="welcome-message">
@@ -692,6 +788,22 @@ function App() {
                   element={
                     userData ? (
                       <ReportedItems userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/events"
+                  element={
+                    userData ? (
+                      <EventManagement userData={userData} />
                     ) : (
                       <AuthOverlay
                         isOpen

@@ -33,9 +33,17 @@ try {
     $stmt->execute([':s' => $sender_id, ':r' => $recipient_id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $conversation_id = $row && !empty($row['conversation_id'])
-        ? $row['conversation_id']
-        : 'c' . bin2hex(random_bytes(8));
+    if ($row && !empty($row['conversation_id'])) {
+        $conversation_id = (int)$row['conversation_id'];
+    } else {
+        // Generate a numeric conversation_id (int) since the column is int
+        $nextStmt = $db->prepare("SELECT IFNULL(MAX(conversation_id), 0) + 1 AS next_id FROM messages");
+        $nextStmt->execute();
+        $conversation_id = (int)$nextStmt->fetchColumn();
+        if ($conversation_id <= 0) {
+            $conversation_id = 1;
+        }
+    }
 
     // Insert the message
     $message_id = generateUniqueId($db, 'messages');

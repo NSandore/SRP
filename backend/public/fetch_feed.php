@@ -84,6 +84,18 @@ try {
         ? "ORDER BY (t.upvotes - t.downvotes) DESC, COALESCE(t.last_activity_at, t.created_at) DESC"
         : "ORDER BY COALESCE(t.last_activity_at, t.created_at) DESC";
 
+    // Build an ID-only subquery to satisfy ONLY_FULL_GROUP_BY
+    $idSubquery = "
+        SELECT DISTINCT t.thread_id
+        FROM threads t
+        INNER JOIN forums f ON t.forum_id = f.forum_id
+        INNER JOIN communities c ON f.community_id = c.id
+        LEFT JOIN thread_tags tt ON tt.thread_id = t.thread_id
+        WHERE {$whereClause}
+          AND t.is_hidden = 0
+          AND f.is_hidden = 0
+    ";
+
     $query = "
         SELECT 
           t.*, 
@@ -93,7 +105,8 @@ try {
           c.name AS community_name,
           c.community_type,
           c.id AS community_id
-        FROM threads t
+        FROM ({$idSubquery}) ids
+        INNER JOIN threads t ON t.thread_id = ids.thread_id
         LEFT JOIN thread_votes tv 
           ON t.thread_id = tv.thread_id 
          AND tv.user_id = :uid
@@ -101,14 +114,8 @@ try {
           ON t.forum_id = f.forum_id
         INNER JOIN communities c 
           ON f.community_id = c.id
-        LEFT JOIN thread_tags tt
-          ON tt.thread_id = t.thread_id
         INNER JOIN users u
           ON t.user_id = u.user_id
-        WHERE {$whereClause}
-          AND t.is_hidden = 0
-          AND f.is_hidden = 0
-        GROUP BY t.thread_id
         {$orderClause}
     ";
 
