@@ -96,7 +96,8 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
           if (response.data.user.community_ambassador_of) {
             let communityIds;
             try {
-              communityIds = JSON.parse(response.data.user.community_ambassador_of);
+              const raw = response.data.user.community_ambassador_of;
+              communityIds = typeof raw === "string" ? JSON.parse(raw) : raw;
               if (!Array.isArray(communityIds)) {
                 communityIds = [communityIds];
               }
@@ -109,9 +110,11 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                 error,
                 response.data.user.community_ambassador_of
               );
+              setAmbassadorCommunities([]);
             }
           } else {
             console.log("User is not an ambassador in any communities.");
+            setAmbassadorCommunities([]);
           }
         } else {
           console.error("Error fetching user:", response.data.error);
@@ -433,8 +436,13 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
     { id: "about", label: "About" },
     { id: "posts", label: "Posts" },
   ];
-  const showOnline = Number(profile.show_online ?? 1) === 1;
-  const isOnline = showOnline && Boolean(profile.is_online);
+  const showOnline = Number(profile.show_online ?? 1) === 1 || String(profile.show_online).toLowerCase() === 'true';
+  const isOnline =
+    showOnline &&
+    (profile.is_online === true ||
+      profile.is_online === 1 ||
+      profile.is_online === '1' ||
+      String(profile.is_online).toLowerCase() === 'true');
 
   return (
     <div className="profile-view profile-container">

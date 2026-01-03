@@ -77,14 +77,27 @@
 
   }
   
-  /* Avatar */
-  .connection-avatar {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    object-fit: cover;
-    margin-right: 15px;
-  }
+/* Avatar */
+.connection-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 15px;
+}
+
+.presence-avatar {
+  position: relative;
+  display: inline-flex;
+}
+
+.presence-avatar .presence-dot {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+  top: 2px;
+  right: 2px;
+}
   
   /* User Info */
   .connection-info {
