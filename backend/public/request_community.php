@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 require __DIR__ . '/../vendor/autoload.php';
 use Mailgun\Mailgun;
@@ -101,6 +102,15 @@ try {
             ':primary_color' => $primaryColor,
             ':secondary_color' => $secondaryColor
         ]);
+
+        autoJoinCampusGroups(
+            $db,
+            $communityId,
+            $parentCommunityId !== '' ? $parentCommunityId : null,
+            $name,
+            $parentName,
+            $userId
+        );
 
         echo json_encode(['success' => true, 'community_id' => $communityId, 'status' => 'created', 'parent_name' => $parentName]);
         exit;

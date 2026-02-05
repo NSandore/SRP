@@ -2,7 +2,9 @@
 // delete_notification.php
 // Deletes a single notification for the logged-in recipient.
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 

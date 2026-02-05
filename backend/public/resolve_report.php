@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../reporting_utils.php';
 
 header('Content-Type: application/json');

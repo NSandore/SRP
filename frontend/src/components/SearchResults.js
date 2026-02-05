@@ -8,6 +8,7 @@ import {
   FaRegArrowAltCircleDown
 } from 'react-icons/fa';
 import { FiMessageCircle } from 'react-icons/fi';
+import { getApiBase } from '../utils/apiBase';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -67,7 +68,7 @@ function SearchResults() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const API_BASE = (process.env.REACT_APP_API_BASE || window.location.origin || '').replace(/\/$/, '');
+  const API_BASE = getApiBase();
   const buildApiUrl = (path) => `${API_BASE}${path}`;
   const tabs = React.useMemo(
     () => [

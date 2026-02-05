@@ -2,7 +2,9 @@
 // update_account_settings.php
 // Handles account settings updates for profile visibility and syncs the users.is_public flag.
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
@@ -32,8 +34,10 @@ $discoverableProvided = array_key_exists('discoverable', $input);
 $sessionTimeoutProvided = array_key_exists('session_timeout_minutes', $input);
 $notifyVotesProvided = array_key_exists('notify_votes', $input);
 $defaultFeedProvided = array_key_exists('default_feed', $input);
+$twoFactorProvided = array_key_exists('two_factor_enabled', $input);
+$autoJoinProvided = array_key_exists('auto_join_campus', $input);
 
-if (!$profileVisibilityProvided && !$showOnlineProvided && !$dmSettingProvided && !$showEmailProvided && !$discoverableProvided && !$sessionTimeoutProvided && !$notifyVotesProvided && !$defaultFeedProvided) {
+if (!$profileVisibilityProvided && !$showOnlineProvided && !$dmSettingProvided && !$showEmailProvided && !$discoverableProvided && !$sessionTimeoutProvided && !$notifyVotesProvided && !$defaultFeedProvided && !$twoFactorProvided && !$autoJoinProvided) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'No settings provided']);
     exit;
@@ -154,6 +158,28 @@ if ($defaultFeedProvided) {
     }
 }
 
+$twoFactorEnabled = null;
+if ($twoFactorProvided) {
+    $parsed = filter_var($input['two_factor_enabled'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($parsed === null && !is_numeric($input['two_factor_enabled'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid two_factor_enabled value']);
+        exit;
+    }
+    $twoFactorEnabled = $parsed === null ? (intval($input['two_factor_enabled']) ? 1 : 0) : ($parsed ? 1 : 0);
+}
+
+$autoJoinCampus = null;
+if ($autoJoinProvided) {
+    $parsed = filter_var($input['auto_join_campus'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($parsed === null && !is_numeric($input['auto_join_campus'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid auto_join_campus value']);
+        exit;
+    }
+    $autoJoinCampus = $parsed === null ? (intval($input['auto_join_campus']) ? 1 : 0) : ($parsed ? 1 : 0);
+}
+
 try {
     $db = getDB();
     $db->beginTransaction();
@@ -177,11 +203,28 @@ try {
         $params[':show_online'] = $showOnline;
     }
 
+    $extrasUpdates = [];
     if ($dmSettingProvided) {
-        $updateParts[] = "extras = JSON_SET(COALESCE(extras, JSON_OBJECT()), '$.allow_messages_from', :allow_messages_from)";
+        $extrasUpdates['allow_messages_from'] = $allowMessagesFrom;
+    }
+    if ($twoFactorProvided) {
+        $extrasUpdates['two_factor_enabled'] = $twoFactorEnabled;
+    }
+    if ($autoJoinProvided) {
+        $extrasUpdates['auto_join_campus'] = $autoJoinCampus;
+    }
+    if (!empty($extrasUpdates)) {
+        $jsonSetParts = [];
+        foreach ($extrasUpdates as $key => $value) {
+            $param = ':extras_' . $key;
+            $jsonSetParts[] = "'$." . $key . "', " . $param;
+            $params[$param] = $value;
+        }
+        $jsonSetUpdate = "JSON_SET(COALESCE(extras, JSON_OBJECT()), " . implode(', ', $jsonSetParts) . ")";
+        $jsonSetInsert = "JSON_SET(COALESCE(:extras, JSON_OBJECT()), " . implode(', ', $jsonSetParts) . ")";
+        $updateParts[] = "extras = {$jsonSetUpdate}";
         $insertColumns[] = 'extras';
-        $insertValues[] = "JSON_SET(COALESCE(:extras, JSON_OBJECT()), '$.allow_messages_from', :allow_messages_from)";
-        $params[':allow_messages_from'] = $allowMessagesFrom;
+        $insertValues[] = $jsonSetInsert;
         $params[':extras'] = null;
     }
 

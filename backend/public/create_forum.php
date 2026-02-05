@@ -1,5 +1,6 @@
 <?php
-session_start(); // Start the session to access session variables
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession(); // Start the session to access session variables
 
 require_once __DIR__ . '/../db_connection.php';
 

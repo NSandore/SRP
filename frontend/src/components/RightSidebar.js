@@ -7,6 +7,10 @@ import ThreadRightRail from './ThreadRightRail';
 function RightSidebar({ userData }) {
   const location = useLocation();
   const isThreadView = /\/thread\//.test(location.pathname);
+  const isDonateRoute = location.pathname.startsWith('/donate');
+  if (isDonateRoute) {
+    return null;
+  }
   return (
     <aside className="right-sidebar">
       {isThreadView ? <ThreadRightRail /> : <RightRail userData={userData} />}

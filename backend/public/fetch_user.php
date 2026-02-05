@@ -1,9 +1,9 @@
 <?php
 // fetch_user.php
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
 
-// Enable error reporting for debugging (disable in production)
+startSession(); // Enable error reporting for debugging (disable in production)
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
@@ -80,6 +80,8 @@ try {
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.last_seen_at')) AS last_seen_at,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.allow_messages_from')) AS allow_messages_from,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_votes')) AS notify_votes,
+            JSON_UNQUOTE(JSON_EXTRACT(extras, '$.two_factor_enabled')) AS two_factor_enabled,
+            JSON_UNQUOTE(JSON_EXTRACT(extras, '$.auto_join_campus')) AS auto_join_campus,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.default_feed')) AS default_feed_json,
             default_feed,
             show_email,
@@ -96,6 +98,8 @@ try {
     $last_seen_at = $settings['last_seen_at'] ?? null;
     $allow_messages_from = $settings['allow_messages_from'] ?? 'everyone';
     $notify_votes = isset($settings['notify_votes']) ? (int)$settings['notify_votes'] : 1;
+    $two_factor_enabled = isset($settings['two_factor_enabled']) ? (int)filter_var($settings['two_factor_enabled'], FILTER_VALIDATE_BOOLEAN) : 0;
+    $auto_join_campus = isset($settings['auto_join_campus']) ? (int)filter_var($settings['auto_join_campus'], FILTER_VALIDATE_BOOLEAN) : 1;
     $default_feed = $settings['default_feed'] ?? ($settings['default_feed_json'] ?? null);
     $show_email = isset($settings['show_email']) ? (int)$settings['show_email'] : 0; // 0=hidden,1=connections,2=everyone
     $discoverable = isset($settings['discoverable']) ? (int)$settings['discoverable'] : 2;
@@ -114,6 +118,8 @@ try {
     $user['is_online'] = $show_online ? $isOnline : false;
     $user['allow_messages_from'] = $allow_messages_from;
     $user['notify_votes'] = $notify_votes;
+    $user['two_factor_enabled'] = $two_factor_enabled;
+    $user['auto_join_campus'] = $auto_join_campus;
     $user['default_feed'] = $default_feed;
     $user['show_email'] = $show_email;
     $user['discoverable'] = $discoverable;

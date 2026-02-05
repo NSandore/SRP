@@ -5,6 +5,7 @@ import axios from "axios";
 import { FaLock } from "react-icons/fa";
 import "./UniversityProfile.css";
 import ModalOverlay from "./ModalOverlay";
+import { buildAvatarSrc } from "../utils/avatar";
 
 function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNotificationsRefresh }) {
   const { id } = useParams(); // community id
@@ -919,7 +920,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                       <img
                         key={key}
                         className="avatar"
-                        src={a.avatar_path}
+                        src={buildAvatarSrc(a.avatar_path)}
                         alt={`${a.first_name} ${a.last_name}`}
                       />
                     ) : (
@@ -1192,11 +1193,11 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                   const avatarKey = amb.user_id || amb.id || initials;
                   const isOnline = Number(amb.show_online ?? 1) === 1 && Boolean(amb.is_online);
                   const avatarNode = amb.avatar_path ? (
-                            <img
-                              src={amb.avatar_path}
-                              alt={`${amb.first_name} ${amb.last_name}`}
-                              className="ambassador-avatar"
-                            />
+                    <img
+                      src={buildAvatarSrc(amb.avatar_path)}
+                      alt={`${amb.first_name} ${amb.last_name}`}
+                      className="ambassador-avatar"
+                    />
                   ) : (
                     <div
                       className="ambassador-avatar ambassador-avatar--initial"

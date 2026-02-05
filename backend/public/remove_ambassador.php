@@ -2,7 +2,9 @@
 // remove_ambassador.php
 // Revokes ambassador access for a user within a community (admins only).
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+
+startSession();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
 

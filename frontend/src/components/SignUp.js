@@ -19,18 +19,19 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
     phone: '',
     password: '',
     confirmPassword: '',
+    enableTwoFactor: false,
     schoolName: '',
     startDate: '',
     endDate: '',
   });
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleBasicSubmit = async () => {
-    const { firstName, lastName, email, phone, password, confirmPassword } = formData;
+    const { firstName, lastName, email, phone, password, confirmPassword, enableTwoFactor } = formData;
     if (!firstName || !lastName || !email || !phone || !password || !confirmPassword) {
       alert('All fields required.');
       return;
@@ -47,7 +48,7 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
       const res = await fetch('/api/init_register.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, email, phone, password })
+        body: JSON.stringify({ firstName, lastName, email, phone, password, enable_two_factor: enableTwoFactor })
       });
 
       const text = await res.text();
@@ -187,6 +188,15 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
       <input name="phone" placeholder="Phone" value={formData.phone} onChange={handleChange} />
       <input type="password" name="password" placeholder="Password" value={formData.password} onChange={handleChange} />
       <input type="password" name="confirmPassword" placeholder="Confirm Password" value={formData.confirmPassword} onChange={handleChange} />
+      <label className="auth-checkbox">
+        <input
+          type="checkbox"
+          name="enableTwoFactor"
+          checked={formData.enableTwoFactor}
+          onChange={handleChange}
+        />
+        Enable Two-Factor Authentication?
+      </label>
       <button type="button" className="auth-primary" onClick={handleBasicSubmit} disabled={isSubmitting}>
         {isSubmitting ? 'Creating account…' : 'Continue'}
       </button>

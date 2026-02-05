@@ -301,6 +301,7 @@ CREATE TABLE `event_registrations` (
   `user_id` varchar(32) NOT NULL,
   `status` enum('registered','attended','cancelled','no_show') DEFAULT 'registered',
   `registered_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `reminder_sent_at` datetime DEFAULT NULL,
   `attended_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_event_registration` (`event_id`,`user_id`),

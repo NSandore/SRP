@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 require __DIR__ . '/../vendor/autoload.php';
 use Mailgun\Mailgun;
@@ -74,6 +75,19 @@ try {
             ':logo_path' => $defaultLogo,
             ':banner_path' => $defaultBanner
         ]);
+
+        $creatorStmt = $db->prepare("SELECT user_id FROM users WHERE email = :email LIMIT 1");
+        $creatorStmt->execute([':email' => $request['email']]);
+        $creatorUserId = $creatorStmt->fetchColumn() ?: null;
+
+        autoJoinCampusGroups(
+            $db,
+            $communityId,
+            empty($request['parent_community_id']) ? null : $request['parent_community_id'],
+            $request['name'],
+            $parentName,
+            $creatorUserId ? normalizeId($creatorUserId) : null
+        );
         // add admin ambassador
         $adminId = generateUniqueId($db, 'ambassadors');
         $stmt = $db->prepare("INSERT INTO ambassadors (id, user_id, community_id, role) VALUES (:id, (SELECT user_id FROM users WHERE email = :email), :cid, 'admin')");

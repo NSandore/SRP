@@ -40,6 +40,7 @@ import TiptapLink from '@tiptap/extension-link';
 // For sanitizing HTML
 import DOMPurify from 'dompurify';
 import ReportModal from './ReportModal';
+import { buildAvatarSrc } from '../utils/avatar';
 
 // Helper: relative time formatter
 const timeAgo = (dateStr) => {
@@ -72,14 +73,6 @@ const timeAgo = (dateStr) => {
 };
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-
-const buildAvatarSrc = (path) => {
-  const fallback = '/uploads/avatars/DefaultAvatar.png';
-  if (!path) return fallback;
-  if (path.startsWith('http')) return path;
-  // If we already have a root-relative path, use as-is; otherwise prepend uploads path
-  return path.startsWith('/') ? path : `/uploads/avatars/${path}`;
-};
 
 const getDisplayName = (author, viewerId) => {
   const first = author?.first_name || 'User';

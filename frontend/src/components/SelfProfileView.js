@@ -5,6 +5,7 @@ import './ProfileView.css';
 import DOMPurify from 'dompurify';
 import { FaCheckCircle } from 'react-icons/fa';
 import ThreadCard from './ThreadCard';
+import { buildAvatarSrc } from '../utils/avatar';
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return '';
@@ -424,7 +425,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
               <div className="hero-left">
                 <div className="user-hero-logo-wrap">
                   <img
-                    src={avatarPath}
+                    src={buildAvatarSrc(avatarPath)}
                     alt="Profile Avatar"
                     className={`user-hero-logo ${isDefaultAvatar ? 'user-hero-logo--default' : ''}`}
                   />

@@ -2,7 +2,9 @@
 // create_announcement.php
 // Create a global or community announcement.
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+
+startSession();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
 

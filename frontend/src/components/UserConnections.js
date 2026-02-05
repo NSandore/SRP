@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import './Connections.css';
 import { FaEllipsisV } from 'react-icons/fa';
 import useOnClickOutside from '../hooks/useOnClickOutside';
+import { buildAvatarSrc } from '../utils/avatar';
 
 function UserConnections({ userData }) {
   const [activeTab, setActiveTab] = useState('connections');
@@ -140,7 +141,7 @@ function UserConnections({ userData }) {
                   return (
                     <li key={uid} style={{ position: 'relative' }}>
                       <img
-                        src={user.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
+                        src={buildAvatarSrc(user.avatar_path)}
                         alt={`${user.first_name || ''} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />
@@ -182,7 +183,7 @@ function UserConnections({ userData }) {
                   return (
                     <li key={req.connection_id}>
                       <img
-                        src={user.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
+                        src={buildAvatarSrc(user.avatar_path)}
                         alt={`${user.first_name || ''} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />
@@ -213,7 +214,7 @@ function UserConnections({ userData }) {
                   return (
                     <li key={req.connection_id}>
                       <img
-                        src={user.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
+                        src={buildAvatarSrc(user.avatar_path)}
                         alt={`${user.first_name || ''} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />

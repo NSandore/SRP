@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php'; // Adjust if needed
 
 header('Content-Type: application/json');

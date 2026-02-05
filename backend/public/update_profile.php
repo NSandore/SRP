@@ -1,5 +1,6 @@
 <?php
-session_start(); // Start the session
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession(); // Start the session
 
 ini_set('display_errors', 1);
 error_reporting(E_ALL);

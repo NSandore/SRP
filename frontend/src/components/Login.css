@@ -167,6 +167,19 @@
   color: var(--text-color);
 }
 
+.auth-remember {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.auth-remember input {
+  width: 18px;
+  height: 18px;
+}
+
 .auth-primary {
   background: var(--primary-color);
   color: #fff;
@@ -238,6 +251,12 @@
 
 .auth-error {
   color: #dc2626;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.auth-success {
+  color: #15803d;
   margin: 0;
   font-size: 0.9rem;
 }

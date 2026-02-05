@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import './AppShell.css';
 import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
@@ -34,14 +34,15 @@ export default function AppShell({
   const isMessagesRoute = pathname.startsWith('/messages');
   const isSearchRoute = pathname.startsWith('/search');
   const isSettingsRoute = pathname.startsWith('/settings');
+  const isDonateRoute = pathname.startsWith('/donate');
   const effectiveLockedKeys = lockedNavKeys ?? ['saved', 'connections', 'profile'];
 
   const [announcementHeight, setAnnouncementHeight] = useState(0);
 
   // Listen for announcement bar height changes from NavBar
-  const handleAnnouncementHeight = (height: number) => {
-    setAnnouncementHeight(height);
-  };
+  const handleAnnouncementHeight = useCallback((height: number) => {
+    setAnnouncementHeight((prev) => (prev === height ? prev : height));
+  }, []);
 
   return (
     <div className="app-shell">
@@ -77,7 +78,7 @@ export default function AppShell({
         <div
           className={`app-shell-grid ${sidebarCollapsed ? 'nav-collapsed' : ''} ${isWideLayout ? 'communities-layout' : ''} ${
             isMessagesRoute ? 'messages-layout' : ''
-          } ${isSearchRoute ? 'search-layout' : ''} ${isSettingsRoute ? 'settings-layout' : ''}`}
+          } ${isSearchRoute ? 'search-layout' : ''} ${isSettingsRoute ? 'settings-layout' : ''} ${isDonateRoute ? 'donate-layout' : ''}`}
         >
           <div className="left-rail">
             <LeftSidebar

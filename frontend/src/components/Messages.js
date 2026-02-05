@@ -3,6 +3,8 @@ import axios from 'axios';
 import './Messages.css';
 import { Link, useSearchParams } from 'react-router-dom';
 import { FiSearch, FiSend } from 'react-icons/fi';
+import { buildAvatarSrc } from '../utils/avatar';
+import { getApiBase } from '../utils/apiBase';
 
 function Messages({ userData }) {
   const [conversations, setConversations] = useState([]);
@@ -16,19 +18,12 @@ function Messages({ userData }) {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [searchParams] = useSearchParams();
-  const API_BASE = (process.env.REACT_APP_API_BASE || window.location.origin || '').replace(/\/$/, '');
+  const API_BASE = getApiBase();
   const buildApiUrl = (path) => `${API_BASE}${path}`;
-  const DEFAULT_AVATAR = '/uploads/avatars/DefaultAvatar.png';
   const messagesEndRef = useRef(null);
   const threadRef = useRef(null);
   const oldestMessageIdRef = useRef(null);
   const skipAutoScrollRef = useRef(false);
-
-  const buildAvatarSrc = (path) => {
-    if (!path) return DEFAULT_AVATAR;
-    if (path.startsWith('http')) return path;
-    return path.startsWith('/') ? path : `/uploads/avatars/${path}`;
-  };
 
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';

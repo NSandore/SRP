@@ -8,6 +8,7 @@ import DOMPurify from "dompurify";
 import { FaCheckCircle, FaEllipsisV } from "react-icons/fa";
 import useOnClickOutside from "../hooks/useOnClickOutside";
 import ThreadCard from "./ThreadCard";
+import { buildAvatarSrc } from "../utils/avatar";
 
 function UserProfileView({ userData, onFollowNotification, onNotificationsRefresh }) {
   const { user_id } = useParams();
@@ -496,7 +497,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
             <div className="user-hero-logo-wrap">
               <div className="avatar-presence">
                 <img
-                  src={profile.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
+                  src={buildAvatarSrc(profile.avatar_path)}
                   alt={`${fullName} Avatar`}
                   className={`user-hero-logo ${isDefaultAvatar ? "user-hero-logo--default" : ""}`}
                 />

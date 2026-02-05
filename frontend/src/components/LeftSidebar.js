@@ -34,13 +34,15 @@ function LeftSidebar({
   onNavigate = undefined,
 }) {
   const isSuperAdmin = userData && Number(userData.role_id) === 1;
+  const isAdminRole = userData && Number(userData.role_id) >= 7;
   const adminCommunityIds = Array.isArray(userData?.admin_community_ids) ? userData.admin_community_ids : [];
   const isCommunityAdmin = adminCommunityIds.length > 0;
-  const isModerator = userData && (isSuperAdmin || Number(userData.is_ambassador) === 1);
+  const isAmbassador = userData && Number(userData.is_ambassador) === 1;
+  const isModerator = userData && (isSuperAdmin || isAmbassador);
 
   const items = [
     ...baseItems,
-    ...(isSuperAdmin || isCommunityAdmin
+    ...(isSuperAdmin || isAdminRole || isCommunityAdmin || isAmbassador
       ? [{ to: '/events', label: 'Event Management', Icon: CalendarRange, color: '#22C55E', key: 'events' }]
       : []),
     ...(isModerator

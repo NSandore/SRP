@@ -5,6 +5,7 @@ import axios from 'axios';
 import { FaLock } from 'react-icons/fa';
 import './GroupProfile.css';
 import ModalOverlay from './ModalOverlay';
+import { buildAvatarSrc } from '../utils/avatar';
 
 function GroupProfile({ userData, onRequireAuth }) {
   const { id } = useParams(); // group community id
@@ -856,7 +857,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                       <img
                         key={key}
                         className="avatar"
-                        src={a.avatar_path}
+                        src={buildAvatarSrc(a.avatar_path)}
                         alt={`${a.first_name} ${a.last_name}`}
                       />
                     ) : (
@@ -951,7 +952,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                 const isOnline = Number(amb.show_online ?? 1) === 1 && Boolean(amb.is_online);
                 const avatarNode = amb.avatar_path ? (
                   <img
-                    src={amb.avatar_path}
+                    src={buildAvatarSrc(amb.avatar_path)}
                     alt={`${amb.first_name} ${amb.last_name}`}
                     className="ambassador-avatar"
                   />

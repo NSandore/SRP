@@ -1,7 +1,6 @@
 <?php
-session_start();
-
-// Destroy the session and clear all session variables
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession(); // Destroy the session and clear all session variables
 session_unset();
 session_destroy();
 

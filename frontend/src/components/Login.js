@@ -13,6 +13,11 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetMessage, setResetMessage] = useState('');
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorMessage, setTwoFactorMessage] = useState('');
+  const [twoFactorError, setTwoFactorError] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(true);
 
   const handleLoginClick = async (e) => {
     e.preventDefault();
@@ -23,10 +28,22 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
     }
 
     try {
-      const response = await axios.post('/api/login_user.php', {
-        email,
-        password,
-      });
+      const response = await axios.post(
+        '/api/login_user.php',
+        {
+          email,
+          password,
+        },
+        { withCredentials: true }
+      );
+
+      if (response.data?.requires_two_factor) {
+        setRequiresTwoFactor(true);
+        setTwoFactorMessage(response.data.message || 'Enter the verification code sent to your email.');
+        setTwoFactorError('');
+        setError('');
+        return;
+      }
 
       if (response.data && response.data.success) {
         setError('');
@@ -35,7 +52,42 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
         setError(response.data.error || 'Login failed. Please try again.');
       }
     } catch (err) {
-      setError('Server error. Please try again later.');
+      const payload = err?.response?.data;
+      if (payload?.requires_two_factor) {
+        setRequiresTwoFactor(true);
+        setTwoFactorMessage(payload.message || 'Enter the verification code sent to your email.');
+        setTwoFactorError('');
+        setError('');
+        return;
+      }
+      setError(payload?.error || 'Server error. Please try again later.');
+    }
+  };
+
+  const handleVerifyTwoFactor = async (e) => {
+    e.preventDefault();
+    if (!twoFactorCode.trim()) {
+      setTwoFactorError('Enter the 6-digit code.');
+      return;
+    }
+    try {
+      const response = await axios.post(
+        '/api/verify_two_factor.php',
+        {
+          code: twoFactorCode.trim(),
+          remember_device: rememberDevice,
+        },
+        { withCredentials: true }
+      );
+      if (response.data?.success) {
+        setTwoFactorError('');
+        setTwoFactorMessage('');
+        onLogin(response.data.user);
+      } else {
+        setTwoFactorError(response.data?.error || 'Invalid code. Please try again.');
+      }
+    } catch (err) {
+      setTwoFactorError('Server error. Please try again.');
     }
   };
 
@@ -142,6 +194,52 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
               </button>
               <button type="button" className="auth-link" onClick={() => setShowReset(false)}>
                 Never mind, take me back
+              </button>
+            </form>
+          ) : requiresTwoFactor ? (
+            <form className="auth-form" onSubmit={handleVerifyTwoFactor}>
+              <label htmlFor="two-factor-code">Verification code</label>
+              <p className="auth-helper">We sent a 6-digit code to your email.</p>
+              <input
+                type="text"
+                id="two-factor-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={twoFactorCode}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setTwoFactorCode(next);
+                }}
+                placeholder="6-digit code"
+                required
+              />
+              <label className="auth-remember">
+                <input
+                  type="checkbox"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                />
+                Remember this device
+              </label>
+
+              {twoFactorMessage && <p className="auth-success">{twoFactorMessage}</p>}
+              {twoFactorError && <p className="auth-error">{twoFactorError}</p>}
+
+              <button type="submit" className="auth-primary">
+                Verify
+              </button>
+              <button
+                type="button"
+                className="auth-link"
+                onClick={() => {
+                  setRequiresTwoFactor(false);
+                  setTwoFactorCode('');
+                  setTwoFactorMessage('');
+                  setTwoFactorError('');
+                  setRememberDevice(true);
+                }}
+              >
+                Back to login
               </button>
             </form>
           ) : (

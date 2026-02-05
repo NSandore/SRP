@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { FaUserCircle, FaEnvelope, FaBell, FaSearch, FaBars, FaTimes, FaSun, FaMoon } from 'react-icons/fa';
 import DOMPurify from 'dompurify';
 import axios from 'axios';
+import { buildAvatarSrc } from '../utils/avatar';
 
 //
 
@@ -42,13 +43,7 @@ function NavBar({
   const searchAreaRef = useRef(null);
   const searchToggleRef = useRef(null);
   const tickerRef = useRef(null);
-  const buildAvatarSrc = (path) => {
-    const fallback = '/uploads/avatars/DefaultAvatar.png';
-    if (!path) return fallback;
-    if (path.startsWith('http')) return path;
-    return path.startsWith('/') ? path : `/uploads/avatars/${path}`;
-  };
-
+  const announcementBarRef = useRef(null);
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkTheme ? 'dark' : 'light');
     try {
@@ -244,6 +239,12 @@ function NavBar({
     navigate('/settings');
   };
 
+  const goToDonation = () => {
+    setAccountMenuVisible(false);
+    closeDrawerIfOpen();
+    navigate('/donate');
+  };
+
   const toggleTheme = () => {
     setIsDarkTheme((prev) => !prev);
   };
@@ -272,14 +273,20 @@ function NavBar({
     }
   };
 
-  const handleAnnouncementMount = (el) => {
-    if (!el) {
-      onAnnouncementHeight?.(0);
+  useEffect(() => {
+    if (!onAnnouncementHeight) return;
+    if (!announcementText) {
+      onAnnouncementHeight(0);
       return;
     }
-    const height = el.getBoundingClientRect().height;
-    onAnnouncementHeight?.(height);
-  };
+    const el = announcementBarRef.current;
+    if (!el) return;
+    const raf = window.requestAnimationFrame(() => {
+      const height = el.getBoundingClientRect().height;
+      onAnnouncementHeight(height);
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [announcementText, onAnnouncementHeight]);
 
   return (
     <>
@@ -491,6 +498,25 @@ function NavBar({
                   >
                     Account Settings
                   </div>
+                  {/*
+                  <div
+                    className="account-menu-item"
+                    onClick={() => {
+                      closeDrawerIfOpen();
+                      goToDonation();
+                    }}
+                    tabIndex={0}
+                    role="menuitem"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        closeDrawerIfOpen();
+                        goToDonation();
+                      }
+                    }}
+                  >
+                    Support the Project
+                  </div>
+                  */}
                   <button
                     type="button"
                     className="account-menu-item theme-toggle"
@@ -552,7 +578,7 @@ function NavBar({
       </div>
     </nav>
     {Boolean(announcementText) && (
-      <div className="global-announcement-bar" aria-live="polite" ref={handleAnnouncementMount}>
+      <div className="global-announcement-bar" aria-live="polite" ref={announcementBarRef}>
         <div
           className="global-announcement-ticker"
           ref={tickerRef}

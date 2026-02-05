@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './FollowsView.css';
+import { buildAvatarSrc } from '../utils/avatar';
 
 function FollowsView({ userData }) {
   const [activeTab, setActiveTab] = useState("followers");
@@ -73,7 +74,7 @@ function FollowsView({ userData }) {
                 {followers.map((follower) => (
                   <li key={follower.user_id} className="follow-item">
                     <img
-                      src={follower.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
+                      src={buildAvatarSrc(follower.avatar_path)}
                       alt={`${follower.first_name} ${follower.last_name}`}
                       className="avatar"
                     />
@@ -97,7 +98,7 @@ function FollowsView({ userData }) {
                 {following.map((followed) => (
                   <li key={followed.user_id} className="follow-item">
                     <img
-                      src={followed.avatar_path || '/uploads/avatars/DefaultAvatar.png'}
+                      src={buildAvatarSrc(followed.avatar_path)}
                       alt={`${followed.first_name} ${followed.last_name}`}
                       className="avatar"
                     />

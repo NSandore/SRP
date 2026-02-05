@@ -1,5 +1,6 @@
 <?php
-session_start(); // To access session variables (like user_id, role_id)
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession(); // To access session variables (like user_id, role_id)
 
 require_once __DIR__ . '/../db_connection.php';
 

@@ -32,6 +32,7 @@ $lastName = trim($inputData['lastName']);
 $email = trim($inputData['email']);
 $phone = trim($inputData['phone']);
 $password = password_hash($inputData['password'], PASSWORD_BCRYPT);
+$enableTwoFactor = isset($inputData['enable_two_factor']) ? (int)filter_var($inputData['enable_two_factor'], FILTER_VALIDATE_BOOLEAN) : 0;
 // $method = strtolower($inputData['method']);
 $verificationCode = random_int(100000, 999999);
 $defaultAvatar = 'DefaultAvatar.png';
@@ -83,6 +84,19 @@ try {
         ':verification_code' => $verificationCode,
         ':avatar_path' => $defaultAvatar,
         ':banner_path' => $defaultBanner
+    ]);
+
+    $settingsStmt = $db->prepare("
+        INSERT INTO account_settings (user_id, extras, updated_at)
+        VALUES (:uid, JSON_SET(JSON_OBJECT(), '$.two_factor_enabled', :two_factor, '$.auto_join_campus', :auto_join), NOW())
+        ON DUPLICATE KEY UPDATE
+            extras = JSON_SET(COALESCE(extras, JSON_OBJECT()), '$.two_factor_enabled', :two_factor, '$.auto_join_campus', :auto_join),
+            updated_at = NOW()
+    ");
+    $settingsStmt->execute([
+        ':uid' => $userId,
+        ':two_factor' => $enableTwoFactor,
+        ':auto_join' => 1
     ]);
 
     // Send verification email via Mailgun

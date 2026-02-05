@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import './Connections.css';
+import { buildAvatarSrc } from '../utils/avatar';
 
 function Connections({ userData }) {
   const [following, setFollowing] = useState([]);
@@ -126,7 +127,7 @@ function Connections({ userData }) {
                   return (
                     <li key={userId}>
                       <img
-                        src={user.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
+                        src={buildAvatarSrc(user.avatar_path)}
                         alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />
@@ -162,7 +163,7 @@ function Connections({ userData }) {
                   return (
                     <li key={userId}>
                       <img
-                        src={user.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
+                        src={buildAvatarSrc(user.avatar_path)}
                         alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
                         className="connection-avatar"
                       />

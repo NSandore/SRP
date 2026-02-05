@@ -56,6 +56,8 @@ import AuthOverlay from './components/AuthOverlay';
 import AccountSettings from './components/AccountSettings';
 import ReportedItems from './components/ReportedItems';
 import EventManagement from './components/EventManagement';
+import DonationPage from './components/DonationPage';
+import { buildAvatarSrc } from './utils/avatar';
 
 const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events'];
 
@@ -538,7 +540,7 @@ function App() {
                   const avatarKey = amb.user_id || amb.id || initials;
                   const avatarNode = amb.avatar_path ? (
                     <img
-                      src={amb.avatar_path}
+                      src={buildAvatarSrc(amb.avatar_path)}
                       alt={`${amb.first_name} ${amb.last_name}`}
                       className="ambassador-avatar"
                     />
@@ -723,6 +725,7 @@ function App() {
                     )
                   }
                 />
+                <Route path="/donate" element={<DonationPage />} />
                 <Route
                   path="/funding"
                   element={

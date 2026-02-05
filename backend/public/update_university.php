@@ -10,9 +10,9 @@ header('Content-Type: application/json');
 // Include the database connection
 require_once __DIR__ . '/../db_connection.php';
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
 
-// Only allow POST requests
+startSession(); // Only allow POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'error' => 'Invalid request method.']);

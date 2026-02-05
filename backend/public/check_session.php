@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../db_connection.php';
@@ -38,7 +39,13 @@ if (isset($_SESSION['user_id'])) {
 
         // Validate current session is not revoked and not expired
         $sessionCheck = $db->prepare("
-            SELECT last_active_at, revoked_at FROM user_sessions WHERE session_id = :sid AND user_id = :uid LIMIT 1
+            SELECT
+                last_active_at,
+                revoked_at,
+                TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS inactive_seconds
+            FROM user_sessions
+            WHERE session_id = :sid AND user_id = :uid
+            LIMIT 1
         ");
         $sessionCheck->execute([':sid' => $sessionId, ':uid' => $userId]);
         $sessionRow = $sessionCheck->fetch(PDO::FETCH_ASSOC);
@@ -49,8 +56,8 @@ if (isset($_SESSION['user_id'])) {
                 echo json_encode(["loggedIn" => false]);
                 exit;
             }
-            $lastActiveTs = strtotime($sessionRow['last_active_at']);
-            if ($lastActiveTs !== false && ($now - $lastActiveTs) > ($sessionTimeoutMinutes * 60)) {
+            $inactiveSeconds = (int)($sessionRow['inactive_seconds'] ?? 0);
+            if ($inactiveSeconds > ($sessionTimeoutMinutes * 60)) {
                 // Expire session
                 $expireStmt = $db->prepare("UPDATE user_sessions SET revoked_at = NOW() WHERE session_id = :sid AND user_id = :uid");
                 $expireStmt->execute([':sid' => $sessionId, ':uid' => $userId]);

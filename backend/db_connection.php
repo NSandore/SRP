@@ -1,4 +1,40 @@
 <?php
+function loadEnvFile(string $path): void {
+    if (!is_readable($path)) {
+        return;
+    }
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!$lines) {
+        return;
+    }
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || strpos($line, '#') === 0) {
+            continue;
+        }
+        $parts = explode('=', $line, 2);
+        if (count($parts) !== 2) {
+            continue;
+        }
+        $key = trim($parts[0]);
+        $value = trim($parts[1]);
+        if ($key === '' || getenv($key) !== false) {
+            continue;
+        }
+        if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
+            (substr($value, 0, 1) === "'" && substr($value, -1) === "'")
+        ) {
+            $value = substr($value, 1, -1);
+        }
+        putenv("{$key}={$value}");
+        $_ENV[$key] = $value;
+        $_SERVER[$key] = $value;
+    }
+}
+
+// Load root .env for local/dev configuration.
+loadEnvFile(__DIR__ . '/../.env');
+
 function getDB() {
     static $db = null;
     if ($db === null) {
@@ -28,6 +64,8 @@ function getIdConfig(): array {
         'forums' => ['prefix' => 'f', 'column' => 'forum_id'],
         'threads' => ['prefix' => 't', 'column' => 'thread_id'],
         'posts' => ['prefix' => 'p', 'column' => 'post_id'],
+        'events' => ['prefix' => 'ev', 'column' => 'event_id'],
+        'event_registrations' => ['prefix' => 'er', 'column' => 'id'],
         'messages' => ['prefix' => 'm', 'column' => 'message_id'],
         'notifications' => ['prefix' => 'n', 'column' => 'notification_id'],
         'connections' => ['prefix' => 'x', 'column' => 'connection_id'],
@@ -126,5 +164,77 @@ function stripUploadPrefix(?string $value): ?string {
         return $value;
     }
     return preg_replace('#^/uploads/(avatars|banners)/#', '', $value);
+}
+
+/**
+ * Auto-follow sub-communities for users with auto-join enabled.
+ */
+function autoJoinCampusGroups(PDO $db, string $communityId, ?string $parentCommunityId, string $communityName, ?string $parentName, ?string $creatorUserId): void {
+    if (!$parentCommunityId) {
+        return;
+    }
+
+    $params = [':parent_id' => $parentCommunityId];
+    $creatorFilter = '';
+    if ($creatorUserId) {
+        $creatorFilter = ' AND u.user_id <> :creator_id';
+        $params[':creator_id'] = $creatorUserId;
+    }
+
+    $usersStmt = $db->prepare("
+        SELECT u.user_id, u.first_name, u.last_name
+        FROM users u
+        LEFT JOIN account_settings s ON s.user_id = u.user_id
+        WHERE u.recent_university_id = :parent_id
+          AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(s.extras, '$.auto_join_campus')), '1') IN ('1', 'true')
+          {$creatorFilter}
+    ");
+    $usersStmt->execute($params);
+    $targets = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!$targets) {
+        return;
+    }
+
+    $checkStmt = $db->prepare("
+        SELECT 1 FROM followed_communities WHERE user_id = :uid AND community_id = :cid LIMIT 1
+    ");
+    $insertFollow = $db->prepare("
+        INSERT INTO followed_communities (id, user_id, community_id)
+        VALUES (:id, :uid, :cid)
+    ");
+    $insertNotif = $db->prepare("
+        INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message)
+        VALUES (:nid, :rid, :aid, :type, :ref, :message)
+    ");
+
+    $parentSuffix = $parentName ? " in {$parentName}" : '';
+    $message = "You're now following a new community! {$communityName} just launched{$parentSuffix}. Drop in to introduce yourself and see what's new.";
+
+    foreach ($targets as $user) {
+        $uid = normalizeId($user['user_id']);
+        if ($uid === '') {
+            continue;
+        }
+        $checkStmt->execute([':uid' => $uid, ':cid' => $communityId]);
+        if ($checkStmt->fetchColumn()) {
+            continue;
+        }
+        $followId = generateUniqueId($db, 'followed_communities');
+        $insertFollow->execute([
+            ':id' => $followId,
+            ':uid' => $uid,
+            ':cid' => $communityId
+        ]);
+
+        $notificationId = generateUniqueId($db, 'notifications');
+        $insertNotif->execute([
+            ':nid' => $notificationId,
+            ':rid' => $uid,
+            ':aid' => $creatorUserId ?: $uid,
+            ':type' => 'auto_follow',
+            ':ref' => $communityId,
+            ':message' => $message
+        ]);
+    }
 }
 ?>

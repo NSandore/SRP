@@ -2,7 +2,9 @@
 // create_community.php
 // Super-admin can create any community. Community admins can create sub-communities under their own community.
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
@@ -100,6 +102,15 @@ try {
         ':logo_path' => $defaultLogo,
         ':banner_path' => $defaultBanner
     ]);
+
+    autoJoinCampusGroups(
+        $db,
+        $communityId,
+        $parentCommunityId !== '' ? $parentCommunityId : null,
+        $name,
+        $parentName,
+        $sessionUserId
+    );
 
     echo json_encode([
         'success' => true,

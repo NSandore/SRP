@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getApiBase } from '../utils/apiBase';
 import {
   FaBell,
   FaBullhorn,
   FaLock,
+  FaPlug,
   FaShieldAlt,
   FaUserCog,
   FaUsers,
@@ -76,13 +78,25 @@ function AccountSettings({ userData }) {
   const roleId = Number(userData?.role_id || 0);
   const isModerator = roleId >= 5;
   const isAdmin = roleId >= 7;
+  const isSuperAdmin = roleId === 1;
   const [fetchedIsAmbassador, setFetchedIsAmbassador] = useState(Number(userData?.is_ambassador) === 1 ? 1 : 0);
   const isAmbassador = Number(fetchedIsAmbassador) === 1;
+  const isAdminUser = isAdmin || isSuperAdmin;
+  const canConnectZoom = isAmbassador || isAdminUser;
   const navigate = useNavigate();
+  const location = useLocation();
+  const apiBase = getApiBase();
 
   const [settings, setSettings] = useState(createDefaultSettings);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [status, setStatus] = useState('');
+  const [zoomStatus, setZoomStatus] = useState({
+    loading: false,
+    connected: false,
+    email: '',
+    error: '',
+  });
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const statusTimerRef = useRef(null);
   const [showResetModal, setShowResetModal] = useState(false);
   const tabs = useMemo(() => {
@@ -92,6 +106,7 @@ function AccountSettings({ userData }) {
       { id: 'security', label: 'Security', icon: <FaShieldAlt size={16} /> },
       { id: 'feed', label: 'Feed', icon: <FaUsers size={16} /> },
       { id: 'community', label: 'Community', icon: <FaUniversity size={16} /> },
+      canConnectZoom ? { id: 'integrations', label: 'Integrations', icon: <FaPlug size={16} /> } : null,
       isModerator ? { id: 'moderation', label: 'Moderation', icon: <FaBullhorn size={16} /> } : null,
       isAmbassador ? { id: 'ambassador', label: 'Ambassador', icon: <FaUsers size={16} /> } : null,
       isAdmin ? { id: 'admin', label: 'Admin', icon: <FaLock size={16} /> } : null,
@@ -99,13 +114,98 @@ function AccountSettings({ userData }) {
       { id: 'data', label: 'Data', icon: <FaLock size={16} /> },
     ];
     return base.filter(Boolean);
-  }, [isModerator, isAmbassador, isAdmin]);
+  }, [isModerator, isAmbassador, isAdmin, canConnectZoom]);
   const [activeTab, setActiveTab] = useState('profile');
 
   const flashStatus = (message) => {
     setStatus(message);
     window.clearTimeout(statusTimerRef.current);
     statusTimerRef.current = window.setTimeout(() => setStatus(''), 1800);
+  };
+
+  const sendTestEmail = async () => {
+    if (isSendingTestEmail) return;
+    setIsSendingTestEmail(true);
+    try {
+      const res = await axios.post('/api/send_test_email.php', {}, { withCredentials: true });
+      if (res.data?.success) {
+        flashStatus(res.data?.message || 'Test email sent.');
+      } else {
+        flashStatus(res.data?.error || 'Unable to send test email.');
+      }
+    } catch (err) {
+      console.error('Error sending test email', err);
+      flashStatus('Unable to send test email.');
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
+  const loadZoomStatus = useCallback(async () => {
+    if (!canConnectZoom) return;
+    setZoomStatus((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      const res = await axios.get('/api/zoom_status.php', { withCredentials: true });
+      if (res.data?.success) {
+        setZoomStatus({
+          loading: false,
+          connected: Boolean(res.data.connected),
+          email: res.data.zoom_email || '',
+          error: '',
+        });
+      } else {
+        setZoomStatus((prev) => ({
+          ...prev,
+          loading: false,
+          connected: false,
+          error: res.data?.error || 'Unable to load Zoom status.',
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading Zoom status', err);
+      setZoomStatus((prev) => ({
+        ...prev,
+        loading: false,
+        connected: false,
+        error: 'Unable to load Zoom status.',
+      }));
+    }
+  }, [canConnectZoom]);
+
+  const handleZoomConnect = () => {
+    const returnTo = typeof window !== 'undefined' ? window.location.origin : '';
+    const query = returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : '';
+    const authUrl = `${apiBase}/api/zoom_oauth_start.php${query}`;
+    window.location.href = authUrl;
+  };
+
+  const handleZoomDisconnect = async () => {
+    if (zoomStatus.loading) return;
+    setZoomStatus((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      const res = await axios.post('/api/zoom_disconnect.php', {}, { withCredentials: true });
+      if (res.data?.success) {
+        setZoomStatus({
+          loading: false,
+          connected: false,
+          email: '',
+          error: '',
+        });
+      } else {
+        setZoomStatus((prev) => ({
+          ...prev,
+          loading: false,
+          error: res.data?.error || 'Unable to disconnect Zoom.',
+        }));
+      }
+    } catch (err) {
+      console.error('Error disconnecting Zoom', err);
+      setZoomStatus((prev) => ({
+        ...prev,
+        loading: false,
+        error: 'Unable to disconnect Zoom.',
+      }));
+    }
   };
 
   useEffect(() => {
@@ -187,6 +287,24 @@ function AccountSettings({ userData }) {
               },
             }));
           }
+          if (typeof res.data.user.two_factor_enabled !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              security: {
+                ...prev.security,
+                twoFactor: Boolean(Number(res.data.user.two_factor_enabled)),
+              },
+            }));
+          }
+          if (typeof res.data.user.auto_join_campus !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              community: {
+                ...prev.community,
+                autoJoinCampus: Boolean(Number(res.data.user.auto_join_campus)),
+              },
+            }));
+          }
           const serverDefaultFeed = res.data.user.default_feed;
           if (serverDefaultFeed) {
             setSettings((prev) => ({
@@ -209,6 +327,36 @@ function AccountSettings({ userData }) {
     };
     fetchVisibility();
   }, [userData]);
+
+  useEffect(() => {
+    if (canConnectZoom) {
+      loadZoomStatus();
+    }
+  }, [canConnectZoom, loadZoomStatus]);
+
+  useEffect(() => {
+    if (!location.search) return;
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    const zoom = params.get('zoom');
+    const zoomReason = params.get('reason');
+    if (tab && tabs.some((t) => t.id === tab)) {
+      setActiveTab(tab);
+    }
+    if (zoom === 'connected') {
+      flashStatus('Zoom connected.');
+    }
+    if (zoom === 'error') {
+      const reasonMap = {
+        missing_config: 'Zoom OAuth is not configured.',
+        access_denied: 'Only ambassadors and admins can connect Zoom.',
+        user_not_found: 'Unable to confirm your account.',
+        db_error: 'Unable to start Zoom connection.',
+      };
+      flashStatus(reasonMap[zoomReason] || 'Zoom connection failed.');
+    }
+    navigate('/settings', { replace: true });
+  }, [location.search, navigate, tabs]);
 
   useEffect(() => {
     // If no server value yet but a stored value exists, hydrate the dropdown
@@ -358,6 +506,38 @@ function AccountSettings({ userData }) {
     }
   };
 
+  const persistTwoFactor = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          two_factor_enabled: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving two-factor setting', err);
+    }
+  };
+
+  const persistAutoJoinCampus = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          auto_join_campus: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving auto-join campus setting', err);
+    }
+  };
+
   const updateSetting = (section, key, value) => {
     if (section === 'profile' && key === 'profileVisibility' && value === 'network' && !isAmbassador) {
       flashStatus('This option is only available for group ambassadors');
@@ -388,6 +568,9 @@ function AccountSettings({ userData }) {
     if (section === 'security' && key === 'sessionTimeout') {
       persistSessionTimeout(value);
     }
+    if (section === 'security' && key === 'twoFactor') {
+      persistTwoFactor(value);
+    }
     if (section === 'notifications' && key === 'votes') {
       persistVotesPref(value);
     }
@@ -407,6 +590,9 @@ function AccountSettings({ userData }) {
           { withCredentials: true }
         ).catch((err) => console.error('Error saving default feed', err));
       }
+    }
+    if (section === 'community' && key === 'autoJoinCampus') {
+      persistAutoJoinCampus(value);
     }
     flashStatus('Saved');
   };
@@ -526,6 +712,34 @@ function AccountSettings({ userData }) {
 
     return { os, browser };
   };
+
+  const getBrowserKey = (ua) => {
+    const { browser } = parseUserAgent(ua);
+    const base = browser.split('/')[0] || browser;
+    return base.trim().toLowerCase() || 'unknown';
+  };
+
+  const filteredSessions = useMemo(() => {
+    const deduped = [];
+    const seen = new Map();
+    sessions.forEach((session) => {
+      const browserKey = getBrowserKey(session.user_agent);
+      const ipKey = (session.ip_address || '').trim().toLowerCase() || 'unknown';
+      const key = `${browserKey}::${ipKey}`;
+      if (!seen.has(key)) {
+        seen.set(key, deduped.length);
+        deduped.push(session);
+        return;
+      }
+      if (session.current) {
+        const index = seen.get(key);
+        if (index !== undefined && !deduped[index]?.current) {
+          deduped[index] = session;
+        }
+      }
+    });
+    return deduped;
+  }, [sessions]);
 
   const formatSessionMeta = (s) => {
     const last = s.last_active_at ? new Date(s.last_active_at) : null;
@@ -657,21 +871,6 @@ function AccountSettings({ userData }) {
               <option value="everyone">Everyone</option>
             </select>
           </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Dark mode <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Switch the app theme between light and dark.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={isDarkMode}
-                onChange={toggleDarkMode}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
         </section>
         )}
 
@@ -685,7 +884,7 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Email updates</div>
+              <div className="setting-label">Email updates <span className="settings-badge">On-hold</span></div>
               <p className="setting-help">Security alerts and activity summaries.</p>
             </div>
             <label className="setting-toggle">
@@ -696,6 +895,21 @@ function AccountSettings({ userData }) {
               />
               <span className="toggle-slider" />
             </label>
+          </div>
+
+          <div className="setting-row">
+            <div className="setting-text">
+              <div className="setting-label">Send test email</div>
+              <p className="setting-help">Confirm MailerSend can reach your inbox.</p>
+            </div>
+            <button
+              type="button"
+              className="pill-button secondary small"
+              onClick={sendTestEmail}
+              disabled={isSendingTestEmail}
+            >
+              {isSendingTestEmail ? 'Sending...' : 'Send Test Email'}
+            </button>
           </div>
 
           <div className="setting-row">
@@ -740,7 +954,7 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Two-factor auth</div>
+              <div className="setting-label">Two-factor auth <span className="settings-badge live-badge">Live</span></div>
               <p className="setting-help">Add a code when signing in from new devices.</p>
             </div>
             <label className="setting-toggle">
@@ -755,7 +969,7 @@ function AccountSettings({ userData }) {
 
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Login alerts</div>
+              <div className="setting-label">Login alerts <span className="settings-badge">On-Hold</span></div>
               <p className="setting-help">Email me when a new device signs in.</p>
             </div>
             <label className="setting-toggle">
@@ -821,7 +1035,7 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Auto-join campus groups</div>
+              <div className="setting-label">Auto-join campus groups <span className="settings-badge">in testing</span></div>
               <p className="setting-help">Automatically accept invites from your university teams.</p>
             </div>
             <label className="setting-toggle">
@@ -833,21 +1047,48 @@ function AccountSettings({ userData }) {
               <span className="toggle-slider" />
             </label>
           </div>
+        </section>
+        )}
 
+        {canConnectZoom && activeTab === 'integrations' && (
+        <section className="settings-card">
+          <div className="settings-card-heading">
+            <div className="settings-card-eyebrow">
+              <FaPlug size={16} /> Integrations
+            </div>
+            <p>Connect tools you use to host events and sessions.</p>
+          </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Allow invites</div>
-              <p className="setting-help">Let members invite you to closed forums.</p>
+              <div className="setting-label">Zoom</div>
+              <p className="setting-help">Link Zoom to schedule meeting links for events you host.</p>
             </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.community.allowInvites}
-                onChange={(e) => updateSetting('community', 'allowInvites', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {zoomStatus.loading ? (
+                <span className="settings-badge">Checking...</span>
+              ) : zoomStatus.connected ? (
+                <>
+                  <span className="settings-badge positive">
+                    {zoomStatus.email ? `Connected as ${zoomStatus.email}` : 'Connected'}
+                  </span>
+                  <button type="button" className="pill-button secondary small" onClick={handleZoomDisconnect}>
+                    Disconnect
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="pill-button" onClick={handleZoomConnect}>
+                  Connect Zoom
+                </button>
+              )}
+            </div>
           </div>
+          {zoomStatus.error && (
+            <div className="setting-row">
+              <div className="setting-text">
+                <p className="setting-help" style={{ color: '#b91c1c' }}>{zoomStatus.error}</p>
+              </div>
+            </div>
+          )}
         </section>
         )}
 
@@ -1027,10 +1268,10 @@ function AccountSettings({ userData }) {
           <div className="session-list">
             {loadingSessions && <p>Loading sessions…</p>}
             {sessionsError && <p className="error-text">{sessionsError}</p>}
-            {!loadingSessions && !sessionsError && sessions.length === 0 && (
+            {!loadingSessions && !sessionsError && filteredSessions.length === 0 && (
               <p className="muted">No active sessions found.</p>
             )}
-            {!loadingSessions && !sessionsError && sessions.map((session) => (
+            {!loadingSessions && !sessionsError && filteredSessions.map((session) => (
               (() => {
                 const meta = formatSessionMeta(session);
                 return (
@@ -1070,7 +1311,7 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Download data</div>
+              <div className="setting-label">Download data <span className="settings-badge">On-hold</span></div>
               <p className="setting-help">Export posts, messages, and connections as a zip.</p>
             </div>
             <button type="button" className="pill-button secondary small">

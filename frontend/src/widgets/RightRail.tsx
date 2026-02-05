@@ -14,6 +14,11 @@ type ManagedItem = {
   pollOptions?: string[];
   createdAt?: string;
   showResults?: boolean;
+  zoomMeetingId?: string;
+  zoomJoinUrl?: string;
+  zoomStartUrl?: string;
+  zoomHostEmail?: string;
+  zoomDuration?: number;
 };
 
 type RightRailProps = {
@@ -23,6 +28,7 @@ type RightRailProps = {
 const STORAGE_KEY = 'managedEvents';
 const POLL_RESPONSES_KEY = 'managedPollResponses';
 const POLL_RESULTS_KEY = 'managedPollTallies';
+const RSVP_KEY = 'managedEventRsvps';
 
 const datePrefix = (type?: string) => {
   if (type === 'poll') return 'Closes';
@@ -60,6 +66,28 @@ export default function RightRail({ userData }: RightRailProps) {
     }
   });
   const [pollMessage, setPollMessage] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  const [rsvps, setRsvps] = useState<Record<string, string[]>>(() => {
+    try {
+      const raw = localStorage.getItem(RSVP_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+  const [rsvpMessages, setRsvpMessages] = useState<Record<string, string>>({});
+  const postWithFallback = async (primaryUrl: string, fallbackUrl: string, payload: Record<string, unknown>) => {
+    try {
+      return await axios.post(primaryUrl, payload, { withCredentials: true });
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 404 && fallbackUrl) {
+        return await axios.post(fallbackUrl, payload, { withCredentials: true });
+      }
+      throw err;
+    }
+  };
 
   const readLocalItems = () => {
     try {
@@ -78,6 +106,11 @@ export default function RightRail({ userData }: RightRailProps) {
           communityId: i.communityId ? String(i.communityId) : '',
           pollOptions: Array.isArray(i.pollOptions) ? i.pollOptions : [],
           showResults: Boolean(i.showResults),
+          zoomMeetingId: i.zoomMeetingId ? String(i.zoomMeetingId) : '',
+          zoomJoinUrl: i.zoomJoinUrl || '',
+          zoomStartUrl: i.zoomStartUrl || '',
+          zoomHostEmail: i.zoomHostEmail || '',
+          zoomDuration: i.zoomDuration ? Number(i.zoomDuration) : undefined,
         }));
       setItems(normalized);
     } catch (err) {
@@ -85,6 +118,11 @@ export default function RightRail({ userData }: RightRailProps) {
       setItems([]);
     }
   };
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     readLocalItems();
@@ -149,6 +187,16 @@ export default function RightRail({ userData }: RightRailProps) {
   );
 
   const sortedEvents = useMemo(() => {
+    const isUpcomingEvent = (item: ManagedItem) => {
+      if (item.type === 'announcement') return true;
+      const date = item.date || item.createdAt;
+      if (!date) return true;
+      const start = Date.parse(date);
+      if (Number.isNaN(start)) return true;
+      const durationMinutes = item.zoomDuration ? Number(item.zoomDuration) : 60;
+      const end = start + Math.max(durationMinutes, 0) * 60 * 1000;
+      return end > now;
+    };
     const rank = (item: ManagedItem) => {
       const date = item.date || item.createdAt;
       if (date) {
@@ -159,9 +207,10 @@ export default function RightRail({ userData }: RightRailProps) {
     };
     return visibleItems
       .filter((i) => i.type !== 'poll')
+      .filter((i) => isUpcomingEvent(i))
       .sort((a, b) => rank(a) - rank(b))
       .slice(0, 8);
-  }, [visibleItems]);
+  }, [visibleItems, now]);
 
   const polls = useMemo(
     () => visibleItems.filter((i) => i.type === 'poll').slice(0, 5),
@@ -190,6 +239,14 @@ export default function RightRail({ userData }: RightRailProps) {
       // ignore storage errors
     }
   }, [pollTallies]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RSVP_KEY, JSON.stringify(rsvps));
+    } catch {
+      // ignore storage errors
+    }
+  }, [rsvps]);
 
   const scopeLabel = (item: ManagedItem) =>
     item.scope === 'global'
@@ -257,6 +314,39 @@ export default function RightRail({ userData }: RightRailProps) {
     setPollMessage('');
   }, [pollIndex]);
 
+  const userId = userData?.user_id ? String(userData.user_id) : '';
+  const toggleRsvp = async (eventId: string) => {
+    if (!userId) {
+      setRsvpMessages((prev) => ({ ...prev, [eventId]: 'Log in or sign up to RSVP.' }));
+      return;
+    }
+    const currentList = rsvps[eventId] || [];
+    const hasRsvped = currentList.includes(userId);
+    try {
+      await postWithFallback(
+        '/api/rsvp_event.php',
+        '/rsvp_event.php',
+        { event_id: eventId, action: hasRsvped ? 'cancel' : 'register' }
+      );
+    } catch (err) {
+      console.error('Unable to update RSVP', err);
+      setRsvpMessages((prev) => ({ ...prev, [eventId]: 'Unable to update RSVP right now.' }));
+      return;
+    }
+    setRsvps((prev) => {
+      const next = { ...prev };
+      const nextList = hasRsvped
+        ? currentList.filter((id) => id !== userId)
+        : [...currentList, userId];
+      next[eventId] = nextList;
+      return next;
+    });
+    setRsvpMessages((prev) => ({
+      ...prev,
+      [eventId]: hasRsvped ? 'RSVP removed.' : 'RSVP confirmed!',
+    }));
+  };
+
   return (
     <div className="right-rail-stack">
       <section className="widget-card" aria-labelledby="events-header">
@@ -276,21 +366,55 @@ export default function RightRail({ userData }: RightRailProps) {
             </div>
           )}
           <ul className="widget-list" aria-label="Upcoming events">
-            {sortedEvents.map((item) => (
-              <li
-                key={item.id}
-                className="widget-list-item"
-                style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '6px' }}
-              >
-                <div className="widget-item-title">{item.title}</div>
-                <div className="widget-item-meta">{renderItemMeta(item)}</div>
-                {item.description && (
-                  <div className="widget-item-meta" style={{ color: 'var(--text-color)' }}>
-                    {item.description.length > 140 ? `${item.description.slice(0, 140)}…` : item.description}
-                  </div>
-                )}
-              </li>
-            ))}
+            {sortedEvents.map((item) => {
+              const rsvpList = rsvps[item.id] || [];
+              const rsvpCount = rsvpList.length;
+              const hasRsvped = Boolean(userId && rsvpList.includes(userId));
+              const rsvpMessage = rsvpMessages[item.id];
+              const isEvent = item.type !== 'announcement' && item.type !== 'poll';
+              return (
+                <li
+                  key={item.id}
+                  className="widget-list-item"
+                  style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '6px' }}
+                >
+                  <div className="widget-item-title">{item.title}</div>
+                  <div className="widget-item-meta">{renderItemMeta(item)}</div>
+                  {item.description && (
+                    <div className="widget-item-meta" style={{ color: 'var(--text-color)' }}>
+                      {item.description.length > 140 ? `${item.description.slice(0, 140)}…` : item.description}
+                    </div>
+                  )}
+                  {isEvent && (
+                    <div className="widget-item-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className={`widget-cta${hasRsvped ? ' selected' : ''}`}
+                        onClick={() => toggleRsvp(item.id)}
+                      >
+                        {hasRsvped ? 'Going' : 'RSVP'}
+                      </button>
+                      {item.zoomJoinUrl && (
+                        <a
+                          href={item.zoomJoinUrl}
+                          className="widget-cta secondary"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Join Zoom
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  {isEvent && rsvpCount > 0 && (
+                    <div className="widget-item-meta">{rsvpCount} going</div>
+                  )}
+                  {isEvent && rsvpMessage && (
+                    <div className="widget-item-meta">{rsvpMessage}</div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       </section>

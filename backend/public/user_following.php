@@ -1,7 +1,9 @@
 <?php
 // user_following.php
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+
+startSession();
 header('Content-Type: application/json');
 
 // Include your database connection file
