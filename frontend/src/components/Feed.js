@@ -53,6 +53,7 @@ const extractForumTopicsFromForum = (forum) => {
   const candidates = [forum.topics, forum.topic, forum.category, forum.categories, forum.tags];
   const collected = [];
 
+
   candidates.forEach((candidate) => {
     if (Array.isArray(candidate)) {
       candidate.forEach((item) => {
@@ -141,7 +142,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   const [savedPosts, setSavedPosts] = useState([]);
   // Track which saved tab is active
   const [savedTab, setSavedTab] = useState('forums'); // 'forums' | 'threads' | 'posts'
-
   const [feedThreads, setFeedThreads] = useState([]);
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
   const topicDropdownRef = useRef(null);

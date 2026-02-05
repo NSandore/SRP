@@ -1,9 +1,7 @@
 <?php
 // fetch_feed.php
 
-require_once __DIR__ . '/../session_bootstrap.php';
-
-startSession();
+session_start();
 header('Content-Type: application/json');
 require_once '../db_connection.php';
 
