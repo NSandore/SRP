@@ -11,6 +11,7 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [skipVerification, setSkipVerification] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -64,8 +65,19 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
       if (res.ok) {
         setUserId(data.user_id);
         setVerificationCode('');
-        setNotice(`Verification code sent to ${data.email || email}. Check your inbox.`);
-        setStep(2);
+        if (data.dev_mode) {
+          localStorage.setItem('user_id', data.user_id);
+          onNext({ ...formData, user_id: data.user_id });
+          return;
+        }
+        if (data.email_verification_skipped) {
+          setSkipVerification(true);
+          setNotice('Email verification skipped for testing.');
+          setStep(3);
+        } else {
+          setNotice(`Verification code sent to ${data.email || email}. Check your inbox.`);
+          setStep(2);
+        }
       } else {
         alert(data.error || 'An error occurred during registration.');
       }
@@ -162,7 +174,7 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
       if (res.ok) {
         alert('Registration complete!');
         localStorage.setItem('user_id', userId);
-        onNext(formData);
+        onNext({ ...formData, user_id: userId });
       } else {
         alert(data.error || 'Could not complete registration.');
       }
@@ -177,6 +189,8 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
     2: 'Verify your email',
     3: 'Share your education details',
   };
+  const totalSteps = skipVerification ? 2 : 3;
+  const stepLabel = skipVerification && step === 3 ? 2 : step;
 
   const renderStepOne = () => (
     <div className="auth-form">
@@ -293,7 +307,7 @@ function SignUp({ onNext, onShowLogin, onContinueAsGuest }) {
         </section>
 
         <section className="auth-panel">
-          <p className="auth-step-label">Step {step} of 3</p>
+          <p className="auth-step-label">Step {stepLabel} of {totalSteps}</p>
           <h2>{stepTitles[step]}</h2>
           {renderStep()}
         </section>

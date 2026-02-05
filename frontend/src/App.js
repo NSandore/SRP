@@ -1,6 +1,6 @@
 // src/App.js
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Route,
   Routes,
@@ -49,6 +49,7 @@ import RightSidebar from './components/RightSidebar';
 import AppShell from './layout/AppShell';
 import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
+import { DEV_MODE } from './config';
 import ContactUsButton from './components/ContactUsButton';
 import SearchResults from './components/SearchResults';
 import CommunityRequests from './components/CommunityRequests';
@@ -65,6 +66,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [selectedSchools, setSelectedSchools] = useState([]);
+  const [userInterests, setUserInterests] = useState([]);
   const [activeFeed, setActiveFeed] = useState(() => {
     if (typeof window === 'undefined') return 'explore';
     return localStorage.getItem('defaultFeed') || 'explore';
@@ -147,6 +149,16 @@ function App() {
             setActiveFeed(finalFeed);
             localStorage.setItem('defaultFeed', finalFeed);
           }
+        } else if (DEV_MODE && typeof window !== 'undefined') {
+          const storedUserId = localStorage.getItem('user_id');
+          if (storedUserId) {
+            setUserData((prev) => ({
+              ...prev,
+              user_id: storedUserId,
+              role_id: Number(prev?.role_id || 0),
+              is_ambassador: Number(prev?.is_ambassador || 0),
+            }));
+          }
         }
       } catch (err) {
         console.error('Error checking session:', err);
@@ -157,6 +169,25 @@ function App() {
 
     checkUserSession();
   }, []); // ✅ useEffect is always called in the same order
+
+  const refreshUserInterests = React.useCallback(async (overrideUserId) => {
+    const uid = overrideUserId || userData?.user_id;
+    if (!uid) return;
+    try {
+      const resp = await axios.get(`/api/fetch_tag_interests.php?user_id=${uid}`, {
+        withCredentials: true
+      });
+      if (resp.data?.success) {
+        setUserInterests(Array.isArray(resp.data.tags) ? resp.data.tags : []);
+      }
+    } catch (err) {
+      console.error('Error fetching user interests:', err);
+    }
+  }, [userData?.user_id]);
+
+  useEffect(() => {
+    refreshUserInterests();
+  }, [refreshUserInterests]);
 
   useEffect(() => {
     const prevPath = previousPathRef.current;
@@ -281,8 +312,9 @@ function App() {
     navigate('/interest-selection');
   };
 
-  const handleInterestComplete = (schools) => {
-    setSelectedSchools(schools);
+  const handleInterestComplete = (tags) => {
+    setSelectedSchools(tags);
+    setUserInterests(Array.isArray(tags) ? tags : []);
     navigate('/home');
   };
 
@@ -656,6 +688,7 @@ function App() {
                       setActiveFeed={setActiveFeed}
                       activeSection="home"
                       userData={userData}
+                      userInterests={userInterests}
                       onRequireAuth={() => setRequireAuthOverlay(true)}
                     />
                   }
@@ -668,6 +701,7 @@ function App() {
                       setActiveFeed={setActiveFeed}
                       activeSection="info"
                       userData={userData}
+                      userInterests={userInterests}
                       onRequireAuth={() => setRequireAuthOverlay(true)}
                     />
                   }
@@ -681,6 +715,7 @@ function App() {
                         setActiveFeed={setActiveFeed}
                         activeSection="saved"
                         userData={userData}
+                        userInterests={userInterests}
                       />
                     ) : (
                       <AuthOverlay
@@ -713,7 +748,7 @@ function App() {
                   path="/settings"
                   element={
                     userData ? (
-                      <AccountSettings userData={userData} />
+                      <AccountSettings userData={userData} onInterestsUpdated={refreshUserInterests} />
                     ) : (
                       <AuthOverlay
                         isOpen
@@ -734,6 +769,7 @@ function App() {
                       setActiveFeed={setActiveFeed}
                       activeSection="funding"
                       userData={userData}
+                      userInterests={userInterests}
                     />
                   }
                 />
@@ -745,6 +781,7 @@ function App() {
                       setActiveFeed={setActiveFeed}
                       activeSection="communities"
                       userData={userData}
+                      userInterests={userInterests}
                       onRequireAuth={() => setRequireAuthOverlay(true)}
                     />
                   }

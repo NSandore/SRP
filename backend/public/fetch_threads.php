@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -39,6 +40,7 @@ try {
       ':user_id' => $user_id
     ]);
     $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $threads = srp_attach_tags_to_threads($db, $threads);
 
     echo json_encode($threads);
 } catch (PDOException $e) {

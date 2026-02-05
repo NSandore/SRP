@@ -1,4 +1,6 @@
 <?php
+// Flip this to false to disable Dev mode safeguards.
+const SRP_DEV_MODE = false;
 function loadEnvFile(string $path): void {
     if (!is_readable($path)) {
         return;
@@ -34,6 +36,13 @@ function loadEnvFile(string $path): void {
 
 // Load root .env for local/dev configuration.
 loadEnvFile(__DIR__ . '/../.env');
+
+function srp_is_dev_mode(): bool {
+    if (defined('SRP_DEV_MODE')) {
+        return SRP_DEV_MODE === false;
+    }
+    return (bool)filter_var(getenv('SRP_DEV_MODE') ?: 0, FILTER_VALIDATE_BOOLEAN);
+}
 
 function getDB() {
     static $db = null;
@@ -84,6 +93,10 @@ function getIdConfig(): array {
         'forum_votes' => ['prefix' => 'v', 'column' => 'id'],
         'thread_votes' => ['prefix' => 'v', 'column' => 'id'],
         'post_votes' => ['prefix' => 'v', 'column' => 'id'],
+        'tags' => ['prefix' => 'tg', 'column' => 'tag_id'],
+        'thread_tags' => ['prefix' => 'tt', 'column' => 'id'],
+        'forum_tags' => ['prefix' => 'ft', 'column' => 'id'],
+        'user_interests' => ['prefix' => 'ui', 'column' => 'id'],
         'reports' => ['prefix' => 'rp', 'column' => 'report_id'],
         'announcements' => ['prefix' => 'an', 'column' => 'announcement_id']
     ];

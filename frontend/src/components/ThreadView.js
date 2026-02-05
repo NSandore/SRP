@@ -1338,7 +1338,7 @@ function ThreadView({ userData, onRequireAuth }) {
       {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
         <div className="chips-row" style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
           {threadData.tags.map((tag, idx) => (
-            <span key={idx} className="chip" style={{ ...tagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}>
+            <span key={idx} className="chip tag-chip" style={{ ...tagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}>
               {tag}
             </span>
           ))}

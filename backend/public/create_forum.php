@@ -2,6 +2,7 @@
 session_start(); // Start the session to access session variables
 
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -12,6 +13,7 @@ $data = json_decode(file_get_contents('php://input'), true);
 $community_id = isset($data['community_id']) ? normalizeId($data['community_id']) : '';
 $name = trim($data['name'] ?? '');
 $description = trim($data['description'] ?? '');
+$tags = isset($data['tags']) && is_array($data['tags']) ? $data['tags'] : [];
 
 // **Validate User Role**
 if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 1) {
@@ -61,6 +63,9 @@ try {
         ':name' => $name,
         ':desc' => $description
     ]);
+
+    $tagIds = srp_resolve_tag_ids($db, $tags);
+    srp_sync_tag_mappings($db, 'forum_tags', 'forum_id', $forumId, $tagIds);
 
     echo json_encode([
         'success' => true,

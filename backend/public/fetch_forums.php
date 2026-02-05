@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -38,6 +39,7 @@ try {
     $stmt->execute();
 
     $forums = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $forums = srp_attach_tags_to_forums($db, $forums);
 
     echo json_encode($forums ?: ["message" => "No forums found."]);
 } catch (PDOException $e) {

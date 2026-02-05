@@ -9,6 +9,9 @@ import ModalOverlay from './ModalOverlay';
 import { FaEllipsisV, FaArrowAltCircleUp, FaRegArrowAltCircleUp, FaArrowAltCircleDown, FaRegArrowAltCircleDown } from 'react-icons/fa';
 import ThreadCard from './ThreadCard';
 import ReportModal from './ReportModal';
+import TagPicker from './TagPicker';
+import useTagOptions from '../hooks/useTagOptions';
+import { mapTagNamesToSlugs } from '../utils/tagUtils';
 
 // Sorting function
 const sortItems = (items, criteria) => {
@@ -35,6 +38,7 @@ const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g,
 
 function ForumView({ userData, onRequireAuth }) {
   const { forum_id } = useParams();
+  const { tags: tagOptions } = useTagOptions();
 
   // Forum data & threads
   const [forumData, setForumData] = useState(null);
@@ -48,11 +52,13 @@ function ForumView({ userData, onRequireAuth }) {
   const [showCreateThreadModal, setShowCreateThreadModal] = useState(false);
   const [threadTitle, setThreadTitle] = useState('');
   const [firstPostContent, setFirstPostContent] = useState('');
+  const [threadTags, setThreadTags] = useState([]);
   const [isCreatingThread, setIsCreatingThread] = useState(false);
 
   // Edit Thread
   const [editThreadId, setEditThreadId] = useState(null);
   const [editThreadTitle, setEditThreadTitle] = useState('');
+  const [editThreadTags, setEditThreadTags] = useState([]);
   const [isEditingThread, setIsEditingThread] = useState(false);
 
   // Notification
@@ -232,10 +238,12 @@ function ForumView({ userData, onRequireAuth }) {
         user_id: userData.user_id,
         title: threadTitle,
         firstPostContent,
+        tags: threadTags,
       });
       if (resp.data.success) {
         setThreadTitle('');
         setFirstPostContent('');
+        setThreadTags([]);
         setShowCreateThreadModal(false);
         fetchThreads();
         setNotification({ type: 'success', message: 'Thread created successfully!' });
@@ -260,6 +268,7 @@ function ForumView({ userData, onRequireAuth }) {
     setShowCreateThreadModal(false);
     setThreadTitle('');
     setFirstPostContent('');
+    setThreadTags([]);
     setIsCreatingThread(false);
   };
 
@@ -333,12 +342,14 @@ function ForumView({ userData, onRequireAuth }) {
   const startEditingThread = (thread) => {
     setEditThreadId(thread.thread_id);
     setEditThreadTitle(thread.title);
+    setEditThreadTags(mapTagNamesToSlugs(thread.tags || [], tagOptions));
     setIsEditingThread(true);
   };
 
   const cancelEditingThread = () => {
     setEditThreadId(null);
     setEditThreadTitle('');
+    setEditThreadTags([]);
     setIsEditingThread(false);
   };
 
@@ -352,6 +363,7 @@ function ForumView({ userData, onRequireAuth }) {
       const resp = await axios.post('/api/edit_thread.php', {
         thread_id: editThreadId,
         new_title: editThreadTitle,
+        tags: editThreadTags,
       });
       if (resp.data.success) {
         fetchThreads();
@@ -446,6 +458,16 @@ function ForumView({ userData, onRequireAuth }) {
         )}
       </div>
     </div>
+
+      {Array.isArray(forumData?.tags) && forumData.tags.length > 0 && (
+        <div className="chips-row" style={{ marginBottom: '12px' }}>
+          {forumData.tags.map((tag) => (
+            <span key={tag} className="chip tag-chip">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
     
       {/* Sorting */}
       <div className="sort-container">
@@ -532,6 +554,16 @@ function ForumView({ userData, onRequireAuth }) {
                     onChange={(content) => setFirstPostContent(content)}
                   />
                 </div>
+                <div className="creation-field">
+                  <TagPicker
+                    label="Tags"
+                    options={tagOptions}
+                    value={threadTags}
+                    onChange={setThreadTags}
+                    max={5}
+                    helperText="Add up to 5 tags to help others find this thread."
+                  />
+                </div>
                 <div className="creation-actions">
                   <button
                     type="button"
@@ -568,6 +600,16 @@ function ForumView({ userData, onRequireAuth }) {
                   value={editThreadTitle}
                   onChange={(e) => setEditThreadTitle(e.target.value)}
                   required
+                />
+              </div>
+              <div className="form-group">
+                <TagPicker
+                  label="Tags"
+                  options={tagOptions}
+                  value={editThreadTags}
+                  onChange={setEditThreadTags}
+                  max={5}
+                  helperText="Update the tags for this thread."
                 />
               </div>
               <div className="form-actions">

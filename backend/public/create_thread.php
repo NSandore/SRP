@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -22,6 +23,7 @@ $forum_id         = isset($data['forum_id']) ? normalizeId($data['forum_id']) : 
 $user_id          = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
 $title           = isset($data['title']) ? trim($data['title']) : '';
 $firstPostContent = isset($data['firstPostContent']) ? trim($data['firstPostContent']) : '';
+$tags            = isset($data['tags']) && is_array($data['tags']) ? $data['tags'] : [];
 
 // Validate required fields
 if (empty($forum_id) || empty($user_id) || empty($title) || empty($firstPostContent)) {
@@ -62,6 +64,10 @@ try {
         ':user_id'   => $user_id,
         ':content'   => $sanitized_content
     ]);
+
+    // 3) Tag mappings (optional)
+    $tagIds = srp_resolve_tag_ids($db, $tags);
+    srp_sync_tag_mappings($db, 'thread_tags', 'thread_id', $thread_id, $tagIds);
 
     // Commit the transaction
     $db->commit();

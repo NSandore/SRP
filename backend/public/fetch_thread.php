@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -35,7 +36,8 @@ try {
     $thread = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($thread) {
-        echo json_encode($thread);
+        $withTags = srp_attach_tags_to_threads($db, [$thread]);
+        echo json_encode($withTags[0]);
     } else {
         http_response_code(404);
         echo json_encode(['error' => 'Thread not found']);

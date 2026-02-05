@@ -162,6 +162,16 @@ export default function ThreadCard({
         </Link>
       </div>
 
+      {Array.isArray(thread.tags) && thread.tags.length > 0 && (
+        <div className="chips-row" style={{ marginTop: '4px' }}>
+          {thread.tags.map((tag) => (
+            <span key={tag} className="chip tag-chip">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Meta Row */}
       <div className="meta-row">
         <div className="avatar-circle" aria-hidden="true">{initials}</div>

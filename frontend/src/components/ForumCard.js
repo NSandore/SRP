@@ -271,6 +271,15 @@ const ForumCard = ({
         <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
           <h3 className="forum-title" style={{ margin: 0 }}>{forum.name}</h3>
         </Link>
+        {Array.isArray(forum.tags) && forum.tags.length > 0 && (
+          <div className="chips-row" style={{ marginTop: '4px' }}>
+            {forum.tags.map((tag) => (
+              <span key={tag} className="chip tag-chip">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
         <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
           <p className="forum-description" style={{ margin: 0 }}>{forum.description}</p>
         </Link>

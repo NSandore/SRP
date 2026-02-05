@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getApiBase } from '../utils/apiBase';
+import useTagOptions from '../hooks/useTagOptions';
+import TagPicker from './TagPicker';
 import {
   FaBell,
   FaBullhorn,
@@ -74,7 +76,7 @@ const roleLabel = (roleId) => {
   return 'Member';
 };
 
-function AccountSettings({ userData }) {
+function AccountSettings({ userData, onInterestsUpdated }) {
   const roleId = Number(userData?.role_id || 0);
   const isModerator = roleId >= 5;
   const isAdmin = roleId >= 7;
@@ -90,6 +92,10 @@ function AccountSettings({ userData }) {
   const [settings, setSettings] = useState(createDefaultSettings);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [status, setStatus] = useState('');
+  const { tags: tagOptions, loading: tagOptionsLoading } = useTagOptions();
+  const [tagInterests, setTagInterests] = useState([]);
+  const [isLoadingTags, setIsLoadingTags] = useState(false);
+  const [isSavingTags, setIsSavingTags] = useState(false);
   const [zoomStatus, setZoomStatus] = useState({
     loading: false,
     connected: false,
@@ -140,6 +146,49 @@ function AccountSettings({ userData }) {
       setIsSendingTestEmail(false);
     }
   };
+
+  const loadTagInterests = useCallback(async () => {
+    if (!userData?.user_id) return;
+    setIsLoadingTags(true);
+    try {
+      const res = await axios.get(`/api/fetch_tag_interests.php?user_id=${userData.user_id}`, {
+        withCredentials: true,
+      });
+      if (res.data?.success) {
+        setTagInterests(Array.isArray(res.data.tags) ? res.data.tags : []);
+      }
+    } catch (err) {
+      console.error('Error loading tag interests', err);
+    } finally {
+      setIsLoadingTags(false);
+    }
+  }, [userData?.user_id]);
+
+  const saveTagInterests = useCallback(async () => {
+    if (!userData?.user_id || isSavingTags) return;
+    setIsSavingTags(true);
+    try {
+      const res = await axios.post('/api/update_tag_interests.php', {
+        user_id: userData.user_id,
+        tags: tagInterests,
+      }, {
+        withCredentials: true,
+      });
+      if (res.data?.success) {
+        flashStatus('Interests updated');
+        if (typeof onInterestsUpdated === 'function') {
+          onInterestsUpdated(userData.user_id);
+        }
+      } else {
+        flashStatus(res.data?.error || 'Unable to update interests.');
+      }
+    } catch (err) {
+      console.error('Error saving tag interests', err);
+      flashStatus('Unable to update interests.');
+    } finally {
+      setIsSavingTags(false);
+    }
+  }, [userData?.user_id, tagInterests, isSavingTags]);
 
   const loadZoomStatus = useCallback(async () => {
     if (!canConnectZoom) return;
@@ -327,6 +376,10 @@ function AccountSettings({ userData }) {
     };
     fetchVisibility();
   }, [userData]);
+
+  useEffect(() => {
+    loadTagInterests();
+  }, [loadTagInterests]);
 
   useEffect(() => {
     if (canConnectZoom) {
@@ -799,79 +852,115 @@ function AccountSettings({ userData }) {
 
       <div className="settings-grid">
         {activeTab === 'profile' && (
-        <section className="settings-card">
-          <div className="settings-card-heading">
-            <div className="settings-card-eyebrow">
-              <FaUserCog size={16} /> Profile & identity
+        <>
+          <section className="settings-card">
+            <div className="settings-card-heading">
+              <div className="settings-card-eyebrow">
+                <FaUserCog size={16} /> Profile & identity
+              </div>
+              <p>How you appear across forums and threads.</p>
             </div>
-            <p>How you appear across forums and threads.</p>
-          </div>
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Profile visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Limit profile details to your campus network or followers.</p>
-            </div>
-            <select
-              value={settings.profile.profileVisibility}
-              onChange={(e) => updateSetting('profile', 'profileVisibility', e.target.value)}
-            >
-              <option
-                value="network"
-                disabled={!isAmbassador}
-                title={!isAmbassador ? 'This option is only available for group ambassadors' : undefined}
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-label">Profile visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
+                <p className="setting-help">Limit profile details to your campus network or followers.</p>
+              </div>
+              <select
+                value={settings.profile.profileVisibility}
+                onChange={(e) => updateSetting('profile', 'profileVisibility', e.target.value)}
               >
-                Group Members Only
-              </option>
-              <option value="followers">Followers only</option>
-              <option value="private">Private</option>
-            </select>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Direct messages <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Choose who can start conversations with you.</p>
+                <option
+                  value="network"
+                  disabled={!isAmbassador}
+                  title={!isAmbassador ? 'This option is only available for group ambassadors' : undefined}
+                >
+                  Group Members Only
+                </option>
+                <option value="followers">Followers only</option>
+                <option value="private">Private</option>
+              </select>
             </div>
-            <select
-              value={settings.profile.allowMessagesFrom}
-              onChange={(e) => updateSetting('profile', 'allowMessagesFrom', e.target.value)}
-            >
-              <option value="connections">Connections only</option>
-              <option value="community">Community only</option>
-              <option value="everyone">Everyone</option>
-            </select>
-          </div>
 
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Contact visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Choose who can see your email on your profile.</p>
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-label">Direct messages <span className="settings-badge live-badge">{liveBadge}</span></div>
+                <p className="setting-help">Choose who can start conversations with you.</p>
+              </div>
+              <select
+                value={settings.profile.allowMessagesFrom}
+                onChange={(e) => updateSetting('profile', 'allowMessagesFrom', e.target.value)}
+              >
+                <option value="connections">Connections only</option>
+                <option value="community">Community only</option>
+                <option value="everyone">Everyone</option>
+              </select>
             </div>
-            <select
-              value={settings.profile.showEmail}
-              onChange={(e) => updateSetting('profile', 'showEmail', e.target.value)}
-            >
-              <option value="hidden">Hidden</option>
-              <option value="connections">Connections only</option>
-              <option value="everyone">Everyone</option>
-            </select>
-          </div>
 
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Discoverability <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Allow others to find you in search and recommendations.</p>
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-label">Contact visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
+                <p className="setting-help">Choose who can see your email on your profile.</p>
+              </div>
+              <select
+                value={settings.profile.showEmail}
+                onChange={(e) => updateSetting('profile', 'showEmail', e.target.value)}
+              >
+                <option value="hidden">Hidden</option>
+                <option value="connections">Connections only</option>
+                <option value="everyone">Everyone</option>
+              </select>
             </div>
-            <select
-              value={settings.profile.discoverable}
-              onChange={(e) => updateSetting('profile', 'discoverable', e.target.value)}
-            >
-              <option value="no_one">No one</option>
-              <option value="connections">Connections only</option>
-              <option value="everyone">Everyone</option>
-            </select>
-          </div>
-        </section>
+
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-label">Discoverability <span className="settings-badge live-badge">{liveBadge}</span></div>
+                <p className="setting-help">Allow others to find you in search and recommendations.</p>
+              </div>
+              <select
+                value={settings.profile.discoverable}
+                onChange={(e) => updateSetting('profile', 'discoverable', e.target.value)}
+              >
+                <option value="no_one">No one</option>
+                <option value="connections">Connections only</option>
+                <option value="everyone">Everyone</option>
+              </select>
+            </div>
+          </section>
+
+          <section className="settings-card">
+            <div className="settings-card-heading">
+              <div className="settings-card-eyebrow">
+                <FaUsers size={16} /> Tag interests
+              </div>
+              <p>Update the topics that shape your feed recommendations.</p>
+            </div>
+            <div className="setting-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+              {isLoadingTags ? (
+                <span className="muted">Loading interests...</span>
+              ) : (
+                <TagPicker
+                  label="Interests"
+                  options={tagOptions}
+                  value={tagInterests}
+                  onChange={setTagInterests}
+                  max={8}
+                  helperText="Select up to 8 tags."
+                  disabled={tagOptionsLoading}
+                />
+              )}
+              <div className="settings-actions" style={{ justifyContent: 'flex-start', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  className="pill-button secondary small"
+                  onClick={saveTagInterests}
+                  disabled={isSavingTags || tagOptionsLoading || isLoadingTags}
+                >
+                  {isSavingTags ? 'Saving...' : 'Save interests'}
+                </button>
+              </div>
+            </div>
+          </section>
+        </>
         )}
 
         {activeTab === 'notifications' && (

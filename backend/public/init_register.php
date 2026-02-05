@@ -33,6 +33,10 @@ $email = trim($inputData['email']);
 $phone = trim($inputData['phone']);
 $password = password_hash($inputData['password'], PASSWORD_BCRYPT);
 $enableTwoFactor = isset($inputData['enable_two_factor']) ? (int)filter_var($inputData['enable_two_factor'], FILTER_VALIDATE_BOOLEAN) : 0;
+$devMode = srp_is_dev_mode();
+$disableTwoFactor = (int)filter_var(getenv('DISABLE_TWO_FACTOR') ?: 0, FILTER_VALIDATE_BOOLEAN);
+$effectiveTwoFactor = ($devMode || $disableTwoFactor) ? 0 : $enableTwoFactor;
+$skipEmailVerification = $devMode;
 // $method = strtolower($inputData['method']);
 $verificationCode = random_int(100000, 999999);
 $defaultAvatar = 'DefaultAvatar.png';
@@ -69,9 +73,10 @@ try {
     }
 
     // Save user WITH verification_code
+    $isVerified = $skipEmailVerification ? 1 : 0;
     $stmt = $db->prepare("
         INSERT INTO users (user_id, role_id, first_name, last_name, email, phone, password_hash, verification_code, is_verified, avatar_path, banner_path)
-        VALUES (:user_id, :role_id, :first_name, :last_name, :email, :phone, :password_hash, :verification_code, 0, :avatar_path, :banner_path)
+        VALUES (:user_id, :role_id, :first_name, :last_name, :email, :phone, :password_hash, :verification_code, :is_verified, :avatar_path, :banner_path)
     ");
     $stmt->execute([
         ':user_id' => $userId,
@@ -82,6 +87,7 @@ try {
         ':phone' => $phone,
         ':password_hash' => $password,
         ':verification_code' => $verificationCode,
+        ':is_verified' => $isVerified,
         ':avatar_path' => $defaultAvatar,
         ':banner_path' => $defaultBanner
     ]);
@@ -95,9 +101,22 @@ try {
     ");
     $settingsStmt->execute([
         ':uid' => $userId,
-        ':two_factor' => $enableTwoFactor,
+        ':two_factor' => $effectiveTwoFactor,
         ':auto_join' => 1
     ]);
+
+    if ($skipEmailVerification) {
+        $db->commit();
+        http_response_code(201);
+        echo json_encode([
+            'message' => 'User created. Email verification skipped.',
+            'user_id' => $userId,
+            'email' => $email,
+            'email_verification_skipped' => true,
+            'dev_mode' => $devMode
+        ]);
+        exit;
+    }
 
     // Send verification email via Mailgun
     $mailgunApiKey = getenv('MAILGUN_API_KEY');

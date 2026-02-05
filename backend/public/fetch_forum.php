@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -18,7 +19,8 @@ $stmt = $db->prepare("SELECT forum_id, community_id, name, description FROM foru
     $forum = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($forum) {
-        echo json_encode($forum);
+        $withTags = srp_attach_tags_to_forums($db, [$forum]);
+        echo json_encode($withTags[0]);
     } else {
         http_response_code(404);
         echo json_encode(['error' => 'Forum not found']);

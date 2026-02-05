@@ -19,15 +19,13 @@ import CommunityRequestModal from './CommunityRequestModal';
 import FloatingComposer from './FloatingComposer';
 import ModalOverlay from './ModalOverlay';
 import ReportModal from './ReportModal';
+import TagPicker from './TagPicker';
+import useTagOptions from '../hooks/useTagOptions';
+import { mapTagNamesToSlugs } from '../utils/tagUtils';
 import './LockedFeature.css';
 import './CreationModal.css';
 
 const ALL_TOPICS_VALUE = 'all';
-const BASE_TOPIC_OPTIONS = [
-  { value: 'admissions', label: 'Admissions' },
-  { value: 'academics', label: 'Academics' },
-  { value: 'campus-life', label: 'Campus Life' },
-];
 
 const normalizeTopicValue = (value) => {
   if (!value) return '';
@@ -74,9 +72,10 @@ const extractForumTopicsFromForum = (forum) => {
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
-function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAuth }) {
+function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterests = [], onRequireAuth }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { tags: tagOptions } = useTagOptions();
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted", "mostRecent"
   const [selectedTopics, setSelectedTopics] = useState([ALL_TOPICS_VALUE]);
   const [isTopicDropdownOpen, setIsTopicDropdownOpen] = useState(false);
@@ -101,11 +100,13 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   const [showCreateForumModal, setShowCreateForumModal] = useState(false);
   const [newForumName, setNewForumName] = useState('');
   const [newForumDescription, setNewForumDescription] = useState('');
+  const [newForumTags, setNewForumTags] = useState([]);
   const [isCreatingForum, setIsCreatingForum] = useState(false);
 
   const [editForumId, setEditForumId] = useState(null);
   const [editForumName, setEditForumName] = useState('');
   const [editForumDescription, setEditForumDescription] = useState('');
+  const [editForumTags, setEditForumTags] = useState([]);
   const [isEditingForum, setIsEditingForum] = useState(false);
 
   const [notification, setNotification] = useState(null);
@@ -143,8 +144,17 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   // Track which saved tab is active
   const [savedTab, setSavedTab] = useState('forums'); // 'forums' | 'threads' | 'posts'
   const [feedThreads, setFeedThreads] = useState([]);
+  const [feedForums, setFeedForums] = useState([]);
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
+  const [exploreTags, setExploreTags] = useState([]);
+  const [exploreForums, setExploreForums] = useState([]);
+  const [exploreThreads, setExploreThreads] = useState([]);
+  const [isLoadingExplore, setIsLoadingExplore] = useState(false);
+  const [isExploreDropdownOpen, setIsExploreDropdownOpen] = useState(false);
+  const [exploreLabelText, setExploreLabelText] = useState('All tags');
   const topicDropdownRef = useRef(null);
+  const exploreDropdownRef = useRef(null);
+  const exploreLabelRef = useRef(null);
   const isSuperAdmin = userData?.role_id === 1;
   const INFO_COMMUNITY_ID = 'c57b7fd6c45b9d57b';
 
@@ -276,22 +286,59 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
         .then((response) => {
           if (response.data.success) {
             setFeedThreads(response.data.threads);
+            setFeedForums(response.data.forums || []);
           } else {
             console.error("Error fetching feed:", response.data.error);
+            setFeedForums([]);
           }
         })
         .catch((error) => {
           console.error("Error fetching feed:", error);
+          setFeedForums([]);
         })
         .finally(() => {
           setIsLoadingFeed(false);
         });
     }
   };
+  const hasInterests = Array.isArray(userInterests) && userInterests.length > 0;
   useEffect(() => {
     fetchFeedThreads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feedSort]);
+
+  const fetchExplore = () => {
+    if (activeSection !== 'home' || activeFeed !== 'explore') return;
+    setIsLoadingExplore(true);
+    const params = new URLSearchParams();
+    if (exploreTags.length) {
+      params.set('tags', exploreTags.join(','));
+    }
+    axios
+      .get(`/api/fetch_explore.php?${params.toString()}`)
+      .then((resp) => {
+        if (resp.data.success) {
+          setExploreForums(resp.data.forums || []);
+          setExploreThreads(resp.data.threads || []);
+        } else {
+          setExploreForums([]);
+          setExploreThreads([]);
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching explore data:', error);
+        setExploreForums([]);
+        setExploreThreads([]);
+      })
+      .finally(() => {
+        setIsLoadingExplore(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchExplore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, activeFeed, exploreTags]);
 
   // ------------- SAVED ITEMS -------------
   const fetchSavedForums = async () => {
@@ -518,7 +565,12 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
 
   const topicOptions = useMemo(
     () => {
-      const optionMap = new Map(BASE_TOPIC_OPTIONS.map((opt) => [opt.value, opt.label]));
+      const optionMap = new Map(
+        (tagOptions || []).map((opt) => [
+          normalizeTopicValue(opt.slug || opt.name),
+          opt.name
+        ])
+      );
 
       forums.forEach((forum) => {
         const forumTopics = extractForumTopicsFromForum(forum);
@@ -531,11 +583,11 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
 
       return Array.from(optionMap, ([value, label]) => ({ value, label }));
     },
-    [forums]
+    [forums, tagOptions]
   );
 
   const topicOptionsWithAll = useMemo(
-    () => [{ value: ALL_TOPICS_VALUE, label: 'All topics' }, ...topicOptions],
+    () => [{ value: ALL_TOPICS_VALUE, label: 'All tags' }, ...topicOptions],
     [topicOptions]
   );
 
@@ -586,6 +638,48 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     if (!selectedTopics.length) return;
     updateTopicSelection([ALL_TOPICS_VALUE]);
   };
+
+  const clearExploreTags = () => {
+    setExploreTags([]);
+  };
+
+  const exploreTagOptions = useMemo(
+    () => (tagOptions || []).map((opt) => ({ value: opt.slug, label: opt.name })),
+    [tagOptions]
+  );
+
+  const exploreSelectedLabels = useMemo(() => {
+    if (!exploreTags.length) return 'All tags';
+    const labels = exploreTags.map(
+      (slug) => exploreTagOptions.find((opt) => opt.value === slug)?.label || slug
+    );
+    return labels.join(', ');
+  }, [exploreTags, exploreTagOptions]);
+
+  useEffect(() => {
+    setExploreLabelText(exploreSelectedLabels);
+  }, [exploreSelectedLabels]);
+
+  useEffect(() => {
+    const measure = () => {
+      if (!exploreLabelRef.current) return;
+      const el = exploreLabelRef.current;
+      const isOverflowing =
+        el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
+      if (isOverflowing && exploreTags.length > 0) {
+        setExploreLabelText(`${exploreTags.length} Filters Selected`);
+      } else {
+        setExploreLabelText(exploreSelectedLabels);
+      }
+    };
+
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', measure);
+    };
+  }, [exploreSelectedLabels, exploreTags.length, isExploreDropdownOpen]);
 
   // Forum upvote/downvote
   const handleVoteClick = async (forumId, voteType) => {
@@ -743,6 +837,22 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     };
   }, [isTopicDropdownOpen]);
 
+  // Close explore dropdown when clicking outside
+  useEffect(() => {
+    if (!isExploreDropdownOpen) return undefined;
+    const handleClickOutside = (event) => {
+      if (exploreDropdownRef.current && !exploreDropdownRef.current.contains(event.target)) {
+        setIsExploreDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isExploreDropdownOpen]);
+
   // Pagination controls
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -793,11 +903,13 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
       const resp = await axios.post('/api/create_forum.php', {
         community_id: infoCommunityId,
         name: newForumName,
-        description: newForumDescription
+        description: newForumDescription,
+        tags: newForumTags
       });
       if (resp.data.success) {
         setNewForumName('');
         setNewForumDescription('');
+        setNewForumTags([]);
         setShowCreateForumModal(false);
         fetchForums(infoCommunityId);
         setNotification({ type: 'success', message: 'Forum created successfully!' });
@@ -816,6 +928,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     setShowCreateForumModal(false);
     setNewForumName('');
     setNewForumDescription('');
+    setNewForumTags([]);
     setIsCreatingForum(false);
   };
 
@@ -824,6 +937,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     setEditForumId(forum.forum_id);
     setEditForumName(forum.name);
     setEditForumDescription(forum.description || '');
+    setEditForumTags(mapTagNamesToSlugs(forum.tags || [], tagOptions));
     setIsEditingForum(true);
   };
 
@@ -831,6 +945,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     setEditForumId(null);
     setEditForumName('');
     setEditForumDescription('');
+    setEditForumTags([]);
     setIsEditingForum(false);
   };
 
@@ -840,7 +955,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
       const resp = await axios.post('/api/edit_forum.php', {
         forum_id: editForumId,
         name: editForumName,
-        description: editForumDescription
+        description: editForumDescription,
+        tags: editForumTags
       });
       if (resp.data.success) {
         fetchForums(INFO_COMMUNITY_ID);
@@ -1081,6 +1197,55 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                 Explore
               </button>
             </div>
+            {activeFeed === 'explore' && (
+              <div className="topic-multi-select-wrapper" style={{ marginLeft: 'auto' }}>
+                <span className="sort-pill" style={{ marginRight: '8px' }}>Tags</span>
+                <div className="topic-dropdown" ref={exploreDropdownRef}>
+                  <button
+                    type="button"
+                    className={`topic-dropdown-toggle${isExploreDropdownOpen ? ' open' : ''}`}
+                    onClick={() => setIsExploreDropdownOpen((open) => !open)}
+                    aria-haspopup="listbox"
+                    aria-expanded={isExploreDropdownOpen}
+                  >
+                    <span ref={exploreLabelRef} className="topic-dropdown-label">{exploreLabelText}</span>
+                  </button>
+                  {isExploreDropdownOpen && (
+                    <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
+                      {exploreTagOptions.map((tagOption) => {
+                        const checked = exploreTags.includes(tagOption.value);
+                        return (
+                          <label key={tagOption.value} className="topic-dropdown-option">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setExploreTags((prev) =>
+                                  prev.includes(tagOption.value)
+                                    ? prev.filter((t) => t !== tagOption.value)
+                                    : [...prev, tagOption.value]
+                                );
+                              }}
+                            />
+                            <span>{tagOption.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="topic-selection-meta" style={{ marginLeft: '8px' }}>
+                  <button
+                    type="button"
+                    className="clear-topics-button"
+                    onClick={clearExploreTags}
+                    disabled={exploreTags.length === 0}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {activeFeed === 'yourFeed' && userData ? (
@@ -1100,47 +1265,151 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
               </div>
               {isLoadingFeed ? (
                 <p>Loading feed...</p>
-              ) : feedThreads.length === 0 ? (
+              ) : feedThreads.length === 0 && feedForums.length === 0 ? (
                 <div className="empty-feed-card">
                   <p style={{ marginBottom: '8px', fontWeight: 600 }}>Your feed is currently empty.</p>
                   <p className="muted" style={{ marginBottom: '12px' }}>
-                    Follow some of our most popular or recommended communities to see fresh threads here.
+                    {hasInterests
+                      ? 'Follow communities or check back soon to see personalized forums and threads here.'
+                      : 'Follow communities or choose interest tags to see personalized forums and threads here.'}
                   </p>
-                  <button
-                    type="button"
-                    className="pill-button"
-                    onClick={() => {
-                      navigate('/communities');
-                    }}
-                  >
-                    Browse communities
-                  </button>
+                  {!hasInterests && (
+                    <button
+                      type="button"
+                      className="pill-button"
+                      onClick={() => {
+                        navigate('/interest-selection');
+                      }}
+                    >
+                      Choose interests
+                    </button>
+                  )}
                 </div>
               ) : (
-                feedThreads.map((thread) => (
-                  <ThreadCard
-                    key={thread.thread_id}
-                    thread={thread}
-                    userData={userData}
-                    onUpvote={handleThreadUpvoteClick}
-                    onDownvote={handleThreadDownvoteClick}
-                    onReport={() =>
-                      handleOpenReport({
-                        id: thread.thread_id,
-                        type: 'thread',
-                        label: thread.title || 'thread',
-                        context: stripHtml(thread.title || ''),
-                      })
-                    }
-                  />
-                ))
+                <>
+                  {feedForums.length > 0 && (
+                    <div style={{ marginBottom: '20px' }}>
+                      <h3 className="section-title" style={{ marginTop: 0 }}>Forums for you</h3>
+                      <div className="forum-list">
+                        {feedForums.map((forum) => (
+                          <ForumCard
+                            key={forum.forum_id}
+                            forum={forum}
+                            userData={userData}
+                            openMenuId={openMenuId}
+                            toggleMenu={toggleMenu}
+                            onReport={(f) =>
+                              handleOpenReport({
+                                id: f.forum_id,
+                                type: 'forum',
+                                label: f.name || 'forum',
+                                context: stripHtml(f.description || f.name || '').slice(0, 200),
+                              })
+                            }
+                            handleSaveForum={handleSaveForum}
+                            handleDeleteForum={handleDeleteForum}
+                            handleUpvoteClick={handleUpvoteClick}
+                            handleDownvoteClick={handleDownvoteClick}
+                            startEditingForum={startEditingForum}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {feedThreads.length > 0 && (
+                    <div>
+                      <h3 className="section-title" style={{ marginTop: 0 }}>Threads for you</h3>
+                      {feedThreads.map((thread) => (
+                        <ThreadCard
+                          key={thread.thread_id}
+                          thread={thread}
+                          userData={userData}
+                          onUpvote={handleThreadUpvoteClick}
+                          onDownvote={handleThreadDownvoteClick}
+                          onReport={() =>
+                            handleOpenReport({
+                              id: thread.thread_id,
+                              type: 'thread',
+                              label: thread.title || 'thread',
+                              context: stripHtml(thread.title || ''),
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </>
           ) : activeFeed === 'explore' ? (
-            // DUMMY Explore content
-            <div className="explore-dummy">
-              <p>This is some dummy explore content!</p>
-              {/* Additional dummy content here */}
+            <div className="explore-panel">
+              {isLoadingExplore ? (
+                <p>Loading explore content...</p>
+              ) : exploreForums.length === 0 && exploreThreads.length === 0 ? (
+                <div className="empty-feed-card">
+                  <p style={{ marginBottom: '8px', fontWeight: 600 }}>No explore results yet.</p>
+                  <p className="muted" style={{ marginBottom: '12px' }}>
+                    Try clearing filters or selecting different tags.
+                  </p>
+                  <button type="button" className="pill-button" onClick={clearExploreTags}>
+                    Reset filters
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {exploreForums.length > 0 && (
+                    <div style={{ marginBottom: '20px' }}>
+                      <h3 className="section-title" style={{ marginTop: 0 }}>Forums to explore</h3>
+                      <div className="forum-list">
+                        {exploreForums.map((forum) => (
+                          <ForumCard
+                            key={forum.forum_id}
+                            forum={forum}
+                            userData={userData}
+                            openMenuId={openMenuId}
+                            toggleMenu={toggleMenu}
+                            onReport={(f) =>
+                              handleOpenReport({
+                                id: f.forum_id,
+                                type: 'forum',
+                                label: f.name || 'forum',
+                                context: stripHtml(f.description || f.name || '').slice(0, 200),
+                              })
+                            }
+                            handleSaveForum={handleSaveForum}
+                            handleDeleteForum={handleDeleteForum}
+                            handleUpvoteClick={handleUpvoteClick}
+                            handleDownvoteClick={handleDownvoteClick}
+                            startEditingForum={startEditingForum}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {exploreThreads.length > 0 && (
+                    <div>
+                      <h3 className="section-title" style={{ marginTop: 0 }}>Threads to explore</h3>
+                      {exploreThreads.map((thread) => (
+                        <ThreadCard
+                          key={thread.thread_id}
+                          thread={thread}
+                          userData={userData}
+                          onUpvote={handleThreadUpvoteClick}
+                          onDownvote={handleThreadDownvoteClick}
+                          onReport={() =>
+                            handleOpenReport({
+                              id: thread.thread_id,
+                              type: 'thread',
+                              label: thread.title || 'thread',
+                              context: stripHtml(thread.title || ''),
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           ) : (
             <div className="locked-feature-card" style={{ textAlign: 'center' }}>
@@ -1429,7 +1698,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   if (activeSection === 'info') {
     const isAllTopicsSelected = selectedTopics.includes(ALL_TOPICS_VALUE) || !selectedTopics.length;
     const selectedTopicLabels = isAllTopicsSelected
-      ? 'All topics'
+      ? 'All tags'
       : selectedTopics
           .map((topic) => {
             const match = topicOptionsWithAll.find((opt) => opt.value === topic);
@@ -1473,7 +1742,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
               <option value="mostUpvoted">Most Upvoted</option>
             </select>
 
-            <span className="sort-pill">Topics</span>
+            <span className="sort-pill">Tags</span>
             <div className="topic-multi-select-wrapper">
               <div className="topic-dropdown" ref={topicDropdownRef}>
                 <button
@@ -1572,6 +1841,16 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                         required
                       />
                     </div>
+                    <div className="creation-field">
+                      <TagPicker
+                        label="Tags"
+                        options={tagOptions}
+                        value={newForumTags}
+                        onChange={setNewForumTags}
+                        max={5}
+                        helperText="Choose up to 5 tags that describe this forum."
+                      />
+                    </div>
                     <div className="creation-actions">
                       <button
                         type="button"
@@ -1619,6 +1898,16 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                       required
                     />
                   </div>
+                  <div className="form-group">
+                    <TagPicker
+                      label="Tags"
+                      options={tagOptions}
+                      value={editForumTags}
+                      onChange={setEditForumTags}
+                      max={5}
+                      helperText="Update the tags for this forum."
+                    />
+                  </div>
                   <div className="form-actions">
                     <button type="submit">Save</button>
                     <button type="button" onClick={cancelEditingForum}>
@@ -1634,7 +1923,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
           {isLoadingForums ? (
             <p>Loading forums...</p>
           ) : filteredForums.length === 0 ? (
-            <p>{isAllTopicsSelected ? 'No forums available.' : 'No forums match these topics.'}</p>
+            <p>{isAllTopicsSelected ? 'No forums available.' : 'No forums match these tags.'}</p>
           ) : (
             <div className="forum-list">
               {filteredForums.map((forum) => (

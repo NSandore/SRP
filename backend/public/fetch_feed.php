@@ -4,6 +4,7 @@
 session_start();
 header('Content-Type: application/json');
 require_once '../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 if (!isset($_GET['user_id'])) {
     echo json_encode(["success" => false, "error" => "Missing user_id"]);
@@ -18,6 +19,7 @@ if (!in_array($sort, ['recent', 'trending'], true)) {
 
 try {
     $db = getDB();
+    srp_ensure_tag_tables($db);
 
     // Helpers
     $tableExists = function (PDO $db, string $tableName): bool {
@@ -71,7 +73,7 @@ try {
         $conditions[] = "t.user_id IN ({$placeholders['user']})";
     }
     if (!empty($placeholders['tag'])) {
-        $conditions[] = "tt.tag_id IN ({$placeholders['tag']})";
+        $conditions[] = "(tt.tag_id IN ({$placeholders['tag']}) OR ft.tag_id IN ({$placeholders['tag']}))";
     }
 
     if (empty($conditions)) {
@@ -91,6 +93,7 @@ try {
         INNER JOIN forums f ON t.forum_id = f.forum_id
         INNER JOIN communities c ON f.community_id = c.id
         LEFT JOIN thread_tags tt ON tt.thread_id = t.thread_id
+        LEFT JOIN forum_tags ft ON ft.forum_id = f.forum_id
         WHERE {$whereClause}
           AND t.is_hidden = 0
           AND f.is_hidden = 0
@@ -125,8 +128,41 @@ try {
     }
     $stmt->execute();
     $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $threads = srp_attach_tags_to_threads($db, $threads);
 
-    echo json_encode(["success" => true, "threads" => $threads]);
+    $forums = [];
+    if (!empty($placeholders['tag'])) {
+        $forumQuery = "
+            SELECT 
+                f.forum_id,
+                f.community_id,
+                f.name,
+                f.description,
+                f.created_at,
+                COUNT(t.thread_id) AS thread_count,
+                (SELECT COUNT(*) FROM forum_votes WHERE forum_id = f.forum_id AND vote_type = 'up') AS upvotes,
+                (SELECT COUNT(*) FROM forum_votes WHERE forum_id = f.forum_id AND vote_type = 'down') AS downvotes
+            FROM forums f
+            LEFT JOIN threads t ON f.forum_id = t.forum_id
+            LEFT JOIN forum_tags ft ON ft.forum_id = f.forum_id
+            WHERE f.is_hidden = 0
+              AND ft.tag_id IN ({$placeholders['tag']})
+            GROUP BY f.forum_id, f.community_id, f.name, f.description, f.created_at
+            ORDER BY COALESCE(f.last_activity_at, f.created_at) DESC
+            LIMIT 20
+        ";
+        $forumStmt = $db->prepare($forumQuery);
+        foreach ($params as $key => $value) {
+            if (strpos($key, ':tg') === 0) {
+                $forumStmt->bindValue($key, $value);
+            }
+        }
+        $forumStmt->execute();
+        $forums = $forumStmt->fetchAll(PDO::FETCH_ASSOC);
+        $forums = srp_attach_tags_to_forums($db, $forums);
+    }
+
+    echo json_encode(["success" => true, "threads" => $threads, "forums" => $forums]);
 } catch (PDOException $e) {
     echo json_encode(["success" => false, "error" => "Database error: " . $e->getMessage()]);
 }

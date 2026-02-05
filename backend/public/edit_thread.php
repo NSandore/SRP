@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -21,6 +22,8 @@ $data = json_decode(file_get_contents('php://input'), true);
 
 $thread_id = isset($data['thread_id']) ? normalizeId($data['thread_id']) : '';
 $new_title = trim($data['new_title'] ?? '');
+$tagsProvided = is_array($data) && array_key_exists('tags', $data);
+$tags = $tagsProvided && is_array($data['tags']) ? $data['tags'] : [];
 
 // Basic validation
 if ($thread_id === '' || $new_title === '') {
@@ -62,6 +65,11 @@ try {
         ':title' => $new_title,
         ':thread_id' => $thread_id
     ]);
+
+    if ($tagsProvided) {
+        $tagIds = srp_resolve_tag_ids($db, $tags);
+        srp_sync_tag_mappings($db, 'thread_tags', 'thread_id', $thread_id, $tagIds);
+    }
 
     // 6. Check how many rows were updated
     if ($updateStmt->rowCount() > 0) {

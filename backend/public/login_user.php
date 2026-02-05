@@ -30,7 +30,8 @@ try {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user && password_verify($password, $user['password_hash'])) {
-        if (!(int)$user['is_verified']) {
+        $devMode = srp_is_dev_mode();
+        if (!$devMode && !(int)$user['is_verified']) {
             http_response_code(403);
             echo json_encode([
                 "error" => "Please verify your email before logging in.",
@@ -50,6 +51,7 @@ try {
         );
 
         $twoFactorEnabled = 0;
+        $disableTwoFactor = (int)filter_var(getenv('DISABLE_TWO_FACTOR') ?: 0, FILTER_VALIDATE_BOOLEAN);
         $trustedDevicesRaw = null;
         $settingsStmt = $db->prepare("
             SELECT
@@ -68,7 +70,7 @@ try {
             $trustedDevicesRaw = $settingsRow['trusted_devices'];
         }
 
-        if ($twoFactorEnabled) {
+        if ($twoFactorEnabled && !$disableTwoFactor && !$devMode) {
             $deviceHash = hash('sha256', $userAgent . '|' . $ipAddress);
             $trustedDevices = [];
             if ($trustedDevicesRaw) {

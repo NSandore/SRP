@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -20,6 +21,8 @@ $data = json_decode(file_get_contents('php://input'), true);
 $forum_id = normalizeId($data['forum_id'] ?? '');
 $new_name = trim($data['name'] ?? '');
 $new_desc = trim($data['description'] ?? '');
+$tagsProvided = is_array($data) && array_key_exists('tags', $data);
+$tags = $tagsProvided && is_array($data['tags']) ? $data['tags'] : [];
 
 if ($forum_id === '' || $new_name === '') {
     http_response_code(400);
@@ -67,6 +70,11 @@ try {
         ':desc' => $new_desc,
         ':forum_id' => $forum_id,
     ]);
+
+    if ($tagsProvided) {
+        $tagIds = srp_resolve_tag_ids($db, $tags);
+        srp_sync_tag_mappings($db, 'forum_tags', 'forum_id', $forum_id, $tagIds);
+    }
 
     if ($stmt->rowCount() > 0) {
         echo json_encode(['success' => true, 'message' => 'Forum updated successfully.']);

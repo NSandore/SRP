@@ -15,8 +15,9 @@ $userId = isset($inputData['user_id']) ? normalizeId($inputData['user_id']) : nu
 $schoolName = isset($inputData['schoolName']) ? trim($inputData['schoolName']) : null;
 $startDate = isset($inputData['startDate']) ? $inputData['startDate'] : null;
 $endDate = isset($inputData['endDate']) ? $inputData['endDate'] : null;
+$devMode = srp_is_dev_mode();
 
-if (!$userId || !$schoolName || !$startDate || !$endDate) {
+if (!$userId || (!$devMode && (!$schoolName || !$startDate || !$endDate))) {
     http_response_code(400);
     echo json_encode(['error' => 'Missing required fields']);
     exit;
@@ -36,9 +37,15 @@ try {
         exit;
     }
 
-    if (!$user['is_verified']) {
+    if (!$devMode && !$user['is_verified']) {
         http_response_code(403);
         echo json_encode(['error' => 'User not verified']);
+        exit;
+    }
+
+    if ($devMode && (!$schoolName || !$startDate || !$endDate)) {
+        http_response_code(200);
+        echo json_encode(['message' => 'Registration completed (dev mode).', 'dev_mode' => true]);
         exit;
     }
 
