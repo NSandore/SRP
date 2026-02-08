@@ -2,10 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import axios from 'axios';
-import { FaLock } from 'react-icons/fa';
+import { FaLock, FaEllipsisV } from 'react-icons/fa';
 import './GroupProfile.css';
 import ModalOverlay from './ModalOverlay';
+import ReportModal from './ReportModal';
 import { buildAvatarSrc } from '../utils/avatar';
+import { isSuperAdmin } from '../constants/roles';
 
 function GroupProfile({ userData, onRequireAuth }) {
   const { id } = useParams(); // group community id
@@ -40,6 +42,14 @@ function GroupProfile({ userData, onRequireAuth }) {
   const [postsLoading, setPostsLoading] = useState(false);
   const [postsError, setPostsError] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [openPostsMenuId, setOpenPostsMenuId] = useState(null);
+  const [pinnedItems, setPinnedItems] = useState([]);
+  const [isLoadingPinned, setIsLoadingPinned] = useState(false);
+  const [pinnedError, setPinnedError] = useState('');
+  const [unpinBusy, setUnpinBusy] = useState({});
+  const [openPinnedMenuId, setOpenPinnedMenuId] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [showAmbassadorOverlay, setShowAmbassadorOverlay] = useState(false);
   const [loadingAmbassadors, setLoadingAmbassadors] = useState(false);
   const [errorAmbassadors, setErrorAmbassadors] = useState(null);
@@ -52,11 +62,17 @@ function GroupProfile({ userData, onRequireAuth }) {
   const hasSubcommunities = subcommunities.length > 0;
 
   const currentAmbassador = ambassadors.find((a) => String(a.user_id) === String(userData?.user_id));
-  const viewerRole = (currentAmbassador?.role || '').toLowerCase() || 'viewer';
-  const isSuperAdmin = Number(userData?.role_id) === 1;
+  const viewerRole = (currentAmbassador?.community_role || '').toLowerCase() || 'viewer';
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const isCommunityAdmin = viewerRole === 'admin';
-  const canEditCommunity = Boolean(userData) && (isSuperAdmin || isCommunityAdmin);
-  const canRemoveAmbassador = Boolean(userData) && (isSuperAdmin || isCommunityAdmin);
+  const canEditCommunity = Boolean(userData) && (isSuperAdminUser || isCommunityAdmin);
+  const canRemoveAmbassador = Boolean(userData) && (isSuperAdminUser || isCommunityAdmin);
+  const canPinToOverview = Array.isArray(userData?.ambassador_communities)
+    && userData.ambassador_communities.some((c) => String(c?.community_id ?? c?.id ?? '') === String(id));
+  const canUnpinFromCommunity = Array.isArray(userData?.ambassador_communities)
+    && userData.ambassador_communities.some((c) => String(c?.community_id ?? c?.id ?? '') === String(id));
+
+  const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
   const timeAgo = (dateStr) => {
     if (!dateStr) return '';
@@ -85,6 +101,84 @@ function GroupProfile({ userData, onRequireAuth }) {
       if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
     }
     return 'just now';
+  };
+
+  const formatShortDate = (dateStr) => {
+    if (!dateStr) return '';
+    const parsed = new Date(dateStr);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: '2-digit',
+    });
+  };
+
+  const handleOpenReport = (target) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    if (!target || !target.id || !target.type) return;
+    setReportTarget({
+      ...target,
+      label: target.label || target.type,
+      context: target.context ? target.context.trim() : '',
+    });
+  };
+
+  const handleSubmitReport = async ({ reasonCode, reasonText, details }) => {
+    if (!reportTarget) return;
+    setIsSubmittingReport(true);
+    try {
+      const resp = await axios.post(
+        '/api/submit_report.php',
+        {
+          item_type: reportTarget.type,
+          item_id: reportTarget.id,
+          reason_code: reasonCode,
+          reason_text: reasonText,
+          details,
+        },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        setStatusMessage('Report submitted.');
+        setReportTarget(null);
+      } else {
+        setStatusMessage(resp.data.error || 'Unable to submit report.');
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setStatusMessage('An error occurred while submitting the report.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  const handleSavePinnedItem = async (item) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    const isThread = item?.item_type === 'thread';
+    const payload = isThread
+      ? { user_id: userData.user_id, thread_id: item.thread_id || item.item_id }
+      : { user_id: userData.user_id, forum_id: item.forum_id || item.item_id };
+    const url = isThread ? '/api/save_thread.php' : '/api/save_forum.php';
+    try {
+      const resp = await axios.post(url, payload, { withCredentials: true });
+      if (resp.data.success) {
+        setStatusMessage(isThread ? 'Thread saved.' : 'Forum saved.');
+      } else {
+        setStatusMessage(resp.data.error || 'Unable to save.');
+      }
+    } catch (error) {
+      console.error('Error saving pinned item:', error);
+      setStatusMessage('An error occurred while saving.');
+    } finally {
+      setOpenPinnedMenuId(null);
+    }
   };
 
   // Fetch group details on mount (or when id changes)
@@ -215,49 +309,182 @@ function GroupProfile({ userData, onRequireAuth }) {
   }, [id, userData?.user_id]);
 
   useEffect(() => {
-    const fetchPostsForGroup = async () => {
-      setPostsLoading(true);
-      setPostsError(null);
+    const fetchPinnedItems = async () => {
+      setIsLoadingPinned(true);
+      setPinnedError('');
       try {
-        // 1) Fetch forums for this community
-        const forumsRes = await axios.get(`/api/fetch_forums.php?community_id=${id}`);
-        const forumsList = Array.isArray(forumsRes.data?.forums)
-          ? forumsRes.data.forums
-          : Array.isArray(forumsRes.data)
-          ? forumsRes.data
-          : [];
-        if (!forumsList.length) {
-          setPosts([]);
-          return;
+        const res = await axios.get(`/api/fetch_pinned_items.php?community_id=${id}`);
+        if (res.data.success) {
+          setPinnedItems(Array.isArray(res.data.items) ? res.data.items : []);
+        } else {
+          setPinnedItems([]);
+          setPinnedError(res.data.error || 'Unable to load pinned items.');
         }
-
-        // 2) Fetch threads for each forum
-        const threadsPromises = forumsList.map(async (forum) => {
-          const tRes = await axios.get(
-            `/api/fetch_threads.php?forum_id=${forum.forum_id}&user_id=${userData?.user_id || ''}`
-          );
-          const threads = Array.isArray(tRes.data) ? tRes.data : [];
-          return threads.map((t) => ({ ...t, forum_name: forum.name }));
-        });
-
-        const threadGroups = await Promise.all(threadsPromises);
-        const allThreads = threadGroups.flat();
-        // Sort newest first
-        allThreads.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        setPosts(allThreads);
       } catch (err) {
-        console.error('Error fetching group posts:', err);
-        setPostsError('Unable to load posts.');
-        setPosts([]);
+        setPinnedItems([]);
+        setPinnedError('Unable to load pinned items.');
       } finally {
-        setPostsLoading(false);
+        setIsLoadingPinned(false);
       }
     };
 
-    if (activeTab === 'posts') {
-      fetchPostsForGroup();
+    fetchPinnedItems();
+  }, [id]);
+
+  const handleUnpin = async (pinId) => {
+    if (!canUnpinFromCommunity || !pinId) return;
+    setOpenPinnedMenuId(null);
+    setUnpinBusy((prev) => ({ ...prev, [pinId]: true }));
+    try {
+      const res = await axios.post(
+        '/api/unpin_from_community.php',
+        { pin_id: pinId },
+        { withCredentials: true }
+      );
+      if (res.data.success) {
+        setPinnedItems((prev) => prev.filter((item) => String(item.pin_id) !== String(pinId)));
+      } else {
+        alert(res.data.error || 'Unable to un-pin this item.');
+      }
+    } catch (err) {
+      alert('Unable to un-pin this item.');
+    } finally {
+      setUnpinBusy((prev) => {
+        const next = { ...prev };
+        delete next[pinId];
+        return next;
+      });
     }
+  };
+
+  const refreshGroupPosts = async () => {
+    setPostsLoading(true);
+    setPostsError(null);
+    try {
+      const forumsRes = await axios.get(`/api/fetch_forums.php?community_id=${id}`);
+      const forumsList = Array.isArray(forumsRes.data?.forums)
+        ? forumsRes.data.forums
+        : Array.isArray(forumsRes.data)
+        ? forumsRes.data
+        : [];
+      if (!forumsList.length) {
+        setPosts([]);
+        return;
+      }
+
+      const threadsPromises = forumsList.map(async (forum) => {
+        const tRes = await axios.get(
+          `/api/fetch_threads.php?forum_id=${forum.forum_id}&user_id=${userData?.user_id || ''}`
+        );
+        const threads = Array.isArray(tRes.data) ? tRes.data : [];
+        return threads.map((t) => ({ ...t, forum_name: forum.name }));
+      });
+      const threadGroups = await Promise.all(threadsPromises);
+      const allThreads = threadGroups.flat();
+      allThreads.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setPosts(allThreads);
+    } catch (err) {
+      setPostsError('Unable to load posts.');
+      setPosts([]);
+    } finally {
+      setPostsLoading(false);
+    }
+  };
+
+  const handlePinThreadToOverview = async (thread) => {
+    if (!canPinToOverview) return;
+    try {
+      const res = await axios.post(
+        '/api/pin_to_community.php',
+        {
+          community_id: id,
+          item_id: thread.thread_id,
+          item_type: 'thread',
+        },
+        { withCredentials: true }
+      );
+      if (!res.data.success) {
+        alert(res.data.error || 'Unable to pin thread.');
+        return;
+      }
+      const pinnedRes = await axios.get(`/api/fetch_pinned_items.php?community_id=${id}`);
+      if (pinnedRes.data.success) {
+        setPinnedItems(Array.isArray(pinnedRes.data.items) ? pinnedRes.data.items : []);
+      }
+      setOpenPostsMenuId(null);
+    } catch (err) {
+      alert('Unable to pin thread.');
+    }
+  };
+
+  const handleEditThreadFromPosts = async (thread) => {
+    const canManage = isSuperAdminUser || isCommunityAdmin || String(thread.user_id) === String(userData?.user_id);
+    if (!canManage) return;
+    const nextTitle = window.prompt('Edit thread title:', thread.title || '');
+    if (nextTitle === null) return;
+    const trimmed = nextTitle.trim();
+    if (!trimmed) {
+      alert('Title cannot be empty.');
+      return;
+    }
+    try {
+      const res = await axios.post(
+        '/api/edit_thread.php',
+        { thread_id: thread.thread_id, new_title: trimmed },
+        { withCredentials: true }
+      );
+      if (!res.data.success) {
+        alert(res.data.error || 'Unable to edit thread.');
+        return;
+      }
+      await refreshGroupPosts();
+      setOpenPostsMenuId(null);
+    } catch (err) {
+      alert('Unable to edit thread.');
+    }
+  };
+
+  const handleDeleteThreadFromPosts = async (thread) => {
+    const canManage = isSuperAdminUser || isCommunityAdmin || String(thread.user_id) === String(userData?.user_id);
+    if (!canManage) return;
+    if (!window.confirm('Delete this thread? This cannot be undone.')) return;
+    try {
+      const res = await axios.post(
+        '/api/delete_thread.php',
+        { thread_id: thread.thread_id },
+        { withCredentials: true }
+      );
+      if (!res.data.success) {
+        alert(res.data.error || 'Unable to delete thread.');
+        return;
+      }
+      await refreshGroupPosts();
+      setOpenPostsMenuId(null);
+    } catch (err) {
+      alert('Unable to delete thread.');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'posts') {
+      refreshGroupPosts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, id, userData?.user_id]);
+
+  useEffect(() => {
+    if (!openPinnedMenuId) return undefined;
+    const handleClickOutside = (event) => {
+      if (event.target.closest('.pinned-menu-container')) return;
+      setOpenPinnedMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [openPinnedMenuId]);
 
   const handleSubmitQuestion = async (e) => {
     e.preventDefault();
@@ -432,7 +659,7 @@ function GroupProfile({ userData, onRequireAuth }) {
   };
 
   const handleRemoveAmbassador = async (amb) => {
-    if (!canRemoveAmbassador || String(amb.role).toLowerCase() === 'admin') return;
+    if (!canRemoveAmbassador || String(amb.community_role).toLowerCase() === 'admin') return;
     const reason = window.prompt('Are you sure you want to revoke their access? Provide a reason (optional):', '');
     if (reason === null) return;
     try {
@@ -448,7 +675,7 @@ function GroupProfile({ userData, onRequireAuth }) {
   };
 
   const handlePromoteToAdmin = async (amb) => {
-    if (!canEditCommunity || String(amb.role).toLowerCase() === 'admin') return;
+    if (!canEditCommunity || String(amb.community_role).toLowerCase() === 'admin') return;
     try {
       await axios.post(
         '/api/promote_user_to_admin.php',
@@ -481,8 +708,19 @@ function GroupProfile({ userData, onRequireAuth }) {
         withCredentials: true,
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      if (res.data.success) {
-        const updated = res.data.university || res.data.group || res.data.community || null;
+      const payload = (() => {
+        if (typeof res.data === 'string') {
+          try {
+            return JSON.parse(res.data);
+          } catch {
+            return {};
+          }
+        }
+        return res.data || {};
+      })();
+
+      if (payload.success) {
+        const updated = payload.university || payload.group || payload.community || null;
         if (updated) {
           setGroup(updated);
           setEditStatus('Community updated successfully.');
@@ -491,7 +729,7 @@ function GroupProfile({ userData, onRequireAuth }) {
           setEditStatus('Updated, but no data returned. Please refresh.');
         }
       } else {
-        setEditStatus(res.data.error || 'Unable to update community.');
+        setEditStatus(payload.error || 'Unable to update community.');
       }
     } catch (err) {
       setEditStatus('An error occurred while updating.');
@@ -589,7 +827,7 @@ function GroupProfile({ userData, onRequireAuth }) {
               className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
               onClick={() => setActiveTab('posts')}
             >
-              Posts
+              Pinned Topics
             </button>
             <button
               type="button"
@@ -604,7 +842,104 @@ function GroupProfile({ userData, onRequireAuth }) {
         {/* Below hero: two-column split — main content + right cards */}
         <div className={`profile-split ${activeTab === 'qa' ? 'fullwidth' : ''}`}>
           <div className="split-main">
-            {activeTab === 'overview' && null}
+            {activeTab === 'overview' && (
+              <div className="content-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Pinned</h3>
+                    <p className="muted">Ambassador-picked threads and forums for {group.name}.</p>
+                  </div>
+                </div>
+                {isLoadingPinned ? (
+                  <p>Loading pinned items...</p>
+                ) : pinnedError ? (
+                  <p>{pinnedError}</p>
+                ) : pinnedItems.length === 0 ? (
+                  <p className="muted">No pinned threads or forums yet.</p>
+                ) : (
+                  <div className="posts-list">
+                    {pinnedItems.map((item) => {
+                      const isThread = item.item_type === 'thread';
+                      const threadId = item.thread_id || item.item_id;
+                      const forumId = item.forum_id;
+                      const href = isThread
+                        ? `/info/forum/${forumId}/thread/${threadId}`
+                        : `/info/forum/${forumId}`;
+                      const canShowPinnedMenu = Boolean(userData);
+                      return (
+                        <div key={item.pin_id || `${item.item_type}:${item.item_id}`} className="forum-card card-lift" style={{ marginBottom: '12px', position: 'relative' }}>
+                          {canShowPinnedMenu ? (
+                            <div className="pinned-menu-container" style={{ position: 'absolute', right: 10, top: 10, zIndex: 10000 }}>
+                              <button
+                                type="button"
+                                className="kebab-button"
+                                aria-haspopup="menu"
+                                aria-expanded={openPinnedMenuId === item.pin_id}
+                                onClick={() =>
+                                  setOpenPinnedMenuId((prev) => (prev === item.pin_id ? null : item.pin_id))
+                                }
+                              >
+                                <FaEllipsisV />
+                              </button>
+                              {openPinnedMenuId === item.pin_id && (
+                                <div className="dropdown-menu" style={{ position: 'absolute', right: 0, top: 26, zIndex: 10001 }}>
+                                  {canUnpinFromCommunity && item.pin_id ? (
+                                    <button
+                                      type="button"
+                                      className="dropdown-item"
+                                      onClick={() => handleUnpin(item.pin_id)}
+                                      disabled={Boolean(unpinBusy[item.pin_id])}
+                                    >
+                                      {unpinBusy[item.pin_id] ? 'Un-pinning...' : 'Un-pin from Community'}
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={() => handleSavePinnedItem(item)}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={() => {
+                                      const targetId = isThread ? threadId : forumId;
+                                      handleOpenReport({
+                                        id: targetId,
+                                        type: isThread ? 'thread' : 'forum',
+                                        label: item.title || (isThread ? 'thread' : 'forum'),
+                                        context: stripHtml(item.description || item.title || '').slice(0, 200),
+                                      });
+                                      setOpenPinnedMenuId(null);
+                                    }}
+                                  >
+                                    Report
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+                          <div className="meta-row" style={{ marginBottom: '4px' }}>
+                            <span className="meta-quiet">{isThread ? 'Thread' : 'Forum'}</span>
+                            <span className="middot">·</span>
+                            <span className="meta-quiet">Pinned {timeAgo(item.pinned_at)}</span>
+                          </div>
+                          <h4 style={{ margin: 0 }}>
+                            <RouterLink to={href} style={{ textDecoration: 'none', color: 'inherit' }}>
+                              {item.title}
+                            </RouterLink>
+                          </h4>
+                          {isThread && item.forum_name ? (
+                            <p className="muted" style={{ marginTop: 4 }}>{item.forum_name}</p>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeTab === 'subgroups' && (
               <div className="content-card">
@@ -709,7 +1044,59 @@ function GroupProfile({ userData, onRequireAuth }) {
                     <p>No posts yet.</p>
                   ) : (
                     posts.map((p) => (
-                      <div key={p.thread_id} className="forum-card card-lift" style={{ marginBottom: '12px' }}>
+                      <div key={p.thread_id} className="forum-card card-lift" style={{ marginBottom: '12px', position: 'relative' }}>
+                        {(() => {
+                          const canManageThread =
+                            isSuperAdminUser || isCommunityAdmin || String(p.user_id) === String(userData?.user_id);
+                          const canShowPostsMenu = isLoggedIn && (canPinToOverview || canManageThread);
+                          if (!canShowPostsMenu) return null;
+                          return (
+                          <div style={{ position: 'absolute', right: 10, top: 10 }}>
+                            <button
+                              type="button"
+                              className="kebab-button"
+                              aria-haspopup="menu"
+                              aria-expanded={openPostsMenuId === p.thread_id}
+                              onClick={() =>
+                                setOpenPostsMenuId((prev) => (prev === p.thread_id ? null : p.thread_id))
+                              }
+                            >
+                              <FaEllipsisV />
+                            </button>
+                            {openPostsMenuId === p.thread_id && (
+                              <div className="dropdown-menu" style={{ position: 'absolute', right: 0, top: 26, zIndex: 10 }}>
+                                {canPinToOverview && (
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={() => handlePinThreadToOverview(p)}
+                                  >
+                                    Pin to Overview
+                                  </button>
+                                )}
+                                {canManageThread && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="dropdown-item"
+                                      onClick={() => handleEditThreadFromPosts(p)}
+                                    >
+                                      Edit Thread
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="dropdown-item"
+                                      onClick={() => handleDeleteThreadFromPosts(p)}
+                                    >
+                                      Delete Thread
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          );
+                        })()}
                         <div className="meta-row" style={{ marginBottom: '4px' }}>
                           <span className="meta-quiet">{p.forum_name || 'Forum'}</span>
                           <span className="middot">·</span>
@@ -726,6 +1113,21 @@ function GroupProfile({ userData, onRequireAuth }) {
                         <p className="muted" style={{ marginTop: 4 }}>
                           {p.first_name} {p.last_name ? `${p.last_name[0]}.` : ''}
                         </p>
+                        {p.updated_by && p.updated_by_first_name && (
+                          <p className="muted" style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>Last Edited on {formatShortDate(p.updated_at)} by</span>
+                            <img
+                              src={buildAvatarSrc(p.updated_by_avatar_path)}
+                              alt={`${p.updated_by_first_name} ${p.updated_by_last_name || ''}`}
+                              style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }}
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = buildAvatarSrc(null);
+                              }}
+                            />
+                            <span>{p.updated_by_first_name} {p.updated_by_last_name || ''}</span>
+                          </p>
+                        )}
                         <div className="meta-row" style={{ gap: '8px', flexWrap: 'wrap' }}>
                           <span className="meta-quiet">{p.upvotes || 0} upvotes</span>
                           <span className="meta-quiet">{p.downvotes || 0} downvotes</span>
@@ -899,10 +1301,13 @@ function GroupProfile({ userData, onRequireAuth }) {
                   <a href={group.website} target="_blank" rel="noopener noreferrer">{group.website}</a>
                 </p>
               ) : null}
+              {group.phone ? (
+                <p className="muted" style={{ margin: group.website ? '6px 0 0 0' : 0 }}>{group.phone}</p>
+              ) : null}
               {group.contact_email || group.email ? (
                 <p className="muted" style={{ margin: '6px 0 0 0' }}>{group.contact_email || group.email}</p>
               ) : (
-                <p className="muted" style={{ margin: 0 }}>No contact info provided.</p>
+                (!group.website && !group.phone) ? <p className="muted" style={{ margin: 0 }}>No contact info provided.</p> : null
               )}
             </div>
           </aside>
@@ -979,7 +1384,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                         <a href={`/user/${amb.user_id}`}>
                           {amb.first_name} {amb.last_name}
                         </a>
-                        {String(amb.role).toLowerCase() === 'admin' && <span className="muted"> · Admin</span>}
+                        {String(amb.community_role).toLowerCase() === 'admin' && <span className="muted"> · Admin</span>}
                       </p>
                       <p className="ambassador-headline">{amb.headline}</p>
                     </div>
@@ -996,7 +1401,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                             <button
                               type="button"
                               className="menu-item"
-                              disabled={!canEditCommunity || String(amb.role).toLowerCase() === 'admin'}
+                              disabled={!canEditCommunity || String(amb.community_role).toLowerCase() === 'admin'}
                               onClick={() => {
                                 setMenuOpenFor(null);
                                 handlePromoteToAdmin(amb);
@@ -1007,7 +1412,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                             <button
                               type="button"
                               className="menu-item"
-                              disabled={!canRemoveAmbassador || String(amb.role).toLowerCase() === 'admin'}
+                              disabled={!canRemoveAmbassador || String(amb.community_role).toLowerCase() === 'admin'}
                               onClick={() => {
                                 setMenuOpenFor(null);
                                 handleRemoveAmbassador(amb);
@@ -1187,6 +1592,14 @@ function GroupProfile({ userData, onRequireAuth }) {
           </form>
         </div>
       </ModalOverlay>
+
+      <ReportModal
+        isOpen={!!reportTarget}
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+        onSubmit={handleSubmitReport}
+        submitting={isSubmittingReport}
+      />
     </div>
   );
 }

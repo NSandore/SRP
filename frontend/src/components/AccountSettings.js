@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getApiBase } from '../utils/apiBase';
 import useTagOptions from '../hooks/useTagOptions';
 import TagPicker from './TagPicker';
+import { getRoleLabel, isSuperAdmin, isAdmin, isModerator } from '../constants/roles';
 import {
   FaBell,
   FaBullhorn,
@@ -69,22 +70,14 @@ const createDefaultSettings = () => ({
   },
 });
 
-const roleLabel = (roleId) => {
-  if (roleId >= 7) return 'Admin';
-  if (roleId >= 5) return 'Moderator';
-  if (roleId >= 3) return 'Staff';
-  return 'Member';
-};
-
 function AccountSettings({ userData, onInterestsUpdated }) {
   const roleId = Number(userData?.role_id || 0);
-  const isModerator = roleId >= 5;
-  const isAdmin = roleId >= 7;
-  const isSuperAdmin = roleId === 1;
+  const isModeratorUser = isModerator(roleId);
+  const isAdminUser = isAdmin(roleId);
+  const isSuperAdminUser = isSuperAdmin(roleId);
   const [fetchedIsAmbassador, setFetchedIsAmbassador] = useState(Number(userData?.is_ambassador) === 1 ? 1 : 0);
   const isAmbassador = Number(fetchedIsAmbassador) === 1;
-  const isAdminUser = isAdmin || isSuperAdmin;
-  const canConnectZoom = isAmbassador || isAdminUser;
+  const canConnectZoom = isAmbassador || isAdminUser || isSuperAdminUser;
   const navigate = useNavigate();
   const location = useLocation();
   const apiBase = getApiBase();
@@ -113,14 +106,14 @@ function AccountSettings({ userData, onInterestsUpdated }) {
       { id: 'feed', label: 'Feed', icon: <FaUsers size={16} /> },
       { id: 'community', label: 'Community', icon: <FaUniversity size={16} /> },
       canConnectZoom ? { id: 'integrations', label: 'Integrations', icon: <FaPlug size={16} /> } : null,
-      isModerator ? { id: 'moderation', label: 'Moderation', icon: <FaBullhorn size={16} /> } : null,
+      isModeratorUser ? { id: 'moderation', label: 'Moderation', icon: <FaBullhorn size={16} /> } : null,
       isAmbassador ? { id: 'ambassador', label: 'Ambassador', icon: <FaUsers size={16} /> } : null,
-      isAdmin ? { id: 'admin', label: 'Admin', icon: <FaLock size={16} /> } : null,
+      isAdminUser ? { id: 'admin', label: 'Admin', icon: <FaLock size={16} /> } : null,
       { id: 'sessions', label: 'Sessions', icon: <FaShieldAlt size={16} /> },
       { id: 'data', label: 'Data', icon: <FaLock size={16} /> },
     ];
     return base.filter(Boolean);
-  }, [isModerator, isAmbassador, isAdmin, canConnectZoom]);
+  }, [isModeratorUser, isAmbassador, isAdminUser, canConnectZoom]);
   const [activeTab, setActiveTab] = useState('profile');
 
   const flashStatus = (message) => {
@@ -811,7 +804,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           <h1 className="settings-title">Account settings</h1>
           <div className="settings-meta">
             {userData?.email && <span className="settings-badge">{userData.email}</span>}
-            <span className="settings-badge">Access: {roleLabel(roleId)}</span>
+            <span className="settings-badge">Access: {getRoleLabel(roleId)}</span>
             {isAmbassador && <span className="settings-badge positive">Ambassador</span>}
           </div>
           <button
@@ -1181,7 +1174,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
         </section>
         )}
 
-        {isModerator && activeTab === 'moderation' && (
+        {isModeratorUser && activeTab === 'moderation' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
@@ -1291,7 +1284,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           </section>
         )}
 
-        {isAdmin && activeTab === 'admin' && (
+        {isAdminUser && activeTab === 'admin' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">

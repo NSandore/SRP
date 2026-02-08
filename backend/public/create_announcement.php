@@ -7,6 +7,8 @@ require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -43,7 +45,7 @@ if ($title === '' || $body === '') {
 
 $sessionUserId = normalizeId($_SESSION['user_id']);
 $sessionRoleId = (int)($_SESSION['role_id'] ?? 0);
-$isSuperAdmin = $sessionRoleId === 1;
+$isSuperAdmin = isSuperAdmin($sessionRoleId);
 
 try {
     $db = getDB();
@@ -62,7 +64,7 @@ try {
         }
         if (!$isSuperAdmin) {
             $permStmt = $db->prepare("
-                SELECT role FROM ambassadors WHERE community_id = :cid AND user_id = :uid LIMIT 1
+                SELECT community_role FROM ambassadors WHERE community_id = :cid AND user_id = :uid LIMIT 1
             ");
             $permStmt->execute([':cid' => $communityId, ':uid' => $sessionUserId]);
             $role = strtolower((string)$permStmt->fetchColumn());

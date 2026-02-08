@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 header('Content-Type: application/json');
 
@@ -14,8 +16,8 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
 
 $role_id_session = (int)$_SESSION['role_id'];
 
-// 2) Only role_id=1 is allowed
-if ($role_id_session !== 1) {
+// 2) Only super admins are allowed
+if (!isSuperAdmin($role_id_session)) {
     http_response_code(403);
     echo json_encode(['error' => 'No permission to delete forums.']);
     exit;

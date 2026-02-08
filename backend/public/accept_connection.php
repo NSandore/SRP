@@ -56,7 +56,7 @@ try {
 
     // Create a notification for the requester
     $notificationId = generateUniqueId($db, 'notifications');
-    $message = "Your connection request was accepted.";
+    $message = "Your connection request was accepted. <a href=\"/messages?user={$actor}\">Send a message</a>.";
     // Keep type short to fit existing column sizes
     // Reuse the short type used for connection requests to fit column constraints
     $notificationType = 'connection';

@@ -7,6 +7,8 @@ require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
@@ -28,22 +30,17 @@ if ($community_id === '' || $user_id === '') {
 try {
     $db = getDB();
 
-    // Permission: only admin ambassadors (or super admin role_id=1)
+    // Permission: only community admins (or super admin)
     $sessionUserId = normalizeId($_SESSION['user_id']);
     $sessionRoleId = (int)($_SESSION['role_id'] ?? 0);
-    if ($sessionRoleId !== 1) {
-        $pstmt = $db->prepare("SELECT role FROM ambassadors WHERE community_id = :cid AND user_id = :uid");
-        $pstmt->execute([':cid' => $community_id, ':uid' => $sessionUserId]);
-        $viewerRole = $pstmt->fetchColumn();
-        if ($viewerRole !== 'admin') {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Only admins can remove ambassadors.']);
-            exit;
-        }
+    if (!canManageAmbassadors($sessionUserId, $sessionRoleId, $community_id, $db)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Only admins can remove ambassadors.']);
+        exit;
     }
 
     // Do not allow removing admin ambassadors
-    $adminCheck = $db->prepare("SELECT role FROM ambassadors WHERE community_id = :cid AND user_id = :uid");
+    $adminCheck = $db->prepare("SELECT community_role FROM ambassadors WHERE community_id = :cid AND user_id = :uid");
     $adminCheck->execute([':cid' => $community_id, ':uid' => $user_id]);
     $targetRole = $adminCheck->fetchColumn();
     if ($targetRole === 'admin') {
@@ -61,6 +58,16 @@ try {
         echo json_encode(['success' => false, 'error' => 'Ambassador record not found.']);
         exit;
     }
+
+    // Keep users.is_ambassador in sync with actual ambassador memberships.
+    $countStmt = $db->prepare("SELECT COUNT(*) FROM ambassadors WHERE user_id = :uid");
+    $countStmt->execute([':uid' => $user_id]);
+    $membershipCount = (int)$countStmt->fetchColumn();
+    $flagStmt = $db->prepare("UPDATE users SET is_ambassador = :is_ambassador WHERE user_id = :uid");
+    $flagStmt->execute([
+        ':is_ambassador' => $membershipCount > 0 ? 1 : 0,
+        ':uid' => $user_id
+    ]);
 
     // Fetch community name for messaging
     $cstmt = $db->prepare("SELECT name FROM communities WHERE id = :cid LIMIT 1");
@@ -89,6 +96,19 @@ try {
         ':actor' => $actorId,
         ':ref' => $community_id,
         ':msg' => $message
+    ]);
+
+    // Audit ambassador removal.
+    $auditId = generateUniqueId($db, 'audit_logs');
+    $auditAction = sprintf('ambassador_removed:%s:%s', $community_id, $user_id);
+    $auditStmt = $db->prepare("
+        INSERT INTO audit_logs (id, user_id, action, timestamp)
+        VALUES (:id, :uid, :action, NOW())
+    ");
+    $auditStmt->execute([
+        ':id' => $auditId,
+        ':uid' => $sessionUserId,
+        ':action' => $auditAction,
     ]);
 
     echo json_encode(['success' => true]);

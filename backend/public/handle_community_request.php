@@ -59,8 +59,8 @@ try {
         $defaultBanner = '/uploads/banners/DefaultBanner.jpeg';
 
         $stmt = $db->prepare(
-            "INSERT INTO communities (id, community_type, parent_community_id, name, tagline, location, website, primary_color, secondary_color, logo_path, banner_path) " .
-            "VALUES (:id, :type, :parent_id, :name, :tagline, :location, :website, :primary_color, :secondary_color, :logo_path, :banner_path)"
+            "INSERT INTO communities (id, community_type, parent_community_id, name, tagline, location, website, phone, primary_color, secondary_color, aliases, logo_path, banner_path) " .
+            "VALUES (:id, :type, :parent_id, :name, :tagline, :location, :website, :phone, :primary_color, :secondary_color, :aliases, :logo_path, :banner_path)"
         );
         $stmt->execute([
             ':id' => $communityId,
@@ -70,8 +70,10 @@ try {
             ':tagline' => $request['tagline'],
             ':location' => $request['location'],
             ':website' => $request['website'],
+            ':phone' => $request['phone'] ?? null,
             ':primary_color' => $request['primary_color'] ?: '#0077B5',
             ':secondary_color' => $request['secondary_color'] ?: '#005f8d',
+            ':aliases' => $request['aliases'] ?? null,
             ':logo_path' => $defaultLogo,
             ':banner_path' => $defaultBanner
         ]);
@@ -90,8 +92,10 @@ try {
         );
         // add admin ambassador
         $adminId = generateUniqueId($db, 'ambassadors');
-        $stmt = $db->prepare("INSERT INTO ambassadors (id, user_id, community_id, role) VALUES (:id, (SELECT user_id FROM users WHERE email = :email), :cid, 'admin')");
+        $stmt = $db->prepare("INSERT INTO ambassadors (id, user_id, community_id, community_role) VALUES (:id, (SELECT user_id FROM users WHERE email = :email), :cid, 'admin')");
         $stmt->execute([':id' => $adminId, ':cid' => $communityId, ':email' => $request['email']]);
+        $flagStmt = $db->prepare("UPDATE users SET is_ambassador = 1 WHERE email = :email");
+        $flagStmt->execute([':email' => $request['email']]);
         $status = 'approved';
     } else {
         $status = 'rejected';

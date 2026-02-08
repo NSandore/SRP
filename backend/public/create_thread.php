@@ -1,13 +1,15 @@
 <?php
 session_start();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
 // Check if the user is logged in and has the appropriate role_id
 // Super admin only
-if (!isset($_SESSION['role_id']) || $_SESSION['role_id'] != 1) {
+if (!isset($_SESSION['role_id']) || !isSuperAdmin($_SESSION['role_id'])) {
     echo json_encode(['error' => 'You do not have permission to create threads.']);
     exit;
 }

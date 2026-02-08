@@ -82,6 +82,7 @@ function getIdConfig(): array {
         'group_question_answers' => ['prefix' => 'a', 'column' => 'answer_id'],
         'community_creation_requests' => ['prefix' => 'r', 'column' => 'id'],
         'community_pins' => ['prefix' => 'p', 'column' => 'id'],
+        'pinned_items' => ['prefix' => 'pi', 'column' => 'id'],
         'educational_experience' => ['prefix' => 'e', 'column' => 'id'],
         'community_admins' => ['prefix' => 'k', 'column' => 'id'],
         'account_settings' => ['prefix' => 's', 'column' => 'id'],

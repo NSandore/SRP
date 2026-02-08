@@ -3,6 +3,8 @@ require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
@@ -27,16 +29,11 @@ $sessionUserId = normalizeId($_SESSION['user_id']);
 try {
     $db = getDB();
 
-    // Permission: only ambassador admins or super admin (role_id=1)
-    if ($sessionRoleId !== 1) {
-        $permStmt = $db->prepare("SELECT role FROM ambassadors WHERE community_id = :cid AND user_id = :uid");
-        $permStmt->execute([':cid' => $community_id, ':uid' => $sessionUserId]);
-        $viewerRole = $permStmt->fetchColumn();
-        if ($viewerRole !== 'admin') {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Only admins can promote users.']);
-            exit;
-        }
+    // Permission: only community admins or super admin
+    if (!canManageAmbassadors($sessionUserId, $sessionRoleId, $community_id, $db)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Only admins can promote users.']);
+        exit;
     }
 
     // Resolve email from user_id if needed
@@ -63,7 +60,7 @@ try {
     }
 
     // Ensure the user is already an ambassador (no new ambassadors can be added here)
-    $existingStmt = $db->prepare("SELECT id, role FROM ambassadors WHERE community_id = :cid AND user_id = :uid");
+    $existingStmt = $db->prepare("SELECT id, community_role FROM ambassadors WHERE community_id = :cid AND user_id = :uid");
     $existingStmt->execute([':cid' => $community_id, ':uid' => $targetUser['user_id']]);
     $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -76,13 +73,31 @@ try {
         exit;
     }
 
-    if (strtolower($existing['role'] ?? '') === 'admin') {
+    if (strtolower($existing['community_role'] ?? '') === 'admin') {
         echo json_encode(['success' => true]);
         exit;
     }
 
-    $upd = $db->prepare("UPDATE ambassadors SET role = 'admin' WHERE id = :id");
+    $upd = $db->prepare("UPDATE ambassadors SET community_role = 'admin' WHERE id = :id");
     $upd->execute([':id' => $existing['id']]);
+
+    // Audit ambassador role promotion.
+    $auditId = generateUniqueId($db, 'audit_logs');
+    $auditAction = sprintf(
+        'ambassador_role_changed:%s:%s:%s->admin',
+        $community_id,
+        $targetUser['user_id'],
+        strtolower($existing['community_role'] ?? 'unknown')
+    );
+    $auditStmt = $db->prepare("
+        INSERT INTO audit_logs (id, user_id, action, timestamp)
+        VALUES (:id, :uid, :action, NOW())
+    ");
+    $auditStmt->execute([
+        ':id' => $auditId,
+        ':uid' => $sessionUserId,
+        ':action' => $auditAction,
+    ]);
 
     // Send notification
     $notificationId = generateUniqueId($db, 'notifications');

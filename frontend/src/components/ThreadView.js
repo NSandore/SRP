@@ -5,6 +5,7 @@ import { useParams, Link as RouterLink } from 'react-router-dom';
 import useOnClickOutside from '../hooks/useOnClickOutside'; // <--- import the hook
 import axios from 'axios';
 import debounce from 'lodash.debounce';
+import { ROLE_MODERATOR } from '../constants/roles';
 import {
   FaArrowAltCircleUp,
   FaRegArrowAltCircleUp,
@@ -25,6 +26,7 @@ import {
   FaChevronDown,
   FaChevronRight,
   FaEllipsisV, // add for 3-dot menu
+  FaCheckCircle,
 } from 'react-icons/fa';
 import { FiMessageCircle } from 'react-icons/fi';
 
@@ -70,6 +72,32 @@ const timeAgo = (dateStr) => {
     if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
   }
   return 'just now';
+};
+
+const formatVerifiedDate = (dateStr) => {
+  if (!dateStr) return '';
+  const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+  const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getUTCDate()).padStart(2, '0');
+  const year = parsed.getUTCFullYear();
+  return `${month}-${day}-${year}`;
+};
+
+const hasMeaningfulUpdate = (createdAt, updatedAt) => {
+  if (!createdAt || !updatedAt) return false;
+  const created = new Date(createdAt).getTime();
+  const updated = new Date(updatedAt).getTime();
+  if (Number.isNaN(created) || Number.isNaN(updated)) return false;
+  return updated - created > 1000;
+};
+
+const getVerificationDisclaimer = (communityType) => {
+  const type = String(communityType || '').toLowerCase();
+  const target = type === 'university' ? 'university' : 'community';
+  const ambassadorLabel = type === 'university' ? 'school ambassador' : 'community ambassador';
+  return `This post has been verified correct by a ${ambassadorLabel}. Information may have changed since the time of posting, so it is always best to check with the ${target} directly.`;
 };
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -407,6 +435,9 @@ function PostItem({
   savedPosts,
   handleToggleSavePost,
   handleVerifyPost, // NEW prop for verifying posts
+  handleUnverifyPost,
+  canVerifyPosts,
+  communityType,
   onRequireAuth,
   onReport,
 }) {
@@ -463,7 +494,7 @@ function PostItem({
     const userIdNum = Number(userData.user_id);
     const postOwnerId = Number(post.user_id);
 
-    canDelete = roleNum === 3 || userIdNum === postOwnerId;
+    canDelete = roleNum === ROLE_MODERATOR || userIdNum === postOwnerId;
     // Only allow editing the root post if user is either admin or post owner
     canEdit = isRoot && canDelete;
   }
@@ -542,11 +573,13 @@ function PostItem({
   const computedClassName = `forum-card reply-card level-${level} ${
     Number(post.verified) === 1 ? 'verified' : ''
   }`;
-  const isAmbassador = Number(userData?.is_ambassador) === 1;
-  const canVerify = userData && ([5, 6, 7].includes(Number(userData.role_id)) || isAmbassador);
+  const canVerify = canVerifyPosts;
+  const canUnverifyOwn =
+    Number(post.verified) === 1 &&
+    String(post.verified_by || '') === String(userData?.user_id || '');
   
   return (
-    <div className={`post-card card-lift level-${level} ${post.verified === 1 ? 'verified' : ''}`}>
+    <div id={`post-${post.post_id}`} className={`post-card card-lift level-${level}`}>
       {isEditing ? (
         <form onSubmit={confirmEdit} className="edit-form" style={{ marginBottom: '1rem' }}>
           {/* Show the same toolbar from TextEditor.js */}
@@ -653,93 +686,142 @@ function PostItem({
                   Verify answer
                 </button>
               )}
+              {canUnverifyOwn && (
+                <button
+                  className="dropdown-item"
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    background: 'none',
+                    padding: '8px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    handleUnverifyPost(post.post_id);
+                    setOpenMenu(false);
+                  }}
+                >
+                  Unverify answer
+                </button>
+              )}
             </div>
           )}
-          {Number(post.verified) === 1 && post.verified_at && (
-            <div className="verified-info">
-              Verified Answer on {timeAgo(post.verified_at)}
-            </div>
-          )}
-          {/* Reply header: avatar + meta */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
-            <div className="avatar-wrapper">
-              <img
-                src={buildAvatarSrc(post.avatar_path)}
-                alt={getDisplayName(post, userData?.user_id)}
-                className="avatar-image"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = buildAvatarSrc(null);
-                }}
-              />
-            </div>
-            <div className="post-meta" style={{ margin: 0 }}>
-              <div>
-                <RouterLink to={`/user/${post.user_id}`} style={{ color: 'var(--text-color)', textDecoration: 'none', fontWeight: 600 }}>
-                  {getDisplayName(post, userData?.user_id)}
-                </RouterLink>
+          <div className={`verified-scope ${Number(post.verified) === 1 ? 'verified' : ''}`}>
+            {Number(post.verified) === 1 && (
+              <div className="verified-banner">
+                <div className="verified-badge">
+                  <FaCheckCircle className="verified-icon" />
+                  <div>
+                    <div className="verified-title">Verified Correct</div>
+                    {post.verified_at && (
+                      <div className="verified-date">
+                        Verified on {formatVerifiedDate(post.verified_at)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="verified-disclaimer">
+                  {getVerificationDisclaimer(communityType)}
+                </div>
               </div>
-              <div className="meta-quiet" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                {post.school_name && <span>{post.school_name}</span>}
-                <span>{timeAgo(post.created_at)}</span>
+            )}
+            {/* Reply header: avatar + meta */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
+              <div className="avatar-wrapper">
+                <img
+                  src={buildAvatarSrc(post.avatar_path)}
+                  alt={getDisplayName(post, userData?.user_id)}
+                  className="avatar-image"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = buildAvatarSrc(null);
+                  }}
+                />
+              </div>
+              <div className="post-meta" style={{ margin: 0 }}>
+                <div>
+                  <RouterLink to={`/user/${post.user_id}`} style={{ color: 'var(--text-color)', textDecoration: 'none', fontWeight: 600 }}>
+                    {getDisplayName(post, userData?.user_id)}
+                  </RouterLink>
+                </div>
+                <div className="meta-quiet" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  {post.school_name && <span>{post.school_name}</span>}
+                  <span>{timeAgo(post.created_at)}</span>
+                  {hasMeaningfulUpdate(post.created_at, post.updated_at) && post.updated_by_first_name && (
+                    <>
+                      <span>· Edited {timeAgo(post.updated_at)} by</span>
+                      <img
+                        src={buildAvatarSrc(post.updated_by_avatar_path)}
+                        alt={`${post.updated_by_first_name} ${post.updated_by_last_name || ''}`}
+                        style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = buildAvatarSrc(null);
+                        }}
+                      />
+                      <span>{post.updated_by_first_name} {post.updated_by_last_name || ''}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          <div
-            className="forum-description"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
-          />
-  
-          {/* Upvote count + Reply */}
-          <div className="vote-row">
-            <button
-              type="button"
-              className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
-              onClick={() => handleUpvoteClick(post.post_id)}
-              title="Upvote"
-              aria-label="Upvote"
-            >
-              {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
-            </button>
-            <span className="vote-count">{post.upvotes}</span>
-            <button
-              type="button"
-              className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
-              onClick={() => handleDownvoteClick(post.post_id)}
-              title="Downvote"
-              aria-label="Downvote"
-            >
-              {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
-            </button>
-            <span className="vote-count">{post.downvotes}</span>
-
-            {/* Reply Button */}
-            <button
-              type="button"
-              className="reply-button"
-              onClick={handleToggleReplyBox}
-              title="Reply"
-              aria-label="Reply"
-            >
-              <FiMessageCircle />
-            </button>
-            <span className="vote-count comment-count">{childReplyCount}</span>
-  
-            {/* Collapse/Expand Replies Button */}
-            {post.children && post.children.length > 0 && (
+            <div
+              className="forum-description"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
+            />
+    
+            {/* Upvote count + Reply */}
+            <div className="vote-row">
               <button
                 type="button"
-                className="collapse-button"
-                onClick={toggleCollapse}
-                title={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
-                aria-label={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
+                className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
+                onClick={() => handleUpvoteClick(post.post_id)}
+                title="Upvote"
+                aria-label="Upvote"
               >
-                {isCollapsed ? <FaChevronRight /> : <FaChevronDown />}
-                <span className="collapse-text">
-                  {isCollapsed ? 'Show Replies' : 'Hide Replies'}
-                </span>
+                {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
               </button>
-            )}
+              <span className="vote-count">{post.upvotes}</span>
+              <button
+                type="button"
+                className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
+                onClick={() => handleDownvoteClick(post.post_id)}
+                title="Downvote"
+                aria-label="Downvote"
+              >
+                {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+              </button>
+              <span className="vote-count">{post.downvotes}</span>
+
+              {/* Reply Button */}
+              <button
+                type="button"
+                className="reply-button"
+                onClick={handleToggleReplyBox}
+                title="Reply"
+                aria-label="Reply"
+              >
+                <FiMessageCircle />
+              </button>
+              <span className="vote-count comment-count">{childReplyCount}</span>
+    
+              {/* Collapse/Expand Replies Button */}
+              {post.children && post.children.length > 0 && (
+                <button
+                  type="button"
+                  className="collapse-button"
+                  onClick={toggleCollapse}
+                  title={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
+                  aria-label={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
+                >
+                  {isCollapsed ? <FaChevronRight /> : <FaChevronDown />}
+                  <span className="collapse-text">
+                    {isCollapsed ? 'Show Replies' : 'Hide Replies'}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         </>
       )}
@@ -806,6 +888,9 @@ function PostItem({
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost} // pass the verify function down
+              handleUnverifyPost={handleUnverifyPost}
+              canVerifyPosts={canVerifyPosts}
+              communityType={communityType}
               onRequireAuth={onRequireAuth}
               onReport={onReport}
             />
@@ -837,12 +922,30 @@ function ThreadView({ userData, onRequireAuth }) {
 
   const [replySortCriteria, setReplySortCriteria] = useState('mostRecent');
   const [savedPosts, setSavedPosts] = useState([]);
+  const [sessionAmbassadorCommunities, setSessionAmbassadorCommunities] = useState([]);
+  const [hasSessionAmbassadorSnapshot, setHasSessionAmbassadorSnapshot] = useState(false);
   const countReplies = (nodes = []) =>
     nodes.reduce(
       (sum, node) => sum + 1 + (node.children && node.children.length > 0 ? countReplies(node.children) : 0),
       0
     );
   const totalComments = useMemo(() => countReplies(postTree), [postTree]);
+
+  const ambassadorCommunityIds = useMemo(() => {
+    const fromSession = Array.isArray(sessionAmbassadorCommunities) ? sessionAmbassadorCommunities : [];
+    const fromUserData = Array.isArray(userData?.ambassador_communities) ? userData.ambassador_communities : [];
+    const source = hasSessionAmbassadorSnapshot ? fromSession : fromUserData;
+    return source
+      .map((item) => String(item?.community_id ?? item?.id ?? item ?? ''))
+      .filter(Boolean);
+  }, [hasSessionAmbassadorSnapshot, sessionAmbassadorCommunities, userData?.ambassador_communities]);
+
+  const canVerifyPosts = useMemo(() => {
+    if (!userData?.user_id) return false;
+    const communityId = String(threadData?.community_id ?? '');
+    if (!communityId) return false;
+    return ambassadorCommunityIds.includes(communityId);
+  }, [userData?.user_id, threadData?.community_id, ambassadorCommunityIds]);
 
   const tagStyle = (tag) => {
     const t = String(tag || '').toLowerCase();
@@ -901,7 +1004,7 @@ function ThreadView({ userData, onRequireAuth }) {
 
   // NEW: Function to verify a post
   const handleVerifyPost = async (post_id) => {
-    const isAllowed = userData && ([5, 6, 7].includes(Number(userData.role_id)) || Number(userData.is_ambassador) === 1);
+    const isAllowed = canVerifyPosts;
     if (!isAllowed) {
       setNotification({ type: 'error', message: 'You are not authorized to verify posts.' });
       return;
@@ -909,7 +1012,6 @@ function ThreadView({ userData, onRequireAuth }) {
     try {
       const response = await axios.post('/api/verify_post.php', {
         post_id,
-        user_id: userData.user_id,
       }, { withCredentials: true });
       if (response.data.success) {
         setNotification({ type: 'success', message: 'Post verified successfully!' });
@@ -920,6 +1022,23 @@ function ThreadView({ userData, onRequireAuth }) {
     } catch (error) {
       console.error('Error verifying post:', error);
       setNotification({ type: 'error', message: 'An error occurred while verifying the post.' });
+    }
+  };
+
+  const handleUnverifyPost = async (post_id) => {
+    try {
+      const response = await axios.post('/api/unverify_post.php', {
+        post_id,
+      }, { withCredentials: true });
+      if (response.data.success) {
+        setNotification({ type: 'success', message: 'Post unverified successfully!' });
+        fetchPosts();
+      } else {
+        setNotification({ type: 'error', message: response.data.error || 'Error unverifying post.' });
+      }
+    } catch (error) {
+      console.error('Error unverifying post:', error);
+      setNotification({ type: 'error', message: 'An error occurred while unverifying the post.' });
     }
   };
 
@@ -984,6 +1103,39 @@ function ThreadView({ userData, onRequireAuth }) {
     };
     fetchThread();
   }, [thread_id]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const refreshSessionAmbassadorCommunities = async () => {
+      if (!userData?.user_id) {
+        if (!isCancelled) {
+          setSessionAmbassadorCommunities([]);
+          setHasSessionAmbassadorSnapshot(false);
+        }
+        return;
+      }
+      try {
+        const res = await axios.get('/api/check_session.php', { withCredentials: true });
+        const fromSession = Array.isArray(res.data?.user?.ambassador_communities)
+          ? res.data.user.ambassador_communities
+          : [];
+        if (!isCancelled) {
+          setSessionAmbassadorCommunities(fromSession);
+          setHasSessionAmbassadorSnapshot(true);
+        }
+      } catch (err) {
+        console.error('Error refreshing ambassador communities from session:', err);
+        if (!isCancelled) {
+          setSessionAmbassadorCommunities([]);
+          setHasSessionAmbassadorSnapshot(false);
+        }
+      }
+    };
+    refreshSessionAmbassadorCommunities();
+    return () => {
+      isCancelled = true;
+    };
+  }, [thread_id, userData?.user_id]);
 
   // Build the nested structure of posts
   const fetchPosts = async () => {
@@ -1332,7 +1484,24 @@ function ThreadView({ userData, onRequireAuth }) {
         {threadData?.title || `Thread ${thread_id}`}
       </h1>
 
-      {/* Author row + sort pill moved into original post card */}
+      {threadData?.user_id && (
+        <div className="meta-quiet" style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span>Created by</span>
+          <img
+            src={buildAvatarSrc(threadData.creator_avatar_path)}
+            alt={`${threadData.first_name || 'User'} ${threadData.last_name || ''}`}
+            style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = buildAvatarSrc(null);
+            }}
+          />
+          <RouterLink to={`/user/${threadData.user_id}`} style={{ color: 'inherit', textDecoration: 'none', fontWeight: 600 }}>
+            {threadData.first_name || 'User'} {threadData.last_name || ''}
+          </RouterLink>
+          <span>· {timeAgo(threadData.created_at)}</span>
+        </div>
+      )}
 
       {/* Tags under title */}
       {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
@@ -1345,85 +1514,116 @@ function ThreadView({ userData, onRequireAuth }) {
         </div>
       )}
 
+      {hasMeaningfulUpdate(threadData?.created_at, threadData?.updated_at) && (
+        <div className="meta-quiet" style={{ marginTop: 2, marginBottom: 10 }}>
+          Last updated {timeAgo(threadData.updated_at)}
+          {threadData.updated_by_first_name ? ` by ${threadData.updated_by_first_name} ${threadData.updated_by_last_name || ''}` : ''}
+        </div>
+      )}
+
       {/* Original Post at top */}
       {originalPost && (
-        <div className="post-card card-lift original-post">
-          {/* Use the thread-top-row pattern inside the card */}
-          <div className="thread-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className="avatar-wrapper">
-                <img
-                  src={buildAvatarSrc(originalPost.avatar_path)}
-                  alt={getDisplayName(originalPost, userData?.user_id)}
-                  className="avatar-image"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = buildAvatarSrc(null);
-                  }}
-                />
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <RouterLink to={`/user/${originalPost.user_id}`} style={{ textDecoration: 'none', color: 'var(--text-color)', fontWeight: 700 }}>
-                    {getDisplayName(originalPost, userData?.user_id)}
-                  </RouterLink>
-                  {originalPost.user_role && <span className="meta-quiet">· {originalPost.user_role}</span>}
+        <div id={`post-${originalPost.post_id}`} className="post-card card-lift original-post">
+          <div className={`verified-scope ${Number(originalPost.verified) === 1 ? 'verified' : ''}`}>
+            {Number(originalPost.verified) === 1 && (
+              <div className="verified-banner">
+                <div className="verified-badge">
+                  <FaCheckCircle className="verified-icon" />
+                  <div>
+                    <div className="verified-title">Verified Correct</div>
+                    {originalPost.verified_at && (
+                      <div className="verified-date">
+                        Verified on {formatVerifiedDate(originalPost.verified_at)}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="meta-quiet">{timeAgo(originalPost.created_at)}</div>
+                <div className="verified-disclaimer">
+                  {getVerificationDisclaimer(threadData?.community_type)}
+                </div>
+              </div>
+            )}
+
+            {/* Use the thread-top-row pattern inside the card */}
+            <div className="thread-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div className="avatar-wrapper">
+                  <img
+                    src={buildAvatarSrc(originalPost.avatar_path)}
+                    alt={getDisplayName(originalPost, userData?.user_id)}
+                    className="avatar-image"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = buildAvatarSrc(null);
+                    }}
+                  />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <RouterLink to={`/user/${originalPost.user_id}`} style={{ textDecoration: 'none', color: 'var(--text-color)', fontWeight: 700 }}>
+                      {getDisplayName(originalPost, userData?.user_id)}
+                    </RouterLink>
+                    {originalPost.user_role && <span className="meta-quiet">· {originalPost.user_role}</span>}
+                  </div>
+                  <div className="meta-quiet">{timeAgo(originalPost.created_at)}</div>
+                  {hasMeaningfulUpdate(originalPost.created_at, originalPost.updated_at) && (
+                    <div className="meta-quiet">Edited {timeAgo(originalPost.updated_at)}</div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div
-            className="post-content"
-            style={{ marginTop: '8px' }}
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
-          />
-          <div className="vote-row">
-            <button
-              type="button"
-              className={`vote-button upvote-button ${originalHasUpvoted ? 'active' : ''}`}
-              onClick={() => handleUpvoteClick(originalPost.post_id)}
-              title="Upvote"
-              aria-label="Upvote"
-            >
-              {originalHasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
-            </button>
-            <span className="vote-count">{originalUpvotes}</span>
-            <button
-              type="button"
-              className={`vote-button downvote-button ${originalHasDownvoted ? 'active' : ''}`}
-              onClick={() => handleDownvoteClick(originalPost.post_id)}
-              title="Downvote"
-              aria-label="Downvote"
-            >
-              {originalHasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
-            </button>
-            <span className="vote-count">{originalDownvotes}</span>
-            <button
-              type="button"
-              className="reply-button"
-              onClick={handleOpenRootReply}
-              title="Leave a comment"
-              aria-label="Leave a comment"
-            >
-              <FiMessageCircle />
-            </button>
-            <span className="vote-count comment-count">{totalComments}</span>
-            <button
-              type="button"
-              className="report-inline-button"
-              onClick={() =>
-                handleOpenReport({
-                  id: originalPost.post_id,
-                  type: 'post',
-                  label: 'original post',
-                  context: stripHtml(originalPost.content || '').slice(0, 200),
-                })
-              }
-            >
-              Report
-            </button>
+            <div
+              className="post-content"
+              style={{ marginTop: '8px' }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
+            />
+            <div className="vote-row">
+              <button
+                type="button"
+                className={`vote-button upvote-button ${originalHasUpvoted ? 'active' : ''}`}
+                onClick={() => handleUpvoteClick(originalPost.post_id)}
+                title="Upvote"
+                aria-label="Upvote"
+              >
+                {originalHasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+              </button>
+              <span className="vote-count">{originalUpvotes}</span>
+              <button
+                type="button"
+                className={`vote-button downvote-button ${originalHasDownvoted ? 'active' : ''}`}
+                onClick={() => handleDownvoteClick(originalPost.post_id)}
+                title="Downvote"
+                aria-label="Downvote"
+              >
+                {originalHasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+              </button>
+              <span className="vote-count">{originalDownvotes}</span>
+              <button
+                type="button"
+                className="reply-button"
+                onClick={handleOpenRootReply}
+                title="Leave a comment"
+                aria-label="Leave a comment"
+              >
+                <FiMessageCircle />
+              </button>
+              <span className="vote-count comment-count">{totalComments}</span>
+              <button
+                type="button"
+                className="report-inline-button"
+                onClick={() =>
+                  handleOpenReport({
+                    id: originalPost.post_id,
+                    type: 'post',
+                    label: 'original post',
+                    context: stripHtml(originalPost.content || '').slice(0, 200),
+                  })
+                }
+              >
+                Report
+              </button>
+            </div>
           </div>
       {rootReplyOpen && (
         <form className="reply-form" onSubmit={handleRootReplySubmit}>
@@ -1485,6 +1685,9 @@ function ThreadView({ userData, onRequireAuth }) {
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost}
+              handleUnverifyPost={handleUnverifyPost}
+              canVerifyPosts={canVerifyPosts}
+              communityType={threadData?.community_type}
               onRequireAuth={onRequireAuth}
               onReport={handleOpenReport}
             />

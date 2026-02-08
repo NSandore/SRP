@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
@@ -46,7 +48,7 @@ try {
     $community_id = $forum['community_id'];
 
     // Permission: super admins OR ambassadors for the community
-    if ($role_id_session !== 1) {
+    if (!isSuperAdmin($role_id_session)) {
         $ambStmt = $db->prepare("SELECT 1 FROM ambassadors WHERE user_id = :uid AND community_id = :cid");
         $ambStmt->execute([
             ':uid' => $user_id_session,

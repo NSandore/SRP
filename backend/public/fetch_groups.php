@@ -29,11 +29,12 @@ try {
             c.name, 
             c.location, 
             c.tagline, 
+            c.aliases,
             c.logo_path, 
             COUNT(fc.user_id) AS followers_count
         FROM communities c
         LEFT JOIN followed_communities fc ON fc.community_id = c.id
-        GROUP BY c.id, c.community_type, c.parent_community_id, c.name, c.location, c.tagline, c.logo_path
+        GROUP BY c.id, c.community_type, c.parent_community_id, c.name, c.location, c.tagline, c.aliases, c.logo_path
     ");
 
     // Prepare the main query with search, filtering by community_type = 'group', and pagination
@@ -51,8 +52,11 @@ try {
 
     // Add search condition if a search term is provided
     if ($search !== '') {
-        $query .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search)";
+        $query .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search";
+        $query .= " OR (aud.aliases IS NOT NULL AND JSON_SEARCH(aud.aliases, 'one', :search_exact) IS NOT NULL)";
+        $query .= ")";
         $params[':search'] = '%' . $search . '%';
+        $params[':search_exact'] = $search;
     }
 
     $query .= " ORDER BY aud.name ASC LIMIT :limit OFFSET :offset";
@@ -79,12 +83,15 @@ try {
         WHERE aud.community_type = 'group'
     ";
     if ($search !== '') {
-        $countQuery .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search)";
+        $countQuery .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search";
+        $countQuery .= " OR (aud.aliases IS NOT NULL AND JSON_SEARCH(aud.aliases, 'one', :search_exact) IS NOT NULL)";
+        $countQuery .= ")";
     }
 
     $countStmt = $db->prepare($countQuery);
     if ($search !== '') {
         $countStmt->bindValue(':search', '%' . $search . '%', PDO::PARAM_STR);
+        $countStmt->bindValue(':search_exact', $search, PDO::PARAM_STR);
     }
     $countStmt->execute();
     $totalResult = $countStmt->fetch(PDO::FETCH_ASSOC);

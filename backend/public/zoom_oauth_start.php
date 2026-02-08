@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 $appBase = getenv('APP_BASE_URL');
 $baseUrl = $appBase ? rtrim($appBase, '/') : '';
@@ -51,7 +53,7 @@ try {
     }
     $roleId = (int)($user['role_id'] ?? 0);
     $isAmbassador = (int)($user['is_ambassador'] ?? 0) === 1;
-    $isAdmin = $roleId === 1 || $roleId >= 7;
+    $isAdmin = isAdmin($roleId);
     if (!$isAmbassador && !$isAdmin) {
         $redirectError('access_denied');
     }

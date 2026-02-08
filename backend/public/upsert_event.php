@@ -4,6 +4,8 @@ startSession();
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -103,7 +105,7 @@ try {
     }
     $roleId = (int)($user['role_id'] ?? 0);
     $isAmbassador = (int)($user['is_ambassador'] ?? 0) === 1;
-    $isAdmin = $roleId === 1 || $roleId >= 7;
+    $isAdmin = isAdmin($roleId);
     if (!$isAmbassador && !$isAdmin) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Access denied']);

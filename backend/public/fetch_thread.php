@@ -20,14 +20,26 @@ try {
             t.thread_id, 
             t.forum_id, 
             t.user_id, 
+            u.first_name,
+            u.last_name,
+            u.avatar_path AS creator_avatar_path,
             t.title, 
             t.created_at, 
+            t.updated_at,
+            t.updated_by,
+            ub.first_name AS updated_by_first_name,
+            ub.last_name AS updated_by_last_name,
             t.upvotes, 
             t.downvotes,
             f.name AS forum_name,
+            f.community_id,
+            c.community_type,
             (SELECT vote_type FROM thread_votes WHERE thread_id = t.thread_id AND user_id = :user_id) AS user_vote
         FROM threads t
+        JOIN users u ON u.user_id = t.user_id
         JOIN forums f ON t.forum_id = f.forum_id
+        JOIN communities c ON f.community_id = c.id
+        LEFT JOIN users ub ON ub.user_id = t.updated_by
         WHERE t.thread_id = :thread_id
           AND t.is_hidden = 0
           AND f.is_hidden = 0
@@ -36,6 +48,7 @@ try {
     $thread = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($thread) {
+        $thread['creator_avatar_path'] = appendAvatarPath($thread['creator_avatar_path'] ?? null);
         $withTags = srp_attach_tags_to_threads($db, [$thread]);
         echo json_encode($withTags[0]);
     } else {

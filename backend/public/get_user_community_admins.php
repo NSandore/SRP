@@ -16,7 +16,7 @@ try {
         SELECT c.id AS community_id, c.name, c.community_type, c.parent_community_id
         FROM ambassadors a
         JOIN communities c ON c.id = a.community_id
-        WHERE a.user_id = :uid AND a.role = 'admin'
+        WHERE a.user_id = :uid AND a.community_role = 'admin'
         ORDER BY c.name ASC
     ");
     $stmt->execute([':uid' => $_SESSION['user_id']]);

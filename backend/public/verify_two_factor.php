@@ -162,7 +162,7 @@ try {
 
     // Fetch communities where this user is an ambassador admin
     $adminCommunities = [];
-    $cStmt = $db->prepare("SELECT community_id FROM ambassadors WHERE user_id = :uid AND role = 'admin'");
+    $cStmt = $db->prepare("SELECT community_id FROM ambassadors WHERE user_id = :uid AND community_role = 'admin'");
     $cStmt->execute([':uid' => $user['user_id']]);
     $adminCommunities = $cStmt->fetchAll(PDO::FETCH_COLUMN);
     $_SESSION['admin_community_ids'] = $adminCommunities;

@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { FaEllipsisV } from 'react-icons/fa';
+import { isSuperAdmin } from '../constants/roles';
+import { buildAvatarSrc } from '../utils/avatar';
 
 const ForumCard = ({
   forum,
@@ -18,7 +20,16 @@ const ForumCard = ({
   startEditingForum
 }) => {
   // Only admins can edit/delete forums (for this example)
-  const canEditOrDelete = userData && Number(userData.role_id) === 1;
+  const canEditOrDelete = userData && isSuperAdmin(userData.role_id);
+  const ambassadorCommunities = Array.isArray(userData?.ambassador_communities)
+    ? userData.ambassador_communities
+        .map((community) => ({
+          community_id: String(community?.community_id ?? community?.id ?? ''),
+          name: String(community?.name ?? 'Community'),
+        }))
+        .filter((community) => community.community_id)
+    : [];
+  const canPinToCommunity = ambassadorCommunities.length > 0;
   const timeAgo = (dateStr) => {
     if (!dateStr) return '';
     const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
@@ -48,29 +59,7 @@ const ForumCard = ({
     return 'just now';
   };
 
-  // State for ambassador submenu
-  const [ambassadorCommunities, setAmbassadorCommunities] = useState([]);
-  const [submenuForumId, setSubmenuForumId] = useState(null);
-
-  // Fetch ambassador communities when the component mounts (if the user is an ambassador)
-  useEffect(() => {
-    if (userData && userData.is_ambassador === "1") {
-      axios
-        .get(`/api/fetch_ambassador_communities.php?user_id=${userData.user_id}`, {
-          withCredentials: true,
-        })
-        .then(response => {
-          if (response.data.success) {
-            setAmbassadorCommunities(response.data.communities);
-          } else {
-            console.error("Error fetching ambassador communities:", response.data.error);
-          }
-        })
-        .catch(error => {
-          console.error("Error fetching ambassador communities:", error);
-        });
-    }
-  }, [userData]);
+  const [isPinSubmenuOpen, setIsPinSubmenuOpen] = useState(false);
 
   const menuRef = useRef(null);
   useEffect(() => {
@@ -87,6 +76,36 @@ const ForumCard = ({
       document.removeEventListener('touchstart', onClick);
     };
   }, [openMenuId, forum.forum_id, toggleMenu]);
+
+  useEffect(() => {
+    if (openMenuId !== forum.forum_id) {
+      setIsPinSubmenuOpen(false);
+    }
+  }, [openMenuId, forum.forum_id]);
+
+  const handlePinForum = async (communityId) => {
+    try {
+      const response = await axios.post(
+        '/api/pin_to_community.php',
+        {
+          community_id: communityId,
+          item_id: forum.forum_id,
+          item_type: 'forum'
+        },
+        { withCredentials: true }
+      );
+      if (response.data.success) {
+        alert(response.data.already_pinned ? 'Forum is already pinned to that community.' : 'Forum pinned to community.');
+        toggleMenu(null);
+        setIsPinSubmenuOpen(false);
+      } else {
+        alert(`Error: ${response.data.error || 'Unable to pin forum.'}`);
+      }
+    } catch (error) {
+      console.error('Error pinning forum:', error);
+      alert('Error pinning forum');
+    }
+  };
 
   // Meta data helpers
   const threadCount = forum.thread_count || 0;
@@ -122,68 +141,35 @@ const ForumCard = ({
             width: '180px'
           }}
         >
-          {/* Ambassador submenu: only show if the user is an ambassador */}
-          {userData && userData.is_ambassador === "1" && (
+          {canPinToCommunity && (
             <div className="dropdown-item submenu-container">
-              <div
+              <button
+                type="button"
                 className="submenu-title"
-                style={{ cursor: 'pointer', padding: '8px' }}
-                onMouseEnter={() => setSubmenuForumId(forum.forum_id)}
-                onMouseLeave={() => setSubmenuForumId(null)}
+                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', padding: '8px' }}
+                onClick={() => setIsPinSubmenuOpen((open) => !open)}
               >
-                Add to University Feed
-              </div>
-              {submenuForumId === forum.forum_id && (
+                Pin to Community
+              </button>
+              {isPinSubmenuOpen && (
                 <ul
                   className="submenu-list"
                   style={{ listStyle: 'none', padding: '0', margin: '0' }}
                 >
-                  {ambassadorCommunities.length > 0 ? (
-                    ambassadorCommunities.map((community) => (
-                      <li
-                        key={community.community_id}
-                        className="submenu-item"
-                        style={{
-                          padding: '6px 8px',
-                          cursor: 'pointer',
-                          borderTop: '1px solid var(--card-border)'
-                        }}
-                        onClick={() => {
-                          console.log(
-                            "Pinning forum", forum.forum_id,
-                            "to community", community.community_id
-                          );
-                          axios
-                            .post(
-                              '/api/pin_to_community.php',
-                              {
-                                community_id: community.community_id,
-                                item_id: forum.forum_id,
-                                item_type: 'forum'
-                              },
-                              { withCredentials: true }
-                            )
-                            .then(response => {
-                              if (response.data.success) {
-                                alert('Forum pinned to community successfully!');
-                                toggleMenu(null);
-                                setSubmenuForumId(null);
-                              } else {
-                                alert('Error: ' + response.data.error);
-                              }
-                            })
-                            .catch(error => {
-                              console.error("Error pinning forum:", error);
-                              alert('Error pinning forum');
-                            });
-                        }}
-                      >
-                        {community.name}
-                      </li>
-                    ))
-                  ) : (
-                    <li style={{ padding: '6px 8px' }}>No communities found</li>
-                  )}
+                  {ambassadorCommunities.map((community) => (
+                    <li
+                      key={community.community_id}
+                      className="submenu-item"
+                      style={{
+                        padding: '6px 8px',
+                        cursor: 'pointer',
+                        borderTop: '1px solid var(--card-border)'
+                      }}
+                      onClick={() => handlePinForum(community.community_id)}
+                    >
+                      {community.name}
+                    </li>
+                  ))}
                 </ul>
               )}
             </div>
@@ -283,6 +269,23 @@ const ForumCard = ({
         <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
           <p className="forum-description" style={{ margin: 0 }}>{forum.description}</p>
         </Link>
+        {forum.created_by && (
+          <div className="meta-quiet" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span>Created by</span>
+            <img
+              src={buildAvatarSrc(forum.created_by_avatar_path)}
+              alt={`${forum.created_by_first_name || 'User'} ${forum.created_by_last_name || ''}`}
+              style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = buildAvatarSrc(null);
+              }}
+            />
+            <Link to={`/user/${forum.created_by}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 600 }}>
+              {forum.created_by_first_name || 'User'} {forum.created_by_last_name || ''}
+            </Link>
+          </div>
+        )}
         <div className="meta-row" style={{ marginTop: '4px' }}>
           <span className="meta-quiet">{threadCount} threads</span>
           <span className="middot">·</span>

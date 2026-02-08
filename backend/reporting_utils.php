@@ -2,6 +2,8 @@
 // Shared helpers for report workflows
 
 require_once __DIR__ . '/db_connection.php';
+require_once __DIR__ . '/includes/roles.php';
+require_once __DIR__ . '/includes/permissions.php';
 
 /**
  * Ensure the reports table exists with the expected columns/indexes.
@@ -215,13 +217,13 @@ function getModerationRecipients(PDO $db, ?string $communityId, string $reporter
 {
     $ids = [];
 
-    // Super admins (role_name = super_admin OR legacy role_id = 1)
-    $adminStmt = $db->query("
+    // Super admins
+    $adminStmt = $db->prepare("
         SELECT u.user_id
         FROM users u
-        LEFT JOIN roles r ON r.role_id = u.role_id
-        WHERE u.role_id = 1 OR r.role_name = 'super_admin'
+        WHERE u.role_id = :super_admin_role_id
     ");
+    $adminStmt->execute([':super_admin_role_id' => ROLE_SUPER_ADMIN]);
     $ids = array_merge($ids, $adminStmt->fetchAll(PDO::FETCH_COLUMN));
 
     // Ambassadors for the community

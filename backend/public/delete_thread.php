@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 header('Content-Type: application/json');
 
@@ -12,7 +14,6 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
     exit;
 }
 
-$user_id_session = (int) $_SESSION['user_id'];
 $role_id_session = (int) $_SESSION['role_id'];
 
 // 2. Decode JSON input (e.g. { "thread_id": 123 })
@@ -24,9 +25,8 @@ if (!isset($data['thread_id'])) {
     exit;
 }
 
-$thread_id = (int) $data['thread_id'];
-
-if ($thread_id <= 0) {
+$thread_id = normalizeId($data['thread_id']);
+if ($thread_id === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid thread_id.']);
     exit;
@@ -37,8 +37,14 @@ try {
     $db = getDB();
 
     // Attempt to find the thread
-    $stmt = $db->prepare("SELECT user_id FROM threads WHERE thread_id = :thread_id");
-    $stmt->bindValue(':thread_id', $thread_id, PDO::PARAM_INT);
+    $stmt = $db->prepare("
+        SELECT t.user_id, f.community_id
+        FROM threads t
+        JOIN forums f ON f.forum_id = t.forum_id
+        WHERE t.thread_id = :thread_id
+        LIMIT 1
+    ");
+    $stmt->bindValue(':thread_id', $thread_id, PDO::PARAM_STR);
     $stmt->execute();
     $thread = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -49,10 +55,15 @@ try {
         exit;
     }
 
-    // 4. Check if session user is thread owner OR role_id = 1
-    $thread_owner_id = (int) $thread['user_id'];
+    // 4. Check if session user is thread owner OR super admin
+    $thread_owner_id = normalizeId($thread['user_id'] ?? '');
+    $community_id = normalizeId($thread['community_id'] ?? '');
+    $session_user_id = normalizeId($_SESSION['user_id']);
+    $canCommunityAdminDelete = ($community_id !== '')
+        ? canManageAmbassadors($session_user_id, $role_id_session, $community_id, $db)
+        : false;
 
-    if ($role_id_session !== 1 && $thread_owner_id !== $user_id_session) {
+    if (!isSuperAdmin($role_id_session) && !$canCommunityAdminDelete && $thread_owner_id !== $session_user_id) {
         // No permission
         http_response_code(403); // Forbidden
         echo json_encode(['error' => 'You do not have permission to delete this thread.']);
@@ -62,7 +73,7 @@ try {
     // 5. If allowed, delete the thread
     //    (You may want to also delete associated posts or rely on foreign keys with ON DELETE CASCADE)
     $del = $db->prepare("DELETE FROM threads WHERE thread_id = :thread_id");
-    $del->bindValue(':thread_id', $thread_id, PDO::PARAM_INT);
+    $del->bindValue(':thread_id', $thread_id, PDO::PARAM_STR);
     $del->execute();
 
     if ($del->rowCount() > 0) {

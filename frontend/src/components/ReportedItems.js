@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import ModalOverlay from './ModalOverlay';
+import { isSuperAdmin } from '../constants/roles';
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -25,7 +26,7 @@ function ReportedItems({ userData }) {
   const [infoMessage, setInfoMessage] = useState('');
 
   const canModerate = useMemo(
-    () => Number(userData?.role_id) === 1 || Number(userData?.is_ambassador) === 1,
+    () => isSuperAdmin(userData?.role_id) || Number(userData?.is_ambassador) === 1,
     [userData]
   );
 

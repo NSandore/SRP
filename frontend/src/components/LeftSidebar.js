@@ -15,6 +15,7 @@ import {
   Flag,
   CalendarRange
 } from 'lucide-react';
+import { isAdmin, isSuperAdmin } from '../constants/roles';
 
 const baseItems = [
   { to: '/home', label: 'Home', Icon: Home, color: '#2563EB', key: 'home' },
@@ -33,16 +34,17 @@ function LeftSidebar({
   onToggle = undefined,
   onNavigate = undefined,
 }) {
-  const isSuperAdmin = userData && Number(userData.role_id) === 1;
-  const isAdminRole = userData && Number(userData.role_id) >= 7;
+  const roleId = userData?.role_id;
+  const isSuperAdminUser = isSuperAdmin(roleId);
+  const isAdminRole = isAdmin(roleId);
   const adminCommunityIds = Array.isArray(userData?.admin_community_ids) ? userData.admin_community_ids : [];
   const isCommunityAdmin = adminCommunityIds.length > 0;
   const isAmbassador = userData && Number(userData.is_ambassador) === 1;
-  const isModerator = userData && (isSuperAdmin || isAmbassador);
+  const isModerator = userData && (isSuperAdminUser || isAmbassador);
 
   const items = [
     ...baseItems,
-    ...(isSuperAdmin || isAdminRole || isCommunityAdmin || isAmbassador
+    ...(isSuperAdminUser || isAdminRole || isCommunityAdmin || isAmbassador
       ? [{ to: '/events', label: 'Event Management', Icon: CalendarRange, color: '#22C55E', key: 'events' }]
       : []),
     ...(isModerator

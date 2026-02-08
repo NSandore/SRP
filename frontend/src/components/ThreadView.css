@@ -39,17 +39,53 @@
     gap: 1rem;
   }
   
-  /* Keep the verified styling, but unify the color usage */
-  .post-card.verified {
-    border: 2px solid green; 
-    background-color: rgba(0, 255, 0, 0.04); /* Slight green tint */
+  /* Verified styling */
+  .verified-scope.verified {
+    border: 2px solid #2f9e44;
+    border-radius: 14px;
+    background-color: rgba(46, 204, 113, 0.08);
+    box-shadow: 0 4px 10px rgba(47, 158, 68, 0.12);
+    padding: 10px 12px;
   }
-  
-  /* Slightly smaller text for verified info to differentiate it */
-  .verified-info {
+
+  .verified-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(47, 158, 68, 0.12);
+    border: 1px solid rgba(47, 158, 68, 0.35);
+    margin-bottom: 10px;
+  }
+
+  .verified-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .verified-icon {
+    font-size: 28px;
+    color: #2f9e44;
+    flex-shrink: 0;
+  }
+
+  .verified-title {
+    font-weight: 700;
+    color: #1b5e20;
+    letter-spacing: 0.2px;
+  }
+
+  .verified-date {
+    font-size: 0.9rem;
+    color: #2f9e44;
+  }
+
+  .verified-disclaimer {
     font-size: 0.85rem;
-    color: green;
-    margin-bottom: 0.25rem;
+    color: #1f3b24;
+    line-height: 1.35;
   }
   
   /* The post content itself */

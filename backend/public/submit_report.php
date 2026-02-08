@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../reporting_utils.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 header('Content-Type: application/json');
 
@@ -105,12 +107,12 @@ try {
         $ambStmt->execute([':cid' => $context['community_id']]);
         $ambRecipients = $ambStmt->fetchAll(PDO::FETCH_COLUMN);
     }
-    $superAdminStmt = $db->query("
+    $superAdminStmt = $db->prepare("
         SELECT u.user_id
         FROM users u
-        LEFT JOIN roles r ON r.role_id = u.role_id
-        WHERE u.role_id = 1 OR r.role_name = 'super_admin'
+        WHERE u.role_id = :super_admin_role_id
     ");
+    $superAdminStmt->execute([':super_admin_role_id' => ROLE_SUPER_ADMIN]);
     $superAdmins = $superAdminStmt->fetchAll(PDO::FETCH_COLUMN);
 
     $recipients = $ambRecipients;

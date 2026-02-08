@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 function base64UrlDecode(string $value): string {
     $remainder = strlen($value) % 4;
@@ -123,7 +125,7 @@ try {
     }
     $roleId = (int)($user['role_id'] ?? 0);
     $isAmbassador = (int)($user['is_ambassador'] ?? 0) === 1;
-    $isAdmin = $roleId === 1 || $roleId >= 7;
+    $isAdmin = isAdmin($roleId);
     if (!$isAmbassador && !$isAdmin) {
         header('Location: ' . $redirectBase . $redirectSeparator . 'zoom=error');
         exit;
@@ -144,7 +146,7 @@ try {
         $_SESSION['is_public'] = $user['is_public'] ?? 0;
 
         $adminCommunities = [];
-        $cStmt = $db->prepare("SELECT community_id FROM ambassadors WHERE user_id = :uid AND role = 'admin'");
+        $cStmt = $db->prepare("SELECT community_id FROM ambassadors WHERE user_id = :uid AND community_role = 'admin'");
         $cStmt->execute([':uid' => $userId]);
         $adminCommunities = $cStmt->fetchAll(PDO::FETCH_COLUMN);
         $_SESSION['admin_community_ids'] = $adminCommunities;

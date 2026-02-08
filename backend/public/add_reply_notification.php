@@ -60,7 +60,21 @@ try {
 
     // Format the replier's name (e.g. "Alice S.")
     $replier_name = $replier['first_name'] . ' ' . substr($replier['last_name'], 0, 1) . '.';
-    $message = "$replier_name replied to your post.";
+    $threadStmt = $db->prepare("
+        SELECT t.thread_id, t.forum_id
+        FROM posts p
+        JOIN threads t ON t.thread_id = p.thread_id
+        WHERE p.post_id = :post_id
+        LIMIT 1
+    ");
+    $threadStmt->execute([':post_id' => $post_id]);
+    $target = $threadStmt->fetch(PDO::FETCH_ASSOC);
+    $postPath = $target
+        ? "/info/forum/{$target['forum_id']}/thread/{$target['thread_id']}#post-{$post_id}"
+        : null;
+    $message = $postPath
+        ? "$replier_name replied to your <a href=\"{$postPath}\">post</a>."
+        : "$replier_name replied to your post.";
 
     // Insert the notification into the notifications table
     $notificationId = generateUniqueId($db, 'notifications');

@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { isAdmin, isSuperAdmin } from '../constants/roles';
 
 function EventManagement({ userData }) {
-  const isSuperAdmin = Number(userData?.role_id) === 1;
+  const roleId = userData?.role_id;
+  const isSuperAdminUser = isSuperAdmin(roleId);
   const isAmbassador = Number(userData?.is_ambassador) === 1;
   const adminCommunityIds = useMemo(() => {
     if (!Array.isArray(userData?.admin_community_ids)) return [];
@@ -16,10 +18,10 @@ function EventManagement({ userData }) {
         .filter(Boolean),
     [ambassadorCommunities]
   );
-  const isAdminRole = isSuperAdmin || Number(userData?.role_id) >= 7;
+  const isAdminRole = isAdmin(roleId);
   const isCommunityAdmin = adminCommunityIds.length > 0;
-  const canManage = isSuperAdmin || isAdminRole || isCommunityAdmin || ambassadorCommunityIds.length > 0;
-  const canUseZoom = isSuperAdmin || isCommunityAdmin || isAmbassador || isAdminRole;
+  const canManage = isSuperAdminUser || isAdminRole || isCommunityAdmin || ambassadorCommunityIds.length > 0;
+  const canUseZoom = isSuperAdminUser || isCommunityAdmin || isAmbassador || isAdminRole;
   const canPublishAllTypes = isCommunityAdmin || isAdminRole;
   const itemTypes = useMemo(
     () =>
@@ -65,7 +67,7 @@ function EventManagement({ userData }) {
     description: '',
     date: '',
     location: '',
-    scope: isSuperAdmin ? 'global' : 'community',
+    scope: isSuperAdminUser ? 'global' : 'community',
     communityId: primaryCommunityId,
     communityName: '',
     pollOptions: '',
@@ -95,10 +97,10 @@ function EventManagement({ userData }) {
   useEffect(() => {
     setForm((prev) => ({
       ...prev,
-      scope: isSuperAdmin ? prev.scope : 'community',
+      scope: isSuperAdminUser ? prev.scope : 'community',
       communityId: primaryCommunityId,
     }));
-  }, [isSuperAdmin, primaryCommunityId]);
+  }, [isSuperAdminUser, primaryCommunityId]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -273,13 +275,16 @@ function EventManagement({ userData }) {
   }, [events]);
 
   const canManageEvent = (event) => {
-    if (isSuperAdmin || isAdminRole) return true;
+    if (isSuperAdminUser || isAdminRole) return true;
     if (event.scope !== 'community') return false;
     const allowedIds = new Set([...adminCommunityIds, ...ambassadorCommunityIds]);
     return allowedIds.has(String(event.communityId || ''));
   };
 
-  const manageableEvents = useMemo(() => events.filter((evt) => canManageEvent(evt)), [events, isSuperAdmin, isCommunityAdmin, adminCommunityIds, canManageEvent]);
+  const manageableEvents = useMemo(
+    () => events.filter((evt) => canManageEvent(evt)),
+    [events, isSuperAdminUser, isCommunityAdmin, adminCommunityIds, canManageEvent]
+  );
 
   const handleFieldChange = (key) => (e) => {
     const { value } = e.target;
@@ -316,7 +321,7 @@ function EventManagement({ userData }) {
     setEditingId(null);
     setForm({
       ...initialForm,
-      scope: isSuperAdmin ? 'global' : 'community',
+      scope: isSuperAdminUser ? 'global' : 'community',
       communityId: primaryCommunityId,
     });
   };
@@ -396,7 +401,7 @@ function EventManagement({ userData }) {
 
   const isVisibleToUser = (item) => {
     if (item.scope === 'global') return true;
-    if (isSuperAdmin || isAdminRole) return true;
+    if (isSuperAdminUser || isAdminRole) return true;
     if (adminCommunityIds.includes(String(item.communityId || ''))) return true;
     if (ambassadorCommunityIds.includes(String(item.communityId || ''))) return true;
     return followsCommunity(item.communityId);
@@ -404,7 +409,7 @@ function EventManagement({ userData }) {
 
   const visibleItems = useMemo(
     () => events.filter((evt) => isVisibleToUser(evt)),
-    [events, isSuperAdmin, adminCommunityIds, followedCommunities, isVisibleToUser]
+    [events, isSuperAdminUser, adminCommunityIds, followedCommunities, isVisibleToUser]
   );
 
   const getTypeLabel = (type) => {
@@ -493,7 +498,7 @@ function EventManagement({ userData }) {
     }
 
     const type = form.type || 'event';
-    const scope = isSuperAdmin ? form.scope : 'community';
+    const scope = isSuperAdminUser ? form.scope : 'community';
     const title = form.title.trim();
     const description = form.description.trim();
     const location = form.location.trim();
@@ -709,7 +714,7 @@ function EventManagement({ userData }) {
           <h2>Event & content management</h2>
           <p className="muted-text">
             {canManage
-              ? isSuperAdmin
+              ? isSuperAdminUser
                 ? 'Super admins can publish announcements, polls, and events for any community or globally.'
                 : isAmbassador && !isCommunityAdmin
                   ? 'Ambassadors can schedule announcements, polls, and events for the communities they represent.'
@@ -719,7 +724,7 @@ function EventManagement({ userData }) {
         </div>
         <div className="event-management__badge">
           {canManage
-            ? isSuperAdmin
+            ? isSuperAdminUser
               ? 'Super admin'
               : isCommunityAdmin
                 ? 'Community admin'
@@ -743,7 +748,7 @@ function EventManagement({ userData }) {
               <div>
                 <h3>{editingId ? 'Edit item' : 'Create item'}</h3>
                 <p className="muted-text">
-                  {isSuperAdmin
+                  {isSuperAdminUser
                     ? 'Create a global item or target a specific community.'
                     : 'Create items for the communities you manage.'}
                 </p>
@@ -899,7 +904,7 @@ function EventManagement({ userData }) {
             )}
               <div className="event-management__field">
                 <label>Audience</label>
-                {isSuperAdmin ? (
+                {isSuperAdminUser ? (
                   <select
                     value={form.scope}
                     onChange={handleFieldChange('scope')}
@@ -911,7 +916,7 @@ function EventManagement({ userData }) {
                   <div className="event-management__pill">Community specific</div>
                 )}
               </div>
-              {(form.scope === 'community' || !isSuperAdmin) && (
+              {(form.scope === 'community' || !isSuperAdminUser) && (
                 <div className="event-management__field">
                   <label htmlFor="event-community">Community</label>
                   <input
@@ -940,7 +945,7 @@ function EventManagement({ userData }) {
                       ))}
                   </select>
                   <p className="muted-text small-text">
-                    {isSuperAdmin
+                    {isSuperAdminUser
                       ? 'Search any community to target your item, or keep audience as Global.'
                       : 'Admins can only post to communities they manage.'}
                   </p>

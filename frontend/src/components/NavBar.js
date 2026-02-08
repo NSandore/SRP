@@ -253,6 +253,40 @@ function NavBar({
     if (onCloseDrawer) onCloseDrawer();
   };
 
+  const extractFirstHref = (html = '') => {
+    const safeHtml = DOMPurify.sanitize(html, { ALLOWED_TAGS: ['a'], ALLOWED_ATTR: ['href'] });
+    const match = safeHtml.match(/<a[^>]+href=["']([^"']+)["']/i);
+    return match ? match[1] : '';
+  };
+
+  const notificationTarget = (notif) => {
+    const linkedHref = extractFirstHref(notif?.message || '');
+    if (linkedHref) return linkedHref;
+
+    const actorId = notif?.actor_user_id;
+    switch (notif?.notification_type) {
+      case 'message':
+        return actorId ? `/messages?user=${actorId}` : '/messages';
+      case 'connection':
+        return actorId ? `/user/${actorId}` : '/messages';
+      case 'follow':
+        return actorId ? `/user/${actorId}` : '';
+      default:
+        return '';
+    }
+  };
+
+  const handleNotificationNavigate = (notif) => {
+    const target = notificationTarget(notif);
+    if (!target) return;
+    closeDrawerIfOpen();
+    if (/^https?:\/\//i.test(target)) {
+      window.location.href = target;
+      return;
+    }
+    navigate(target);
+  };
+
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -401,48 +435,120 @@ function NavBar({
 
                 {isNotificationsOpen && (
                   <div id="notifications-dropdown" className="notifications-dropdown" role="dialog" aria-label="Notifications">
-                    <h4>Notifications</h4>
-                    {notifList.length === 0 ? (
-                      <p>No notifications</p>
-                    ) : (
-                      <>
-                        <ul>
-                          {notifList.map((notif) => (
-                            <li
-                              key={notif.notification_id}
-                              className={`notification-item ${notif.is_read === "0" ? 'unread' : ''} ${fadeMap[notif.notification_id] ? 'fade-out' : ''}`}
-                            >
-                              <div className="notification-body">
-                                <img
-                                  src={buildAvatarSrc(notif.avatar_path)}
-                                  alt={`${notif.first_name || 'User'} ${notif.last_name || ''}`.trim()}
-                                  className="notification-avatar"
-                                  onError={(e) => {
-                                    e.currentTarget.onerror = null;
-                                    e.currentTarget.src = buildAvatarSrc(null);
-                                  }}
-                                />
-                                <div className="notification-copy">
-                                  <p dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notif.message) }} />
-                                  <small>{new Date(notif.created_at).toLocaleString()}</small>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="notification-dismiss"
-                                  aria-label="Dismiss notification"
-                                  onClick={() => handleDismissNotification(notif.notification_id)}
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                        <button className="mark-read-button pill-button" onClick={markAllAsRead}>
-                          Mark All as Read
+                    <div className="notifications-header">
+                      <div className="notifications-heading">
+                        <p className="notifications-title">Notifications</p>
+                        <p className="notifications-subtitle">
+                          {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+                        </p>
+                      </div>
+                      {notifList.length > 0 && (
+                        <button
+                          type="button"
+                          className="notifications-mark-read pill-button"
+                          onClick={markAllAsRead}
+                        >
+                          Mark all read
                         </button>
-                      </>
-                    )}
+                      )}
+                    </div>
+                    <div className="notifications-body">
+                      {notifList.length === 0 ? (
+                        <div className="notifications-empty">
+                          <p>You're all caught up.</p>
+                          <small>We'll let you know when something new arrives.</small>
+                        </div>
+                      ) : (
+                        <ul>
+                          {notifList.map((notif) => {
+                            const createdAt = new Date(notif.created_at);
+                            const target = notificationTarget(notif);
+                            return (
+                              <li
+                                key={notif.notification_id}
+                                className={`notification-item ${notif.is_read === "0" ? 'unread' : ''} ${fadeMap[notif.notification_id] ? 'fade-out' : ''}`}
+                                onClick={() => handleNotificationNavigate(notif)}
+                                role={target ? 'button' : undefined}
+                                tabIndex={target ? 0 : undefined}
+                                style={{ cursor: target ? 'pointer' : 'default' }}
+                                onKeyDown={(e) => {
+                                  if ((e.key === 'Enter' || e.key === ' ') && target) {
+                                    e.preventDefault();
+                                    handleNotificationNavigate(notif);
+                                  }
+                                }}
+                              >
+                                <div className="notification-body">
+                                  <img
+                                    src={buildAvatarSrc(notif.avatar_path)}
+                                    alt={`${notif.first_name || 'User'} ${notif.last_name || ''}`.trim()}
+                                    className="notification-avatar"
+                                    role={notif.actor_user_id ? 'button' : undefined}
+                                    tabIndex={notif.actor_user_id ? 0 : undefined}
+                                    style={{ cursor: notif.actor_user_id ? 'pointer' : undefined }}
+                                    onClick={(e) => {
+                                      if (!notif.actor_user_id) return;
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      closeDrawerIfOpen();
+                                      navigate(`/user/${notif.actor_user_id}`);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (!notif.actor_user_id) return;
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        closeDrawerIfOpen();
+                                        navigate(`/user/${notif.actor_user_id}`);
+                                      }
+                                    }}
+                                    onError={(e) => {
+                                      e.currentTarget.onerror = null;
+                                      e.currentTarget.src = buildAvatarSrc(null);
+                                    }}
+                                  />
+                                  <div
+                                    className="notification-copy"
+                                    onClick={(e) => {
+                                      const anchor = e.target.closest('a');
+                                      if (anchor) {
+                                        const href = anchor.getAttribute('href');
+                                        if (href) {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          closeDrawerIfOpen();
+                                          if (/^https?:\/\//i.test(href)) {
+                                            window.location.href = href;
+                                          } else {
+                                            navigate(href);
+                                          }
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    <p dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notif.message) }} />
+                                    <time className="notification-time" dateTime={createdAt.toISOString()}>
+                                      {createdAt.toLocaleString()}
+                                    </time>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="notification-dismiss"
+                                    aria-label="Dismiss notification"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDismissNotification(notif.notification_id);
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

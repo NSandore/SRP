@@ -1,6 +1,7 @@
 // src/components/ThreadCard.js
 import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 import {
   FaEllipsisV,
   FaArrowAltCircleUp,
@@ -12,6 +13,7 @@ import {
   FaLightbulb,
 } from 'react-icons/fa';
 import IconBubble from './IconBubble';
+import { isSuperAdmin } from '../constants/roles';
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return '';
@@ -93,11 +95,24 @@ export default function ThreadCard({
   const hasUpvoted = thread.user_vote === 'up' || thread.vote_type === 'up';
   const hasDownvoted = thread.user_vote === 'down' || thread.vote_type === 'down';
   const canEditOrDelete =
-    userData && (Number(userData.role_id) === 1 || Number(userData.user_id) === Number(thread.user_id));
+    userData && (isSuperAdmin(userData.role_id) || Number(userData.user_id) === Number(thread.user_id));
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isPinSubmenuOpen, setIsPinSubmenuOpen] = useState(false);
   const menuRef = useRef(null);
-  useOnClickOutside(menuRef, () => setMenuOpen(false));
+  useOnClickOutside(menuRef, () => {
+    setMenuOpen(false);
+    setIsPinSubmenuOpen(false);
+  });
+  const ambassadorCommunities = Array.isArray(userData?.ambassador_communities)
+    ? userData.ambassador_communities
+        .map((community) => ({
+          community_id: String(community?.community_id ?? community?.id ?? ''),
+          name: String(community?.name ?? 'Community'),
+        }))
+        .filter((community) => community.community_id)
+    : [];
+  const canPinToCommunity = ambassadorCommunities.length > 0;
 
   // Determine thread type: prefer explicit field if present, else infer from title
   const threadType = useMemo(() => {
@@ -109,6 +124,32 @@ export default function ThreadCard({
 
   const initials = `${(thread.first_name || 'U')[0] || 'U'}${(thread.last_name || '')[0] || ''}`.toUpperCase();
   const comments = thread.post_count || thread.comment_count || 0;
+
+  const handlePinThread = async (communityId) => {
+    try {
+      const response = await axios.post(
+        '/api/pin_to_community.php',
+        {
+          community_id: communityId,
+          item_id: thread.thread_id,
+          item_type: 'thread'
+        },
+        { withCredentials: true }
+      );
+
+      if (response.data.success) {
+        alert(response.data.already_pinned ? 'Thread is already pinned to that community.' : 'Thread pinned to community.');
+        setMenuOpen(false);
+        setIsPinSubmenuOpen(false);
+      } else {
+        alert(`Error: ${response.data.error || 'Unable to pin thread.'}`);
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error pinning thread:', error);
+      alert('Error pinning thread.');
+    }
+  };
 
   return (
     <div className="thread-card card-lift" style={{ position: 'relative' }}>
@@ -125,6 +166,32 @@ export default function ThreadCard({
       </button>
       {menuOpen && (
         <div ref={menuRef} className="dropdown-menu" style={{ position: 'absolute', top: 30, right: 8, zIndex: 10 }}>
+          {canPinToCommunity && (
+            <div className="dropdown-item submenu-container">
+              <button
+                type="button"
+                className="submenu-title"
+                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', padding: '8px' }}
+                onClick={() => setIsPinSubmenuOpen((open) => !open)}
+              >
+                Pin to Community
+              </button>
+              {isPinSubmenuOpen && (
+                <ul className="submenu-list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {ambassadorCommunities.map((community) => (
+                    <li
+                      key={community.community_id}
+                      className="submenu-item"
+                      style={{ padding: '6px 8px', cursor: 'pointer', borderTop: '1px solid var(--card-border)' }}
+                      onClick={() => handlePinThread(community.community_id)}
+                    >
+                      {community.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {onToggleSave && (
             <button className="dropdown-item" onClick={() => onToggleSave(thread)}>
               {thread.saved ? 'Unsave' : 'Save'}

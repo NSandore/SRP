@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 header('Content-Type: application/json');
 
@@ -23,7 +25,7 @@ if ($sessionUserId === '') {
 $requestedUserId = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : $sessionUserId;
 if ($requestedUserId !== $sessionUserId) {
     // Allow super admins to fetch other users' notifications
-    if ($sessionRoleId !== 1) {
+    if (!isSuperAdmin($sessionRoleId)) {
         http_response_code(403);
         echo json_encode(['error' => 'Unauthorized']);
         exit;

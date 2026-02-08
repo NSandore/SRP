@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { isModerator } from '../constants/roles';
 
 export default function ThreadRightRail() {
   const { thread_id } = useParams();
@@ -61,7 +62,7 @@ export default function ThreadRightRail() {
     return anyVerified ? 'Resolved' : 'Still looking for advice';
   }, [posts]);
 
-  const canModerate = Number(session?.role_id) >= 5; // tweak as needed
+  const canModerate = isModerator(session?.role_id);
 
   const handleDelete = () => {
     if (!canModerate) return;

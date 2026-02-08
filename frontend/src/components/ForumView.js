@@ -12,6 +12,8 @@ import ReportModal from './ReportModal';
 import TagPicker from './TagPicker';
 import useTagOptions from '../hooks/useTagOptions';
 import { mapTagNamesToSlugs } from '../utils/tagUtils';
+import { isSuperAdmin } from '../constants/roles';
+import { buildAvatarSrc } from '../utils/avatar';
 
 // Sorting function
 const sortItems = (items, criteria) => {
@@ -35,6 +37,25 @@ const sortItems = (items, criteria) => {
 };
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+const timeAgo = (dateStr) => {
+  if (!dateStr) return '';
+  const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+  const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  const ts = parsed.getTime();
+  if (Number.isNaN(ts)) return '';
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 0) return 'just now';
+  if (seconds < 3600) {
+    const mins = Math.max(1, Math.floor(seconds / 60));
+    return `${mins} minute${mins > 1 ? 's' : ''} ago`;
+  }
+  if (seconds < 86400) {
+    const hours = Math.max(1, Math.round(seconds / 3600));
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+  const days = Math.floor(seconds / 86400);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
 
 function ForumView({ userData, onRequireAuth }) {
   const { forum_id } = useParams();
@@ -395,7 +416,7 @@ function ForumView({ userData, onRequireAuth }) {
     );
   }
 
-  const isAdmin = Number(userData?.role_id) === 1;
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const isAmbassador = Number(userData?.is_ambassador) === 1;
   const communityId = forumData?.community_id;
   const ambassadorHasAccess =
@@ -405,7 +426,7 @@ function ForumView({ userData, onRequireAuth }) {
       const id = c?.community_id ?? c?.id ?? c;
       return Number(id) === Number(communityId);
     });
-  const canCreateThread = Boolean(userData && (isAdmin || ambassadorHasAccess));
+  const canCreateThread = Boolean(userData && (isSuperAdminUser || ambassadorHasAccess));
 
   return (
     <div className="feed-container forum-view">
@@ -458,6 +479,25 @@ function ForumView({ userData, onRequireAuth }) {
         )}
       </div>
     </div>
+
+    {forumData?.created_by && (
+      <div className="meta-quiet" style={{ marginTop: '-10px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <span>Created by</span>
+        <img
+          src={buildAvatarSrc(forumData.created_by_avatar_path)}
+          alt={`${forumData.created_by_first_name || 'User'} ${forumData.created_by_last_name || ''}`}
+          style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = buildAvatarSrc(null);
+          }}
+        />
+        <Link to={`/user/${forumData.created_by}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 600 }}>
+          {forumData.created_by_first_name || 'User'} {forumData.created_by_last_name || ''}
+        </Link>
+        {forumData.created_at ? <span>· {timeAgo(forumData.created_at)}</span> : null}
+      </div>
+    )}
 
       {Array.isArray(forumData?.tags) && forumData.tags.length > 0 && (
         <div className="chips-row" style={{ marginBottom: '12px' }}>

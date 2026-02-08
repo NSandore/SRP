@@ -83,6 +83,7 @@ CREATE TABLE `ambassadors` (
   `id` varchar(32) NOT NULL,
   `user_id` varchar(32) NOT NULL,
   `community_id` varchar(32) NOT NULL,
+  `community_role` ENUM('member', 'admin') NOT NULL DEFAULT 'member',
   `added_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ambassador` (`user_id`,`community_id`),
@@ -190,7 +191,9 @@ CREATE TABLE `communities` (
   `name` varchar(100) NOT NULL,
   `location` varchar(255) DEFAULT NULL,
   `website` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
   `tagline` varchar(150) DEFAULT NULL,
+  `aliases` json DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `logo_path` varchar(255) DEFAULT NULL,
@@ -418,6 +421,7 @@ CREATE TABLE `forums` (
   `upvotes` int DEFAULT '0',
   `downvotes` int DEFAULT '0',
   `created_at` datetime DEFAULT NULL,
+  `created_by` varchar(32) DEFAULT NULL,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `last_activity_at` timestamp NULL DEFAULT NULL,
   `is_locked` tinyint(1) NOT NULL DEFAULT '0',
@@ -532,7 +536,7 @@ CREATE TABLE `pinned_items` (
   `id` varchar(32) NOT NULL,
   `community_id` varchar(32) NOT NULL,
   `item_type` enum('forum','thread','post','announcement','event') DEFAULT NULL,
-  `item_id` int NOT NULL,
+  `item_id` varchar(32) NOT NULL,
   `pinned_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_pinned_items_comm` (`community_id`),
@@ -639,6 +643,7 @@ CREATE TABLE `posts` (
   `content` text NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `updated_by` varchar(32) DEFAULT NULL,
   `upvotes` int DEFAULT '0',
   `downvotes` int DEFAULT '0',
   `reply_to` varchar(32) DEFAULT NULL,
@@ -667,7 +672,14 @@ CREATE TABLE `roles` (
   `description` text,
   PRIMARY KEY (`role_id`),
   UNIQUE KEY `uq_role_name` (`role_name`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Role hierarchy:
+-- 0 = guest (non-logged in)
+-- 1 = member (default)
+-- 3 = moderator
+-- 4 = admin
+-- 5 = super_admin
 
 
 
@@ -910,6 +922,7 @@ CREATE TABLE `threads` (
   `upvotes` int DEFAULT '0',
   `downvotes` int DEFAULT '0',
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `updated_by` varchar(32) DEFAULT NULL,
   `last_activity_at` timestamp NULL DEFAULT NULL,
   `reply_count` int NOT NULL DEFAULT '0',
   `is_locked` tinyint(1) NOT NULL DEFAULT '0',

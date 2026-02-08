@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
 require __DIR__ . '/../vendor/autoload.php';
 
 ini_set('display_errors', 1);

@@ -1,6 +1,6 @@
 // src/components/Feed.js
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify'; 
@@ -22,6 +22,7 @@ import ReportModal from './ReportModal';
 import TagPicker from './TagPicker';
 import useTagOptions from '../hooks/useTagOptions';
 import { mapTagNamesToSlugs } from '../utils/tagUtils';
+import { isSuperAdmin } from '../constants/roles';
 import './LockedFeature.css';
 import './CreationModal.css';
 
@@ -155,8 +156,33 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const topicDropdownRef = useRef(null);
   const exploreDropdownRef = useRef(null);
   const exploreLabelRef = useRef(null);
-  const isSuperAdmin = userData?.role_id === 1;
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const INFO_COMMUNITY_ID = 'c57b7fd6c45b9d57b';
+
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  }, [searchParams]);
+
+  const skipUrlSyncRef = useRef(false);
+  const searchTermRef = useRef(searchTerm);
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
+
+  const safeSetSearchParams = useCallback(
+    (nextParams, options) => {
+      try {
+        const nextString = new URLSearchParams(nextParams).toString();
+        const currentString = searchParamsRef.current.toString();
+        if (nextString === currentString) return;
+        setSearchParams(nextParams, options);
+      } catch (err) {
+        console.error('Error updating URL params:', err);
+      }
+    },
+    [setSearchParams]
+  );
 
   useEffect(() => {
     console.log("Active Section:", activeSection);
@@ -179,7 +205,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   useEffect(() => {
     if (showRequestModal && userData) {
       fetchAdminCommunities();
-      if (userData.role_id === 1) {
+      if (isSuperAdminUser) {
         fetchAllCommunitiesSimple();
       }
     }
@@ -402,7 +428,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       type: selectedCommunityTab === 'group' ? 'group' : 'university',
       parent_community_id: ''
     }));
-    if (userData.role_id === 1 && allCommunitiesSimple.length === 0) {
+    if (isSuperAdminUser && allCommunitiesSimple.length === 0) {
       fetchAllCommunitiesSimple();
     }
     setShowRequestModal(true);
@@ -616,7 +642,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     }
 
     setSelectedTopics(normalized);
-    setSearchParams(params);
+    safeSetSearchParams(params);
   };
 
   const handleTopicToggle = (value) => {
@@ -719,9 +745,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       fetchFollowedCommunities();
     }
     if (activeSection === 'communities') {
-      fetchAllCommunitiesData(1, '');
+      fetchAllCommunitiesData(1, searchTermRef.current || '');
       setCurrentPage(1);
-      setSearchTerm('');
     }
     if (activeSection === 'info') {
       // Fetch forums for the info board community
@@ -737,7 +762,9 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     }
   }, [activeSection, userData, selectedCommunityTab]);
 
-  // Searching communities (debounce approach)
+  // Searching communities (debounce approach).
+  // Keep this tied to the search input only so tab/section changes
+  // don't issue a second duplicate request.
   useEffect(() => {
     const debounce = setTimeout(() => {
       if (activeSection === 'communities') {
@@ -746,7 +773,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       }
     }, 300);
     return () => clearTimeout(debounce);
-  }, [searchTerm, activeSection, selectedCommunityTab]);
+  }, [searchTerm]);
 
   // ---------------- URL SYNC (Communities only; visual state only) ----------------
   // Initialize local UI state from URL params on mount or when URL changes
@@ -756,15 +783,26 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     const scope = (searchParams.get('scope') || '').toLowerCase();
     const query = searchParams.get('query') ?? '';
 
+    let didUpdate = false;
     if (kind === 'university' || kind === 'group') {
-      if (selectedCommunityTab !== kind) setSelectedCommunityTab(kind);
+      if (selectedCommunityTab !== kind) {
+        setSelectedCommunityTab(kind);
+        didUpdate = true;
+      }
     }
     if (['all', 'followed', 'unfollowed'].includes(scope)) {
       const scopeToState = scope === 'all' ? 'All' : scope.charAt(0).toUpperCase() + scope.slice(1);
-      if (communityFilter !== scopeToState) setCommunityFilter(scopeToState);
+      if (communityFilter !== scopeToState) {
+        setCommunityFilter(scopeToState);
+        didUpdate = true;
+      }
     }
     if (typeof query === 'string' && searchTerm !== query) {
       setSearchTerm(query);
+      didUpdate = true;
+    }
+    if (didUpdate) {
+      skipUrlSyncRef.current = true;
     }
     // We intentionally do not trigger backend calls here. Existing effects handle fetching.
   }, [activeSection, searchParams]);
@@ -772,7 +810,11 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // Push UI state to URL params when it changes (no backend calls triggered by this directly)
   useEffect(() => {
     if (activeSection !== 'communities') return;
-    const params = new URLSearchParams(searchParams);
+    if (skipUrlSyncRef.current) {
+      skipUrlSyncRef.current = false;
+      return;
+    }
+    const params = new URLSearchParams(searchParamsRef.current);
 
     let changed = false;
     const kindParam = selectedCommunityTab; // 'university' | 'group'
@@ -788,7 +830,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       changed = true;
     }
 
-    if (changed) setSearchParams(params, { replace: true });
+    if (changed) safeSetSearchParams(params, { replace: true });
   }, [selectedCommunityTab, communityFilter, searchTerm, activeSection]);
 
   // Sync topic filter from URL when on Info board
@@ -892,7 +934,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // ------------- CREATE FORUM -------------
   const handleCreateForumSubmit = async (e) => {
     e.preventDefault();
-    if (!isSuperAdmin) {
+    if (!isSuperAdminUser) {
       setNotification({ type: 'error', message: 'Only super admins can create forums.' });
       return;
     }
@@ -1011,7 +1053,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
     setIsSubmittingRequest(true);
     try {
-      const endpoint = isSuperAdmin ? '/api/create_community.php' : '/api/request_community.php';
+      const endpoint = isSuperAdminUser ? '/api/create_community.php' : '/api/request_community.php';
       const payload = {
         ...requestData,
         type: isSubCommunity ? 'sub_community' : requestData.type,
@@ -1132,9 +1174,9 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     if (!tab) {
       const params = new URLSearchParams(searchParams);
       params.set('tab', userData ? 'feed' : 'explore');
-      setSearchParams(params, { replace: true });
+      safeSetSearchParams(params, { replace: true });
     }
-  }, [activeSection, searchParams, activeFeed, setActiveFeed, setSearchParams]);
+  }, [activeSection, searchParams, activeFeed, setActiveFeed, safeSetSearchParams]);
 
   // ------------- RENDER LOGIC -------------
   // HOME SECTION
@@ -1169,7 +1211,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                   const params = new URLSearchParams(searchParams);
                   if (params.get('tab') !== 'feed') {
                     params.set('tab', 'feed');
-                    setSearchParams(params);
+                    safeSetSearchParams(params);
                   }
                 }}
                 aria-disabled={!userData}
@@ -1190,7 +1232,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                   const params = new URLSearchParams(searchParams);
                   if (params.get('tab') !== 'explore') {
                     params.set('tab', 'explore');
-                    setSearchParams(params);
+                    safeSetSearchParams(params);
                   }
                 }}
               >
@@ -1489,7 +1531,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     onClick={openRequestCommunityModal}
                     aria-disabled={!userData}
                   >
-                    {isSuperAdmin ? '+ Create Group' : '+ Request Group'}
+                    {isSuperAdminUser ? '+ Create Group' : '+ Request Group'}
                   </button>
                 </div>
               )}
@@ -1675,18 +1717,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             setFormData={setRequestData}
             isSubmitting={isSubmittingRequest}
             title={
-              isSuperAdmin && selectedCommunityTab === 'group'
+              isSuperAdminUser && selectedCommunityTab === 'group'
                 ? 'Create Group'
                 : 'Request New Community'
             }
-            submitLabel={isSuperAdmin && selectedCommunityTab === 'group' ? 'Create' : 'Submit'}
+            submitLabel={isSuperAdminUser && selectedCommunityTab === 'group' ? 'Create' : 'Submit'}
             lockType={false}
-            allowSubCommunity={isSuperAdmin || adminCommunities.length > 0}
+            allowSubCommunity={isSuperAdminUser || adminCommunities.length > 0}
             parentCommunities={
-              isSuperAdmin ? allCommunitiesSimple : adminCommunities
+              isSuperAdminUser ? allCommunitiesSimple : adminCommunities
             }
             isLoadingParents={
-              isSuperAdmin ? isLoadingAllParents : isLoadingAdminCommunities
+              isSuperAdminUser ? isLoadingAllParents : isLoadingAdminCommunities
             }
           />
         )}
@@ -1786,7 +1828,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               </div>
             </div>
 
-            {isSuperAdmin && (
+            {isSuperAdminUser && (
               <div className="control-action">
                 <button
                   type="button"
@@ -1953,7 +1995,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
           )}
         </div>
         {/* FAB visible on Home (Your Feed + Explore) for super admins or ambassadors */}
-        {activeSection === 'home' && userData && (Number(userData.role_id) === 1 || Number(userData.is_ambassador) === 1) && (
+        {activeSection === 'home' && userData && (isSuperAdminUser || Number(userData.is_ambassador) === 1) && (
           <FloatingComposer
             communities={[...followedCommunities, ...allCommunities]}
           />

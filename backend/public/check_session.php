@@ -8,6 +8,7 @@ require_once __DIR__ . '/../db_connection.php';
 if (isset($_SESSION['user_id'])) {
     $userId = normalizeId($_SESSION['user_id']);
     $allowMessagesFrom = 'everyone';
+    $ambassadorCommunities = [];
     $sessionId = session_id();
     $userAgent = substr($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown device', 0, 255);
     $ipAddress = substr(
@@ -98,6 +99,23 @@ if (isset($_SESSION['user_id'])) {
         ");
         $dmStmt->execute([':uid' => $userId]);
         $allowMessagesFrom = $dmStmt->fetchColumn() ?: 'everyone';
+
+        // Always derive ambassador communities from DB so role changes reflect immediately.
+        $ambStmt = $db->prepare("
+            SELECT
+                a.community_id,
+                COALESCE(MAX(c.name), '') AS name,
+                MIN(a.community_role) AS community_role
+            FROM ambassadors a
+            LEFT JOIN communities c
+                ON c.id = a.community_id
+            WHERE a.user_id = :uid
+            GROUP BY a.community_id
+            ORDER BY name ASC
+        ");
+        $ambStmt->execute([':uid' => $userId]);
+        $ambassadorCommunities = $ambStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $_SESSION['is_ambassador'] = count($ambassadorCommunities) > 0 ? 1 : 0;
     } catch (PDOException $e) {
         error_log('Unable to update presence: ' . $e->getMessage());
     }
@@ -112,6 +130,7 @@ if (isset($_SESSION['user_id'])) {
             "role_id" => $_SESSION['role_id'],
             "avatar_path" => appendAvatarPath($_SESSION['avatar_path'] ?? null),
             "is_ambassador" => $_SESSION['is_ambassador'],
+            "ambassador_communities" => $ambassadorCommunities,
             "login_count" => $_SESSION['login_count'],
             "is_public" => $_SESSION['is_public'],
             "admin_community_ids" => $_SESSION['admin_community_ids'] ?? [],

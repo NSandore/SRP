@@ -2,6 +2,8 @@
 session_start(); // Start the session to access session variables
 
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
@@ -14,9 +16,10 @@ $community_id = isset($data['community_id']) ? normalizeId($data['community_id']
 $name = trim($data['name'] ?? '');
 $description = trim($data['description'] ?? '');
 $tags = isset($data['tags']) && is_array($data['tags']) ? $data['tags'] : [];
+$creatorUserId = normalizeId($_SESSION['user_id']);
 
-// **Validate User Role**
-if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 1) {
+// **Validate User Role** - Only super admins can create forums
+if (!isset($_SESSION['user_id']) || !isSuperAdmin($_SESSION['role_id'])) {
     http_response_code(403); // Forbidden
     echo json_encode(['error' => 'You do not have permission to create forums.']);
     exit;
@@ -54,14 +57,15 @@ try {
 
     $forumId = generateUniqueId($db, 'forums');
     $stmt = $db->prepare("
-        INSERT INTO forums (forum_id, community_id, name, description, created_at)
-        VALUES (:forum_id, :cid, :name, :desc, NOW())
+        INSERT INTO forums (forum_id, community_id, name, description, created_at, created_by)
+        VALUES (:forum_id, :cid, :name, :desc, NOW(), :created_by)
     ");
     $stmt->execute([
         ':forum_id' => $forumId,
         ':cid' => $community_id,
         ':name' => $name,
-        ':desc' => $description
+        ':desc' => $description,
+        ':created_by' => $creatorUserId
     ]);
 
     $tagIds = srp_resolve_tag_ids($db, $tags);

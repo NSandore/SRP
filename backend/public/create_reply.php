@@ -79,15 +79,21 @@ try {
                 $replier = $stmt2->fetch(PDO::FETCH_ASSOC);
 
                 $replier_name = $replier['first_name'] . ' ' . substr($replier['last_name'], 0, 1) . '.';
-                $message = "$replier_name replied to your post.";
+                $linkStmt = $db->prepare("SELECT forum_id FROM threads WHERE thread_id = :thread_id LIMIT 1");
+                $linkStmt->execute([':thread_id' => $thread_id]);
+                $forumId = $linkStmt->fetchColumn();
+                $postPath = $forumId ? "/info/forum/{$forumId}/thread/{$thread_id}#post-{$reply_to}" : null;
+                $message = $postPath
+                    ? "$replier_name replied to your <a href=\"{$postPath}\">post</a>."
+                    : "$replier_name replied to your post.";
 
-                // Insert the notification (reference_id is nullable/int, so leave NULL for string post IDs)
+                // Insert the notification
                 $notificationId = generateUniqueId($db, 'notifications');
                 $insertStmt = $db->prepare("
                     INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message)
-                    VALUES (?, ?, ?, 'reply', NULL, ?)
+                    VALUES (?, ?, ?, 'reply', ?, ?)
                 ");
-                $insertStmt->execute([$notificationId, $original_poster_id, $user_id, $message]);
+                $insertStmt->execute([$notificationId, $original_poster_id, $user_id, null, $message]);
             }
         }
     }

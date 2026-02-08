@@ -1,14 +1,16 @@
 <?php
 // update_university.php
 
-// Enable error reporting for debugging (disable in production)
-ini_set('display_errors', 1);
+// Keep responses as valid JSON; log errors server-side.
+ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
 header('Content-Type: application/json');
 
 // Include the database connection
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 require_once __DIR__ . '/../session_bootstrap.php';
 
@@ -22,6 +24,36 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Helper function to retrieve and trim POST values
 function getPostValue($key, $default = null) {
     return isset($_POST[$key]) ? trim($_POST[$key]) : $default;
+}
+
+function normalizeAliases($raw) {
+    if ($raw === null) {
+        return null;
+    }
+    $aliases = [];
+    if (is_array($raw)) {
+        $aliases = $raw;
+    } elseif (is_string($raw)) {
+        $trimmed = trim($raw);
+        if ($trimmed !== '' && $trimmed[0] === '[') {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                $aliases = $decoded;
+            } else {
+                $aliases = preg_split('/\s*,\s*/', $trimmed);
+            }
+        } else {
+            $aliases = preg_split('/\s*,\s*/', $trimmed);
+        }
+    }
+    $aliases = array_values(array_unique(array_filter(array_map(static function ($item) {
+        $val = trim((string)$item);
+        return $val !== '' ? $val : null;
+    }, $aliases))));
+    if (!$aliases) {
+        return null;
+    }
+    return json_encode($aliases);
 }
 
 // Retrieve and validate required fields
@@ -42,13 +74,16 @@ if (!$name) {
 $tagline        = getPostValue('tagline');
 $location       = getPostValue('location');
 $website        = getPostValue('website');
+$phone          = getPostValue('phone');
 $primary_color  = getPostValue('primary_color', '#0077B5');
 $secondary_color = getPostValue('secondary_color', '#005f8d');
+$aliasesProvided = array_key_exists('aliases', $_POST);
+$aliasesJson = $aliasesProvided ? normalizeAliases($_POST['aliases']) : null;
 
 // Get a database connection
 $db = getDB();
 
-// Permission: super admin (role_id=1) OR ambassador admin for this community
+// Permission: super admin OR ambassador admin for this community
 $sessionUserId = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
 $sessionRoleId = isset($_SESSION['role_id']) ? (int)$_SESSION['role_id'] : null;
 if (!$sessionUserId) {
@@ -57,19 +92,10 @@ if (!$sessionUserId) {
     exit;
 }
 
-if ($sessionRoleId !== 1) {
-    $permStmt = $db->prepare("
-        SELECT role FROM ambassadors
-        WHERE community_id = :cid AND user_id = :uid
-        LIMIT 1
-    ");
-    $permStmt->execute([':cid' => $community_id, ':uid' => $sessionUserId]);
-    $role = $permStmt->fetchColumn();
-    if ($role !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => 'No permission to update this community.']);
-        exit;
-    }
+if (!canEditCommunitySettings($sessionUserId, $sessionRoleId, $community_id, $db)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'No permission to update this community.']);
+    exit;
 }
 
 // Define upload directories (adjust these paths according to your folder structure)
@@ -152,8 +178,13 @@ $query = "UPDATE communities
               tagline = :tagline, 
               location = :location, 
               website = :website, 
+              phone = :phone, 
               primary_color = :primary_color, 
               secondary_color = :secondary_color";
+
+if ($aliasesProvided) {
+    $query .= ", aliases = :aliases";
+}
 
 if ($newLogoPath !== null) {
     $query .= ", logo_path = :logo_path";
@@ -177,8 +208,12 @@ $stmt->bindParam(':name', $name);
 $stmt->bindParam(':tagline', $tagline);
 $stmt->bindParam(':location', $location);
 $stmt->bindParam(':website', $website);
+$stmt->bindValue(':phone', $phone !== '' ? $phone : null, PDO::PARAM_STR);
 $stmt->bindParam(':primary_color', $primary_color);
 $stmt->bindParam(':secondary_color', $secondary_color);
+if ($aliasesProvided) {
+    $stmt->bindValue(':aliases', $aliasesJson, PDO::PARAM_STR);
+}
 if ($newLogoPath !== null) {
     $stmt->bindParam(':logo_path', $newLogoPath);
 }
@@ -189,6 +224,23 @@ $stmt->bindParam(':community_id', $community_id, PDO::PARAM_STR);
 
 // Execute the query and return the updated university data
 if ($stmt->execute()) {
+    // Audit logging must never break a successful update response.
+    try {
+        $auditId = generateUniqueId($db, 'audit_logs');
+        $auditAction = sprintf('community_settings_updated:%s', $community_id);
+        $auditStmt = $db->prepare("
+            INSERT INTO audit_logs (id, user_id, action, timestamp)
+            VALUES (:id, :uid, :action, NOW())
+        ");
+        $auditStmt->execute([
+            ':id' => $auditId,
+            ':uid' => $sessionUserId,
+            ':action' => $auditAction,
+        ]);
+    } catch (Throwable $auditError) {
+        error_log('Audit log insert failed in update_university.php: ' . $auditError->getMessage());
+    }
+
     // Fetch the updated record
     $selectStmt = $db->prepare("SELECT * FROM communities WHERE id = :community_id");
     $selectStmt->execute([':community_id' => $community_id]);

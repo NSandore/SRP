@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { isSuperAdmin } from '../constants/roles';
 
 type ManagedItem = {
   id: string;
@@ -37,7 +38,7 @@ const datePrefix = (type?: string) => {
 };
 
 export default function RightRail({ userData }: RightRailProps) {
-  const isSuperAdmin = Number(userData?.role_id) === 1;
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const adminCommunityIds = useMemo(() => {
     if (!Array.isArray(userData?.admin_community_ids)) return [];
     return userData.admin_community_ids.map((id: any) => String(id));
@@ -176,14 +177,14 @@ export default function RightRail({ userData }: RightRailProps) {
   const isVisible = (item: ManagedItem) => {
     if (item.scope === 'global') return true;
     if (!item.communityId) return false;
-    if (isSuperAdmin) return true;
+    if (isSuperAdminUser) return true;
     if (adminCommunityIds.includes(String(item.communityId))) return true;
     return followsCommunity(item.communityId);
   };
 
   const visibleItems = useMemo(
     () => items.filter((i) => isVisible(i)),
-    [items, adminCommunityIds, followed, isSuperAdmin]
+    [items, adminCommunityIds, followed, isSuperAdminUser]
   );
 
   const sortedEvents = useMemo(() => {

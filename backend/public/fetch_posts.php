@@ -31,10 +31,14 @@ try {
             p.verified,
             p.verified_by,
             p.verified_at,
+            p.updated_by,
             v.vote_type AS user_vote,
             u.first_name,
             u.last_name,
             u.avatar_path,
+            ub.first_name AS updated_by_first_name,
+            ub.last_name AS updated_by_last_name,
+            ub.avatar_path AS updated_by_avatar_path,
             CASE 
               WHEN c.user_id1 IS NOT NULL THEN 1 
               ELSE 0 
@@ -44,6 +48,7 @@ try {
                ON p.post_id = v.post_id
               AND v.user_id = :user_id
         LEFT JOIN users u ON u.user_id = p.user_id
+        LEFT JOIN users ub ON ub.user_id = p.updated_by
         LEFT JOIN connections c 
                ON c.status = 'accepted'
               AND (
@@ -63,6 +68,7 @@ try {
     // Normalize avatar paths
     foreach ($posts as &$p) {
         $p['avatar_path'] = appendAvatarPath($p['avatar_path'] ?? null);
+        $p['updated_by_avatar_path'] = appendAvatarPath($p['updated_by_avatar_path'] ?? null);
     }
 
     echo json_encode($posts);

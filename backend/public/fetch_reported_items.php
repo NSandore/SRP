@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../reporting_utils.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 header('Content-Type: application/json');
 
@@ -19,22 +21,20 @@ try {
     $db = getDB();
     ensureReportsTable($db);
 
-    $roleStmt = $db->prepare("
-        SELECT CASE WHEN r.role_name = 'super_admin' OR :rid = 1 THEN 1 ELSE 0 END AS is_super
-        FROM roles r
-        WHERE r.role_id = :rid
-        LIMIT 1
-    ");
-    $roleStmt->execute([':rid' => $roleId]);
-    $isSuperAdmin = (bool)$roleStmt->fetchColumn() || $roleId === 1;
+    $isSuperAdmin = isSuperAdmin($roleId);
 
-    // Determine accessible communities
+    // Determine accessible communities by moderation scope.
     $accessibleCommunities = [];
     if ($isSuperAdmin) {
         $communityStmt = $db->query('SELECT id FROM communities');
         $accessibleCommunities = $communityStmt->fetchAll(PDO::FETCH_COLUMN);
     } else {
-        $ambStmt = $db->prepare('SELECT community_id FROM ambassadors WHERE user_id = :uid');
+        $ambStmt = $db->prepare("
+            SELECT community_id
+            FROM ambassadors
+            WHERE user_id = :uid
+              AND community_role IN ('admin', 'moderator')
+        ");
         $ambStmt->execute([':uid' => $userId]);
         $accessibleCommunities = $ambStmt->fetchAll(PDO::FETCH_COLUMN);
     }

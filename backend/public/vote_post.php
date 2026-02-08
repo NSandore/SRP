@@ -104,9 +104,27 @@ try {
         $actorStmt->execute([':uid' => $user_id]);
         $actor = $actorStmt->fetch(PDO::FETCH_ASSOC);
         $actorName = $actor ? ($actor['first_name'] . ' ' . substr($actor['last_name'], 0, 1) . '.') : 'Someone';
+        $linkStmt = $db->prepare("
+            SELECT t.thread_id, t.forum_id
+            FROM posts p
+            JOIN threads t ON t.thread_id = p.thread_id
+            WHERE p.post_id = :post_id
+            LIMIT 1
+        ");
+        $linkStmt->execute([':post_id' => $post_id]);
+        $target = $linkStmt->fetch(PDO::FETCH_ASSOC);
+        $postPath = $target
+            ? "/info/forum/{$target['forum_id']}/thread/{$target['thread_id']}#post-{$post_id}"
+            : null;
+
         $message = $notifyType === 'upvote'
             ? "$actorName upvoted your post."
             : "$actorName downvoted your post.";
+        if ($postPath) {
+            $message = $notifyType === 'upvote'
+                ? "$actorName upvoted your <a href=\"{$postPath}\">post</a>."
+                : "$actorName downvoted your <a href=\"{$postPath}\">post</a>.";
+        }
         $notifStmt = $db->prepare("
             INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message)
             VALUES (:nid, :rid, :aid, :ntype, NULL, :msg)

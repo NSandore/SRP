@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
 
 header('Content-Type: application/json');
 
@@ -88,14 +89,14 @@ try {
     $user_id = generateUniqueId($db, 'users');
 
     // Insert user
-    // role_id = 2 as default (e.g. prospective student)
+    // role_id = ROLE_MEMBER (1) as default for new users
     $stmt = $db->prepare(
         "INSERT INTO users (user_id, role_id, first_name, last_name, email, phone, password_hash, education_status, is_over_18, is_public)
         VALUES (:user_id, :role_id, :first_name, :last_name, :email, :phone, :password_hash, :education_status, :is_over_18, :is_public)"
     );
     $stmt->execute([
         ':user_id' => $user_id,
-        ':role_id' => 2,
+        ':role_id' => ROLE_MEMBER,
         ':first_name' => $firstName,
         ':last_name' => $lastName,
         ':email' => $email,

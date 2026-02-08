@@ -16,6 +16,8 @@ require_once __DIR__ . '/../session_bootstrap.php';
 
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 
 header('Content-Type: application/json');
@@ -54,7 +56,7 @@ try {
         exit;
     }
 
-    if ($role_id_session !== 1 && !$is_ambassador && $postRow['user_id'] !== $user_id_session) {
+    if (!isSuperAdmin($role_id_session) && !$is_ambassador && $postRow['user_id'] !== $user_id_session) {
         http_response_code(403);
         echo json_encode(['error' => 'You do not have permission to edit this post.']);
         exit;
@@ -72,11 +74,12 @@ try {
 
     $update = $db->prepare("
         UPDATE posts
-        SET content = :content, updated_at = NOW()
+        SET content = :content, updated_at = NOW(), updated_by = :updated_by
         WHERE post_id = :post_id
     ");
     $update->execute([
         ':content' => $clean_html,
+        ':updated_by' => $user_id_session,
         ':post_id' => $post_id
     ]);
 

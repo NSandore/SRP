@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../reporting_utils.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 header('Content-Type: application/json');
 
@@ -73,15 +75,8 @@ try {
     $db = getDB();
     ensureReportsTable($db);
 
-    // Determine if super admin (role_name or legacy role_id=1)
-    $roleStmt = $db->prepare("
-        SELECT CASE WHEN r.role_name = 'super_admin' OR :rid = 1 THEN 1 ELSE 0 END AS is_super
-        FROM roles r
-        WHERE r.role_id = :rid
-        LIMIT 1
-    ");
-    $roleStmt->execute([':rid' => $roleId]);
-    $isSuperAdmin = (bool)$roleStmt->fetchColumn() || $roleId === 1;
+    // Determine if super admin
+    $isSuperAdmin = isSuperAdmin($roleId);
 
     $stmt = $db->prepare("SELECT * FROM reports WHERE report_id = :rid");
     $stmt->execute([':rid' => $reportId]);
@@ -93,18 +88,11 @@ try {
         exit;
     }
 
-    // Permission: super admins or ambassadors for this community
-    if (!$isSuperAdmin) {
-        $permStmt = $db->prepare("SELECT 1 FROM ambassadors WHERE user_id = :uid AND community_id = :cid");
-        $permStmt->execute([
-            ':uid' => $userId,
-            ':cid' => $report['community_id'],
-        ]);
-        if (!$permStmt->fetchColumn()) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'You are not allowed to resolve this report.']);
-            exit;
-        }
+    // Permission: super admins or community moderators/admins for this community.
+    if (!$isSuperAdmin && !canModerateCommunityContent($userId, $roleId, normalizeId($report['community_id'] ?? ''), $db)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'You are not allowed to resolve this report.']);
+        exit;
     }
 
     $notifyReporter = function(string $status) use ($db, $report, $userId) {
