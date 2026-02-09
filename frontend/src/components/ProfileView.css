@@ -47,15 +47,11 @@
 /* Hero Card (University style) */
 /* ===================== */
 .hero-card {
-  background: var(--light-bg);
+  background: var(--card-background);
   border-radius: 16px;
   overflow: hidden;
   position: relative;
   margin-bottom: 1.5rem;
-}
-
-[data-theme="dark"] .hero-card {
-  background: #2d2d2d;
 }
 
 .hero-banner img {
@@ -621,16 +617,11 @@
 
 .profile-detail-wrapper {
   position: relative;
-  background: var(--light-bg);
-  border: 1px solid var(--light-border);
+  background: var(--card-background);
+  border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 1.5rem;
   margin-top: 1.5rem;
-}
-
-[data-theme="dark"] .profile-detail-wrapper {
-  background: #2d2d2d;
-  border-color: #1f1f1f;
 }
 
 /* Sticky CTA */
