@@ -22,6 +22,8 @@ try {
             t.user_id,
             u.first_name,
             u.last_name,
+            u.verified AS author_verified,
+            ac.logo_path AS ambassador_logo_path,
             t.title,
             t.created_at,
             t.updated_at,
@@ -36,12 +38,18 @@ try {
             (SELECT vote_type FROM thread_votes WHERE thread_id = t.thread_id AND user_id = :user_id LIMIT 1) AS vote_type,
             COUNT(p.post_id) AS post_count
         FROM threads t
+        JOIN forums f ON t.forum_id = f.forum_id
         JOIN users u ON u.user_id = t.user_id
+        LEFT JOIN ambassadors a
+               ON a.user_id = t.user_id
+              AND a.community_id = f.community_id
+        LEFT JOIN communities ac
+               ON ac.id = a.community_id
         LEFT JOIN users ub ON ub.user_id = t.updated_by
         LEFT JOIN posts p ON t.thread_id = p.thread_id
         WHERE t.forum_id = :forum_id
           AND t.is_hidden = 0
-        GROUP BY t.thread_id, t.forum_id, t.user_id, u.first_name, u.last_name, t.title, t.created_at, t.updated_at, t.updated_by, ub.first_name, ub.last_name, ub.avatar_path
+        GROUP BY t.thread_id, t.forum_id, t.user_id, u.first_name, u.last_name, u.verified, ac.logo_path, t.title, t.created_at, t.updated_at, t.updated_by, ub.first_name, ub.last_name, ub.avatar_path
         ORDER BY t.created_at DESC
     ");
     $stmt->execute([

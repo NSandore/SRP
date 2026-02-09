@@ -3,10 +3,10 @@ require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
-$targetUserId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
-$viewerId = isset($_GET['viewer_id']) ? (int) $_GET['viewer_id'] : 0;
+$targetUserId = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : '';
+$viewerId = isset($_GET['viewer_id']) ? normalizeId($_GET['viewer_id']) : '';
 
-if ($targetUserId <= 0) {
+if ($targetUserId === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'user_id is required']);
     exit;

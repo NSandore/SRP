@@ -46,6 +46,15 @@ function isAdminOrSuperAdmin($role_id) {
 }
 
 /**
+ * Check whether a user has a verified email.
+ */
+function hasVerifiedEmail($user_id, $db): bool {
+    $stmt = $db->prepare("SELECT is_verified FROM users WHERE user_id = :uid LIMIT 1");
+    $stmt->execute([':uid' => $user_id]);
+    return (int)$stmt->fetchColumn() === 1;
+}
+
+/**
  * Normalize ambassador community role values.
  * Accepts legacy values to avoid breaking existing rows.
  *
@@ -86,6 +95,10 @@ function getCommunityRole($user_id, $community_id, $db): string {
  * @return bool True if user can manage forums
  */
 function canManageForums($user_id, $role_id, $community_id, $db) {
+    if (!hasVerifiedEmail($user_id, $db)) {
+        return false;
+    }
+
     // Super admins can manage all forums
     if (isSuperAdmin($role_id)) {
         return true;
@@ -143,6 +156,7 @@ function isAmbassador($user_id, $community_id, $db) {
  * Admin-only community settings permissions.
  */
 function canEditCommunitySettings($user_id, $role_id, $community_id, $db) {
+    if (!hasVerifiedEmail($user_id, $db)) return false;
     if (isSuperAdmin($role_id)) return true;
     return getCommunityRole($user_id, $community_id, $db) === 'admin';
 }
@@ -151,6 +165,7 @@ function canEditCommunitySettings($user_id, $role_id, $community_id, $db) {
  * Admin-only ambassador management permissions.
  */
 function canManageAmbassadors($user_id, $role_id, $community_id, $db) {
+    if (!hasVerifiedEmail($user_id, $db)) return false;
     if (isSuperAdmin($role_id)) return true;
     return getCommunityRole($user_id, $community_id, $db) === 'admin';
 }

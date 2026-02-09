@@ -36,6 +36,8 @@ try {
             u.first_name,
             u.last_name,
             u.avatar_path,
+            u.verified AS author_verified,
+            ac.logo_path AS ambassador_logo_path,
             ub.first_name AS updated_by_first_name,
             ub.last_name AS updated_by_last_name,
             ub.avatar_path AS updated_by_avatar_path,
@@ -44,10 +46,17 @@ try {
               ELSE 0 
             END AS is_connection
         FROM posts p
+        JOIN threads t ON t.thread_id = p.thread_id
+        JOIN forums f ON f.forum_id = t.forum_id
         LEFT JOIN post_votes v
                ON p.post_id = v.post_id
               AND v.user_id = :user_id
         LEFT JOIN users u ON u.user_id = p.user_id
+        LEFT JOIN ambassadors a
+               ON a.user_id = p.user_id
+              AND a.community_id = f.community_id
+        LEFT JOIN communities ac
+               ON ac.id = a.community_id
         LEFT JOIN users ub ON ub.user_id = p.updated_by
         LEFT JOIN connections c 
                ON c.status = 'accepted'

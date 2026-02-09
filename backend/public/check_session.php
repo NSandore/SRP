@@ -116,6 +116,18 @@ if (isset($_SESSION['user_id'])) {
         $ambStmt->execute([':uid' => $userId]);
         $ambassadorCommunities = $ambStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $_SESSION['is_ambassador'] = count($ambassadorCommunities) > 0 ? 1 : 0;
+
+        $userMetaStmt = $db->prepare("
+            SELECT is_verified, education_status, recent_university_id
+            FROM users
+            WHERE user_id = :uid
+            LIMIT 1
+        ");
+        $userMetaStmt->execute([':uid' => $userId]);
+        $userMeta = $userMetaStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $_SESSION['is_verified'] = (int)($userMeta['is_verified'] ?? 0);
+        $_SESSION['education_status'] = $userMeta['education_status'] ?? ($_SESSION['education_status'] ?? 'Prospect');
+        $_SESSION['recent_university_id'] = $userMeta['recent_university_id'] ?? ($_SESSION['recent_university_id'] ?? null);
     } catch (PDOException $e) {
         error_log('Unable to update presence: ' . $e->getMessage());
     }
@@ -130,6 +142,9 @@ if (isset($_SESSION['user_id'])) {
             "role_id" => $_SESSION['role_id'],
             "avatar_path" => appendAvatarPath($_SESSION['avatar_path'] ?? null),
             "is_ambassador" => $_SESSION['is_ambassador'],
+            "is_verified" => (int)($_SESSION['is_verified'] ?? 0),
+            "education_status" => $_SESSION['education_status'] ?? 'Prospect',
+            "recent_university_id" => $_SESSION['recent_university_id'] ?? null,
             "ambassador_communities" => $ambassadorCommunities,
             "login_count" => $_SESSION['login_count'],
             "is_public" => $_SESSION['is_public'],

@@ -16,14 +16,13 @@ $community_id = isset($data['community_id']) ? normalizeId($data['community_id']
 $name = trim($data['name'] ?? '');
 $description = trim($data['description'] ?? '');
 $tags = isset($data['tags']) && is_array($data['tags']) ? $data['tags'] : [];
-$creatorUserId = normalizeId($_SESSION['user_id']);
-
-// **Validate User Role** - Only super admins can create forums
-if (!isset($_SESSION['user_id']) || !isSuperAdmin($_SESSION['role_id'])) {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
     http_response_code(403); // Forbidden
-    echo json_encode(['error' => 'You do not have permission to create forums.']);
+    echo json_encode(['error' => 'Not authenticated.']);
     exit;
 }
+$creatorUserId = normalizeId($_SESSION['user_id']);
+$roleId = (int)$_SESSION['role_id'];
 
 // **Validate Input**
 if (empty($name)) {
@@ -35,8 +34,19 @@ if (empty($name)) {
 try {
     $db = getDB();
 
+    if (!hasVerifiedEmail($creatorUserId, $db)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Verify your email to manage community configuration.']);
+        exit;
+    }
+
     // If community_id not provided, default to the earliest community
     if (empty($community_id)) {
+        if (!isSuperAdmin($roleId)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Community selection is required.']);
+            exit;
+        }
         $defaultCommunity = $db->query("SELECT id FROM communities ORDER BY id ASC LIMIT 1")->fetchColumn();
         if (!$defaultCommunity) {
             http_response_code(400);
@@ -44,6 +54,12 @@ try {
             exit;
         }
         $community_id = $defaultCommunity;
+    }
+
+    if (!canManageForums($creatorUserId, $roleId, $community_id, $db)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'You do not have permission to create forums in this community.']);
+        exit;
     }
 
     // Ensure community exists

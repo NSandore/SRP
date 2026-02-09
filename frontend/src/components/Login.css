@@ -8,6 +8,60 @@
   padding: 2rem 1rem;
 }
 
+.auth-pending {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: center;
+  align-items: center;
+}
+
+.auth-hourglass {
+  width: 42px;
+  height: 64px;
+  border: 2px solid #0f3d66;
+  border-radius: 20px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.auth-hourglass::before,
+.auth-hourglass::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0f3d66;
+  animation: hourglass-flow 2.2s ease-in-out infinite;
+}
+
+.auth-hourglass::before {
+  top: 8px;
+}
+
+.auth-hourglass::after {
+  bottom: 8px;
+  animation-delay: 1.1s;
+}
+
+@keyframes hourglass-flow {
+  0% {
+    transform: translateX(-50%) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateX(-50%) scale(0.2);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 0.9;
+  }
+}
+
 .auth-welcome--modal {
   min-height: auto;
   padding: 0;
@@ -41,6 +95,7 @@
   position: relative;
   z-index: 1;
   width: min(1120px, 100%);
+  max-height: calc(100vh - 4rem);
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
   border-radius: 32px;
@@ -136,6 +191,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  overflow-y: auto;
 }
 
 .auth-panel h2 {
@@ -152,6 +208,13 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.auth-search-results {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 6px;
+  padding-top: 10px;
 }
 
 .auth-form label {
@@ -264,6 +327,7 @@
 @media (max-width: 1024px) {
   .auth-content {
     grid-template-columns: 1fr;
+    max-height: calc(100vh - 4rem);
   }
 
   .auth-hero {
@@ -276,6 +340,9 @@
 }
 
 @media (max-width: 600px) {
+  .auth-content {
+    max-height: calc(100vh - 2rem);
+  }
   .auth-hero h1 {
     font-size: 2rem;
   }

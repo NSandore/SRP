@@ -23,6 +23,8 @@ try {
             u.first_name,
             u.last_name,
             u.avatar_path AS creator_avatar_path,
+            u.verified AS author_verified,
+            ac.logo_path AS ambassador_logo_path,
             t.title, 
             t.created_at, 
             t.updated_at,
@@ -39,6 +41,11 @@ try {
         JOIN users u ON u.user_id = t.user_id
         JOIN forums f ON t.forum_id = f.forum_id
         JOIN communities c ON f.community_id = c.id
+        LEFT JOIN ambassadors a
+               ON a.user_id = t.user_id
+              AND a.community_id = f.community_id
+        LEFT JOIN communities ac
+               ON ac.id = a.community_id
         LEFT JOIN users ub ON ub.user_id = t.updated_by
         WHERE t.thread_id = :thread_id
           AND t.is_hidden = 0

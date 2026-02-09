@@ -1,16 +1,17 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/onboarding.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
-// Check if the user is logged in and has the appropriate role_id
-// Super admin only
-if (!isset($_SESSION['role_id']) || !isSuperAdmin($_SESSION['role_id'])) {
-    echo json_encode(['error' => 'You do not have permission to create threads.']);
+if (!isset($_SESSION['role_id']) || !isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Not logged in.']);
     exit;
 }
 
@@ -33,6 +34,12 @@ if (empty($forum_id) || empty($user_id) || empty($title) || empty($firstPostCont
     exit;
 }
 
+if ($user_id !== normalizeId($_SESSION['user_id'])) {
+    http_response_code(403);
+    echo json_encode(['error' => 'You cannot create a thread as another user.']);
+    exit;
+}
+
 // Sanitize the firstPostContent to allow only specific HTML tags
 // You can adjust the allowed tags based on your requirements
 $allowed_tags = '<p><a><b><strong><i><em><u><ul><ol><li><br><img><h1><h2><h3><h4><h5><h6>';
@@ -43,6 +50,33 @@ $sanitized_content = strip_tags($firstPostContent, $allowed_tags);
 
 try {
     $db = getDB();
+
+    $forumStmt = $db->prepare("SELECT community_id FROM forums WHERE forum_id = :fid LIMIT 1");
+    $forumStmt->execute([':fid' => $forum_id]);
+    $forum = $forumStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$forum) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Forum not found.']);
+        exit;
+    }
+    $communityId = normalizeId($forum['community_id'] ?? '');
+
+    if (!canManageForums($user_id, (int)$_SESSION['role_id'], $communityId, $db)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'You do not have permission to create threads in this forum.']);
+        exit;
+    }
+
+    $postingWindow = srp_get_posting_window($db, $user_id);
+    if (!$postingWindow['can_post']) {
+        http_response_code(403);
+        echo json_encode([
+            'error' => 'Unverified users can create up to 1 post per day. Verify your email to remove this limit.',
+            'requires_verification_prompt' => true,
+            'posting' => $postingWindow,
+        ]);
+        exit;
+    }
     
     // Start a transaction to ensure both inserts succeed or fail together
     $db->beginTransaction();

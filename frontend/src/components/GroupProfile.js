@@ -7,6 +7,7 @@ import './GroupProfile.css';
 import ModalOverlay from './ModalOverlay';
 import ReportModal from './ReportModal';
 import { buildAvatarSrc } from '../utils/avatar';
+import buildUploadSrc from '../utils/uploads';
 import { isSuperAdmin } from '../constants/roles';
 
 function GroupProfile({ userData, onRequireAuth }) {
@@ -53,7 +54,6 @@ function GroupProfile({ userData, onRequireAuth }) {
   const [showAmbassadorOverlay, setShowAmbassadorOverlay] = useState(false);
   const [loadingAmbassadors, setLoadingAmbassadors] = useState(false);
   const [errorAmbassadors, setErrorAmbassadors] = useState(null);
-  const [ambassadorsLoaded, setAmbassadorsLoaded] = useState(false);
   const [menuOpenFor, setMenuOpenFor] = useState(null);
   const [subcommunities, setSubcommunities] = useState([]);
   const [loadingSubcommunities, setLoadingSubcommunities] = useState(false);
@@ -214,7 +214,6 @@ function GroupProfile({ userData, onRequireAuth }) {
   }, [id, userData?.user_id]);
 
   const fetchAmbassadors = async (withSpinner = false) => {
-    setAmbassadorsLoaded(false);
     if (withSpinner) {
       setLoadingAmbassadors(true);
       setErrorAmbassadors(null);
@@ -234,7 +233,6 @@ function GroupProfile({ userData, onRequireAuth }) {
       if (withSpinner) {
         setLoadingAmbassadors(false);
       }
-      setAmbassadorsLoaded(true);
     }
   };
 
@@ -246,7 +244,6 @@ function GroupProfile({ userData, onRequireAuth }) {
   const isAmbassador =
     isLoggedIn &&
     ambassadors.some((a) => String(a.user_id || a.id) === String(userData.user_id));
-  const canApplyForAmbassador = isLoggedIn && ambassadorsLoaded && !isAmbassador;
 
   const getInitials = (firstName = '', lastName = '') => {
     const first = firstName.trim().charAt(0);
@@ -752,7 +749,10 @@ function GroupProfile({ userData, onRequireAuth }) {
         {/* HERO CARD */}
         <div className="hero-card community-hero">
           <div className="hero-banner">
-            <img src={group.banner_path || '/uploads/banners/DefaultBanner.jpeg'} alt="Group Banner" />
+            <img
+              src={buildUploadSrc(group.banner_path || '/uploads/banners/DefaultBanner.jpeg')}
+              alt="Group Banner"
+            />
           </div>
           <div className="hero-content">
             <div className="hero-left">
@@ -1327,20 +1327,9 @@ function GroupProfile({ userData, onRequireAuth }) {
         <div>
           <h3>Ambassadors</h3>
           <p className="muted">
-            Ambassador status is earned by applying and verifying school affiliation. Existing admins can still manage roles.
+            Group ambassadors are assigned directly by group admins after manual review of ownership and community alignment.
           </p>
         </div>
-        {canApplyForAmbassador && (
-          <button
-            type="button"
-            className="pill-button"
-            onClick={() => {
-              alert('Ambassador applications will guide you through school verification. This flow is coming soon.');
-            }}
-          >
-            Apply to be an Ambassador
-          </button>
-        )}
       </div>
 
           {loadingAmbassadors ? (

@@ -99,7 +99,9 @@ function getIdConfig(): array {
         'forum_tags' => ['prefix' => 'ft', 'column' => 'id'],
         'user_interests' => ['prefix' => 'ui', 'column' => 'id'],
         'reports' => ['prefix' => 'rp', 'column' => 'report_id'],
-        'announcements' => ['prefix' => 'an', 'column' => 'announcement_id']
+        'announcements' => ['prefix' => 'an', 'column' => 'announcement_id'],
+        'user_verification_requests' => ['prefix' => 'vr', 'column' => 'request_id'],
+        'ambassador_applications' => ['prefix' => 'aa', 'column' => 'application_id']
     ];
 }
 

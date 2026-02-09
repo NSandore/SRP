@@ -33,6 +33,9 @@
   border-bottom-left-radius: 18px;
   min-height: 0;
 }
+[data-theme="dark"] .conversations-panel {
+  background: #0f172a;
+}
 
 .panel-header h2 {
   margin: 0;

@@ -6,6 +6,7 @@ import DOMPurify from 'dompurify';
 import { FaCheckCircle } from 'react-icons/fa';
 import ThreadCard from './ThreadCard';
 import { buildAvatarSrc } from '../utils/avatar';
+import buildUploadSrc from '../utils/uploads';
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return '';
@@ -69,6 +70,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   // 5) Verification-related states
   const [verified, setVerified] = useState(false);
   const [verifiedCommunityName, setVerifiedCommunityName] = useState('');
+  const [ambassadorLogo, setAmbassadorLogo] = useState('');
 
   // Follower/Following counts
   const [followerCount, setFollowerCount] = useState(0);
@@ -130,6 +132,31 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       setVerified(profile.verified === '1' || profile.verified === 1);
     }
   }, [profile]);
+
+  const primaryAmbassadorCommunityId =
+    Array.isArray(userData?.ambassador_communities) && userData.ambassador_communities.length > 0
+      ? String(userData.ambassador_communities[0]?.community_id ?? userData.ambassador_communities[0]?.id ?? '')
+      : '';
+
+  useEffect(() => {
+    const loadAmbassadorLogo = async () => {
+      if (!primaryAmbassadorCommunityId) {
+        setAmbassadorLogo('');
+        return;
+      }
+      try {
+        const res = await axios.get(`/api/fetch_community.php?community_id=${primaryAmbassadorCommunityId}`);
+        if (res.data?.success && res.data?.community?.logo_path) {
+          setAmbassadorLogo(buildUploadSrc(res.data.community.logo_path));
+        } else {
+          setAmbassadorLogo('');
+        }
+      } catch (error) {
+        setAmbassadorLogo('');
+      }
+    };
+    loadAmbassadorLogo();
+  }, [primaryAmbassadorCommunityId]);
 
   // --------------------------------------------------------------------------
   // Fetch verifying community name (if verified)
@@ -419,7 +446,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
         <>
           <div className="hero-card profile-hero-card">
             <div className="hero-banner">
-              <img src={bannerPath} alt="Profile Banner" />
+              <img src={buildUploadSrc(bannerPath)} alt="Profile Banner" />
             </div>
             <div className="hero-content">
               <div className="hero-left">
@@ -466,6 +493,19 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                             className="verified-badge"
                             style={{ pointerEvents: 'auto' }}
                             title={`Verified from ${verifiedCommunityName}`}
+                          />
+                        )}
+                        {!verified && (
+                          <span className="status-pill unverified" title="Not verified">
+                            Unverified
+                          </span>
+                        )}
+                        {ambassadorLogo && (
+                          <img
+                            src={ambassadorLogo}
+                            alt="Ambassador badge"
+                            className="ambassador-inline-logo"
+                            title="Ambassador"
                           />
                         )}
                       </h1>

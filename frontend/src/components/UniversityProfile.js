@@ -7,6 +7,7 @@ import "./UniversityProfile.css";
 import ModalOverlay from "./ModalOverlay";
 import ReportModal from "./ReportModal";
 import { buildAvatarSrc } from "../utils/avatar";
+import buildUploadSrc from "../utils/uploads";
 import { isSuperAdmin } from "../constants/roles";
 
 function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNotificationsRefresh }) {
@@ -81,6 +82,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   const [openPinnedMenuId, setOpenPinnedMenuId] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [ambassadorEligibility, setAmbassadorEligibility] = useState({ can_apply: false, reason: null });
+  const [isApplyingAmbassador, setIsApplyingAmbassador] = useState(false);
   const hasSubcommunities = subcommunities.length > 0;
 
   const canViewAmbassadors = Boolean(userData);
@@ -93,7 +96,11 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   const isCommunityAdmin = viewerRole === 'admin';
   const canEditCommunity = Boolean(userData) && (isSuperAdminUser || isCommunityAdmin);
   const canRemoveAmbassador = Boolean(userData) && (isSuperAdminUser || isCommunityAdmin);
-  const canApplyForAmbassador = Boolean(userData) && ambassadorsLoaded && !isAmbassador;
+  const canApplyForAmbassador =
+    Boolean(userData) &&
+    ambassadorsLoaded &&
+    !isAmbassador &&
+    Boolean(ambassadorEligibility?.can_apply);
   const canPinToOverview = Array.isArray(userData?.ambassador_communities)
     && userData.ambassador_communities.some((c) => String(c?.community_id ?? c?.id ?? '') === String(id));
   const canUnpinFromCommunity = Array.isArray(userData?.ambassador_communities)
@@ -275,6 +282,40 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   useEffect(() => {
     fetchAmbassadors();
   }, [id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEligibility = async () => {
+      if (!userData?.user_id) {
+        if (isMounted) {
+          setAmbassadorEligibility({ can_apply: false, reason: 'login_required' });
+        }
+        return;
+      }
+      try {
+        const res = await axios.get('/api/fetch_ambassador_eligibility.php', {
+          params: { community_id: id },
+          withCredentials: true,
+        });
+        if (!isMounted) return;
+        if (res.data?.success) {
+          setAmbassadorEligibility({
+            can_apply: Boolean(res.data.can_apply),
+            reason: res.data.reason || null,
+          });
+        } else {
+          setAmbassadorEligibility({ can_apply: false, reason: 'unknown' });
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setAmbassadorEligibility({ can_apply: false, reason: 'unknown' });
+      }
+    };
+    fetchEligibility();
+    return () => {
+      isMounted = false;
+    };
+  }, [id, userData?.user_id, ambassadorsLoaded, isAmbassador]);
 
   // --------------------------------------------------------------------------
   // Fetch connections (who the current user follows and who follows them)
@@ -851,6 +892,44 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     }
   };
 
+  const handleApplyAmbassador = async () => {
+    if (!canApplyForAmbassador || !userData?.user_id) return;
+    const motivationMessage = window.prompt(
+      'Why do you want to be an ambassador for this university?'
+    );
+    if (motivationMessage === null) return;
+    if (!motivationMessage.trim()) {
+      alert('Please include a short motivation message.');
+      return;
+    }
+
+    setIsApplyingAmbassador(true);
+    try {
+      const res = await axios.post(
+        '/api/apply_ambassador.php',
+        {
+          community_id: id,
+          motivation_message: motivationMessage.trim(),
+          connection_confirmed: true,
+        },
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        setStatusMessage(
+          res.data.message ||
+          'Application sent. Review typically takes 12-48 hours. You can keep using the platform in the meantime.'
+        );
+        setAmbassadorEligibility({ can_apply: false, reason: 'pending_application' });
+      } else {
+        alert(res.data?.error || 'Unable to submit ambassador application.');
+      }
+    } catch (err) {
+      alert(err?.response?.data?.error || 'Unable to submit ambassador application.');
+    } finally {
+      setIsApplyingAmbassador(false);
+    }
+  };
+
   const handlePromoteAdmin = async (email, userIdOverride = null) => {
     try {
       const response = await axios.post(
@@ -904,7 +983,10 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
         {/* HERO CARD */}
         <div className="hero-card community-hero">
           <div className="hero-banner">
-            <img src={university.banner_path || "/uploads/banners/DefaultBanner.jpeg"} alt="University Banner" />
+            <img
+              src={buildUploadSrc(university.banner_path || "/uploads/banners/DefaultBanner.jpeg")}
+              alt="University Banner"
+            />
           </div>
           <div className="hero-content">
             <div className="hero-left">
@@ -1686,11 +1768,10 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                 <button
                   type="button"
                   className="pill-button"
-                  onClick={() =>
-                    alert('Ambassador applications will guide you through school verification. This flow is coming soon.')
-                  }
+                  onClick={handleApplyAmbassador}
+                  disabled={isApplyingAmbassador}
                 >
-                  Apply to be an Ambassador
+                  {isApplyingAmbassador ? 'Submitting…' : 'Apply to be an Ambassador for this University'}
                 </button>
               )}
             </div>

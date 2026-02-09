@@ -271,6 +271,10 @@ function NavBar({
         return actorId ? `/user/${actorId}` : '/messages';
       case 'follow':
         return actorId ? `/user/${actorId}` : '';
+      case 'verification_request':
+        return notif?.reference_id ? `/admin/verifications?request_id=${notif.reference_id}` : '/admin/verifications';
+      case 'verification_result':
+        return '/profile';
       default:
         return '';
     }

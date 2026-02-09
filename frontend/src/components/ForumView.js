@@ -278,7 +278,7 @@ function ForumView({ userData, onRequireAuth }) {
       console.error('Error creating thread:', err);
       setNotification({
         type: 'error',
-        message: 'An error occurred while creating the thread.',
+        message: err?.response?.data?.error || 'An error occurred while creating the thread.',
       });
     } finally {
       setIsCreatingThread(false);

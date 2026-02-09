@@ -513,7 +513,7 @@ CREATE TABLE `notifications` (
   `notification_id` varchar(32) NOT NULL,
   `recipient_user_id` varchar(32) NOT NULL,
   `actor_user_id` varchar(32) DEFAULT NULL,
-  `notification_type` enum('follow','upvote','downvote','reply','message','connection','announcement','poll','survey','event') DEFAULT NULL,
+  `notification_type` enum('follow','upvote','downvote','reply','message','connection','announcement','poll','survey','event','verify','verification_request','verification_result') DEFAULT NULL,
   `reference_id` int DEFAULT NULL,
   `message` text,
   `is_read` tinyint(1) DEFAULT '0',

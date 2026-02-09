@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -13,12 +15,23 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
-$userId = isset($input['user_id']) ? normalizeId($input['user_id']) : null;
-$email = isset($input['email']) ? trim($input['email']) : null;
+if (!is_array($input)) {
+    $input = [];
+}
 
-if (!$userId) {
+$sessionUserId = normalizeId($_SESSION['user_id'] ?? '');
+$userId = normalizeId($input['user_id'] ?? $sessionUserId);
+$email = isset($input['email']) ? trim((string)$input['email']) : null;
+
+if ($userId === '') {
     http_response_code(400);
     echo json_encode(['error' => 'user_id is required']);
+    exit;
+}
+
+if ($sessionUserId !== '' && $sessionUserId !== $userId) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
 
@@ -52,33 +65,32 @@ try {
     $upStmt->execute([':code' => $verificationCode, ':uid' => $userId]);
 
     $mailgunApiKey = getenv('MAILGUN_API_KEY');
+    $emailSent = false;
 
-    if (!$mailgunApiKey) {
-        error_log('MAILGUN_API_KEY not set');
-        http_response_code(500);
-        echo 'Mail service is not configured. Please try again later.';
-        exit;
-    }	
-    $mailgunDomain = getenv('MAILGUN_DOMAIN') ?: 'sandbox4223236740f0414e949fd59ca1a63257.mailgun.org';
-    $fromEmail = "StudentSphere <postmaster@{$mailgunDomain}>";
+    if ($mailgunApiKey) {
+        $mailgunDomain = getenv('MAILGUN_DOMAIN') ?: 'sandbox4223236740f0414e949fd59ca1a63257.mailgun.org';
+        $fromEmail = "StudentSphere <postmaster@{$mailgunDomain}>";
 
-    try {
-        $mg = Mailgun::create($mailgunApiKey);
-        $mg->messages()->send($mailgunDomain, [
-            'from' => $fromEmail,
-            'to' => "{$user['first_name']} {$user['last_name']} <{$user['email']}>",
-            'subject' => 'Your new StudentSphere verification code',
-            'text' => "Here is your new verification code: {$verificationCode}. Enter this code to verify your email.",
-            'html' => "<p>Here is your new verification code: <strong>{$verificationCode}</strong>.</p><p>Enter this code to verify your email.</p>"
-        ]);
-    } catch (\Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['error' => 'Could not send verification email. Please try again later.']);
-        exit;
+        try {
+            $mg = Mailgun::create($mailgunApiKey);
+            $mg->messages()->send($mailgunDomain, [
+                'from' => $fromEmail,
+                'to' => "{$user['first_name']} {$user['last_name']} <{$user['email']}>",
+                'subject' => 'Your new StudentSphere verification code',
+                'text' => "Here is your new verification code: {$verificationCode}. Enter this code to verify your email.",
+                'html' => "<p>Here is your new verification code: <strong>{$verificationCode}</strong>.</p><p>Enter this code to verify your email.</p>"
+            ]);
+            $emailSent = true;
+        } catch (\Throwable $e) {
+            $emailSent = false;
+        }
     }
 
     http_response_code(200);
-    echo json_encode(['message' => 'Verification email re-sent']);
+    echo json_encode([
+        'message' => $emailSent ? 'Verification email re-sent' : 'Verification code updated.',
+        'email_sent' => $emailSent,
+    ]);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);

@@ -47,18 +47,10 @@ try {
 
     $community_id = $forum['community_id'];
 
-    // Permission: super admins OR ambassadors for the community
-    if (!isSuperAdmin($role_id_session)) {
-        $ambStmt = $db->prepare("SELECT 1 FROM ambassadors WHERE user_id = :uid AND community_id = :cid");
-        $ambStmt->execute([
-            ':uid' => $user_id_session,
-            ':cid' => $community_id,
-        ]);
-        if (!$ambStmt->fetchColumn()) {
-            http_response_code(403);
-            echo json_encode(['error' => 'No permission to edit forums.']);
-            exit;
-        }
+    if (!canManageForums($user_id_session, $role_id_session, $community_id, $db)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Verify your email and use an admin account to edit forums.']);
+        exit;
     }
 
     // 4) Perform the update

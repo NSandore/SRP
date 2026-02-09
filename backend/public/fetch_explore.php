@@ -85,6 +85,8 @@ try {
             t.*,
             u.first_name,
             u.last_name,
+            u.verified AS author_verified,
+            ac.logo_path AS ambassador_logo_path,
             c.name AS community_name,
             c.community_type,
             c.id AS community_id,
@@ -94,6 +96,11 @@ try {
         INNER JOIN forums f ON t.forum_id = f.forum_id
         INNER JOIN communities c ON f.community_id = c.id
         INNER JOIN users u ON t.user_id = u.user_id
+        LEFT JOIN ambassadors a
+               ON a.user_id = t.user_id
+              AND a.community_id = c.id
+        LEFT JOIN communities ac
+               ON ac.id = a.community_id
         ORDER BY COALESCE(t.last_activity_at, t.created_at) DESC
         LIMIT :thread_limit
     ";

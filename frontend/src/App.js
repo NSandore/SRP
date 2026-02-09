@@ -33,7 +33,6 @@ import { BiInfoCircle } from 'react-icons/bi';
 import UserConnections from './components/UserConnections';
 import { RiMedalFill } from 'react-icons/ri';
 import SignUp from './components/SignUp';
-import InterestSelection from './components/InterestSelection';
 import Login from './components/Login';
 import ForumView from './components/ForumView';   // Forum details + threads
 import ThreadView from './components/ThreadView'; // Thread details
@@ -59,8 +58,9 @@ import ReportedItems from './components/ReportedItems';
 import EventManagement from './components/EventManagement';
 import DonationPage from './components/DonationPage';
 import { buildAvatarSrc } from './utils/avatar';
+import VerificationReview from './components/VerificationReview';
 
-const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events'];
+const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/admin/verifications'];
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -306,16 +306,13 @@ function App() {
     }
   };
 
-  // Onboarding steps
-  const handleNext = (formData) => {
-    setUserData(formData);
-    navigate('/interest-selection');
-  };
-
-  const handleInterestComplete = (tags) => {
-    setSelectedSchools(tags);
-    setUserInterests(Array.isArray(tags) ? tags : []);
-    navigate('/home');
+  const handleSignupAuthenticated = (user) => {
+    if (!user) return;
+    user.role_id = Number(user.role_id);
+    setUserData(user);
+    fetchNotifications(user.user_id);
+    fetchConversations(user.user_id);
+    refreshUserInterests(user.user_id);
   };
 
   // Login
@@ -515,19 +512,25 @@ function App() {
       {shouldShowOverlays && showWelcome && (
         <div className="welcome-overlay">
           <div className="welcome-message">
-            <h1>Welcome to StudentSphere!</h1>
-            <p>Start your journey by following ambassadors who can guide you.</p>
-            <button
-              className="get-started-button"
-              onClick={() => {
-                setShowWelcome(false);
-                setShowAmbassadorOverlay(true);
-                fetchAmbassadors();
-              }}
-            >
-              Get Started
-            </button>
-            <button onClick={() => setShowWelcome(false)}>Close</button>
+            <div className="welcome-kicker">Welcome to StudentSphere</div>
+            <h1>Find the people who have already walked your path.</h1>
+            <p>Start by following ambassadors who can guide you with real, on-campus advice.</p>
+            <div className="welcome-actions">
+              <button
+                className="get-started-button"
+                onClick={() => {
+                  setShowWelcome(false);
+                  setShowAmbassadorOverlay(true);
+                  fetchAmbassadors();
+                }}
+              >
+                Explore ambassadors
+              </button>
+              <button className="welcome-secondary" onClick={() => setShowWelcome(false)}>
+                Not now
+              </button>
+            </div>
+            <div className="welcome-footnote">You can open this any time from your campus page.</div>
           </div>
         </div>
       )}
@@ -541,21 +544,17 @@ function App() {
         >
           <div className="overlay-content">
             <div className="ambassador-overlay__header">
-              <div>
+              <div className="ambassador-overlay__titleblock">
                 <p className="ambassador-overlay__eyebrow">Community ambassadors</p>
                 <h2 id="ambassador-overlay-title">Ambassador List</h2>
                 <p className="ambassador-overlay__subtitle">
-                  Connect with students and counselors ready to help.
+                  Connect with ambassadors from the communities you follow and are part of.
                 </p>
+                <div className="ambassador-overlay__meta">
+                  <span className="ambassador-overlay__meta-item">Verified students</span>
+                  <span className="ambassador-overlay__meta-item">Real campus guidance</span>
+                </div>
               </div>
-              <button
-                type="button"
-                className="ambassador-overlay__close"
-                aria-label="Close ambassador list"
-                onClick={() => setShowAmbassadorOverlay(false)}
-              >
-                &times;
-              </button>
             </div>
 
             {loadingAmbassadors ? (
@@ -634,7 +633,7 @@ function App() {
       <Routes>
         <Route
           path="/signup"
-          element={<SignUp onNext={handleNext} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} />}
+          element={<SignUp onAuthenticated={handleSignupAuthenticated} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} />}
         />
         <Route
           path="/login"
@@ -642,7 +641,7 @@ function App() {
         />
         <Route
           path="/interest-selection"
-          element={<InterestSelection onComplete={handleInterestComplete} />}
+          element={<Navigate to="/signup" replace />}
         />
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route
@@ -844,6 +843,22 @@ function App() {
                   element={
                     userData ? (
                       <EventManagement userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/verifications"
+                  element={
+                    userData ? (
+                      <VerificationReview userData={userData} />
                     ) : (
                       <AuthOverlay
                         isOpen

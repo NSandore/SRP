@@ -39,9 +39,24 @@ try {
         $isConnected = $cstmt->fetchColumn() > 0;
     }
 
-    $query = "SELECT education_id, degree, field_of_study, institution, start_date, end_date, gpa, honors, activities_societies, achievements
-              FROM user_education
-              WHERE user_id = :user_id";
+    $query = "SELECT
+                ee.id AS education_id,
+                ee.degree,
+                ee.major AS field_of_study,
+                c.name AS institution,
+                ee.start_date,
+                CASE
+                    WHEN ee.still_attending = 1 OR ee.end_date = '9999-12-31' THEN NULL
+                    ELSE ee.end_date
+                END AS end_date,
+                NULL AS gpa,
+                NULL AS honors,
+                NULL AS activities_societies,
+                '[]' AS achievements
+              FROM educational_experience ee
+              JOIN communities c ON c.id = ee.community_id
+              WHERE ee.user_id = :user_id
+              ORDER BY ee.start_date DESC";
     $stmt = $db->prepare($query);
     $stmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
     $stmt->execute();

@@ -43,6 +43,7 @@ import TiptapLink from '@tiptap/extension-link';
 import DOMPurify from 'dompurify';
 import ReportModal from './ReportModal';
 import { buildAvatarSrc } from '../utils/avatar';
+import { buildUploadSrc } from '../utils/uploads';
 
 // Helper: relative time formatter
 const timeAgo = (dateStr) => {
@@ -744,6 +745,19 @@ function PostItem({
                   <RouterLink to={`/user/${post.user_id}`} style={{ color: 'var(--text-color)', textDecoration: 'none', fontWeight: 600 }}>
                     {getDisplayName(post, userData?.user_id)}
                   </RouterLink>
+                  <span className="author-badges">
+                    {Number(post.author_verified) === 1 && (
+                      <FaCheckCircle className="author-verified-icon" title="Verified" />
+                    )}
+                    {post.ambassador_logo_path && (
+                      <img
+                        src={buildUploadSrc(post.ambassador_logo_path)}
+                        alt="Ambassador badge"
+                        className="author-ambassador-logo"
+                        title="Ambassador"
+                      />
+                    )}
+                  </span>
                 </div>
                 <div className="meta-quiet" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   {post.school_name && <span>{post.school_name}</span>}
@@ -1225,7 +1239,10 @@ function ThreadView({ userData, onRequireAuth }) {
       }
     } catch (error) {
       console.error('Error creating reply:', error);
-      setNotification({ type: 'error', message: 'An error occurred while creating the reply.' });
+      setNotification({
+        type: 'error',
+        message: error?.response?.data?.error || 'An error occurred while creating the reply.',
+      });
     }
   };  
 
@@ -1499,6 +1516,19 @@ function ThreadView({ userData, onRequireAuth }) {
           <RouterLink to={`/user/${threadData.user_id}`} style={{ color: 'inherit', textDecoration: 'none', fontWeight: 600 }}>
             {threadData.first_name || 'User'} {threadData.last_name || ''}
           </RouterLink>
+          <span className="author-badges">
+            {Number(threadData?.author_verified) === 1 && (
+              <FaCheckCircle className="author-verified-icon" title="Verified" />
+            )}
+            {threadData?.ambassador_logo_path && (
+              <img
+                src={buildUploadSrc(threadData.ambassador_logo_path)}
+                alt="Ambassador badge"
+                className="author-ambassador-logo"
+                title="Ambassador"
+              />
+            )}
+          </span>
           <span>· {timeAgo(threadData.created_at)}</span>
         </div>
       )}

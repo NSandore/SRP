@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php'; // Adjust if needed
+require_once __DIR__ . '/../includes/onboarding.php';
 
 header('Content-Type: application/json');
 
@@ -33,16 +34,26 @@ if (empty($thread_id) || empty($user_id) || empty($content)) {
     exit;
 }
 
-// OPTIONAL: If user_id must match the session user, you can force it:
-// if ($user_id !== (int)$_SESSION['user_id']) {
-//     http_response_code(403);
-//     echo json_encode(['error' => 'You cannot create a post as another user.']);
-//     exit;
-// }
+if ($user_id !== normalizeId($_SESSION['user_id'])) {
+    http_response_code(403);
+    echo json_encode(['error' => 'You cannot create a post as another user.']);
+    exit;
+}
 
 try {
     // 4. Get the DB connection
     $db = getDB(); // Must match the same function you use in create_forum.php, etc.
+    $postingWindow = srp_get_posting_window($db, $user_id);
+    if (!$postingWindow['can_post']) {
+        http_response_code(403);
+        echo json_encode([
+            'error' => 'Unverified users can create up to 1 post per day. Verify your email to remove this limit.',
+            'requires_verification_prompt' => true,
+            'posting' => $postingWindow,
+        ]);
+        exit;
+    }
+
     $post_id = generateUniqueId($db, 'posts');
 
     // 5. Insert a new row into `posts`

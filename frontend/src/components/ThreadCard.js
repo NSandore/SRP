@@ -11,9 +11,11 @@ import {
   FaQuestionCircle,
   FaBookOpen,
   FaLightbulb,
+  FaCheckCircle,
 } from 'react-icons/fa';
 import IconBubble from './IconBubble';
 import { isSuperAdmin } from '../constants/roles';
+import { buildUploadSrc } from '../utils/uploads';
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return '';
@@ -243,6 +245,19 @@ export default function ThreadCard({
       <div className="meta-row">
         <div className="avatar-circle" aria-hidden="true">{initials}</div>
         <Link to={`/user/${thread.user_id}`} className="meta-author">{thread.first_name} {thread.last_name ? thread.last_name[0] + '.' : ''}</Link>
+        <span className="author-badges">
+          {Number(thread.author_verified) === 1 && (
+            <FaCheckCircle className="author-verified-icon" title="Verified" />
+          )}
+          {thread.ambassador_logo_path && (
+            <img
+              src={buildUploadSrc(thread.ambassador_logo_path)}
+              alt="Ambassador badge"
+              className="author-ambassador-logo"
+              title="Ambassador"
+            />
+          )}
+        </span>
         <span className="middot">•</span>
         {thread.community_name && (
           <Link to={`/${thread.community_type}/${thread.community_id}`} className="meta-community">{thread.community_name}</Link>

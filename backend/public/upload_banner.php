@@ -23,10 +23,25 @@ $user_id = normalizeId($_POST['user_id']);
 $uploadDir = __DIR__ . '/../../uploads/banners/';
 
 // Ensure the upload directory exists and is writable
-if (!is_dir($uploadDir) || !is_writable($uploadDir)) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Upload directory does not exist or is not writable.']);
-    exit;
+if (!is_dir($uploadDir)) {
+    if (!mkdir($uploadDir, 0775, true)) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Upload directory does not exist and could not be created.']);
+        exit;
+    }
+}
+if (!is_writable($uploadDir)) {
+    @chmod($uploadDir, 0775);
+    if (!is_writable($uploadDir)) {
+        $perms = substr(sprintf('%o', fileperms($uploadDir)), -4);
+        $owner = fileowner($uploadDir);
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => "Upload directory is not writable (perms {$perms}, owner {$owner})."
+        ]);
+        exit;
+    }
 }
 
 // Check for upload errors
@@ -38,7 +53,8 @@ if ($_FILES['banner']['error'] !== UPLOAD_ERR_OK) {
 
 // Validate file type
 $allowedMimeTypes = ['image/jpeg', 'image/png'];
-if (!in_array($_FILES['banner']['type'], $allowedMimeTypes)) {
+$bannerMimeType = mime_content_type($_FILES['banner']['tmp_name']);
+if (!in_array($bannerMimeType, $allowedMimeTypes)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid file type. Only JPEG and PNG allowed.']);
     exit;
@@ -51,8 +67,8 @@ $destination = $uploadDir . $filename;
 
 // Move the uploaded file
 if (move_uploaded_file($_FILES['banner']['tmp_name'], $destination)) {
-$storedName = $filename;
-$bannerPath = appendBannerPath($storedName);
+    $storedName = $filename;
+    $bannerPath = appendBannerPath($storedName);
 
     try {
         $db = getDB(); // Get the PDO connection

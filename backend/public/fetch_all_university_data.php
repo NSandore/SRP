@@ -7,6 +7,10 @@ $user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : null;
 $isGuest = $user_id === null;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$communityType = isset($_GET['community_type']) ? strtolower(trim((string)$_GET['community_type'])) : 'university';
+if (!in_array($communityType, ['university', 'group'], true)) {
+    $communityType = 'university';
+}
 $limit = 10; // Number of communities per page
 $offset = ($page - 1) * $limit;
 
@@ -38,9 +42,9 @@ try {
                 aud.*, 
                 0 AS is_followed
             FROM all_community_data aud
-            WHERE aud.community_type = 'university'
+            WHERE aud.community_type = :community_type
         ";
-        $params = [];
+        $params = [':community_type' => $communityType];
     } else {
         $query = "
             SELECT 
@@ -49,9 +53,9 @@ try {
             FROM all_community_data aud
             LEFT JOIN followed_communities fc 
                 ON aud.community_id = fc.community_id AND fc.user_id = :user_id
-            WHERE aud.community_type = 'university'
+            WHERE aud.community_type = :community_type
         ";
-        $params = [':user_id' => $user_id];
+        $params = [':user_id' => $user_id, ':community_type' => $communityType];
     }
 
     // Add search condition if a search term is provided
@@ -86,7 +90,7 @@ try {
     $countQuery = "
         SELECT COUNT(*) as total
         FROM all_community_data aud
-        WHERE aud.community_type = 'university'
+        WHERE aud.community_type = :community_type
     ";
     if ($search !== '') {
         $countQuery .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search";
@@ -95,6 +99,7 @@ try {
     }
 
     $countStmt = $db->prepare($countQuery);
+    $countStmt->bindValue(':community_type', $communityType, PDO::PARAM_STR);
     if ($search !== '') {
         $countStmt->bindValue(':search', '%' . $search . '%', PDO::PARAM_STR);
         $countStmt->bindValue(':search_exact', $search, PDO::PARAM_STR);

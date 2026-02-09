@@ -1,10 +1,12 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import './AppShell.css';
 import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
 import ContactUsButton from '../components/ContactUsButton';
 import NavBar from '../components/NavBar';
 import { useLocation } from 'react-router-dom';
+import axios from 'axios';
+import { isSuperAdmin } from '../constants/roles';
 
 type NavBarProps = any; // Narrow types later as needed
 
@@ -23,6 +25,7 @@ export default function AppShell({
 }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
   const location = useLocation();
   const pathname = location.pathname;
   const isWideLayout =
@@ -38,6 +41,30 @@ export default function AppShell({
   const effectiveLockedKeys = lockedNavKeys ?? ['saved', 'connections', 'profile'];
 
   const [announcementHeight, setAnnouncementHeight] = useState(0);
+
+  useEffect(() => {
+    let intervalId: number | null = null;
+    const loadPendingCount = async () => {
+      if (!isSuperAdmin(userData?.role_id)) {
+        setPendingVerificationCount(0);
+        return;
+      }
+      try {
+        const res = await axios.get('/api/fetch_verification_request_count.php', { withCredentials: true });
+        setPendingVerificationCount(Number(res.data?.pending_count || 0));
+      } catch (err) {
+        setPendingVerificationCount(0);
+      }
+    };
+
+    loadPendingCount();
+    if (isSuperAdmin(userData?.role_id)) {
+      intervalId = window.setInterval(loadPendingCount, 60000);
+    }
+    return () => {
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [userData?.role_id]);
 
   // Listen for announcement bar height changes from NavBar
   const handleAnnouncementHeight = useCallback((height: number) => {
@@ -69,6 +96,7 @@ export default function AppShell({
         <LeftSidebar
           userData={userData}
           lockedKeys={effectiveLockedKeys}
+          pendingVerificationCount={pendingVerificationCount}
           onNavigate={() => setDrawerOpen(false)}
         />
       </aside>
@@ -85,6 +113,7 @@ export default function AppShell({
               userData={userData}
               lockedKeys={effectiveLockedKeys}
               collapsed={sidebarCollapsed}
+              pendingVerificationCount={pendingVerificationCount}
               onToggle={() => setSidebarCollapsed((prev) => !prev)}
             />
           </div>

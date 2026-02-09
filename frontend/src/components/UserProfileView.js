@@ -9,6 +9,7 @@ import { FaCheckCircle, FaEllipsisV } from "react-icons/fa";
 import useOnClickOutside from "../hooks/useOnClickOutside";
 import ThreadCard from "./ThreadCard";
 import { buildAvatarSrc } from "../utils/avatar";
+import buildUploadSrc from "../utils/uploads";
 
 function UserProfileView({ userData, onFollowNotification, onNotificationsRefresh }) {
   const { user_id } = useParams();
@@ -483,12 +484,21 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
     setMessageRestriction(reason);
   };
 
+  const primaryAmbassadorCommunity =
+    Array.isArray(ambassadorCommunities) && ambassadorCommunities.length > 0
+      ? ambassadorCommunities[0]
+      : null;
+  const primaryAmbassadorLogo =
+    primaryAmbassadorCommunity && communityLogos[primaryAmbassadorCommunity]
+      ? buildUploadSrc(communityLogos[primaryAmbassadorCommunity])
+      : "";
+
   return (
     <div className="profile-view profile-container">
       <div className="hero-card profile-hero-card">
         <div className="hero-banner">
           <img
-            src={profile.banner_path || "/uploads/banners/DefaultBanner.jpeg"}
+            src={buildUploadSrc(profile.banner_path || "/uploads/banners/DefaultBanner.jpeg")}
             alt="Profile Banner"
           />
         </div>
@@ -512,6 +522,19 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                     className="verified-badge"
                     style={{ pointerEvents: "auto" }}
                     title={`Verified from ${verifiedCommunityName}`}
+                  />
+                )}
+                {!verified && (
+                  <span className="status-pill unverified" title="Not verified">
+                    Unverified
+                  </span>
+                )}
+                {primaryAmbassadorLogo && (
+                  <img
+                    src={primaryAmbassadorLogo}
+                    alt="Ambassador badge"
+                    className="ambassador-inline-logo"
+                    title="Ambassador"
                   />
                 )}
                 {onlineLabel && (

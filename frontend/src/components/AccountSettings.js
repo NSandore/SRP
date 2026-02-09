@@ -1309,6 +1309,20 @@ function AccountSettings({ userData, onInterestsUpdated }) {
 
             <div className="setting-row">
               <div className="setting-text">
+                <div className="setting-label">Verification submissions</div>
+                <p className="setting-help">Review student and staff proof uploads.</p>
+              </div>
+              <button
+                type="button"
+                className="pill-button secondary small"
+                onClick={() => navigate('/admin/verifications')}
+              >
+                Open review queue
+              </button>
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-text">
                 <div className="setting-label">Require SSO</div>
                 <p className="setting-help">Limit sign-in to verified university single sign-on.</p>
               </div>

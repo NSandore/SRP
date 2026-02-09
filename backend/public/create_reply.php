@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';  // Adjust path if needed
+require_once __DIR__ . '/../includes/onboarding.php';
 
 header('Content-Type: application/json');
 
@@ -44,6 +45,17 @@ if ($user_id !== normalizeId($_SESSION['user_id'])) {
  */
 try {
     $db = getDB();
+    $postingWindow = srp_get_posting_window($db, $user_id);
+    if (!$postingWindow['can_post']) {
+        http_response_code(403);
+        echo json_encode([
+            'error' => 'Unverified users can create up to 1 post per day. Verify your email to remove this limit.',
+            'requires_verification_prompt' => true,
+            'posting' => $postingWindow,
+        ]);
+        exit;
+    }
+
     $post_id = generateUniqueId($db, 'posts');
 
     // Insert the reply into the posts table

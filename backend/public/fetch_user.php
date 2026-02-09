@@ -125,6 +125,10 @@ try {
     $user['discoverable'] = $discoverable;
     $user['session_timeout_minutes'] = $session_timeout_minutes;
 
+    $ambStmt = $db->prepare("SELECT community_id FROM ambassadors WHERE user_id = :uid");
+    $ambStmt->execute([':uid' => $user_id]);
+    $user['community_ambassador_of'] = $ambStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
     $viewer_id = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
     $isOwnProfile = $viewer_id === $user_id;
 
@@ -136,10 +140,11 @@ try {
         $isConnected = $cstmt->fetchColumn() > 0;
     }
 
-    // Decode JSON field (community_ambassador_of) if it's not null
-    if (!empty($user['community_ambassador_of'])) {
-        $user['community_ambassador_of'] = json_decode($user['community_ambassador_of'], true);
-    } else {
+    // Normalize ambassador communities to array
+    if (is_string($user['community_ambassador_of']) && $user['community_ambassador_of'] !== '') {
+        $decoded = json_decode($user['community_ambassador_of'], true);
+        $user['community_ambassador_of'] = is_array($decoded) ? $decoded : [];
+    } elseif (!is_array($user['community_ambassador_of'])) {
         $user['community_ambassador_of'] = [];
     }
 

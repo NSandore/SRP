@@ -105,6 +105,8 @@ try {
           COALESCE(tv.vote_type, '') AS user_vote,
           u.first_name, 
           u.last_name,
+          u.verified AS author_verified,
+          ac.logo_path AS ambassador_logo_path,
           c.name AS community_name,
           c.community_type,
           c.id AS community_id
@@ -119,6 +121,11 @@ try {
           ON f.community_id = c.id
         INNER JOIN users u
           ON t.user_id = u.user_id
+        LEFT JOIN ambassadors a
+               ON a.user_id = t.user_id
+              AND a.community_id = c.id
+        LEFT JOIN communities ac
+               ON ac.id = a.community_id
         {$orderClause}
     ";
 

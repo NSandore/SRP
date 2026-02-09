@@ -10,6 +10,7 @@ import {
   UserCheck,
   UserCircle,
   Lock,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
   Flag,
@@ -31,6 +32,7 @@ function LeftSidebar({
   userData,
   lockedKeys = ['saved', 'connections', 'profile'],
   collapsed = false,
+  pendingVerificationCount = 0,
   onToggle = undefined,
   onNavigate = undefined,
 }) {
@@ -46,6 +48,9 @@ function LeftSidebar({
     ...baseItems,
     ...(isSuperAdminUser || isAdminRole || isCommunityAdmin || isAmbassador
       ? [{ to: '/events', label: 'Event Management', Icon: CalendarRange, color: '#22C55E', key: 'events' }]
+      : []),
+    ...(isSuperAdminUser
+      ? [{ to: '/admin/verifications', label: 'Verifications', Icon: ShieldCheck, color: '#0EA5E9', key: 'verifications' }]
       : []),
     ...(isModerator
       ? [{ to: '/reports', label: 'Reported Items', Icon: Flag, color: '#F43F5E', key: 'reports' }]
@@ -72,6 +77,7 @@ function LeftSidebar({
         {items.map(({ to, label, Icon, color, key }) => {
           const isLocked = !userData && lockedKeys.includes(key);
           const isComingSoon = key === 'funding';
+          const showVerificationBadge = key === 'verifications' && Number(pendingVerificationCount) > 0;
           return (
             <li key={key}>
               <NavLink
@@ -109,6 +115,11 @@ function LeftSidebar({
                     </span>
                   )}
                 </div>
+                {showVerificationBadge && (
+                  <span className="sidebar-count" aria-label={`${pendingVerificationCount} pending verifications`}>
+                    {pendingVerificationCount}
+                  </span>
+                )}
               </NavLink>
             </li>
           );

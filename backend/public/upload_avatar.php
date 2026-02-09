@@ -21,10 +21,25 @@ $user_id = normalizeId($_POST['user_id']);
 $uploadDir = __DIR__ . '/../../uploads/avatars/'; // Adjust the path as needed
 
 // Ensure the upload directory exists and is writable
-if (!is_dir($uploadDir) || !is_writable($uploadDir)) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Upload directory does not exist or is not writable.']);
-    exit;
+if (!is_dir($uploadDir)) {
+    if (!mkdir($uploadDir, 0775, true)) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Upload directory does not exist and could not be created.']);
+        exit;
+    }
+}
+if (!is_writable($uploadDir)) {
+    @chmod($uploadDir, 0775);
+    if (!is_writable($uploadDir)) {
+        $perms = substr(sprintf('%o', fileperms($uploadDir)), -4);
+        $owner = fileowner($uploadDir);
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => "Upload directory is not writable (perms {$perms}, owner {$owner})."
+        ]);
+        exit;
+    }
 }
 
 // Check for upload errors

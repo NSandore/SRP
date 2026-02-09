@@ -84,6 +84,12 @@ if ($sessionUserId === '') {
 try {
     $db = getDB();
 
+    if (!hasVerifiedEmail($sessionUserId, $db)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Verify your email to manage community configuration.']);
+        exit;
+    }
+
     // If a parent is supplied, ensure it exists.
     $parentName = null;
     if ($parentCommunityId !== '') {
@@ -105,12 +111,7 @@ try {
             exit;
         }
 
-        $permStmt = $db->prepare("
-            SELECT community_role FROM ambassadors WHERE community_id = :cid AND user_id = :uid LIMIT 1
-        ");
-        $permStmt->execute([':cid' => $parentCommunityId, ':uid' => $sessionUserId]);
-        $role = strtolower((string)$permStmt->fetchColumn());
-        if ($role !== 'admin') {
+        if (!canEditCommunitySettings($sessionUserId, $sessionRoleId, $parentCommunityId, $db)) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Only community admins can create sub-communities.']);
             exit;
