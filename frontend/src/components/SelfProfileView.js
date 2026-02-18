@@ -66,6 +66,8 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   // 4) Primary & Secondary color states
   const [primaryColor, setPrimaryColor] = useState('#0077B5');
   const [secondaryColor, setSecondaryColor] = useState('#005f8d');
+  const [primaryColorInput, setPrimaryColorInput] = useState('#0077B5');
+  const [secondaryColorInput, setSecondaryColorInput] = useState('#005f8d');
 
   // 5) Verification-related states
   const [verified, setVerified] = useState(false);
@@ -132,6 +134,14 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       setVerified(profile.verified === '1' || profile.verified === 1);
     }
   }, [profile]);
+
+  useEffect(() => {
+    setPrimaryColorInput(primaryColor);
+  }, [primaryColor]);
+
+  useEffect(() => {
+    setSecondaryColorInput(secondaryColor);
+  }, [secondaryColor]);
 
   const primaryAmbassadorCommunityId =
     Array.isArray(userData?.ambassador_communities) && userData.ambassador_communities.length > 0
@@ -222,6 +232,17 @@ function SelfProfileView({ userData, onProfileUpdate }) {
     } finally {
       setRepliesLoading(false);
       setHasLoadedReplies(true);
+    }
+  };
+
+  const handleHexInputChange = (value, setColor, setInput) => {
+    const raw = value.trim();
+    if (!/^#?[0-9a-fA-F]*$/.test(raw)) return;
+    const normalized = raw.startsWith('#') ? raw : `#${raw}`;
+    if (normalized.length > 7) return;
+    setInput(normalized);
+    if (normalized.length === 7) {
+      setColor(normalized);
     }
   };
 
@@ -495,11 +516,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                             title={`Verified from ${verifiedCommunityName}`}
                           />
                         )}
-                        {!verified && (
-                          <span className="status-pill unverified" title="Not verified">
-                            Unverified
-                          </span>
-                        )}
+                        {/* Unverified shown under headline */}
                         {ambassadorLogo && (
                           <img
                             src={ambassadorLogo}
@@ -509,9 +526,18 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                           />
                         )}
                       </h1>
-                      <p className="hero-sub">{displayHeadline}</p>
-                      <p className="hero-sub">{followerCount} Followers</p>
-                      <p className="hero-sub">{followingCount} Following</p>
+                      <p className="hero-sub">
+                        {displayHeadline}
+                        {!verified && (
+                          <span className="status-pill unverified" title="Not verified">
+                            Unverified
+                          </span>
+                        )}
+                      </p>
+                      <p className="hero-sub hero-sub-row">
+                        <span>{followerCount} Followers</span>
+                        <span>{followingCount} Following</span>
+                      </p>
                     </>
                   )}
                 </div>
@@ -541,19 +567,43 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                     <div className="color-picker-container">
                       <label>
                         Primary Color:
-                        <input
-                          type="color"
-                          value={primaryColor}
-                          onChange={(e) => setPrimaryColor(e.target.value)}
-                        />
+                        <div className="color-picker-row">
+                          <input
+                            type="text"
+                            className="color-hex-input"
+                            value={primaryColorInput}
+                            onChange={(e) =>
+                              handleHexInputChange(e.target.value, setPrimaryColor, setPrimaryColorInput)
+                            }
+                            onBlur={() => setPrimaryColorInput(primaryColor)}
+                            spellCheck="false"
+                          />
+                          <input
+                            type="color"
+                            value={primaryColor}
+                            onChange={(e) => setPrimaryColor(e.target.value)}
+                          />
+                        </div>
                       </label>
                       <label>
                         Secondary Color:
-                        <input
-                          type="color"
-                          value={secondaryColor}
-                          onChange={(e) => setSecondaryColor(e.target.value)}
-                        />
+                        <div className="color-picker-row">
+                          <input
+                            type="text"
+                            className="color-hex-input"
+                            value={secondaryColorInput}
+                            onChange={(e) =>
+                              handleHexInputChange(e.target.value, setSecondaryColor, setSecondaryColorInput)
+                            }
+                            onBlur={() => setSecondaryColorInput(secondaryColor)}
+                            spellCheck="false"
+                          />
+                          <input
+                            type="color"
+                            value={secondaryColor}
+                            onChange={(e) => setSecondaryColor(e.target.value)}
+                          />
+                        </div>
                       </label>
                     </div>
                   </div>

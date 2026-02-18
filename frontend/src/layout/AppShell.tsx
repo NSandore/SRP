@@ -38,7 +38,7 @@ export default function AppShell({
   const isSearchRoute = pathname.startsWith('/search');
   const isSettingsRoute = pathname.startsWith('/settings');
   const isDonateRoute = pathname.startsWith('/donate');
-  const effectiveLockedKeys = lockedNavKeys ?? ['saved', 'connections', 'profile'];
+  const effectiveLockedKeys = lockedNavKeys ?? ['saved', 'connections', 'profile', 'polls_feed'];
 
   const [announcementHeight, setAnnouncementHeight] = useState(0);
 
@@ -78,6 +78,7 @@ export default function AppShell({
         {...navBarProps}
         onOpenDrawer={() => setDrawerOpen(true)}
         onCloseDrawer={() => setDrawerOpen(false)}
+        isDrawerOpen={drawerOpen}
         onAnnouncementHeight={handleAnnouncementHeight}
       />
 
@@ -98,6 +99,7 @@ export default function AppShell({
           lockedKeys={effectiveLockedKeys}
           pendingVerificationCount={pendingVerificationCount}
           onNavigate={() => setDrawerOpen(false)}
+          isDrawer
         />
       </aside>
 

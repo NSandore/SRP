@@ -1,5 +1,5 @@
 // src/components/ThreadCard.js
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -101,6 +101,8 @@ export default function ThreadCard({
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [isPinSubmenuOpen, setIsPinSubmenuOpen] = useState(false);
+  const baseSaved = Boolean(thread?.saved);
+  const [savedStatus, setSavedStatus] = useState(baseSaved);
   const menuRef = useRef(null);
   useOnClickOutside(menuRef, () => {
     setMenuOpen(false);
@@ -115,6 +117,28 @@ export default function ThreadCard({
         .filter((community) => community.community_id)
     : [];
   const canPinToCommunity = ambassadorCommunities.length > 0;
+
+  useEffect(() => {
+    setSavedStatus(baseSaved);
+  }, [baseSaved]);
+
+  useEffect(() => {
+    if (!menuOpen || !userData?.user_id) return;
+    const loadSavedStatus = async () => {
+      try {
+        const resp = await axios.get('/api/save_check.php', {
+          params: { user_id: userData.user_id, item_type: 'thread', item_id: thread?.thread_id },
+          withCredentials: true,
+        });
+        const saved = Boolean(resp.data?.saved ?? resp.data?.is_saved);
+        setSavedStatus(saved);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('save_check failed for thread', err);
+      }
+    };
+    loadSavedStatus();
+  }, [menuOpen, userData?.user_id, thread?.thread_id]);
 
   // Determine thread type: prefer explicit field if present, else infer from title
   const threadType = useMemo(() => {
@@ -155,36 +179,22 @@ export default function ThreadCard({
 
   return (
     <div className="thread-card card-lift" style={{ position: 'relative' }}>
-      {/* Kebab */}
-      <button
-        type="button"
-        className="kebab-button"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((v) => !v)}
-        style={{ position: 'absolute', top: 8, right: 8, cursor: 'pointer' }}
-      >
-        <FaEllipsisV />
-      </button>
       {menuOpen && (
         <div ref={menuRef} className="dropdown-menu" style={{ position: 'absolute', top: 30, right: 8, zIndex: 10 }}>
           {canPinToCommunity && (
-            <div className="dropdown-item submenu-container">
-              <button
-                type="button"
-                className="submenu-title"
-                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', padding: '8px' }}
-                onClick={() => setIsPinSubmenuOpen((open) => !open)}
-              >
-                Pin to Community
-              </button>
+            <div
+              className="dropdown-item"
+              onMouseEnter={() => setIsPinSubmenuOpen(true)}
+              onMouseLeave={() => setIsPinSubmenuOpen(false)}
+              style={{ position: 'relative' }}
+            >
+              Pin to Community
               {isPinSubmenuOpen && (
-                <ul className="submenu-list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                <ul className="submenu-list submenu-right">
                   {ambassadorCommunities.map((community) => (
                     <li
                       key={community.community_id}
                       className="submenu-item"
-                      style={{ padding: '6px 8px', cursor: 'pointer', borderTop: '1px solid var(--card-border)' }}
                       onClick={() => handlePinThread(community.community_id)}
                     >
                       {community.name}
@@ -195,8 +205,15 @@ export default function ThreadCard({
             </div>
           )}
           {onToggleSave && (
-            <button className="dropdown-item" onClick={() => onToggleSave(thread)}>
-              {thread.saved ? 'Unsave' : 'Save'}
+            <button
+              className="dropdown-item"
+              onClick={() => {
+                onToggleSave(thread);
+                setSavedStatus((prev) => !prev);
+                setMenuOpen(false);
+              }}
+            >
+              {savedStatus ? 'Unsave' : 'Save'}
             </button>
           )}
           <button
@@ -223,72 +240,85 @@ export default function ThreadCard({
         </div>
       )}
 
-      {/* Left icon + Title */}
-      <div className="card-top-row">
-        <IconBubble icon={TypeIcon} bg={typeToken} />
-        <Link to={threadUrl} className="thread-link">
-          <h3 className="thread-title">{thread.title}</h3>
-        </Link>
-      </div>
-
-      {Array.isArray(thread.tags) && thread.tags.length > 0 && (
-        <div className="chips-row" style={{ marginTop: '4px' }}>
-          {thread.tags.map((tag) => (
-            <span key={tag} className="chip tag-chip">
-              {tag}
-            </span>
-          ))}
+      <div className="thread-card-content">
+        {/* Title */}
+        <div className="card-top-row">
+          <div className="thread-title-row">
+            <Link to={threadUrl} className="thread-link">
+              <h3 className="thread-title">{thread.title}</h3>
+            </Link>
+            <button
+              type="button"
+              className="kebab-button"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+              style={{ cursor: 'pointer' }}
+            >
+              <FaEllipsisV className="menu-icon" />
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Meta Row */}
-      <div className="meta-row">
-        <div className="avatar-circle" aria-hidden="true">{initials}</div>
-        <Link to={`/user/${thread.user_id}`} className="meta-author">{thread.first_name} {thread.last_name ? thread.last_name[0] + '.' : ''}</Link>
-        <span className="author-badges">
-          {Number(thread.author_verified) === 1 && (
-            <FaCheckCircle className="author-verified-icon" title="Verified" />
-          )}
-          {thread.ambassador_logo_path && (
-            <img
-              src={buildUploadSrc(thread.ambassador_logo_path)}
-              alt="Ambassador badge"
-              className="author-ambassador-logo"
-              title="Ambassador"
-            />
-          )}
-        </span>
-        <span className="middot">•</span>
-        {thread.community_name && (
-          <Link to={`/${thread.community_type}/${thread.community_id}`} className="meta-community">{thread.community_name}</Link>
+        {Array.isArray(thread.tags) && thread.tags.length > 0 && (
+          <div className="chips-row">
+            {thread.tags.map((tag) => (
+              <span key={tag} className="chip tag-chip">
+                {tag}
+              </span>
+            ))}
+          </div>
         )}
-        <span className="middot">•</span>
-        <span className="meta-time">{timeAgo(thread.created_at)}</span>
-      </div>
 
-      {/* Actions Row */}
-      <div className="actions-row">
-        <button
-          type="button"
-          className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
-          title="Upvote"
-          onClick={() => onUpvote && onUpvote(thread.thread_id)}
-        >
-          {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
-        </button>
-        <span className="vote-count">{thread.upvotes}</span>
-        <button
-          type="button"
-          className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
-          title="Downvote"
-          onClick={() => onDownvote && onDownvote(thread.thread_id)}
-        >
-          {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
-        </button>
-        <span className="vote-count">{thread.downvotes}</span>
+        {/* Meta Row */}
+        <div className="meta-row">
+          <div className="avatar-circle" aria-hidden="true">{initials}</div>
+          <Link to={`/user/${thread.user_id}`} className="meta-author">{thread.first_name} {thread.last_name ? thread.last_name[0] + '.' : ''}</Link>
+          <span className="author-badges">
+            {Number(thread.author_verified) === 1 && (
+              <FaCheckCircle className="author-verified-icon" title="Verified" />
+            )}
+            {thread.ambassador_logo_path && (
+              <img
+                src={buildUploadSrc(thread.ambassador_logo_path)}
+                alt="Ambassador badge"
+                className="author-ambassador-logo"
+                title="Ambassador"
+              />
+            )}
+          </span>
+          <span className="middot">•</span>
+          {thread.community_name && (
+            <Link to={`/${thread.community_type}/${thread.community_id}`} className="meta-community">{thread.community_name}</Link>
+          )}
+          <span className="middot">•</span>
+          <span className="meta-time">{timeAgo(thread.created_at)}</span>
+        </div>
 
-        <span className="middot" aria-hidden="true">•</span>
-        <span className="meta-quiet">{comments} comments</span>
+        {/* Actions Row */}
+        <div className="actions-row">
+          <button
+            type="button"
+            className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
+            title="Upvote"
+            onClick={() => onUpvote && onUpvote(thread.thread_id)}
+          >
+            {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+          </button>
+          <span className="vote-count">{thread.upvotes}</span>
+          <button
+            type="button"
+            className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
+            title="Downvote"
+            onClick={() => onDownvote && onDownvote(thread.thread_id)}
+          >
+            {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+          </button>
+          <span className="vote-count">{thread.downvotes}</span>
+
+          <span className="middot" aria-hidden="true">•</span>
+          <span className="meta-quiet">{comments} comments</span>
+        </div>
       </div>
     </div>
   );

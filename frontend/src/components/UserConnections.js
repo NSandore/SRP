@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import './Connections.css';
@@ -15,6 +15,7 @@ function UserConnections({ userData }) {
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
   const menuRef = useRef(null);
+  const segmentRef = useRef(null);
   useOnClickOutside(menuRef, () => setOpenMenuId(null));
 
   useEffect(() => {
@@ -93,17 +94,57 @@ function UserConnections({ userData }) {
     }
   };
 
+  const updateSegmentIndicator = useCallback(() => {
+    const container = segmentRef.current;
+    if (!container) return;
+    const activeChip = container.querySelector('.chip.active');
+    if (!activeChip) return;
+    const containerRect = container.getBoundingClientRect();
+    const chipRect = activeChip.getBoundingClientRect();
+    const left = Math.max(chipRect.left - containerRect.left, 0);
+    const width = chipRect.width;
+    container.style.setProperty('--seg-left', `${left}px`);
+    container.style.setProperty('--seg-width', `${width}px`);
+  }, []);
+
+  const scheduleSegmentUpdate = useCallback(() => {
+    const run = () => updateSegmentIndicator();
+    const raf1 = requestAnimationFrame(run);
+    const raf2 = requestAnimationFrame(run);
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [updateSegmentIndicator]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate();
+  }, [activeTab, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    const handleResize = () => updateSegmentIndicator();
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateSegmentIndicator]);
+
   return (
     <div className="feed-container connections-container">
-      <div style={{ marginBottom: '0.5rem' }}>
-        <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Connections</h1>
-        <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
+      <div>
+        <h1 className="section-title" style={{ marginBottom: 4 }}>Connections</h1>
+        <p className="muted-text" style={{ marginTop: 0, marginBottom: 0 }}>
           Manage your network, incoming invites, and pending requests in one place.
         </p>
       </div>
-      <div className="section-controls">
-        <span className="sort-pill">View</span>
-        <div className="chips-row">
+      <div className="section-controls section-controls-sticky connections-controls">
+        <div
+          ref={segmentRef}
+          className="chips-row segmented-control"
+          style={{
+            '--seg-count': 3,
+            '--seg-index': activeTab === 'connections' ? 0 : activeTab === 'incoming' ? 1 : 2
+          }}
+        >
           <button
             type="button"
             className={`chip ${activeTab === 'connections' ? 'active' : ''}`}

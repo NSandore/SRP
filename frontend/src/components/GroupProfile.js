@@ -8,6 +8,7 @@ import ModalOverlay from './ModalOverlay';
 import ReportModal from './ReportModal';
 import { buildAvatarSrc } from '../utils/avatar';
 import buildUploadSrc from '../utils/uploads';
+import { getAdjustedColor, getReadableTextColor } from '../utils/color';
 import { isSuperAdmin } from '../constants/roles';
 
 function GroupProfile({ userData, onRequireAuth }) {
@@ -735,16 +736,24 @@ function GroupProfile({ userData, onRequireAuth }) {
     }
   };
 
-  const logoSrc =
-    group.logo_path && group.logo_path.startsWith('/')
-      ? group.logo_path
-      : `/uploads/logos/${group.logo_path || 'default-logo.png'}`;
+  const logoSrc = buildUploadSrc(group.logo_path || '/uploads/logos/default-logo.png');
+  const primaryColor = group.primary_color || '#0077B5';
+  const secondaryColor = group.secondary_color || '#005f8d';
+  const gradientLight = getAdjustedColor(primaryColor, 1.12);
+  const gradientDark = getAdjustedColor(primaryColor, 0.85);
+  const pillTextColor = getReadableTextColor(primaryColor);
 
   return (
-    <div className="profile-container" style={{
-      '--primary-color': group.primary_color || '#0077B5',
-      '--secondary-color': group.secondary_color || '#005f8d',
-    }}>
+    <div
+      className="profile-container community-profile"
+      style={{
+        '--primary-color': primaryColor,
+        '--secondary-color': secondaryColor,
+        ...(gradientLight ? { '--gradient-secondary-light': gradientLight } : {}),
+        ...(gradientDark ? { '--gradient-secondary-dark': gradientDark } : {}),
+        ...(pillTextColor ? { '--pill-text-color': pillTextColor } : {})
+      }}
+    >
       <section className="profile-main">
         {/* HERO CARD */}
         <div className="hero-card community-hero">
@@ -772,11 +781,16 @@ function GroupProfile({ userData, onRequireAuth }) {
                     </RouterLink>
                   </p>
                 )}
-                <p className="muted" style={{ marginTop: 6 }}>
-                  {followersCount} follower{followersCount === 1 ? '' : 's'}
-                </p>
                 {group.tagline && <p className="hero-sub">{group.tagline}</p>}
                 {group.location && <p className="hero-sub">{group.location}</p>}
+                <p className="hero-sub hero-sub-row">
+                  <span>{followersCount} follower{followersCount === 1 ? '' : 's'}</span>
+                  {typeof group.child_count !== 'undefined' && (
+                    <span>
+                      {group.child_count} {Number(group.child_count) === 1 ? 'sub-community' : 'sub-communities'}
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
             <div className="hero-right">
@@ -962,10 +976,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                         child.is_following === true ||
                         child.is_following === 1 ||
                         child.is_following === '1';
-                      const logoSrc =
-                        child.logo_path && child.logo_path.startsWith('/')
-                          ? child.logo_path
-                          : `/uploads/logos/${child.logo_path || 'default-logo.png'}`;
+                          const logoSrc = buildUploadSrc(child.logo_path || '/uploads/logos/default-logo.png');
                       return (
                         <div
                           key={child.community_id}
@@ -1275,7 +1286,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                 </p>
               )}
               <button
-                className={`pill-button ${!isLoggedIn ? 'locked' : ''}`}
+                className={`pill-button ambassadors-view-all ${!isLoggedIn ? 'locked' : ''}`}
                 type="button"
                 onClick={() => {
                   if (!isLoggedIn) {

@@ -85,6 +85,12 @@ function ForumView({ userData, onRequireAuth }) {
   // Notification
   const [notification, setNotification] = useState(null);
 
+  useEffect(() => {
+    if (!notification) return undefined;
+    const timeoutId = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notification]);
+
   // Saved Threads
   const [savedThreads, setSavedThreads] = useState([]);
 
@@ -362,7 +368,7 @@ function ForumView({ userData, onRequireAuth }) {
 
   const startEditingThread = (thread) => {
     setEditThreadId(thread.thread_id);
-    setEditThreadTitle(thread.title);
+    setEditThreadTitle('');
     setEditThreadTags(mapTagNamesToSlugs(thread.tags || [], tagOptions));
     setIsEditingThread(true);
   };
@@ -474,7 +480,7 @@ function ForumView({ userData, onRequireAuth }) {
             className="btn-primary"
             onClick={() => setShowCreateThreadModal(true)}
           >
-            New Thread
+            + New Thread
           </button>
         )}
       </div>
@@ -528,10 +534,12 @@ function ForumView({ userData, onRequireAuth }) {
         <p>No threads available.</p>
       ) : (
         <div className="forum-list">
-          {sortedThreads.map((thread) => (
+          {sortedThreads.map((thread) => {
+            const isSaved = isThreadSaved(thread.thread_id);
+            return (
             <ThreadCard
               key={thread.thread_id}
-              thread={thread}
+              thread={{ ...thread, saved: isSaved }}
               userData={userData}
               onUpvote={handleUpvoteClick}
               onDownvote={handleDownvoteClick}
@@ -548,7 +556,8 @@ function ForumView({ userData, onRequireAuth }) {
               }
               linkTo={`/info/forum/${forum_id}/thread/${thread.thread_id}`}
             />
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -628,8 +637,8 @@ function ForumView({ userData, onRequireAuth }) {
 
       {/* EDIT THREAD MODAL */}
       {isEditingThread && (
-        <div className="modal-overlay">
-          <div className="modal-content">
+        <div className="modal-overlay edit-thread-overlay">
+          <div className="modal-content edit-thread-modal">
             <h3>Edit Thread Title</h3>
             <form onSubmit={handleEditThreadSubmit}>
               <div className="form-group">

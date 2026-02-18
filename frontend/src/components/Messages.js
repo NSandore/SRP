@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './Messages.css';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FiSearch, FiSend } from 'react-icons/fi';
+import { FiSearch, FiSend, FiArrowLeft } from 'react-icons/fi';
 import { buildAvatarSrc } from '../utils/avatar';
-import { getApiBase } from '../utils/apiBase';
 
 function Messages({ userData }) {
   const [conversations, setConversations] = useState([]);
@@ -18,8 +17,6 @@ function Messages({ userData }) {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [searchParams] = useSearchParams();
-  const API_BASE = getApiBase();
-  const buildApiUrl = (path) => `${API_BASE}${path}`;
   const messagesEndRef = useRef(null);
   const threadRef = useRef(null);
   const oldestMessageIdRef = useRef(null);
@@ -50,14 +47,14 @@ function Messages({ userData }) {
     if (!userData) return;
     const startUser = searchParams.get('user');
     if (startUser) {
-      startConversation(Number(startUser));
+      startConversation(startUser);
     }
   }, [searchParams, userData]);
 
   useEffect(() => {
     if (!activeConv || activeConv.conversation_id) return;
     const existing = conversations.find(
-      (c) => Number(c.other_user_id) === Number(activeConv.other_user_id)
+      (c) => String(c.other_user_id) === String(activeConv.other_user_id)
     );
     if (existing) {
       fetchMessages(existing.conversation_id, existing.other_user_id, {
@@ -70,7 +67,7 @@ function Messages({ userData }) {
 
   const fetchConversations = async () => {
     try {
-      const resp = await axios.get(buildApiUrl(`/api/fetch_conversations.php?user_id=${userData.user_id}`), { withCredentials: true });
+      const resp = await axios.get(`/api/fetch_conversations.php?user_id=${userData.user_id}`, { withCredentials: true });
       if (resp.data.success) {
         setConversations(resp.data.conversations || []);
       }
@@ -84,7 +81,7 @@ function Messages({ userData }) {
     oldestMessageIdRef.current = null;
     setHasMore(true);
     try {
-      const resp = await axios.get(buildApiUrl(`/api/fetch_messages.php?conversation_id=${conversation_id}&user_id=${userData.user_id}`), { withCredentials: true });
+      const resp = await axios.get(`/api/fetch_messages.php?conversation_id=${conversation_id}&user_id=${userData.user_id}`, { withCredentials: true });
       if (resp.data.success) {
         const list = resp.data.messages || [];
         setMessages(list);
@@ -108,9 +105,7 @@ function Messages({ userData }) {
     skipAutoScrollRef.current = true;
     try {
       const resp = await axios.get(
-        buildApiUrl(
-          `/api/fetch_messages.php?conversation_id=${activeConv.conversation_id}&user_id=${userData.user_id}&before_id=${oldestMessageIdRef.current}`
-        ),
+        `/api/fetch_messages.php?conversation_id=${activeConv.conversation_id}&user_id=${userData.user_id}&before_id=${oldestMessageIdRef.current}`,
         { withCredentials: true }
       );
       if (resp.data.success) {
@@ -140,7 +135,7 @@ function Messages({ userData }) {
 
   const fetchUserProfile = async (userId) => {
     try {
-      const resp = await axios.get(buildApiUrl(`/api/fetch_user.php?user_id=${userId}`), { withCredentials: true });
+      const resp = await axios.get(`/api/fetch_user.php?user_id=${userId}`, { withCredentials: true });
       if (resp.data.success) {
         return resp.data.user;
       }
@@ -151,9 +146,11 @@ function Messages({ userData }) {
   };
 
   const startConversation = async (user) => {
-    const other_user_id = typeof user === 'number' ? user : user?.user_id;
+    const other_user_id = typeof user === 'string' || typeof user === 'number'
+      ? String(user)
+      : user?.user_id;
     if (!other_user_id) return;
-    const existing = conversations.find(c => Number(c.other_user_id) === Number(other_user_id));
+    const existing = conversations.find(c => String(c.other_user_id) === String(other_user_id));
     const existingMeta = existing
       ? {
           first_name: existing.first_name,
@@ -192,7 +189,7 @@ function Messages({ userData }) {
     if (!newMessage.trim() || !activeConv) return;
     setIsSending(true);
     try {
-      const resp = await axios.post(buildApiUrl(`/api/send_message.php`), {
+      const resp = await axios.post(`/api/send_message.php`, {
         sender_id: userData.user_id,
         recipient_id: activeConv.other_user_id,
         content: newMessage
@@ -234,7 +231,7 @@ function Messages({ userData }) {
     setSearchTerm(term);
     if (!term) { setSearchResults([]); return; }
     try {
-      const resp = await axios.get(buildApiUrl(`/api/search_users.php?term=${encodeURIComponent(term)}`), { withCredentials: true });
+      const resp = await axios.get(`/api/search_users.php?term=${encodeURIComponent(term)}`, { withCredentials: true });
       if (resp.data.success) setSearchResults(resp.data.users);
     } catch (err) { console.error('Error searching users:', err); }
   };
@@ -254,7 +251,7 @@ function Messages({ userData }) {
 
   return (
     <div className="messages-page">
-      <div className="messages-card">
+      <div className={`messages-card ${activeConv ? 'has-active' : ''}`}>
         <div className="conversations-panel">
           <div className="panel-header">
             <h2>Messages</h2>
@@ -322,11 +319,25 @@ function Messages({ userData }) {
           {activeConv ? (
             <>
               <div className="thread-header">
-                <div className="thread-user">
-                  <img src={buildAvatarSrc(activeConv.avatar_path)} alt={`${activeConv.first_name || ''} ${activeConv.last_name || ''}`} />
-                  <div>
-                    <h3>{activeConv.first_name} {activeConv.last_name}</h3>
-                    {activeConv.headline && <p>{activeConv.headline}</p>}
+                <div className="thread-header-left">
+                  <button
+                    type="button"
+                    className="messages-back"
+                    onClick={() => {
+                      setActiveConv(null);
+                      setMessages([]);
+                    }}
+                    aria-label="Back to conversations"
+                  >
+                    <FiArrowLeft aria-hidden="true" />
+                    <span>Back</span>
+                  </button>
+                  <div className="thread-user">
+                    <img src={buildAvatarSrc(activeConv.avatar_path)} alt={`${activeConv.first_name || ''} ${activeConv.last_name || ''}`} />
+                    <div>
+                      <h3>{activeConv.first_name} {activeConv.last_name}</h3>
+                      {activeConv.headline && <p>{activeConv.headline}</p>}
+                    </div>
                   </div>
                 </div>
                 <Link to={`/user/${activeConv.other_user_id}`} className="profile-link">View profile</Link>

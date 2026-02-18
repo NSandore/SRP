@@ -28,9 +28,11 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadingFollowStatus, setLoadingFollowStatus] = useState(true);
   const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [messageRestriction, setMessageRestriction] = useState("");
 
   const [openMenu, setOpenMenu] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
   const menuRef = useRef(null);
   useOnClickOutside(menuRef, () => setOpenMenu(false));
 
@@ -71,6 +73,15 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
     setHasLoadedThreads(false);
     setThreadsError(null);
   }, [user_id, userData?.user_id]);
+
+  useEffect(() => {
+    const updateMobileView = () => {
+      setIsMobileView(window.innerWidth <= 1023);
+    };
+    updateMobileView();
+    window.addEventListener("resize", updateMobileView);
+    return () => window.removeEventListener("resize", updateMobileView);
+  }, []);
 
   // Fetch user profile
   useEffect(() => {
@@ -205,6 +216,22 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
     };
 
     fetchFollowerCount();
+  }, [user_id]);
+
+  // Fetch following count
+  useEffect(() => {
+    const fetchFollowingCount = async () => {
+      try {
+        const res = await axios.get(`/api/fetch_following_count.php?user_id=${user_id}`);
+        if (res.data.success) {
+          setFollowingCount(res.data.following_count);
+        }
+      } catch (err) {
+        console.error("Error fetching following count:", err);
+      }
+    };
+
+    fetchFollowingCount();
   }, [user_id]);
 
   // Fetch experience & education
@@ -515,6 +542,36 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
               </div>
             </div>
             <div className="hero-text">
+              {isMobileView && userData && userData.user_id !== parseInt(user_id, 10) && (
+                <div className="kebab-menu" ref={menuRef}>
+                  <FaEllipsisV
+                    className="menu-icon"
+                    onClick={() => setOpenMenu((prev) => !prev)}
+                  />
+                  {openMenu && (
+                    <div className="dropdown-menu" style={{ right: 0 }}>
+                      <button
+                        className="dropdown-item"
+                        onClick={handleFollowToggle}
+                        disabled={loadingFollowStatus}
+                      >
+                        {isFollowing ? "Unfollow" : "Follow"}
+                      </button>
+                      {connectionStatus === "accepted" && (
+                        <button className="dropdown-item" onClick={handleRemoveConnection}>
+                          Remove Connection
+                        </button>
+                      )}
+                      <button
+                        className="dropdown-item"
+                        onClick={() => alert("Report/Block coming soon")}
+                      >
+                        Report or Block
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <h1 className="hero-title">
                 {fullName}
                 {verified && (
@@ -524,11 +581,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                     title={`Verified from ${verifiedCommunityName}`}
                   />
                 )}
-                {!verified && (
-                  <span className="status-pill unverified" title="Not verified">
-                    Unverified
-                  </span>
-                )}
+                {/* Unverified shown under headline */}
                 {primaryAmbassadorLogo && (
                   <img
                     src={primaryAmbassadorLogo}
@@ -544,8 +597,18 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                 )}
                 {/* Presence badge disabled for now */}
               </h1>
-              <p className="hero-sub">{displayHeadline}</p>
-              <p className="hero-sub">{followerCount} Followers</p>
+              <p className="hero-sub">
+                {displayHeadline}
+                {!verified && (
+                  <span className="status-pill unverified" title="Not verified">
+                    Unverified
+                  </span>
+                )}
+              </p>
+              <p className="hero-sub hero-sub-row">
+                <span>{followerCount} Followers</span>
+                <span>{followingCount} Following</span>
+              </p>
               {ambassadorCommunities.length > 0 && (
                 <div className="ambassador-logos">
                   {ambassadorCommunities.map((communityId) => (
@@ -593,31 +656,34 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                     Connect
                   </button>
                 )}
-                <FaEllipsisV
-                  className="menu-icon"
-                  onClick={() => setOpenMenu((prev) => !prev)}
-                  style={{ marginLeft: "8px" }}
-                />
-                {openMenu && (
-                  <div ref={menuRef} className="dropdown-menu" style={{ right: 0 }}>
-                    <button
-                      className="dropdown-item"
-                      onClick={handleFollowToggle}
-                      disabled={loadingFollowStatus}
-                    >
-                      {isFollowing ? "Unfollow" : "Follow"}
-                    </button>
-                    {connectionStatus === "accepted" && (
-                      <button className="dropdown-item" onClick={handleRemoveConnection}>
-                        Remove Connection
-                      </button>
+                {!isMobileView && (
+                  <div className="kebab-menu" ref={menuRef}>
+                    <FaEllipsisV
+                      className="menu-icon"
+                      onClick={() => setOpenMenu((prev) => !prev)}
+                    />
+                    {openMenu && (
+                      <div className="dropdown-menu" style={{ right: 0 }}>
+                        <button
+                          className="dropdown-item"
+                          onClick={handleFollowToggle}
+                          disabled={loadingFollowStatus}
+                        >
+                          {isFollowing ? "Unfollow" : "Follow"}
+                        </button>
+                        {connectionStatus === "accepted" && (
+                          <button className="dropdown-item" onClick={handleRemoveConnection}>
+                            Remove Connection
+                          </button>
+                        )}
+                        <button
+                          className="dropdown-item"
+                          onClick={() => alert("Report/Block coming soon")}
+                        >
+                          Report or Block
+                        </button>
+                      </div>
                     )}
-                    <button
-                      className="dropdown-item"
-                      onClick={() => alert("Report/Block coming soon")}
-                    >
-                      Report or Block
-                    </button>
                   </div>
                 )}
               </div>

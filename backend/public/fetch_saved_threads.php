@@ -13,9 +13,23 @@ try {
 
     $user_id = normalizeId($_GET['user_id']);
 
-    $query = "SELECT st.thread_id, t.title, st.saved_at
+    $query = "SELECT st.thread_id,
+                     t.forum_id,
+                     f.name AS forum_name,
+                     t.title,
+                     COALESCE(root_post.content, '') AS first_post_content,
+                     st.saved_at
               FROM saved_threads st
               JOIN threads t ON st.thread_id = t.thread_id
+              LEFT JOIN forums f ON t.forum_id = f.forum_id
+              LEFT JOIN posts root_post ON root_post.post_id = (
+                SELECT p2.post_id
+                FROM posts p2
+                WHERE p2.thread_id = t.thread_id
+                  AND (p2.reply_to IS NULL OR p2.reply_to = '')
+                ORDER BY p2.created_at ASC
+                LIMIT 1
+              )
               WHERE st.user_id = :user_id
               ORDER BY st.saved_at DESC";
     $stmt = $db->prepare($query);

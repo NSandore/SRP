@@ -1,7 +1,7 @@
 // src/components/ThreadView.js
 import './ThreadView.css';
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, Link as RouterLink, useLocation } from 'react-router-dom';
 import useOnClickOutside from '../hooks/useOnClickOutside'; // <--- import the hook
 import axios from 'axios';
 import debounce from 'lodash.debounce';
@@ -464,7 +464,11 @@ function PostItem({
   const reportLabel = post.reply_to ? 'comment' : 'post';
 
   // Check if post is saved
-  const isSaved = savedPosts.some((pSaved) => Number(pSaved.post_id) === Number(post.post_id));  
+  const baseSaved =
+    Boolean(post.saved) ||
+    savedPosts.some((pSaved) => Number(pSaved.post_id) === Number(post.post_id));
+  const [savedStatus, setSavedStatus] = useState(baseSaved);
+  const isSaved = savedStatus ?? baseSaved;
 
   // Tiptap editor with same config as TextEditor.js
   const editor = useEditor({
@@ -574,13 +578,39 @@ function PostItem({
   const computedClassName = `forum-card reply-card level-${level} ${
     Number(post.verified) === 1 ? 'verified' : ''
   }`;
+  const postAnchorId = String(post.post_id || '')
+    .trim()
+    .replace(/^["']+|["']+$/g, '')
+    .replace(/^#/, '');
   const canVerify = canVerifyPosts;
   const canUnverifyOwn =
     Number(post.verified) === 1 &&
     String(post.verified_by || '') === String(userData?.user_id || '');
+
+  useEffect(() => {
+    setSavedStatus(baseSaved);
+  }, [baseSaved]);
+
+  useEffect(() => {
+    if (!openMenu || !userData?.user_id) return;
+    const loadSavedStatus = async () => {
+      try {
+        const resp = await axios.get('/api/save_check.php', {
+          params: { user_id: userData.user_id, item_type: 'post', item_id: post.post_id },
+          withCredentials: true,
+        });
+        const saved = Boolean(resp.data?.saved ?? resp.data?.is_saved);
+        setSavedStatus(saved);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('save_check failed for post', err);
+      }
+    };
+    loadSavedStatus();
+  }, [openMenu, userData?.user_id, post.post_id]);
   
   return (
-    <div id={`post-${post.post_id}`} className={`post-card card-lift level-${level}`}>
+    <div id={`post-${postAnchorId}`} className={`post-card card-lift level-${level}`}>
       {isEditing ? (
         <form onSubmit={confirmEdit} className="edit-form" style={{ marginBottom: '1rem' }}>
           {/* Show the same toolbar from TextEditor.js */}
@@ -603,111 +633,6 @@ function PostItem({
         </form>
       ) : (
         <>
-          {/* 3-dot menu */}
-          <FaEllipsisV
-            className="menu-icon"
-            onClick={() => setOpenMenu((prev) => !prev)}
-            style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
-          />
-          {openMenu && (
-            <div
-              ref={menuRef}
-              className="dropdown-menu"
-              style={{
-                position: 'absolute',
-                top: '30px',
-                right: '8px',
-                backgroundColor: '#fff',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                zIndex: 10,
-                width: '150px',
-              }}
-            >
-              {handleToggleSavePost && (
-                <button
-                  className="dropdown-item"
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    background: 'none',
-                    padding: '8px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    handleToggleSavePost(post.post_id, isSaved);
-                    setOpenMenu(false);
-                  }}
-                >
-                  {isSaved ? 'Unsave' : 'Save'}
-                </button>
-              )}
-              <button
-                className="dropdown-item"
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  background: 'none',
-                  padding: '8px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  if (onReport) {
-                    onReport({
-                      id: post.post_id,
-                      type: reportLabel,
-                      label: reportLabel,
-                      context: postContext,
-                    });
-                  }
-                  setOpenMenu(false);
-                }}
-              >
-                Report {reportLabel === 'comment' ? 'comment' : 'post'}
-              </button>
-              {canVerify && post.verified !== 1 && (
-                <button
-                  className="dropdown-item"
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    background: 'none',
-                    padding: '8px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    handleVerifyPost(post.post_id);
-                    setOpenMenu(false);
-                  }}
-                >
-                  Verify answer
-                </button>
-              )}
-              {canUnverifyOwn && (
-                <button
-                  className="dropdown-item"
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    background: 'none',
-                    padding: '8px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    handleUnverifyPost(post.post_id);
-                    setOpenMenu(false);
-                  }}
-                >
-                  Unverify answer
-                </button>
-              )}
-            </div>
-          )}
           <div className={`verified-scope ${Number(post.verified) === 1 ? 'verified' : ''}`}>
             {Number(post.verified) === 1 && (
               <div className="verified-banner">
@@ -728,7 +653,69 @@ function PostItem({
               </div>
             )}
             {/* Reply header: avatar + meta */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
+            <div className="post-header-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
+              {/* 3-dot menu */}
+              <FaEllipsisV
+                className="menu-icon post-header-menu"
+                onClick={() => setOpenMenu((prev) => !prev)}
+              />
+              {openMenu && (
+                <div
+                  ref={menuRef}
+                  className="dropdown-menu post-header-menu-panel"
+                >
+                  {handleToggleSavePost && (
+                    <button
+                      className="dropdown-item"
+                      onClick={() => {
+                        handleToggleSavePost(post.post_id, isSaved);
+                        setSavedStatus((prev) => !prev);
+                        setOpenMenu(false);
+                      }}
+                    >
+                      {isSaved ? 'Unsave' : 'Save'}
+                    </button>
+                  )}
+                  <button
+                    className="dropdown-item"
+                    onClick={() => {
+                      if (onReport) {
+                        onReport({
+                          id: post.post_id,
+                          type: reportLabel,
+                          label: reportLabel,
+                          context: postContext,
+                        });
+                      }
+                      setOpenMenu(false);
+                    }}
+                  >
+                    Report {reportLabel === 'comment' ? 'comment' : 'post'}
+                  </button>
+                  {canVerify && post.verified !== 1 && (
+                    <button
+                      className="dropdown-item"
+                      onClick={() => {
+                        handleVerifyPost(post.post_id);
+                        setOpenMenu(false);
+                      }}
+                    >
+                      Verify answer
+                    </button>
+                  )}
+                  {canUnverifyOwn && (
+                    <button
+                      className="dropdown-item"
+                      onClick={() => {
+                        handleUnverifyPost(post.post_id);
+                        setOpenMenu(false);
+                      }}
+                    >
+                      Unverify answer
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="avatar-wrapper">
                 <img
                   src={buildAvatarSrc(post.avatar_path)}
@@ -742,7 +729,7 @@ function PostItem({
               </div>
               <div className="post-meta" style={{ margin: 0 }}>
                 <div>
-                  <RouterLink to={`/user/${post.user_id}`} style={{ color: 'var(--text-color)', textDecoration: 'none', fontWeight: 600 }}>
+                  <RouterLink to={`/user/${post.user_id}`} className="post-author-name" style={{ textDecoration: 'none', fontWeight: 600 }}>
                     {getDisplayName(post, userData?.user_id)}
                   </RouterLink>
                   <span className="author-badges">
@@ -920,6 +907,7 @@ function PostItem({
 -------------------------------------------------------------------------- */
 function ThreadView({ userData, onRequireAuth }) {
   const { thread_id } = useParams();
+  const location = useLocation();
 
   const [threadData, setThreadData] = useState(null);
   const [postTree, setPostTree] = useState([]);
@@ -934,6 +922,12 @@ function ThreadView({ userData, onRequireAuth }) {
   const [reportTarget, setReportTarget] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
+  useEffect(() => {
+    if (!notification) return undefined;
+    const timeoutId = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notification]);
+
   const [replySortCriteria, setReplySortCriteria] = useState('mostRecent');
   const [savedPosts, setSavedPosts] = useState([]);
   const [sessionAmbassadorCommunities, setSessionAmbassadorCommunities] = useState([]);
@@ -944,6 +938,16 @@ function ThreadView({ userData, onRequireAuth }) {
       0
     );
   const totalComments = useMemo(() => countReplies(postTree), [postTree]);
+
+  const targetPostId = useMemo(() => {
+    const searchValue = new URLSearchParams(location.search).get('post_id') || '';
+    const hashValue = location.hash?.startsWith('#post-') ? location.hash.slice('#post-'.length) : '';
+    const raw = searchValue || hashValue;
+    return String(raw || '')
+      .trim()
+      .replace(/^["']+|["']+$/g, '')
+      .replace(/^#/, '');
+  }, [location.search, location.hash]);
 
   const ambassadorCommunityIds = useMemo(() => {
     const fromSession = Array.isArray(sessionAmbassadorCommunities) ? sessionAmbassadorCommunities : [];
@@ -1197,6 +1201,18 @@ function ThreadView({ userData, onRequireAuth }) {
       fetchSavedPosts();
     }
   }, [thread_id, userData]);
+
+  useEffect(() => {
+    if (isLoadingPosts || !targetPostId) return;
+    const node = document.getElementById(`post-${targetPostId}`);
+    if (!node) return;
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    node.classList.add('post-target-highlight');
+    const timeoutId = window.setTimeout(() => {
+      node.classList.remove('post-target-highlight');
+    }, 2400);
+    return () => window.clearTimeout(timeoutId);
+  }, [isLoadingPosts, targetPostId, postTree.length, originalPost?.post_id]);
 
   useEffect(() => {
     setRootReplyOpen(false);
@@ -1501,38 +1517,6 @@ function ThreadView({ userData, onRequireAuth }) {
         {threadData?.title || `Thread ${thread_id}`}
       </h1>
 
-      {threadData?.user_id && (
-        <div className="meta-quiet" style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span>Created by</span>
-          <img
-            src={buildAvatarSrc(threadData.creator_avatar_path)}
-            alt={`${threadData.first_name || 'User'} ${threadData.last_name || ''}`}
-            style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = buildAvatarSrc(null);
-            }}
-          />
-          <RouterLink to={`/user/${threadData.user_id}`} style={{ color: 'inherit', textDecoration: 'none', fontWeight: 600 }}>
-            {threadData.first_name || 'User'} {threadData.last_name || ''}
-          </RouterLink>
-          <span className="author-badges">
-            {Number(threadData?.author_verified) === 1 && (
-              <FaCheckCircle className="author-verified-icon" title="Verified" />
-            )}
-            {threadData?.ambassador_logo_path && (
-              <img
-                src={buildUploadSrc(threadData.ambassador_logo_path)}
-                alt="Ambassador badge"
-                className="author-ambassador-logo"
-                title="Ambassador"
-              />
-            )}
-          </span>
-          <span>· {timeAgo(threadData.created_at)}</span>
-        </div>
-      )}
-
       {/* Tags under title */}
       {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
         <div className="chips-row" style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
@@ -1553,7 +1537,13 @@ function ThreadView({ userData, onRequireAuth }) {
 
       {/* Original Post at top */}
       {originalPost && (
-        <div id={`post-${originalPost.post_id}`} className="post-card card-lift original-post">
+        <div
+          id={`post-${String(originalPost.post_id || '')
+            .trim()
+            .replace(/^["']+|["']+$/g, '')
+            .replace(/^#/, '')}`}
+          className="post-card card-lift original-post"
+        >
           <div className={`verified-scope ${Number(originalPost.verified) === 1 ? 'verified' : ''}`}>
             {Number(originalPost.verified) === 1 && (
               <div className="verified-banner">
@@ -1590,7 +1580,7 @@ function ThreadView({ userData, onRequireAuth }) {
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <RouterLink to={`/user/${originalPost.user_id}`} style={{ textDecoration: 'none', color: 'var(--text-color)', fontWeight: 700 }}>
+                    <RouterLink to={`/user/${originalPost.user_id}`} className="post-author-name" style={{ textDecoration: 'none', fontWeight: 700 }}>
                       {getDisplayName(originalPost, userData?.user_id)}
                     </RouterLink>
                     {originalPost.user_role && <span className="meta-quiet">· {originalPost.user_role}</span>}

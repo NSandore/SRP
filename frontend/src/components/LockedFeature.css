@@ -142,17 +142,18 @@
 
 .coming-soon-actions button {
   border-radius: 999px;
-  padding: 0.9rem 1.75rem;
-  font-weight: 600;
+  padding: 0.85rem 1.6rem;
+  font-weight: 700;
   border: none;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  letter-spacing: 0.2px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
 }
 
 .coming-soon-actions button.primary {
-  background: var(--primary-color);
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
   color: #fff;
-  box-shadow: 0 10px 18px rgba(0, 119, 181, 0.25);
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.28);
 }
 
 .coming-soon-actions button.secondary {
@@ -162,4 +163,5 @@
 
 .coming-soon-actions button:hover {
   transform: translateY(-2px);
+  filter: brightness(1.03);
 }

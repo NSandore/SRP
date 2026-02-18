@@ -74,6 +74,12 @@ function ReportedItems({ userData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, canModerate]);
 
+  useEffect(() => {
+    if (!infoMessage) return undefined;
+    const timeoutId = window.setTimeout(() => setInfoMessage(''), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [infoMessage]);
+
   const updateNote = (reportId, value) => {
     setNoteDrafts((prev) => ({ ...prev, [reportId]: value }));
   };
@@ -222,9 +228,8 @@ function ReportedItems({ userData }) {
     <div className="feed-container reported-items">
       <div className="reported-items__header">
         <div>
-          <p className="report-pill">Moderation</p>
           <h1 className="section-title" style={{ marginBottom: 4 }}>Reported Items</h1>
-          <p className="report-subtitle">
+          <p className="report-subtitle muted-text">
             Items flagged by the community. Resolve, edit, or remove them to keep discussions healthy.
           </p>
         </div>

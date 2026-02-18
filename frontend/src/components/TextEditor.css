@@ -168,21 +168,23 @@
 }
 
 .edit-button {
-  background-color: #ffa500; /* Orange */
-  color: #fff;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-color);
+  border: 1px solid var(--card-border);
 }
 
 .edit-button:hover {
-  background-color: #e69500;
+  background: rgba(15, 23, 42, 0.14);
+  border-color: var(--primary-color);
 }
 
 .delete-button {
-  background-color: #ff6961; /* Red */
+  background-color: #ef4444; /* Red */
   color: #fff;
 }
 
 .delete-button:hover {
-  background-color: #e35e4c;
+  background-color: #dc2626;
 }
 
 /* Vote Row */
@@ -199,31 +201,76 @@
   margin-top: 1rem;
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card-background);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
 }
 
 .reply-textarea {
   width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
   resize: vertical;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: inherit;
   font-size: 1rem;
+  background: var(--input-background);
+  color: var(--text-color);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.reply-button {
+.reply-textarea:focus {
+  outline: none;
+  border-color: rgba(14, 165, 233, 0.8);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+}
+
+[data-theme="dark"] .reply-textarea {
+  color: #e2e8f0;
+}
+
+.reply-form .reply-button {
   align-self: flex-start;
-  background-color: #0077B5; /* LinkedIn Blue */
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
   color: #fff;
+  border-radius: 999px;
+  padding: 0.6rem 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.25);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+.reply-form .reply-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.32);
+  filter: brightness(1.03);
 }
 
 .cancel-button {
-  background-color: #ccc; /* Gray */
-  color: #333;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-color);
+  border: 1px solid var(--card-border);
 }
 
 .cancel-button:hover {
-  background-color: #aaa;
+  background: rgba(15, 23, 42, 0.14);
+  border-color: var(--primary-color);
+}
+
+[data-theme="dark"] .cancel-button {
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+[data-theme="dark"] .cancel-button:hover {
+  background: rgba(30, 41, 59, 0.75);
+  color: #ffffff;
+  border-color: var(--primary-color);
 }
 
 /* Reply Toggle */
@@ -246,42 +293,7 @@
   padding-left: 1rem;
 }
 
-/* Notification Styles */
-.notification {
-  position: fixed;
-  top: 80px; /* Adjust based on navbar height */
-  right: 20px;
-  padding: 1rem 1.5rem;
-  border-radius: 4px;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  z-index: 1001; /* Ensure it sits above other content */
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  min-width: 250px;
-}
-
-.notification.success {
-  background-color: #4CAF50; /* Green */
-}
-
-.notification.error {
-  background-color: #f44336; /* Red */
-}
-
-.notification-close {
-  background: none;
-  border: none;
-  color: #fff;
-  font-weight: bold;
-  cursor: pointer;
-  font-size: 1rem;
-}
-
-.notification-close:hover {
-  opacity: 0.8;
-}
+/* Notifications use global styles from App.css */
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {

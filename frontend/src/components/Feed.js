@@ -3,14 +3,14 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import DOMPurify from 'dompurify'; 
 import {
   FaArrowAltCircleUp,
   FaRegArrowAltCircleUp,
   FaArrowAltCircleDown,
   FaRegArrowAltCircleDown,
   FaMedal,
-  FaLock
+  FaLock,
+  FaFilter
 } from 'react-icons/fa';
 
 import ForumCard from './ForumCard'; // Adjust path if ForumCard is located elsewhere
@@ -18,6 +18,7 @@ import ThreadCard from './ThreadCard';
 import CommunityRequestModal from './CommunityRequestModal';
 import FloatingComposer from './FloatingComposer';
 import ModalOverlay from './ModalOverlay';
+import buildUploadSrc from '../utils/uploads';
 import ReportModal from './ReportModal';
 import TagPicker from './TagPicker';
 import useTagOptions from '../hooks/useTagOptions';
@@ -73,6 +74,40 @@ const extractForumTopicsFromForum = (forum) => {
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
+const formatSavedAt = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
+const summarizeContent = (value = '', maxLength = 200) => {
+  const plain = stripHtml(value);
+  if (!plain) return '';
+  if (plain.length <= maxLength) return plain;
+  return `${plain.slice(0, maxLength).trim()}...`;
+};
+
+const summarizeWithEllipsis = (value = '', maxLength = 200) => {
+  const summary = summarizeContent(value, maxLength);
+  if (!summary) return '';
+  return summary.endsWith('...') ? summary : `${summary}...`;
+};
+
+const SAVED_CARD_MAX_CHARS = 50;
+
+const normalizeDisplayId = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/^["']+|["']+$/g, '')
+    .replace(/^#/, '');
+
 function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterests = [], onRequireAuth }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -83,7 +118,10 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [communityFilter, setCommunityFilter] = useState('All'); // Options: "All", "Followed", "Unfollowed"
   const [selectedCommunityTab, setSelectedCommunityTab] = useState("university");
   const [communitySort, setCommunitySort] = useState('popularity'); // 'popularity' | 'alpha'
+  const [showCommunityFilters, setShowCommunityFilters] = useState(false);
   const [feedSort, setFeedSort] = useState('recent'); // 'recent' | 'trending'
+  const [showHomeFilters, setShowHomeFilters] = useState(false);
+  const [showInfoFilters, setShowInfoFilters] = useState(false);
 
   const [followedCommunities, setFollowedCommunities] = useState([]);
   const [isLoadingFollowed, setIsLoadingFollowed] = useState(false);
@@ -114,6 +152,31 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [showFundingModal, setShowFundingModal] = useState(false);
   const [reportTarget, setReportTarget] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  useEffect(() => {
+    if (!notification) return undefined;
+    const timeoutId = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notification]);
+
+  const notificationNode = notification ? (
+    <div className={`notification ${notification.type}`}>
+      {notification.message}
+      <button
+        className="notification-close"
+        onClick={() => setNotification(null)}
+      >
+        X
+      </button>
+    </div>
+  ) : null;
+
+  const withNotification = (content) => (
+    <>
+      {content}
+      {notificationNode}
+    </>
+  );
 
   // For 3-dot menu
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -146,6 +209,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [savedTab, setSavedTab] = useState('forums'); // 'forums' | 'threads' | 'posts'
   const [feedThreads, setFeedThreads] = useState([]);
   const [feedForums, setFeedForums] = useState([]);
+  const [yourFeedView, setYourFeedView] = useState('forums'); // 'forums' | 'threads'
+  const [exploreView, setExploreView] = useState('forums'); // 'forums' | 'threads'
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
   const [exploreTags, setExploreTags] = useState([]);
   const [exploreForums, setExploreForums] = useState([]);
@@ -156,6 +221,12 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const topicDropdownRef = useRef(null);
   const exploreDropdownRef = useRef(null);
   const exploreLabelRef = useRef(null);
+  const feedSegmentRef = useRef(null);
+  const feedContentRef = useRef(null);
+  const exploreContentRef = useRef(null);
+  const communityTypeRef = useRef(null);
+  const communityFilterRef = useRef(null);
+  const savedSegmentRef = useRef(null);
   const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const INFO_COMMUNITY_ID = 'c57b7fd6c45b9d57b';
 
@@ -187,6 +258,88 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   useEffect(() => {
     console.log("Active Section:", activeSection);
   }, [activeSection]);
+
+  const updateSegmentIndicator = useCallback((ref) => {
+    const container = ref?.current;
+    if (!container) return;
+    const activeChip = container.querySelector('.chip.active');
+    if (!activeChip) return;
+    const containerRect = container.getBoundingClientRect();
+    const chipRect = activeChip.getBoundingClientRect();
+    const left = Math.max(chipRect.left - containerRect.left, 0);
+    const width = chipRect.width;
+    container.style.setProperty('--seg-left', `${left}px`);
+    container.style.setProperty('--seg-width', `${width}px`);
+  }, []);
+
+  const scheduleSegmentUpdate = useCallback((ref) => {
+    const run = () => updateSegmentIndicator(ref);
+    const raf1 = requestAnimationFrame(run);
+    const raf2 = requestAnimationFrame(run);
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [updateSegmentIndicator]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate(feedSegmentRef);
+  }, [activeFeed, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    if (activeSection !== 'home') return undefined;
+    if (activeFeed === 'yourFeed') {
+      return scheduleSegmentUpdate(feedContentRef);
+    }
+    if (activeFeed === 'explore') {
+      return scheduleSegmentUpdate(exploreContentRef);
+    }
+    return undefined;
+  }, [activeSection, activeFeed, yourFeedView, exploreView, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate(communityTypeRef);
+  }, [selectedCommunityTab, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate(communityFilterRef);
+  }, [communityFilter, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate(savedSegmentRef);
+  }, [savedTab, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate(feedSegmentRef);
+  }, [activeSection, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    if (activeSection === 'communities') {
+      const cleanupType = scheduleSegmentUpdate(communityTypeRef);
+      const cleanupFilter = scheduleSegmentUpdate(communityFilterRef);
+      return () => {
+        if (cleanupType) cleanupType();
+        if (cleanupFilter) cleanupFilter();
+      };
+    }
+    if (activeSection === 'saved') {
+      return scheduleSegmentUpdate(savedSegmentRef);
+    }
+  }, [activeSection, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      updateSegmentIndicator(feedSegmentRef);
+      updateSegmentIndicator(feedContentRef);
+      updateSegmentIndicator(exploreContentRef);
+      updateSegmentIndicator(communityTypeRef);
+      updateSegmentIndicator(communityFilterRef);
+      updateSegmentIndicator(savedSegmentRef);
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateSegmentIndicator]);
 
   useEffect(() => {
     if (activeSection === 'funding') {
@@ -450,15 +603,61 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       if (resp.data.success) {
         // Re-fetch saved forums so the UI updates
         await fetchSavedForums();
-        alert(isAlreadySaved ? 'Forum unsaved!' : 'Forum saved!');
+        setNotification({ type: 'success', message: isAlreadySaved ? 'Forum unsaved!' : 'Forum saved!' });
       } else {
-        alert('Error: ' + (resp.data.error || 'Unknown error.'));
+        setNotification({ type: 'error', message: resp.data.error || 'Unknown error.' });
       }
     } catch (error) {
       console.error('Error saving/unsaving forum:', error);
-      alert('An error occurred while saving/unsaving the forum.');
+      setNotification({ type: 'error', message: 'An error occurred while saving/unsaving the forum.' });
     }
     setOpenMenuId(null);
+  };
+
+  const handleUnsaveThread = async (threadId) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    try {
+      const resp = await axios.post(
+        '/api/unsave_thread.php',
+        { user_id: userData.user_id, thread_id: threadId },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        await fetchSavedThreads();
+        setNotification({ type: 'success', message: 'Thread unsaved!' });
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Unable to unsave thread.' });
+      }
+    } catch (error) {
+      console.error('Error unsaving thread:', error);
+      setNotification({ type: 'error', message: 'An error occurred while unsaving the thread.' });
+    }
+  };
+
+  const handleUnsavePost = async (postId) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    try {
+      const resp = await axios.post(
+        '/api/unsave_post.php',
+        { user_id: userData.user_id, post_id: postId },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        await fetchSavedPosts();
+        setNotification({ type: 'success', message: 'Comment unsaved!' });
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Unable to unsave comment.' });
+      }
+    } catch (error) {
+      console.error('Error unsaving post:', error);
+      setNotification({ type: 'error', message: 'An error occurred while unsaving the comment.' });
+    }
   };
 
   // ------------- COMMUNITIES -------------
@@ -524,9 +723,17 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         selectedCommunityTab === "university"
           ? "/api/fetch_all_university_data.php"
           : "/api/fetch_all_group_data.php";
+      const scopeValue =
+        communityFilter === 'Followed'
+          ? 'followed'
+          : communityFilter === 'Unfollowed'
+            ? 'unfollowed'
+            : 'all';
       const params = new URLSearchParams();
       params.append('page', String(page));
       params.append('search', term);
+      params.append('scope', scopeValue);
+      params.append('sort', communitySort || 'popularity');
       if (userData?.user_id) {
         params.append('user_id', String(userData.user_id));
       }
@@ -775,6 +982,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     return () => clearTimeout(debounce);
   }, [searchTerm]);
 
+  useEffect(() => {
+    if (activeSection !== 'communities') return;
+    fetchAllCommunitiesData(1, searchTerm);
+    setCurrentPage(1);
+  }, [communityFilter]);
+
+  useEffect(() => {
+    if (activeSection !== 'communities') return;
+    fetchAllCommunitiesData(1, searchTerm);
+    setCurrentPage(1);
+  }, [communitySort]);
+
   // ---------------- URL SYNC (Communities only; visual state only) ----------------
   // Initialize local UI state from URL params on mount or when URL changes
   useEffect(() => {
@@ -977,8 +1196,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // ------------- EDIT FORUM -------------
   const startEditingForum = (forum) => {
     setEditForumId(forum.forum_id);
-    setEditForumName(forum.name);
-    setEditForumDescription(forum.description || '');
+    setEditForumName('');
+    setEditForumDescription('');
     setEditForumTags(mapTagNamesToSlugs(forum.tags || [], tagOptions));
     setIsEditingForum(true);
   };
@@ -1138,16 +1357,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         return !isCommunityFollowed(community);
       }
       return true;
-    })
-    .sort((a, b) => {
-      const sortMode = communitySort || 'popularity';
-      if (sortMode === 'alpha') {
-        return a.name.localeCompare(b.name);
-      }
-      // popularity / fallback: sort by followers descending
-      const aFollowers = Number(a.followers_count || 0);
-      const bFollowers = Number(b.followers_count || 0);
-      return bFollowers - aFollowers;
     });
 
   // Clear filters helper (for empty state action)
@@ -1178,136 +1387,210 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     }
   }, [activeSection, searchParams, activeFeed, setActiveFeed, safeSetSearchParams]);
 
+  const hasFeedForums = feedForums.length > 0;
+  const hasFeedThreads = feedThreads.length > 0;
+  const isFeedEmpty = !hasFeedForums && !hasFeedThreads;
+  const isFeedSelectionEmpty = yourFeedView === 'forums' ? !hasFeedForums : !hasFeedThreads;
+
+  const hasExploreForums = exploreForums.length > 0;
+  const hasExploreThreads = exploreThreads.length > 0;
+  const isExploreEmpty = !hasExploreForums && !hasExploreThreads;
+  const isExploreSelectionEmpty = exploreView === 'forums' ? !hasExploreForums : !hasExploreThreads;
+
   // ------------- RENDER LOGIC -------------
   // HOME SECTION
   if (activeSection === 'home') {
-    return (
+    return withNotification(
       <main>
         {reportModal}
         <div className="feed-container">
           {/* Hero */}
-          <div style={{ marginBottom: '0.5rem' }}>
-            <h1 className="section-title" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 className="section-title" style={{ marginBottom: 4 }}>
               {activeFeed === 'yourFeed' ? 'Your Feed' : 'Explore'}
             </h1>
           </div>
-          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
+          <p className="muted-text" style={{ marginTop: 0 }}>
             Welcome back, {userData?.first_name ? `${userData.first_name}` : 'there'}!
           </p>
-          <div className="section-controls">
-            <span className="sort-pill">Feed</span>
-            <div className="chips-row">
-              <button
-                type="button"
-                className={`chip your-feed-chip ${activeFeed === 'yourFeed' ? 'active' : ''} ${!userData ? 'chip-locked' : ''}`}
-                onClick={() => {
-                  if (!userData) {
-                    onRequireAuth?.();
-                    return;
-                  }
-                  if (activeFeed !== 'yourFeed') {
-                    setActiveFeed('yourFeed');
-                  }
-                  const params = new URLSearchParams(searchParams);
-                  if (params.get('tab') !== 'feed') {
-                    params.set('tab', 'feed');
-                    safeSetSearchParams(params);
-                  }
-                }}
-                aria-disabled={!userData}
-                title={!userData ? 'Log in to access Your Feed' : 'View Your Feed'}
+          <div className="section-controls home-controls section-controls-sticky">
+            <div className="control-group">
+              <div
+                ref={feedSegmentRef}
+                className="chips-row segmented-control"
+                style={{ '--seg-count': 2, '--seg-index': activeFeed === 'yourFeed' ? 0 : 1 }}
               >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  {!userData && <FaLock size={12} />}
-                  Your Feed
-                </span>
-              </button>
-              <button
-                type="button"
-                className={`chip ${activeFeed === 'explore' ? 'active' : ''}`}
-                onClick={() => {
-                  if (activeFeed !== 'explore') {
-                    setActiveFeed('explore');
-                  }
-                  const params = new URLSearchParams(searchParams);
-                  if (params.get('tab') !== 'explore') {
-                    params.set('tab', 'explore');
-                    safeSetSearchParams(params);
-                  }
-                }}
-              >
-                Explore
-              </button>
-            </div>
-            {activeFeed === 'explore' && (
-              <div className="topic-multi-select-wrapper" style={{ marginLeft: 'auto' }}>
-                <span className="sort-pill" style={{ marginRight: '8px' }}>Tags</span>
-                <div className="topic-dropdown" ref={exploreDropdownRef}>
-                  <button
-                    type="button"
-                    className={`topic-dropdown-toggle${isExploreDropdownOpen ? ' open' : ''}`}
-                    onClick={() => setIsExploreDropdownOpen((open) => !open)}
-                    aria-haspopup="listbox"
-                    aria-expanded={isExploreDropdownOpen}
-                  >
-                    <span ref={exploreLabelRef} className="topic-dropdown-label">{exploreLabelText}</span>
-                  </button>
-                  {isExploreDropdownOpen && (
-                    <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
-                      {exploreTagOptions.map((tagOption) => {
-                        const checked = exploreTags.includes(tagOption.value);
-                        return (
-                          <label key={tagOption.value} className="topic-dropdown-option">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => {
-                                setExploreTags((prev) =>
-                                  prev.includes(tagOption.value)
-                                    ? prev.filter((t) => t !== tagOption.value)
-                                    : [...prev, tagOption.value]
-                                );
-                              }}
-                            />
-                            <span>{tagOption.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                <div className="topic-selection-meta" style={{ marginLeft: '8px' }}>
-                  <button
-                    type="button"
-                    className="clear-topics-button"
-                    onClick={clearExploreTags}
-                    disabled={exploreTags.length === 0}
-                  >
-                    Clear
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className={`chip your-feed-chip ${activeFeed === 'yourFeed' ? 'active' : ''} ${!userData ? 'chip-locked' : ''}`}
+                  onClick={() => {
+                    if (!userData) {
+                      onRequireAuth?.();
+                      return;
+                    }
+                    const params = new URLSearchParams(searchParams);
+                    if (params.get('tab') !== 'feed') {
+                      params.set('tab', 'feed');
+                      safeSetSearchParams(params);
+                    }
+                  }}
+                  aria-disabled={!userData}
+                  title={!userData ? 'Log in to access Your Feed' : 'View Your Feed'}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    {!userData && <FaLock size={12} />}
+                    Your Feed
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${activeFeed === 'explore' ? 'active' : ''}`}
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams);
+                    if (params.get('tab') !== 'explore') {
+                      params.set('tab', 'explore');
+                      safeSetSearchParams(params);
+                    }
+                  }}
+                >
+                  Explore
+                </button>
               </div>
-            )}
-          </div>
-
-          {activeFeed === 'yourFeed' && userData ? (
-            <>
-              <div className="feed-controls" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px', gap: '8px' }}>
-                <label htmlFor="feed-sort" className="muted" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  Sort:
+            </div>
+            <button
+              type="button"
+              className="home-filter-trigger mobile-only"
+              onClick={() => setShowHomeFilters((prev) => !prev)}
+              aria-expanded={showHomeFilters}
+              aria-controls="home-filter-panel"
+              aria-label="Open filters"
+            >
+              <FaFilter aria-hidden="true" />
+            </button>
+            <div
+              id="home-filter-panel"
+              className={`home-filter-panel ${showHomeFilters ? 'open' : ''}`}
+            >
+              <div className="control-group">
+                <span className="sort-pill">Content</span>
+                {activeFeed === 'yourFeed' ? (
+                  <div
+                    ref={feedContentRef}
+                    className="chips-row segmented-control"
+                    style={{ '--seg-count': 2, '--seg-index': yourFeedView === 'forums' ? 0 : 1 }}
+                  >
+                    <button
+                      type="button"
+                      className={`chip ${yourFeedView === 'forums' ? 'active' : ''}`}
+                      onClick={() => setYourFeedView('forums')}
+                    >
+                      Forums
+                    </button>
+                    <button
+                      type="button"
+                      className={`chip ${yourFeedView === 'threads' ? 'active' : ''}`}
+                      onClick={() => setYourFeedView('threads')}
+                    >
+                      Threads
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    ref={exploreContentRef}
+                    className="chips-row segmented-control"
+                    style={{ '--seg-count': 2, '--seg-index': exploreView === 'forums' ? 0 : 1 }}
+                  >
+                    <button
+                      type="button"
+                      className={`chip ${exploreView === 'forums' ? 'active' : ''}`}
+                      onClick={() => setExploreView('forums')}
+                    >
+                      Forums
+                    </button>
+                    <button
+                      type="button"
+                      className={`chip ${exploreView === 'threads' ? 'active' : ''}`}
+                      onClick={() => setExploreView('threads')}
+                    >
+                      Threads
+                    </button>
+                  </div>
+                )}
+              </div>
+              {activeFeed === 'explore' && (
+                <div className="control-group topic-multi-select-wrapper">
+                  <span className="sort-pill" style={{ marginRight: '8px' }}>Tags</span>
+                  <div className="topic-dropdown" ref={exploreDropdownRef}>
+                    <button
+                      type="button"
+                      className={`topic-dropdown-toggle${isExploreDropdownOpen ? ' open' : ''}`}
+                      onClick={() => setIsExploreDropdownOpen((open) => !open)}
+                      aria-haspopup="listbox"
+                      aria-expanded={isExploreDropdownOpen}
+                    >
+                      <span ref={exploreLabelRef} className="topic-dropdown-label">{exploreLabelText}</span>
+                    </button>
+                    {isExploreDropdownOpen && (
+                      <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
+                        {exploreTagOptions.map((tagOption) => {
+                          const checked = exploreTags.includes(tagOption.value);
+                          return (
+                            <label key={tagOption.value} className="topic-dropdown-option">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setExploreTags((prev) =>
+                                    prev.includes(tagOption.value)
+                                      ? prev.filter((t) => t !== tagOption.value)
+                                      : [...prev, tagOption.value]
+                                  );
+                                }}
+                              />
+                              <span>{tagOption.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="topic-selection-meta" style={{ marginLeft: '4px' }}>
+                    <button
+                      type="button"
+                      className="clear-topics-button"
+                      onClick={clearExploreTags}
+                      disabled={exploreTags.length === 0}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+              {activeFeed === 'yourFeed' && (
+                <div className="control-group">
+                  <label htmlFor="feed-sort" className="sort-pill" style={{ margin: 0 }}>
+                    Sort
+                  </label>
                   <select
                     id="feed-sort"
+                    className="sort-select"
                     value={feedSort}
                     onChange={(e) => setFeedSort(e.target.value)}
                   >
                     <option value="recent">Most Recent</option>
                     <option value="trending">Trending</option>
                   </select>
-                </label>
-              </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {activeFeed === 'yourFeed' && userData ? (
+            <>
+              <div className="feed-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '8px' }} />
               {isLoadingFeed ? (
                 <p>Loading feed...</p>
-              ) : feedThreads.length === 0 && feedForums.length === 0 ? (
+              ) : isFeedEmpty ? (
                 <div className="empty-feed-card">
                   <p style={{ marginBottom: '8px', fontWeight: 600 }}>Your feed is currently empty.</p>
                   <p className="muted" style={{ marginBottom: '12px' }}>
@@ -1327,11 +1610,19 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     </button>
                   )}
                 </div>
+              ) : isFeedSelectionEmpty ? (
+                <div className="empty-feed-card">
+                  <p style={{ marginBottom: '8px', fontWeight: 600 }}>
+                    No {yourFeedView === 'forums' ? 'forums' : 'threads'} to show yet.
+                  </p>
+                  <p className="muted" style={{ marginBottom: '12px' }}>
+                    Try switching to {yourFeedView === 'forums' ? 'Threads' : 'Forums'} to see more.
+                  </p>
+                </div>
               ) : (
                 <>
-                  {feedForums.length > 0 && (
+                  {yourFeedView === 'forums' && hasFeedForums && (
                     <div style={{ marginBottom: '20px' }}>
-                      <h3 className="section-title" style={{ marginTop: 0 }}>Forums for you</h3>
                       <div className="forum-list">
                         {feedForums.map((forum) => (
                           <ForumCard
@@ -1358,9 +1649,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       </div>
                     </div>
                   )}
-                  {feedThreads.length > 0 && (
+                  {yourFeedView === 'threads' && hasFeedThreads && (
                     <div>
-                      <h3 className="section-title" style={{ marginTop: 0 }}>Threads for you</h3>
                       {feedThreads.map((thread) => (
                         <ThreadCard
                           key={thread.thread_id}
@@ -1384,10 +1674,10 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               )}
             </>
           ) : activeFeed === 'explore' ? (
-            <div className="explore-panel">
+            <div className="explore-panel" style={{ marginTop: '12px' }}>
               {isLoadingExplore ? (
                 <p>Loading explore content...</p>
-              ) : exploreForums.length === 0 && exploreThreads.length === 0 ? (
+              ) : isExploreEmpty ? (
                 <div className="empty-feed-card">
                   <p style={{ marginBottom: '8px', fontWeight: 600 }}>No explore results yet.</p>
                   <p className="muted" style={{ marginBottom: '12px' }}>
@@ -1397,11 +1687,19 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     Reset filters
                   </button>
                 </div>
+              ) : isExploreSelectionEmpty ? (
+                <div className="empty-feed-card">
+                  <p style={{ marginBottom: '8px', fontWeight: 600 }}>
+                    No {exploreView === 'forums' ? 'forums' : 'threads'} found.
+                  </p>
+                  <p className="muted" style={{ marginBottom: '12px' }}>
+                    Try switching to {exploreView === 'forums' ? 'Threads' : 'Forums'} or adjust your tags.
+                  </p>
+                </div>
               ) : (
                 <>
-                  {exploreForums.length > 0 && (
+                  {exploreView === 'forums' && hasExploreForums && (
                     <div style={{ marginBottom: '20px' }}>
-                      <h3 className="section-title" style={{ marginTop: 0 }}>Forums to explore</h3>
                       <div className="forum-list">
                         {exploreForums.map((forum) => (
                           <ForumCard
@@ -1428,9 +1726,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       </div>
                     </div>
                   )}
-                  {exploreThreads.length > 0 && (
+                  {exploreView === 'threads' && hasExploreThreads && (
                     <div>
-                      <h3 className="section-title" style={{ marginTop: 0 }}>Threads to explore</h3>
                       {exploreThreads.map((thread) => (
                         <ThreadCard
                           key={thread.thread_id}
@@ -1468,17 +1765,28 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
   // COMMUNITIES SECTION
   if (activeSection === 'communities') {
-    return (
+    return withNotification(
       <main>
         {reportModal}
         <div className="feed-container">
-          <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Communities</h1>
+          <h1 className="section-title" style={{ marginBottom: 0 }}>Communities</h1>
           {/* Top control bar: tabs + scope + search + action (sticky under header) */}
-          <div className="section-controls section-controls-sticky">
+          <div
+            className="section-controls section-controls-sticky"
+            style={{
+              position: 'sticky',
+              top: 'calc(var(--nav-height) + env(safe-area-inset-top, 0px))',
+              zIndex: 12
+            }}
+          >
             <div className="community-controls">
               <div className="control-group">
                 <span className="sort-pill">Type</span>
-                <div className="chips-row">
+                <div
+                  ref={communityTypeRef}
+                  className="chips-row segmented-control"
+                  style={{ '--seg-count': 2, '--seg-index': selectedCommunityTab === 'university' ? 0 : 1 }}
+                >
                   <button
                     type="button"
                     onClick={() => setSelectedCommunityTab('university')}
@@ -1496,33 +1804,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 </div>
               </div>
 
-              <div className="control-group">
-                <span className="sort-pill">Filter</span>
-                <div className="chips-row">
-                  <button
-                    type="button"
-                    className={`chip ${communityFilter === 'All' ? 'active' : ''}`}
-                    onClick={() => setCommunityFilter('All')}
-                  >
-                    All
-                  </button>
-                  <button
-                    type="button"
-                    className={`chip ${communityFilter === 'Followed' ? 'active' : ''}`}
-                    onClick={() => setCommunityFilter('Followed')}
-                  >
-                    Followed
-                  </button>
-                  <button
-                    type="button"
-                    className={`chip ${communityFilter === 'Unfollowed' ? 'active' : ''}`}
-                    onClick={() => setCommunityFilter('Unfollowed')}
-                  >
-                    Unfollowed
-                  </button>
-                </div>
-              </div>
-
               {selectedCommunityTab === 'group' && (
                 <div className="control-action">
                   <button
@@ -1535,7 +1816,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                   </button>
                 </div>
               )}
-              {selectedCommunityTab === 'university' && (
+              {/* {selectedCommunityTab === 'university' && (
                 <div className="control-action">
                   <button
                     type="button"
@@ -1546,10 +1827,10 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     + Request University
                   </button>
                 </div>
-              )}
+              )} */}
 
               <div className="control-search">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                <div className="community-search-row">
                   <input
                     id="community-search"
                     type="text"
@@ -1559,22 +1840,71 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     className="pill-search"
                     style={{ minWidth: '220px', flex: 1 }}
                   />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <label htmlFor="community-sort" className="sort-pill" style={{ margin: 0 }}>
-                      Sort
-                    </label>
-                    <select
-                      id="community-sort"
-                      value={communitySort}
-                      onChange={(e) => setCommunitySort(e.target.value)}
-                      className="sort-select"
+                  <button
+                    type="button"
+                    className="community-filter-trigger mobile-only"
+                    onClick={() => setShowCommunityFilters((prev) => !prev)}
+                    aria-expanded={showCommunityFilters}
+                    aria-controls="community-filter-panel"
+                    aria-label="Open filters and sort"
+                  >
+                    <FaFilter aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <div
+                id="community-filter-panel"
+                className={`community-filter-panel ${showCommunityFilters ? 'open' : ''}`}
+              >
+                <div className="control-group">
+                  <span className="sort-pill">Filter</span>
+                  <div
+                    ref={communityFilterRef}
+                    className="chips-row segmented-control"
+                    style={{
+                      '--seg-count': 3,
+                      '--seg-index':
+                        communityFilter === 'All' ? 0 : communityFilter === 'Followed' ? 1 : 2
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={`chip ${communityFilter === 'All' ? 'active' : ''}`}
+                      onClick={() => setCommunityFilter('All')}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      className={`chip ${communityFilter === 'Followed' ? 'active' : ''}`}
+                      onClick={() => setCommunityFilter('Followed')}
+                    >
+                      Followed
+                    </button>
+                    <button
+                      type="button"
+                      className={`chip ${communityFilter === 'Unfollowed' ? 'active' : ''}`}
+                      onClick={() => setCommunityFilter('Unfollowed')}
+                    >
+                      Unfollowed
+                    </button>
+                  </div>
+                </div>
+                <div className="control-group community-sort-group">
+                  <label htmlFor="community-sort" className="sort-pill" style={{ margin: 0 }}>
+                    Sort
+                  </label>
+                  <select
+                    id="community-sort"
+                    value={communitySort}
+                    onChange={(e) => setCommunitySort(e.target.value)}
+                    className="sort-select"
                     aria-label="Sort communities"
                   >
                     <option value="popularity">Most Followers</option>
                     <option value="alpha">A-Z</option>
                   </select>
                 </div>
-              </div>
               </div>
             </div>
           </div>
@@ -1599,10 +1929,17 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               <div className="community-list space-y-3">
                 {filteredCommunities.map((community) => {
                   const isFollowed = isCommunityFollowed(community);
-                  const logoSrc =
-                    community.logo_path && community.logo_path.startsWith('/')
-                      ? community.logo_path
-                      : `/uploads/logos/${community.logo_path || 'default-logo.png'}`;
+                  const universityFallbackLogo = buildUploadSrc('/uploads/logos/School Image.png');
+                  const defaultCommunityLogo = buildUploadSrc('/uploads/logos/default-logo.png');
+                  const fallbackLogo =
+                    selectedCommunityTab === 'university'
+                      ? universityFallbackLogo
+                      : defaultCommunityLogo;
+                  const normalizedLogoPath =
+                    typeof community.logo_path === 'string' ? community.logo_path.trim() : '';
+                  const logoSrc = normalizedLogoPath
+                    ? buildUploadSrc(normalizedLogoPath)
+                    : fallbackLogo;
                   return (
                     <div
                       key={community.community_id}
@@ -1613,6 +1950,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                         alt={`${community.name} Logo`}
                         className="community-row-logo"
                         loading="lazy"
+                        onError={(e) => {
+                          const fallback = selectedCommunityTab === 'university'
+                            ? universityFallbackLogo
+                            : defaultCommunityLogo;
+                          if (e.currentTarget.src !== fallback) {
+                            e.currentTarget.src = fallback;
+                          }
+                        }}
                       />
                       <div className="community-row-content">
                         <div className="community-row-header">
@@ -1632,7 +1977,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                           {community.location && (
                             <span className="community-location">{community.location}</span>
                           )}
-                          <span className="followers-count" style={{ marginLeft: community.location ? 12 : 0 }}>
+                          <span className="followers-count">
                             Followers: {community.followers_count || 0}
                           </span>
                           {typeof community.following_count !== 'undefined' && (
@@ -1651,6 +1996,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                           )}
                         </div>
                       </div>
+                      {/*
                       <div className="community-row-actions">
                         <button
                           type="button"
@@ -1671,6 +2017,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                           </span>
                         </button>
                       </div>
+                      */}
                     </div>
                   );
                 })}
@@ -1748,7 +2095,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
           })
           .join(', ');
 
-    return (
+    return withNotification(
       <main>
         {reportModal}
         <div className="feed-container">
@@ -1759,18 +2106,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               justifyContent: 'space-between',
               alignItems: 'center',
               borderBottom: 'none',
-              marginBottom: '0.5rem',
+              marginBottom: '0.25rem',
             }}
           >
             <h1 className="section-title" style={{ margin: 0 }}>Info Board</h1>
           </div>
 
-          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
+          <p className="muted-text" style={{ marginTop: 0 }}>
             Welcome back, {userData?.first_name ? `${userData.first_name}` : 'there'}!
           </p>
 
           {/* Controls: Sort pill + topic chips */}
-          <div className="section-controls info-controls">
+          <div className="section-controls info-controls section-controls-sticky">
             <span className="sort-pill">Sort</span>
             <label htmlFor="sort-by" className="sr-only">Sort by</label>
             <select
@@ -1784,47 +2131,62 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               <option value="mostUpvoted">Most Upvoted</option>
             </select>
 
-            <span className="sort-pill">Tags</span>
-            <div className="topic-multi-select-wrapper">
-              <div className="topic-dropdown" ref={topicDropdownRef}>
-                <button
-                  type="button"
-                  className={`topic-dropdown-toggle${isTopicDropdownOpen ? ' open' : ''}`}
-                  onClick={() => setIsTopicDropdownOpen((open) => !open)}
-                  aria-haspopup="listbox"
-                  aria-expanded={isTopicDropdownOpen}
-                >
-                  <span className="topic-dropdown-label">{selectedTopicLabels}</span>
-                </button>
-                {isTopicDropdownOpen && (
-                  <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
-                    {topicOptionsWithAll.map((topicOption) => {
-                      const checked =
-                        selectedTopics.includes(topicOption.value) ||
-                        (isAllTopicsSelected && topicOption.value === ALL_TOPICS_VALUE);
-                      return (
-                        <label key={topicOption.value} className="topic-dropdown-option">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => handleTopicToggle(topicOption.value)}
-                          />
-                          <span>{topicOption.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              <div className="topic-selection-meta">
-                <button
-                  type="button"
-                  className="clear-topics-button"
-                  onClick={clearTopicFilter}
-                  disabled={isAllTopicsSelected}
-                >
-                  Clear
-                </button>
+            <button
+              type="button"
+              className="info-filter-trigger mobile-only"
+              onClick={() => setShowInfoFilters((prev) => !prev)}
+              aria-expanded={showInfoFilters}
+              aria-controls="info-filter-panel"
+              aria-label="Open tag filters"
+            >
+              <FaFilter aria-hidden="true" />
+            </button>
+            <div
+              id="info-filter-panel"
+              className={`info-filter-panel ${showInfoFilters ? 'open' : ''}`}
+            >
+              <span className="sort-pill">Tags</span>
+              <div className="topic-multi-select-wrapper">
+                <div className="topic-dropdown" ref={topicDropdownRef}>
+                  <button
+                    type="button"
+                    className={`topic-dropdown-toggle${isTopicDropdownOpen ? ' open' : ''}`}
+                    onClick={() => setIsTopicDropdownOpen((open) => !open)}
+                    aria-haspopup="listbox"
+                    aria-expanded={isTopicDropdownOpen}
+                  >
+                    <span className="topic-dropdown-label">{selectedTopicLabels}</span>
+                  </button>
+                  {isTopicDropdownOpen && (
+                    <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
+                      {topicOptionsWithAll.map((topicOption) => {
+                        const checked =
+                          selectedTopics.includes(topicOption.value) ||
+                          (isAllTopicsSelected && topicOption.value === ALL_TOPICS_VALUE);
+                        return (
+                          <label key={topicOption.value} className="topic-dropdown-option">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => handleTopicToggle(topicOption.value)}
+                            />
+                            <span>{topicOption.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="topic-selection-meta">
+                  <button
+                    type="button"
+                    className="clear-topics-button"
+                    onClick={clearTopicFilter}
+                    disabled={isAllTopicsSelected}
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1835,7 +2197,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                   className="pill-button community-request-button"
                   onClick={() => setShowCreateForumModal(true)}
                 >
-                  + New Forum
+                  <span className="mobile-only">+</span>
+                  <span className="desktop-only">+ New Forum</span>
                 </button>
               </div>
             )}
@@ -1917,8 +2280,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
           {/* EDIT FORUM MODAL */}
           {isEditingForum && (
-            <div className="modal-overlay">
-              <div className="modal-content">
+            <div className="modal-overlay edit-forum-overlay">
+              <div className="modal-content edit-forum-modal">
                 <h3>Edit Forum</h3>
                 <form onSubmit={handleEditForumSubmit}>
                   <div className="form-group">
@@ -2006,7 +2369,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
   // FUNDING SECTION
   if (activeSection === 'funding') {
-    return (
+    return withNotification(
       <main>
         {reportModal}
         <div className="feed-container">
@@ -2045,152 +2408,233 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
   // SAVED SECTION
   if (activeSection === 'saved' && userData) {
-    return (
+    const savedMetrics = [
+      { key: 'forums', label: 'Forums', count: savedForums.length },
+      { key: 'threads', label: 'Threads', count: savedThreads.length },
+      { key: 'posts', label: 'Comments', count: savedPosts.length },
+    ];
+    const activeCount =
+      savedTab === 'forums'
+        ? savedForums.length
+        : savedTab === 'threads'
+          ? savedThreads.length
+          : savedPosts.length;
+
+    return withNotification(
       <main>
         {reportModal}
         <div className="feed-container">
-          <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Saved</h1>
-          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
-            Curate your favorites across forums, threads, and posts.
-          </p>
-          <div className="section-controls">
-            <span className="sort-pill">View</span>
-            <div className="chips-row">
-              <button
-                type="button"
-                className={`chip ${savedTab === 'forums' ? 'active' : ''}`}
-                onClick={() => setSavedTab('forums')}
-              >
-                Forums
-              </button>
-              <button
-                type="button"
-                className={`chip ${savedTab === 'threads' ? 'active' : ''}`}
-                onClick={() => setSavedTab('threads')}
-              >
-                Threads
-              </button>
-              <button
-                type="button"
-                className={`chip ${savedTab === 'posts' ? 'active' : ''}`}
-                onClick={() => setSavedTab('posts')}
-              >
-                Posts
-              </button>
+          <div className="saved-section">
+            <h1 className="section-title" style={{ marginBottom: 4 }}>Saved</h1>
+            <p className="muted-text" style={{ marginTop: 0 }}>
+              Curate your favorites across forums, threads, and comments.
+            </p>
+
+            <div className="saved-metrics">
+              {savedMetrics.map((metric) => (
+                <button
+                  key={metric.key}
+                  type="button"
+                  className={`saved-metric ${savedTab === metric.key ? 'active' : ''}`}
+                  onClick={() => setSavedTab(metric.key)}
+                >
+                  <span className="saved-metric__label">{metric.label}</span>
+                  <span className="saved-metric__value">{metric.count}</span>
+                </button>
+              ))}
             </div>
+
+            <div className="section-controls saved-controls">
+              <span className="sort-pill">View</span>
+              <div
+                ref={savedSegmentRef}
+                className="chips-row segmented-control"
+                style={{
+                  '--seg-count': 3,
+                  '--seg-index': savedTab === 'forums' ? 0 : savedTab === 'threads' ? 1 : 2
+                }}
+              >
+                <button
+                  type="button"
+                  className={`chip ${savedTab === 'forums' ? 'active' : ''}`}
+                  onClick={() => setSavedTab('forums')}
+                >
+                  Forums
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${savedTab === 'threads' ? 'active' : ''}`}
+                  onClick={() => setSavedTab('threads')}
+                >
+                  Threads
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${savedTab === 'posts' ? 'active' : ''}`}
+                  onClick={() => setSavedTab('posts')}
+                >
+                  Comments
+                </button>
+              </div>
+              <span className="saved-active-count muted-text">{activeCount} saved</span>
+            </div>
+
+            {activeCount === 0 && (
+              <div className="saved-empty">
+                <h3>No saved {savedTab === 'posts' ? 'comments' : savedTab} yet</h3>
+                <p>Save content from menus to build your quick-access library.</p>
+              </div>
+            )}
+
+            {savedTab === 'forums' && savedForums.length > 0 && (
+              <div className="saved-grid">
+                {savedForums.map((f) => (
+                  <article key={f.forum_id} className="saved-card">
+                    <div className="saved-card__meta">
+                      <span className="saved-card__type">Forum</span>
+                      {f.saved_at && <span className="saved-card__time">Saved {formatSavedAt(f.saved_at)}</span>}
+                    </div>
+                    <p className="saved-card__crumbs">
+                      <span>{f.community_name || 'Community'}</span>
+                    </p>
+                    <Link className="saved-card__title" to={`/info/forum/${f.forum_id}`}>
+                      <h3>{f.name}</h3>
+                    </Link>
+                    <p className="saved-card__text">
+                      {summarizeWithEllipsis(f.description || '', SAVED_CARD_MAX_CHARS) || 'No description provided...'}
+                    </p>
+                    <div className="saved-card__actions">
+                      <button
+                        type="button"
+                        className="pill-button secondary"
+                        onClick={() => handleSaveForum(f.forum_id, true)}
+                      >
+                        Unsave
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {savedTab === 'threads' && savedThreads.length > 0 && (
+              <div className="saved-grid">
+                {savedThreads.map((t) => (
+                  <article key={t.thread_id} className="saved-card">
+                    <div className="saved-card__meta">
+                      <span className="saved-card__type">Thread</span>
+                      {t.saved_at && <span className="saved-card__time">Saved {formatSavedAt(t.saved_at)}</span>}
+                    </div>
+                    <p className="saved-card__crumbs">
+                      <span>Info Board</span>
+                      <span className="saved-card__crumb-sep">/</span>
+                      <span>{t.forum_name || 'Forum'}</span>
+                      <span className="saved-card__crumb-sep">/</span>
+                    </p>
+                    <Link className="saved-card__title" to={`/info/forum/${t.forum_id || 0}/thread/${t.thread_id}`}>
+                      <h3>{t.title || 'Untitled thread'}</h3>
+                    </Link>
+                    <p className="saved-card__text">
+                      {summarizeWithEllipsis(t.first_post_content || '', SAVED_CARD_MAX_CHARS) || 'No thread preview available...'}
+                    </p>
+                    <div className="saved-card__actions">
+                      <button
+                        type="button"
+                        className="pill-button secondary"
+                        onClick={() => handleUnsaveThread(t.thread_id)}
+                      >
+                        Unsave
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {savedTab === 'posts' && savedPosts.length > 0 && (
+              <div className="saved-grid">
+                {savedPosts.map((p) => (
+                  <article
+                    key={p.post_id}
+                    className={`saved-card saved-card--post ${Number(p.verified) === 1 ? 'saved-card--verified' : ''}`}
+                  >
+                    {(() => {
+                      const normalizedPostId = normalizeDisplayId(p.post_id);
+                      const postTarget =
+                        p.thread_id && normalizedPostId
+                          ? `/info/forum/${p.forum_id || 0}/thread/${p.thread_id}?post_id=${encodeURIComponent(normalizedPostId)}#post-${encodeURIComponent(normalizedPostId)}`
+                          : '';
+                      return (
+                        <>
+                    <div className="saved-card__meta">
+                      <span className="saved-card__type">Comment</span>
+                      {p.saved_at && <span className="saved-card__time">Saved {formatSavedAt(p.saved_at)}</span>}
+                    </div>
+                    {Number(p.verified) === 1 && (
+                      <span className="saved-card__verified">Verified Answer</span>
+                    )}
+                    <p className="saved-card__crumbs">
+                      <span>Info Board</span>
+                      <span className="saved-card__crumb-sep">/</span>
+                      <span>{p.forum_name || 'Forum'}</span>
+                      {p.thread_title && (
+                        <>
+                          <span className="saved-card__crumb-sep">/</span>
+                          <span
+                            className="saved-card__crumb-truncate"
+                            title={p.thread_title}
+                          >
+                            {summarizeWithEllipsis(p.thread_title, SAVED_CARD_MAX_CHARS)}
+                          </span>
+                        </>
+                      )}
+                    </p>
+                    {(() => {
+                      const originalPostText = stripHtml(p.original_post_content || '');
+                      const headingText = summarizeWithEllipsis(originalPostText, SAVED_CARD_MAX_CHARS)
+                        || summarizeWithEllipsis(p.thread_title || '', SAVED_CARD_MAX_CHARS)
+                        || 'Saved Comment';
+                      const headingTitle = originalPostText || p.thread_title || 'Saved Comment';
+
+                      return (
+                        <h3 className="saved-card__heading" title={headingTitle}>
+                          {postTarget ? (
+                            <Link className="saved-card__thread-link" to={postTarget}>
+                              {headingText}
+                            </Link>
+                          ) : (
+                            headingText
+                          )}
+                        </h3>
+                      );
+                    })()}
+                    <p className="saved-card__text">
+                      {summarizeWithEllipsis(p.content, SAVED_CARD_MAX_CHARS) || 'No preview available...'}
+                    </p>
+                    <div className="saved-card__actions">
+                      <button
+                        type="button"
+                        className="pill-button secondary"
+                        onClick={() => handleUnsavePost(p.post_id)}
+                      >
+                        Unsave
+                      </button>
+                    </div>
+                        </>
+                      );
+                    })()}
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
-
-          {/* Show relevant list based on savedTab */}
-          {savedTab === 'forums' && (
-            <>
-              {savedForums.length === 0 ? (
-                <p>You have no saved forums.</p>
-              ) : (
-                savedForums.map((f) => (
-                  <div key={f.forum_id} className="forum-card card-lift">
-                    <Link
-                      to={`/info/forum/${f.forum_id}`}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
-                      <h4>{f.name}</h4>
-                      <p>{f.description}</p>
-                    </Link>
-                    <button
-                      style={{
-                        backgroundColor: '#ccc',
-                        color: '#333',
-                        border: 'none',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => handleSaveForum(f.forum_id, true)} // 'true' => unsave
-                    >
-                      Unsave
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
-
-          {savedTab === 'threads' && (
-            <>
-              {savedThreads.length === 0 ? (
-                <p>You have no saved threads.</p>
-              ) : (
-                savedThreads.map((t) => (
-                  <div key={t.thread_id} className="forum-card card-lift">
-                    <Link
-                      to={`/info/forum/0/thread/${t.thread_id}`}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
-                      <h4>{t.title}</h4>
-                    </Link>
-                    <button
-                      style={{
-                        backgroundColor: '#ccc',
-                        color: '#333',
-                        border: 'none',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        // Example: /api/unsave_thread.php
-                        alert(`Unsave thread: ${t.thread_id}`);
-                      }}
-                    >
-                      Unsave
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
-
-          {savedTab === 'posts' && (
-            <>
-              {savedPosts.length === 0 ? (
-                <p>You have no saved posts.</p>
-              ) : (
-                savedPosts.map((p) => (
-                  <div key={p.post_id} className="forum-card card-lift">
-                    <h4>Post #{p.post_id}</h4>
-                    <div
-                      dangerouslySetInnerHTML={{
-                        __html: DOMPurify ? DOMPurify.sanitize(p.content) : p.content
-                      }}
-                    />
-                    <br />
-                    <button
-                      style={{
-                        backgroundColor: '#ccc',
-                        color: '#333',
-                        border: 'none',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        // Example: /api/unsave_post.php
-                        alert(`Unsave post: ${p.post_id}`);
-                      }}
-                    >
-                      Unsave
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
         </div>
       </main>
     );
   }
 
   // If none of the above sections match, display fallback content (e.g., "connections", etc.)
-  return (
+  return withNotification(
     <main>
       {reportModal}
       {['home', 'connections', 'funding'].includes(activeSection) &&
@@ -2205,19 +2649,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
           </div>
         ))
       }
-
-      {/* Notification */}
-      {notification && (
-        <div className={`notification ${notification.type}`}>
-          {notification.message}
-          <button
-            className="notification-close"
-            onClick={() => setNotification(null)}
-          >
-            X
-          </button>
-        </div>
-      )}
     </main>
   );
 }

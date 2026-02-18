@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { isSuperAdmin } from '../constants/roles';
@@ -26,6 +26,7 @@ export default function VerificationReview({ userData }) {
   const [searchParams] = useSearchParams();
   const highlightRequestId = searchParams.get('request_id');
   const cardRefs = useRef({});
+  const filterSegmentRef = useRef(null);
   const apiBase = getApiBase();
 
   const resolveAssetUrl = (path) => {
@@ -89,6 +90,40 @@ export default function VerificationReview({ userData }) {
     return 'No submissions in this view.';
   }, [loading, error]);
 
+  const updateSegmentIndicator = useCallback(() => {
+    const container = filterSegmentRef.current;
+    if (!container) return;
+    const activeChip = container.querySelector('.chip.active');
+    if (!activeChip) return;
+    const containerRect = container.getBoundingClientRect();
+    const chipRect = activeChip.getBoundingClientRect();
+    const left = Math.max(chipRect.left - containerRect.left, 0);
+    const width = chipRect.width;
+    container.style.setProperty('--seg-left', `${left}px`);
+    container.style.setProperty('--seg-width', `${width}px`);
+  }, []);
+
+  const scheduleSegmentUpdate = useCallback(() => {
+    const run = () => updateSegmentIndicator();
+    const raf1 = requestAnimationFrame(run);
+    const raf2 = requestAnimationFrame(run);
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [updateSegmentIndicator]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate();
+  }, [status, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    const handleResize = () => updateSegmentIndicator();
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateSegmentIndicator]);
+
   if (!userData) {
     return <p className="admin-helper">Log in to view verification submissions.</p>;
   }
@@ -101,16 +136,22 @@ export default function VerificationReview({ userData }) {
     <div className="admin-review">
       <div className="admin-review__header">
         <div>
-          <p className="admin-review__eyebrow">Super admin review</p>
           <h1>Verification submissions</h1>
-          <p className="admin-review__subtitle">Review student and staff proof uploads and take action.</p>
+          <p className="admin-review__subtitle muted-text">Review student and staff proof uploads and take action.</p>
         </div>
-        <div className="admin-review__filters">
+        <div
+          ref={filterSegmentRef}
+          className="admin-review__filters chips-row segmented-control"
+          style={{
+            '--seg-count': STATUS_OPTIONS.length,
+            '--seg-index': STATUS_OPTIONS.findIndex((opt) => opt.value === status)
+          }}
+        >
           {STATUS_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
-              className={`pill-button ${status === opt.value ? '' : 'secondary'}`}
+              className={`chip ${status === opt.value ? 'active' : ''}`}
               onClick={() => setStatus(opt.value)}
             >
               {opt.label}

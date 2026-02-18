@@ -14,9 +14,10 @@ try {
 
     $user_id = normalizeId($_GET['user_id']);
 
-    $query = "SELECT sf.forum_id, f.name, f.description, sf.saved_at
+    $query = "SELECT sf.forum_id, f.community_id, c.name AS community_name, f.name, f.description, sf.saved_at
               FROM saved_forums sf
               JOIN forums f ON sf.forum_id = f.forum_id
+              LEFT JOIN communities c ON c.id = f.community_id
               WHERE sf.user_id = :user_id
               ORDER BY sf.saved_at DESC";
     $stmt = $db->prepare($query);

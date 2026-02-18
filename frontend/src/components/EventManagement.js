@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { isAdmin, isSuperAdmin } from '../constants/roles';
 
 function EventManagement({ userData }) {
+  const [searchParams] = useSearchParams();
+  const filterType = searchParams.get('type');
   const roleId = userData?.role_id;
   const isSuperAdminUser = isSuperAdmin(roleId);
   const isAmbassador = Number(userData?.is_ambassador) === 1;
@@ -707,33 +710,45 @@ function EventManagement({ userData }) {
     const mergedAnnouncements = announcementItems.filter((item) => !existingIds.has(item.id));
     return [...mergedAnnouncements, ...localItems];
   }, [announcementItems, localItems]);
+  const filteredItems = useMemo(() => {
+    if (!filterType) return itemsToShow;
+    if (filterType === 'poll') return itemsToShow.filter((item) => item.type === 'poll');
+    if (filterType === 'announcement') return itemsToShow.filter((item) => item.type === 'announcement');
+    if (filterType === 'event') {
+      return itemsToShow.filter((item) => item.type === 'event' || !item.type);
+    }
+    return itemsToShow;
+  }, [filterType, itemsToShow]);
   return (
-    <div className="event-management">
-      <div className="event-management__header">
-        <div>
-          <h2>Event & content management</h2>
-          <p className="muted-text">
+    <div className="feed-container">
+      <div className="event-management">
+        <div className="reported-items__header event-management__header">
+          <div>
+            <h2 className="section-title" style={{ marginBottom: 4 }}>
+              Event & content management
+            </h2>
+            <p className="report-subtitle muted-text">
+              {canManage
+                ? isSuperAdminUser
+                  ? 'Super admins can publish announcements, polls, and events for any community or globally.'
+                  : isAmbassador && !isCommunityAdmin
+                    ? 'Ambassadors can schedule announcements, polls, and events for the communities they represent.'
+                    : 'Admins and ambassadors can manage announcements, polls, and events for the communities they oversee.'
+                : 'Viewing items from communities you follow. Global items appear for everyone.'}
+            </p>
+          </div>
+          <div className="event-management__badge">
             {canManage
               ? isSuperAdminUser
-                ? 'Super admins can publish announcements, polls, and events for any community or globally.'
-                : isAmbassador && !isCommunityAdmin
-                  ? 'Ambassadors can schedule announcements, polls, and events for the communities they represent.'
-                  : 'Admins and ambassadors can manage announcements, polls, and events for the communities they oversee.'
-              : 'Viewing items from communities you follow. Global items appear for everyone.'}
-          </p>
+                ? 'Super admin'
+                : isCommunityAdmin
+                  ? 'Community admin'
+                  : isAdminRole
+                    ? 'Admin'
+                    : 'Ambassador'
+              : 'Member'}
+          </div>
         </div>
-        <div className="event-management__badge">
-          {canManage
-            ? isSuperAdminUser
-              ? 'Super admin'
-              : isCommunityAdmin
-                ? 'Community admin'
-                : isAdminRole
-                  ? 'Admin'
-                  : 'Ambassador'
-            : 'Member'}
-        </div>
-      </div>
 
       {message && (
         <div className={`event-management__alert ${message.type}`}>
@@ -741,9 +756,9 @@ function EventManagement({ userData }) {
         </div>
       )}
 
-      <div className="event-management__grid">
+      <div className="event-management__grid report-grid">
         {canManage && (
-          <section className="event-management__panel">
+          <section className="event-management__panel report-card card-lift">
             <div className="event-management__panel-head">
               <div>
                 <h3>{editingId ? 'Edit item' : 'Create item'}</h3>
@@ -807,22 +822,23 @@ function EventManagement({ userData }) {
               </div>
               {isEventType && canUseZoom && (
                 <>
-                  <div className="event-management__field">
-                    <label>Zoom meeting</label>
+                  <div className="event-management__field event-management__zoom">
+                    <label className="event-management__zoom-title">Zoom meeting</label>
                     {zoomStatus.loading ? (
                       <p className="muted-text small-text">Checking Zoom connection...</p>
                     ) : zoomStatus.connected ? (
                       <>
-                        <label className="small-text" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <label className="event-management__toggle">
                           <input
                             type="checkbox"
+                            className="event-management__toggle-input"
                             checked={form.useZoom}
                             onChange={handleZoomToggle}
                             disabled={!zoomStatus.connected && !form.useZoom}
                           />
-                          Host this event on Zoom
+                          <span className="event-management__toggle-label">Host this event on Zoom</span>
                         </label>
-                        <p className="muted-text small-text">
+                        <p className="muted-text small-text event-management__zoom-meta">
                           Connected as {zoomStatus.email || 'your Zoom account'}.
                         </p>
                       </>
@@ -963,12 +979,12 @@ function EventManagement({ userData }) {
           </section>
         )}
 
-        <section className="event-management__panel">
+        <section className="event-management__panel report-card card-lift">
           <div className="event-management__panel-head">
             <div>
               <h3>Active items</h3>
               <p className="muted-text">
-                {itemsToShow.length
+                {filteredItems.length
                   ? canManage
                     ? 'Edit or remove upcoming items.'
                     : loadingFollowed || loadingAnnouncements
@@ -985,7 +1001,7 @@ function EventManagement({ userData }) {
             </div>
           </div>
           <div className="event-management__list">
-            {itemsToShow.length === 0 && (
+            {filteredItems.length === 0 && (
               <div className="event-management__empty">
                 <p>
                   {canManage
@@ -998,7 +1014,7 @@ function EventManagement({ userData }) {
                 </p>
               </div>
             )}
-            {itemsToShow.map((event) => {
+            {filteredItems.map((event) => {
               const itemType = event.type || 'event';
               const typeLabel = getTypeLabel(itemType);
               const datePrefix = getDatePrefix(itemType);
@@ -1064,6 +1080,7 @@ function EventManagement({ userData }) {
           </div>
         </section>
       </div>
+    </div>
     </div>
   );
 }

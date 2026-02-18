@@ -46,21 +46,21 @@
   overflow-x: hidden;
 }
 
-/* Communities route: hide right rail and widen/center main column */
-.app-shell-grid.communities-layout {
-  grid-template-columns: 240px 1fr;
-}
-.app-shell-grid.communities-layout .right-rail {
-  display: none;
-}
-.app-shell-grid.communities-layout .center-rail {
-  max-width: 1200px; /* allow wider profile/communities layouts */
-  padding-left: 0;
-  padding-right: 0;
-}
+/* Communities route: keep right rail and standard column layout on large screens only */
+@media (min-width: 1280px) {
+  .app-shell-grid.communities-layout {
+    grid-template-columns: 240px 1fr 320px;
+  }
+  .app-shell-grid.communities-layout .right-rail {
+    display: block;
+  }
+  .app-shell-grid.communities-layout .center-rail {
+    max-width: 1000px;
+  }
 
-.app-shell-grid.nav-collapsed.communities-layout {
-  grid-template-columns: 80px 1fr;
+  .app-shell-grid.nav-collapsed.communities-layout {
+    grid-template-columns: 80px 1fr 320px;
+  }
 }
 
 .app-shell-grid.messages-layout {
@@ -70,9 +70,15 @@
   display: none;
 }
 .app-shell-grid.messages-layout .center-rail {
-  max-width: 1100px;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.app-shell-grid.messages-layout .center-rail,
+.app-shell-grid.messages-layout .center-rail > main {
+  height: calc(100vh - var(--nav-height));
+  overflow: hidden;
 }
 
 .app-shell-grid.nav-collapsed.messages-layout {
@@ -133,6 +139,15 @@
   .app-shell-grid.nav-collapsed {
     grid-template-columns: 80px 1fr;
   }
+
+  .app-shell-grid.messages-layout,
+  .app-shell-grid.nav-collapsed.messages-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell-grid.communities-layout .center-rail {
+    max-width: 100%;
+  }
 }
 
 /* Convert left rail to drawer below lg (1024px) */
@@ -140,23 +155,70 @@
   .app-shell-main {
     padding: 0 12px 24px;
   }
+  .app-shell-main:has(.app-shell-grid.messages-layout) {
+    padding: 0;
+  }
+  .app-shell-grid.messages-layout {
+    min-height: calc(100vh - var(--nav-height));
+  }
+  .app-shell-grid.messages-layout .center-rail,
+  .app-shell-grid.messages-layout .center-rail > main {
+    height: calc(100vh - var(--nav-height));
+  }
+  .center-rail,
+  .center-rail > main {
+    overflow: visible;
+  }
   .app-shell-grid {
     grid-template-columns: 1fr;
     width: 100%;
     margin: 12px auto 20px;
     gap: 16px;
   }
+  .app-shell-grid.messages-layout {
+    margin: 0;
+    gap: 0;
+  }
+  .app-shell-grid.communities-layout {
+    margin-top: 0;
+  }
   .app-shell-grid.nav-collapsed {
     grid-template-columns: 1fr;
   }
   .left-rail { display: none; }
   .center-rail { max-width: 100%; }
-  .right-rail { display: none; }
+  .right-rail { display: none !important; }
   .left-drawer { width: min(85vw, 320px); }
   .drawer-toggle {
     display: inline-flex;
     right: 12px;
     left: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell-main {
+    padding: 0 10px calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+  .app-shell-main:has(.app-shell-grid.messages-layout) {
+    padding: 0;
+  }
+  .app-shell-grid {
+    margin: 16px auto;
+    gap: 12px;
+  }
+  .app-shell-grid.messages-layout {
+    margin: 0;
+    gap: 0;
+  }
+  .center-rail {
+    max-width: 100%;
+  }
+  .left-drawer {
+    width: min(90vw, 320px);
+  }
+  .drawer-backdrop {
+    top: calc(var(--nav-height, 64px) + env(safe-area-inset-top, 0px));
   }
 }
 

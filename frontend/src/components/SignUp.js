@@ -158,6 +158,10 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
     }
   }, [roleIntent, verificationMethod]);
 
+  const handleVerificationFileChange = (setter) => (event) => {
+    setter(event.target.files?.[0] || null);
+  };
+
   const applyWizardState = (nextWizard, fallbackStep = 0) => {
     const nextStep = Number(nextWizard?.current_step || fallbackStep || 0);
     setStep(nextStep === 4 ? 5 : nextStep);
@@ -857,9 +861,53 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
               {verificationMethod === 'id_photo' && (
                 <>
                   <label>Selfie holding your ID</label>
-                  <input type="file" accept="image/*" onChange={(e) => setVerificationSelfieFile(e.target.files?.[0] || null)} />
+                  <div className="auth-upload-actions">
+                    <label className="auth-upload-trigger" htmlFor="verification-selfie-upload">
+                      Upload file
+                    </label>
+                    <label className="auth-upload-trigger" htmlFor="verification-selfie-camera">
+                      Take photo
+                    </label>
+                  </div>
+                  <input
+                    id="verification-selfie-upload"
+                    type="file"
+                    accept="image/*"
+                    className="auth-upload-input"
+                    onChange={handleVerificationFileChange(setVerificationSelfieFile)}
+                  />
+                  <input
+                    id="verification-selfie-camera"
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    className="auth-upload-input"
+                    onChange={handleVerificationFileChange(setVerificationSelfieFile)}
+                  />
                   <label>Front of ID</label>
-                  <input type="file" accept="image/*" onChange={(e) => setVerificationIdFrontFile(e.target.files?.[0] || null)} />
+                  <div className="auth-upload-actions">
+                    <label className="auth-upload-trigger" htmlFor="verification-id-upload">
+                      Upload file
+                    </label>
+                    <label className="auth-upload-trigger" htmlFor="verification-id-camera">
+                      Take photo
+                    </label>
+                  </div>
+                  <input
+                    id="verification-id-upload"
+                    type="file"
+                    accept="image/*"
+                    className="auth-upload-input"
+                    onChange={handleVerificationFileChange(setVerificationIdFrontFile)}
+                  />
+                  <input
+                    id="verification-id-camera"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="auth-upload-input"
+                    onChange={handleVerificationFileChange(setVerificationIdFrontFile)}
+                  />
                   <p className="auth-helper">Your name and the university logo must be visible.</p>
                 </>
               )}
@@ -867,7 +915,29 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
               {verificationMethod === 'tuition_statement' && (
                 <>
                   <label>Upload schedule or billing statement</label>
-                  <input type="file" accept="image/*,application/pdf" onChange={(e) => setVerificationDocumentFile(e.target.files?.[0] || null)} />
+                  <div className="auth-upload-actions">
+                    <label className="auth-upload-trigger" htmlFor="verification-doc-upload">
+                      Upload file
+                    </label>
+                    <label className="auth-upload-trigger" htmlFor="verification-doc-camera">
+                      Take photo
+                    </label>
+                  </div>
+                  <input
+                    id="verification-doc-upload"
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="auth-upload-input"
+                    onChange={handleVerificationFileChange(setVerificationDocumentFile)}
+                  />
+                  <input
+                    id="verification-doc-camera"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="auth-upload-input"
+                    onChange={handleVerificationFileChange(setVerificationDocumentFile)}
+                  />
                   <p className="auth-helper">Must be within the last 90 days and show your name and university logo.</p>
                 </>
               )}

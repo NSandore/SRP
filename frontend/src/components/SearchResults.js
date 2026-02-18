@@ -8,7 +8,7 @@ import {
   FaRegArrowAltCircleDown
 } from 'react-icons/fa';
 import { FiMessageCircle } from 'react-icons/fi';
-import { getApiBase } from '../utils/apiBase';
+import buildUploadSrc from '../utils/uploads';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -68,8 +68,6 @@ function SearchResults() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const API_BASE = getApiBase();
-  const buildApiUrl = (path) => `${API_BASE}${path}`;
   const tabs = React.useMemo(
     () => [
       { id: 'users', label: 'Users' },
@@ -180,7 +178,7 @@ function SearchResults() {
     setError('');
     const controller = new AbortController();
     axios
-      .get(buildApiUrl(`/api/search.php?q=${encodeURIComponent(query)}&limit=8`), {
+      .get(`/api/search.php?q=${encodeURIComponent(query)}&limit=8`, {
         withCredentials: true,
         signal: controller.signal,
       })
@@ -192,7 +190,7 @@ function SearchResults() {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [query, API_BASE]);
+  }, [query]);
 
   const getCount = React.useCallback((tabId) => {
     switch (tabId) {
@@ -249,7 +247,8 @@ function SearchResults() {
               ))}
             </div>
             <div className="search-sort">
-              <label htmlFor="search-sort">Sort</label>
+              <label htmlFor="search-sort" className="sr-only">Sort</label>
+              <span className="sort-pill" style={{ margin: 0 }}>Sort</span>
               <select
                 id="search-sort"
                 className="sort-select"
@@ -263,8 +262,6 @@ function SearchResults() {
             </div>
           </div>
         </div>
-        <div className="search-divider" />
-
         <div className="search-content">
           {!hasAny && <EmptyState query={query} />}
 
@@ -293,37 +290,54 @@ function SearchResults() {
               </div>
               <div className="search-list">
                 {sorted.communities.map((c) => (
-                  <Link
-                    key={c.id}
-                    to={c.community_type === 'group' ? `/group/${c.id}` : `/university/${c.id}`}
-                    className="community-row-card"
-                  >
-                    <img
-                      src={c.logo_path ? `${API_BASE}${c.logo_path}` : '/favicon.ico'}
-                      alt={c.name}
-                      className="community-row-logo"
-                      loading="lazy"
-                    />
-                    <div className="community-row-content">
-                      <div className="community-row-header">
-                        <div className="thread-title">{c.name}</div>
-                        <span className="pill-button secondary" style={{ padding: '4px 10px' }}>
-                          {c.community_type === 'group' ? 'Group' : 'University'}
-                        </span>
-                      </div>
-                      <div className="community-row-meta">
-                        {c.tagline && <span>{c.tagline}</span>}
-                        {c.location && (
-                          <span style={{ marginLeft: c.tagline ? 12 : 0 }}>{c.location}</span>
-                        )}
-                        {c.parent_name && (
-                          <span className="muted" style={{ marginLeft: (c.tagline || c.location) ? 12 : 0 }}>
-                            Part of {c.parent_name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
+                  (() => {
+                    const universityFallbackLogo = buildUploadSrc('/uploads/logos/School Image.png');
+                    const defaultCommunityLogo = buildUploadSrc('/uploads/logos/default-logo.png');
+                    const fallbackLogo =
+                      c.community_type === 'university' ? universityFallbackLogo : defaultCommunityLogo;
+                    const normalizedLogoPath = typeof c.logo_path === 'string' ? c.logo_path.trim() : '';
+                    const logoSrc = normalizedLogoPath
+                      ? buildUploadSrc(
+                        normalizedLogoPath.startsWith('/')
+                          ? normalizedLogoPath
+                          : `/uploads/logos/${normalizedLogoPath}`
+                      ) || fallbackLogo
+                      : fallbackLogo;
+
+                    return (
+                      <Link
+                        key={c.id}
+                        to={c.community_type === 'group' ? `/group/${c.id}` : `/university/${c.id}`}
+                        className="community-row-card"
+                      >
+                        <img
+                          src={logoSrc}
+                          alt={c.name}
+                          className="community-row-logo"
+                          loading="lazy"
+                        />
+                        <div className="community-row-content">
+                          <div className="community-row-header">
+                            <div className="thread-title">{c.name}</div>
+                            <span className="pill-button secondary" style={{ padding: '4px 10px' }}>
+                              {c.community_type === 'group' ? 'Group' : 'University'}
+                            </span>
+                          </div>
+                          <div className="community-row-meta">
+                            {c.tagline && <span>{c.tagline}</span>}
+                            {c.location && (
+                              <span style={{ marginLeft: c.tagline ? 12 : 0 }}>{c.location}</span>
+                            )}
+                            {c.parent_name && (
+                              <span className="muted" style={{ marginLeft: (c.tagline || c.location) ? 12 : 0 }}>
+                                Part of {c.parent_name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })()
                 ))}
               </div>
             </section>

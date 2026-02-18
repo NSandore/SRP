@@ -1,210 +1,232 @@
 /* Connections.css */
-:root {
-    --primary-color: #0077B5;
-    --secondary-color: #005f8d;
-    --text-color: #333;
-    --subtext-color: #777;
-    /*--background-color: #fff;*/
-    --light-background: #f7f7f7;
-    --border-radius: 8px;
-    --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    --transition-speed: 0.3s;
-    --font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  }
-  
-  .connections-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #ddd;
-  }
-  
-  .connections-header h2 {
-    font-size: 1.5rem;
-    margin: 0;
-    color: var(--text-color);
-  }
-  
-  /* Toggle buttons */
-  .toggle-buttons {
-    display: flex;
-    gap: 10px;
-  }
-  
-  .toggle-button {
-    background: none;
-    border: 1px solid #ccc;
-    border-radius: 20px;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    transition: background 0.3s, color 0.3s;
-  }
-  
-  .toggle-button.active {
-    background-color: #0077B5; /* Blue */
-    color: #fff;
-    border-color: #0077B5;
-  }
-  
-  /* Scrollable connections list */
-  .connections-list {
-    max-height: 350px;
-    overflow-y: auto;
-    margin-top: 1rem;
-    border: 1px solid #ddd;
-    border-radius: var(--border-radius);
-  }
-  
-  .connections-list ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  [data-theme="dark"] .connections-list li {
-    background: #2d2d2d;
-  }
-
-  /* New container for the two buttons */
-  .connection-actions {
-    align-items: center;
-    margin-left: auto; /* pushes this container to the right side */
-    gap: 10px;        /* spacing between buttons */
-  }
-  
-  .connections-list li:hover {
-
-  }
-  
-/* Avatar */
-.connection-avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  object-fit: cover;
-  margin-right: 15px;
+.connections-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 12px;
 }
 
-  
-  /* User Info */
-  .connection-info {
-    flex: 1;
+.connections-list {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.connections-list ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.connections-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.connection-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--card-background);
+  border: 1px solid var(--card-border);
+  box-shadow: 1px 1px 8px var(--shadow-color);
+  transition: transform 120ms ease, box-shadow 150ms ease, border-color 150ms ease;
+  position: relative;
+  overflow: visible;
+}
+
+.connection-card:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+  background: var(--card-background);
+}
+
+[data-theme="dark"] .connection-card {
+  background: var(--card-background);
+  border-color: var(--card-border);
+  box-shadow: 1px 1px 8px var(--shadow-color);
+}
+
+[data-theme="dark"] .connection-card:hover {
+  border-color: var(--primary-color);
+  background: var(--card-background);
+}
+
+.connection-avatar-wrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  padding: 3px;
+  background: rgba(37, 99, 235, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.connection-avatar {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  padding-right: 10px;
+  object-fit: cover;
+}
+
+[data-theme="dark"] .connection-avatar-wrap {
+  background: rgba(56, 189, 248, 0.12);
+}
+
+[data-theme="dark"] .connection-avatar {
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.connection-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin-left: 6px;
+}
+
+.connection-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-color);
+}
+
+.connection-name a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.connection-name a:hover {
+  text-decoration: underline;
+}
+
+.connection-headline {
+  font-size: 0.92rem;
+  color: var(--subtext-color);
+  margin: 0;
+}
+
+.connection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.follow-button,
+.message-button {
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.follow-button {
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
+}
+
+.follow-button.unfollow {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-color);
+  border-color: var(--card-border);
+  box-shadow: none;
+}
+
+.follow-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.follow-button.unfollow:hover {
+  background: rgba(15, 23, 42, 0.14);
+  border-color: var(--primary-color);
+}
+
+.message-button {
+  background-color: #22c55e;
+  color: #fff;
+  border: none;
+  box-shadow: 0 10px 20px rgba(34, 197, 94, 0.25);
+}
+
+.message-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.connections-list .dropdown-menu {
+  position: absolute;
+  z-index: 12000;
+}
+
+.connections-list .menu-icon {
+  position: relative;
+  z-index: 2000;
+}
+
+[data-theme="dark"] .connections-list {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+[data-theme="dark"] .connection-name {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .connection-headline {
+  color: #cbd5f5;
+}
+
+@media (max-width: 900px) {
+  .connection-card {
+    flex-direction: column;
+    align-items: flex-start;
   }
-  
-  .connection-name {
-    font-size: 1.1rem;
-    font-weight: bold;
-    margin: 0;
-    color: var(--text-color);
+
+  .connection-actions {
+    margin-left: 0;
+    width: 100%;
   }
-  
-  .connection-name a {
-    text-decoration: none;
-    color: inherit;
+}
+
+@media (max-width: 600px) {
+  .connection-avatar-wrap {
+    width: 52px;
+    height: 52px;
   }
-  
-  .connection-name a:hover {
-    text-decoration: underline;
+
+  .connection-avatar {
+    width: 46px;
+    height: 46px;
   }
-  
-  .connection-headline {
-    font-size: 0.9rem;
-    color: var(--subtext-color);
-    margin: 0.25rem 0 0;
-  }
-  
-  /* Follow/Unfollow and Message Buttons */
+
   .follow-button,
   .message-button {
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    cursor: pointer;
-    border: none;
-    transition: background var(--transition-speed);
+    font-size: 0.82rem;
+    padding: 0.45rem 0.95rem;
   }
-  
-  .follow-button {
-    background-color: var(--primary-color);
-    color: white;
-  }
-  
-  .follow-button.unfollow {
-    background-color: #ff4d4d;
-  }
-  
-  .follow-button:hover {
-    background-color: var(--secondary-color);
-  }
-  
-  .follow-button.unfollow:hover {
-    background-color: #cc0000;
-  }
-  
-  .message-button {
-    background-color: #007bff;
-    color: #fff;
-    margin-left: 10px;
-  }
-  
-  .message-button:hover {
-    background-color: #0056b3;
-  }
-
-  /* 3-dot menu icon */
-  .menu-icon {
-    font-size: 1.2rem;
-    cursor: pointer;
-    color: #777;
-  }
-
-  /* Dropdown menu */
-  .dropdown-menu {
-    background-color: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    position: absolute;
-    top: 30px;
-    right: 8px;
-    z-index: 10;
-    width: 140px;
-    padding: 0.25rem 0;
-  }
-
-  .dropdown-item {
-    background: none;
-    border: none;
-    width: 100%;
-    text-align: left;
-    padding: 8px;
-    font-size: 0.9rem;
-    cursor: pointer;
-  }
-
-  .dropdown-item:hover {
-    background-color: #f0f0f0;
-  }
-  
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .connection-avatar {
-      width: 40px;
-      height: 40px;
-    }
-  
-    .connection-name {
-      font-size: 1rem;
-    }
-  
-    .connection-headline {
-      font-size: 0.85rem;
-    }
-  
-    .follow-button,
-    .message-button {
-      font-size: 0.8rem;
-      padding: 5px 10px;
-    }
-  }
+}

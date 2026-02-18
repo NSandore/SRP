@@ -109,21 +109,45 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .group-profile {
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
   .group-banner {
-    height: 200px;
+    height: 170px;
   }
   .group-logo {
-    width: 100px;
-    height: 100px;
+    width: 92px;
+    height: 92px;
+    border-width: 3px;
   }
   .group-name {
-    font-size: 2rem;
+    font-size: 1.6rem;
   }
   .group-tagline {
     font-size: 1rem;
+    margin: 0.35rem 0;
   }
   .group-location {
     font-size: 0.9rem;
+    margin: 0.25rem 0;
+  }
+  .group-info {
+    padding: 1rem 1.25rem 1.25rem;
+    text-align: left;
+    border-radius: 0;
+  }
+  .group-info a,
+  .edit-group-button {
+    width: 100%;
+    text-align: center;
+  }
+  .group-info a {
+    margin-top: 1rem;
+  }
+  .edit-group-button {
+    margin-top: 0.75rem;
   }
 }
 

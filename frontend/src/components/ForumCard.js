@@ -30,6 +30,30 @@ const ForumCard = ({
         .filter((community) => community.community_id)
     : [];
   const canPinToCommunity = ambassadorCommunities.length > 0;
+  const baseSaved = Boolean(forum?.saved);
+  const [savedStatus, setSavedStatus] = useState(baseSaved);
+  useEffect(() => {
+    setSavedStatus(baseSaved);
+  }, [baseSaved]);
+
+  useEffect(() => {
+    if (openMenuId !== forum.forum_id || !userData?.user_id) return;
+    const loadSavedStatus = async () => {
+      try {
+        const resp = await axios.get('/api/save_check.php', {
+          params: { user_id: userData.user_id, item_type: 'forum', item_id: forum.forum_id },
+          withCredentials: true,
+        });
+        const saved = Boolean(resp.data?.saved ?? resp.data?.is_saved);
+        setSavedStatus(saved);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('save_check failed for forum', err);
+      }
+    };
+    loadSavedStatus();
+  }, [openMenuId, forum.forum_id, userData?.user_id]);
+
   const timeAgo = (dateStr) => {
     if (!dateStr) return '';
     const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
@@ -117,54 +141,26 @@ const ForumCard = ({
       className="forum-card card-lift"
       style={{ position: 'relative' }}
     >
-      {/* 3-dot menu icon */}
-      <FaEllipsisV
-        className="menu-icon kebab-button"
-        style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
-        onClick={() => toggleMenu(forum.forum_id)}
-        aria-haspopup="menu"
-        aria-expanded={openMenuId === forum.forum_id}
-      />
       {openMenuId === forum.forum_id && (
         <div
           ref={menuRef}
           className="dropdown-menu"
-          style={{
-            position: 'absolute',
-            top: '30px',
-            right: '8px',
-            backgroundColor: 'var(--bg-card, var(--card-background))',
-            border: '1px solid var(--card-border)',
-            borderRadius: '4px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            zIndex: 10,
-            width: '180px'
-          }}
+          style={{ position: 'absolute', top: '30px', right: '8px', zIndex: 10 }}
         >
           {canPinToCommunity && (
-            <div className="dropdown-item submenu-container">
-              <button
-                type="button"
-                className="submenu-title"
-                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', padding: '8px' }}
-                onClick={() => setIsPinSubmenuOpen((open) => !open)}
-              >
-                Pin to Community
-              </button>
+            <div
+              className="dropdown-item"
+              onMouseEnter={() => setIsPinSubmenuOpen(true)}
+              onMouseLeave={() => setIsPinSubmenuOpen(false)}
+              style={{ position: 'relative' }}
+            >
+              Pin to Community
               {isPinSubmenuOpen && (
-                <ul
-                  className="submenu-list"
-                  style={{ listStyle: 'none', padding: '0', margin: '0' }}
-                >
+                <ul className="submenu-list submenu-right">
                   {ambassadorCommunities.map((community) => (
                     <li
                       key={community.community_id}
                       className="submenu-item"
-                      style={{
-                        padding: '6px 8px',
-                        cursor: 'pointer',
-                        borderTop: '1px solid var(--card-border)'
-                      }}
                       onClick={() => handlePinForum(community.community_id)}
                     >
                       {community.name}
@@ -177,31 +173,17 @@ const ForumCard = ({
           {handleSaveForum && (
             <button
               className="dropdown-item"
-              style={{
-                width: '100%',
-                border: 'none',
-                background: 'none',
-                padding: '8px',
-                textAlign: 'left',
-                cursor: 'pointer'
-              }}
               onClick={() => {
-                handleSaveForum(forum.forum_id, forum.saved);
+                handleSaveForum(forum.forum_id, savedStatus);
+                setSavedStatus((prev) => !prev);
+                toggleMenu(null);
               }}
             >
-              {forum.saved ? 'Unsave' : 'Save'}
+              {savedStatus ? 'Unsave' : 'Save'}
             </button>
           )}
           <button
             className="dropdown-item"
-            style={{
-              width: '100%',
-              border: 'none',
-              background: 'none',
-              padding: '8px',
-              textAlign: 'left',
-              cursor: 'pointer'
-            }}
             onClick={() => {
               if (onReport) {
                 onReport(forum);
@@ -215,14 +197,6 @@ const ForumCard = ({
             <>
               <button
                 className="dropdown-item"
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  background: 'none',
-                  padding: '8px',
-                  textAlign: 'left',
-                  cursor: 'pointer'
-                }}
                 onClick={() => {
                   startEditingForum(forum);
                   toggleMenu(null);
@@ -232,14 +206,6 @@ const ForumCard = ({
               </button>
               <button
                 className="dropdown-item"
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  background: 'none',
-                  padding: '8px',
-                  textAlign: 'left',
-                  cursor: 'pointer'
-                }}
                 onClick={() => {
                   handleDeleteForum(forum.forum_id);
                   toggleMenu(null);
@@ -254,11 +220,23 @@ const ForumCard = ({
 
       {/* Left block: title, description, meta */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', lineHeight: 1.5 }}>
-        <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <h3 className="forum-title" style={{ margin: 0 }}>{forum.name}</h3>
-        </Link>
+        <div className="forum-title-row">
+          <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <h3 className="forum-title" style={{ margin: 0 }}>{forum.name}</h3>
+          </Link>
+          <button
+            type="button"
+            className="kebab-button"
+            aria-haspopup="menu"
+            aria-expanded={openMenuId === forum.forum_id}
+            onClick={() => toggleMenu(forum.forum_id)}
+            style={{ cursor: 'pointer' }}
+          >
+            <FaEllipsisV className="menu-icon" />
+          </button>
+        </div>
         {Array.isArray(forum.tags) && forum.tags.length > 0 && (
-          <div className="chips-row" style={{ marginTop: '4px' }}>
+          <div className="chips-row" style={{ marginTop: 0 }}>
             {forum.tags.map((tag) => (
               <span key={tag} className="chip tag-chip">
                 {tag}

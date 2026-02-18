@@ -56,11 +56,13 @@ import AuthOverlay from './components/AuthOverlay';
 import AccountSettings from './components/AccountSettings';
 import ReportedItems from './components/ReportedItems';
 import EventManagement from './components/EventManagement';
+import EventsFeed from './components/EventsFeed';
+import PollsPage from './components/PollsPage';
 import DonationPage from './components/DonationPage';
 import { buildAvatarSrc } from './utils/avatar';
 import VerificationReview from './components/VerificationReview';
 
-const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/admin/verifications'];
+const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/polls', '/admin/verifications'];
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -843,6 +845,26 @@ function App() {
                   element={
                     userData ? (
                       <EventManagement userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/events-feed"
+                  element={<EventsFeed userData={userData} />}
+                />
+                <Route
+                  path="/polls"
+                  element={
+                    userData ? (
+                      <PollsPage userData={userData} />
                     ) : (
                       <AuthOverlay
                         isOpen

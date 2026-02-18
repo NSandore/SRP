@@ -14,7 +14,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Flag,
-  CalendarRange
+  CalendarRange,
+  Calendar,
+  BarChart3
 } from 'lucide-react';
 import { isAdmin, isSuperAdmin } from '../constants/roles';
 
@@ -30,11 +32,12 @@ const baseItems = [
 
 function LeftSidebar({
   userData,
-  lockedKeys = ['saved', 'connections', 'profile'],
+  lockedKeys = ['saved', 'connections', 'profile', 'polls_feed'],
   collapsed = false,
   pendingVerificationCount = 0,
   onToggle = undefined,
   onNavigate = undefined,
+  isDrawer = false,
 }) {
   const roleId = userData?.role_id;
   const isSuperAdminUser = isSuperAdmin(roleId);
@@ -44,8 +47,19 @@ function LeftSidebar({
   const isAmbassador = userData && Number(userData.is_ambassador) === 1;
   const isModerator = userData && (isSuperAdminUser || isAmbassador);
 
+  const mobileExtras = isDrawer ? [
+    { to: '/events-feed', label: 'Events', Icon: Calendar, color: '#14B8A6', key: 'events_feed' },
+    { to: '/polls', label: 'Polls', Icon: BarChart3, color: '#F97316', key: 'polls_feed' },
+  ] : [];
+  const baseWithMobile = [...baseItems];
+  if (mobileExtras.length) {
+    const insertAt = baseWithMobile.findIndex((item) => item.key === 'communities');
+    const idx = insertAt === -1 ? baseWithMobile.length : insertAt + 1;
+    baseWithMobile.splice(idx, 0, ...mobileExtras);
+  }
+
   const items = [
-    ...baseItems,
+    ...baseWithMobile,
     ...(isSuperAdminUser || isAdminRole || isCommunityAdmin || isAmbassador
       ? [{ to: '/events', label: 'Event Management', Icon: CalendarRange, color: '#22C55E', key: 'events' }]
       : []),

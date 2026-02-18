@@ -7,7 +7,16 @@ $user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : null;
 $isGuest = $user_id === null;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$scope = isset($_GET['scope']) ? strtolower(trim((string)$_GET['scope'])) : 'all';
+if (!in_array($scope, ['all', 'followed', 'unfollowed'], true)) {
+    $scope = 'all';
+}
+$sort = isset($_GET['sort']) ? strtolower(trim((string)$_GET['sort'])) : 'popularity';
+if (!in_array($sort, ['popularity', 'alpha'], true)) {
+    $sort = 'popularity';
+}
 $limit = 10; // Number of communities per page
+$page = max(1, $page);
 $offset = ($page - 1) * $limit;
 
 $db = getDB();
@@ -52,6 +61,12 @@ try {
             WHERE aud.community_type = 'group'
         ";
         $params = [':user_id' => $user_id];
+
+        if ($scope === 'followed') {
+            $query .= " AND fc.user_id IS NOT NULL";
+        } elseif ($scope === 'unfollowed') {
+            $query .= " AND fc.user_id IS NULL";
+        }
     }
 
     // Add search condition if a search term is provided
@@ -63,7 +78,11 @@ try {
         $params[':search_exact'] = $search;
     }
 
-    $query .= " ORDER BY aud.name ASC LIMIT :limit OFFSET :offset";
+    $orderBy = $sort === 'alpha'
+        ? " ORDER BY aud.name ASC"
+        : " ORDER BY aud.followers_count DESC, aud.name ASC";
+
+    $query .= $orderBy . " LIMIT :limit OFFSET :offset";
 
     $stmt = $db->prepare($query);
 
@@ -86,8 +105,16 @@ try {
     $countQuery = "
         SELECT COUNT(*) as total
         FROM all_community_data aud
+        " . ($isGuest ? "" : "LEFT JOIN followed_communities fc ON aud.community_id = fc.community_id AND fc.user_id = :user_id") . "
         WHERE aud.community_type = 'group'
     ";
+    if (!$isGuest) {
+        if ($scope === 'followed') {
+            $countQuery .= " AND fc.user_id IS NOT NULL";
+        } elseif ($scope === 'unfollowed') {
+            $countQuery .= " AND fc.user_id IS NULL";
+        }
+    }
     if ($search !== '') {
         $countQuery .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search";
         $countQuery .= " OR (aud.aliases IS NOT NULL AND JSON_SEARCH(aud.aliases, 'one', :search_exact) IS NOT NULL)";
@@ -95,6 +122,9 @@ try {
     }
 
     $countStmt = $db->prepare($countQuery);
+    if (!$isGuest) {
+        $countStmt->bindValue(':user_id', $user_id, PDO::PARAM_STR);
+    }
     if ($search !== '') {
         $countStmt->bindValue(':search', '%' . $search . '%', PDO::PARAM_STR);
         $countStmt->bindValue(':search_exact', $search, PDO::PARAM_STR);
@@ -102,7 +132,7 @@ try {
     $countStmt->execute();
     $totalResult = $countStmt->fetch(PDO::FETCH_ASSOC);
     $totalCommunities = $totalResult ? (int)$totalResult['total'] : 0;
-    $totalPages = ceil($totalCommunities / $limit);
+    $totalPages = max(1, (int)ceil($totalCommunities / $limit));
 
     $response = [
         'communities' => $communities,

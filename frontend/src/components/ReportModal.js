@@ -56,36 +56,40 @@ function ReportModal({ isOpen, target, onClose, onSubmit, submitting = false }) 
           )}
         </div>
 
-        <div className="report-reasons">
-          {REASONS.map((opt) => (
-            <label key={opt.value} className={`report-reason ${reason === opt.value ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="report-reason"
-                value={opt.value}
-                checked={reason === opt.value}
-                onChange={() => setReason(opt.value)}
-              />
-              <div className="reason-copy">
-                <div className="reason-label">{opt.label}</div>
-                <div className="reason-help">{opt.help}</div>
-              </div>
+        <div className="report-modal__body">
+          <div className="report-reasons">
+            {REASONS.map((opt) => (
+              <label key={opt.value} className={`report-reason ${reason === opt.value ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="report-reason"
+                  value={opt.value}
+                  checked={reason === opt.value}
+                  onChange={() => setReason(opt.value)}
+                />
+                <div className="reason-copy">
+                  <div className="reason-label">{opt.label}</div>
+                  <div className="reason-help">{opt.help}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          <div className="report-details">
+            <label className="report-details-label" htmlFor="report-details">
+              Additional details (optional)
             </label>
-          ))}
+            <textarea
+              id="report-details"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Add context that will help moderators act quickly."
+              rows={3}
+            />
+          </div>
         </div>
 
-        <label className="report-details-label" htmlFor="report-details">
-          Additional details (optional)
-        </label>
-        <textarea
-          id="report-details"
-          value={details}
-          onChange={(e) => setDetails(e.target.value)}
-          placeholder="Add context that will help moderators act quickly."
-          rows={3}
-        />
-
-        <div className="report-actions">
+        <div className="report-actions report-modal__footer">
           <button type="button" className="pill-button ghost" onClick={onClose} disabled={submitting}>
             Cancel
           </button>

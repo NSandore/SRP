@@ -8,6 +8,7 @@ import ModalOverlay from "./ModalOverlay";
 import ReportModal from "./ReportModal";
 import { buildAvatarSrc } from "../utils/avatar";
 import buildUploadSrc from "../utils/uploads";
+import { getAdjustedColor, getReadableTextColor } from "../utils/color";
 import { isSuperAdmin } from "../constants/roles";
 
 function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNotificationsRefresh }) {
@@ -968,17 +969,34 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   if (error) return <p>{error}</p>;
   if (!university) return <p>No university found.</p>;
 
-  const universityLogo =
-    university.logo_path && university.logo_path.startsWith('/')
-      ? university.logo_path
-      : `/uploads/logos/${university.logo_path || 'default-logo.png'}`;
+  const universityLogoFallback = buildUploadSrc('/uploads/logos/School Image.png');
+  const normalizedUniversityLogoPath =
+    typeof university.logo_path === 'string' ? university.logo_path.trim() : '';
+  const universityLogo = normalizedUniversityLogoPath
+    ? buildUploadSrc(
+        normalizedUniversityLogoPath.startsWith('/')
+          ? normalizedUniversityLogoPath
+          : `/uploads/logos/${normalizedUniversityLogoPath}`
+      )
+    : universityLogoFallback;
   const subCommunityCount = Number(university.child_count || 0);
+  const primaryColor = university.primary_color || "#0077B5";
+  const secondaryColor = university.secondary_color || "#005f8d";
+  const gradientLight = getAdjustedColor(primaryColor, 1.12);
+  const gradientDark = getAdjustedColor(primaryColor, 0.85);
+  const pillTextColor = getReadableTextColor(primaryColor);
 
   return (
-    <div className="profile-container" style={{
-      "--primary-color": university.primary_color || "#0077B5",
-      "--secondary-color": university.secondary_color || "#005f8d",
-    }}>
+    <div
+      className="profile-container community-profile"
+      style={{
+        "--primary-color": primaryColor,
+        "--secondary-color": secondaryColor,
+        ...(gradientLight ? { "--gradient-secondary-light": gradientLight } : {}),
+        ...(gradientDark ? { "--gradient-secondary-dark": gradientDark } : {}),
+        ...(pillTextColor ? { "--pill-text-color": pillTextColor } : {})
+      }}
+    >
       <section className="profile-main">
         {/* HERO CARD */}
         <div className="hero-card community-hero">
@@ -992,15 +1010,24 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
             <div className="hero-left">
               <RouterLink to={`/university/${id}`} className="community-hero-logo-wrap">
                 <img
-                  src={universityLogo || "/uploads/logos/default-logo.png"}
+                  src={universityLogo}
                   alt="University Logo"
                   className="community-hero-logo"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== universityLogoFallback) {
+                      e.currentTarget.src = universityLogoFallback;
+                    }
+                  }}
                 />
               </RouterLink>
               <div className="hero-text">
                 <h1 className="hero-title">{university.name}</h1>
                 {university.tagline && <p className="hero-sub">{university.tagline}</p>}
                 {university.location && <p className="hero-sub">{university.location}</p>}
+                <p className="hero-sub hero-sub-row">
+                  <span>{followersCount} follower{followersCount === 1 ? '' : 's'}</span>
+                  <span>{subCommunityCount} {subCommunityCount === 1 ? 'sub-community' : 'sub-communities'}</span>
+                </p>
               </div>
             </div>
             <div className="hero-right hero-actions">
@@ -1017,12 +1044,6 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                   {isTogglingFollow ? 'Updating…' : isFollowing ? 'Unfollow' : 'Follow'}
                 </span>
               </button>
-              <p className="muted" style={{ marginTop: 6, textAlign: 'right' }}>
-                {followersCount} follower{followersCount === 1 ? '' : 's'}
-              </p>
-              <p className="muted" style={{ margin: '4px 0 0 0', textAlign: 'right' }}>
-                {subCommunityCount} {subCommunityCount === 1 ? 'sub-community' : 'sub-communities'}
-              </p>
               {canEditCommunity && (
                 <button
                   type="button"
@@ -1529,7 +1550,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                 </p>
               )}
               <button
-                className={`pill-button ${!canViewAmbassadors ? 'locked' : ''}`}
+                className={`pill-button ambassadors-view-all ${!canViewAmbassadors ? 'locked' : ''}`}
                 type="button"
                 onClick={() => {
                   if (!canViewAmbassadors) {
@@ -1755,7 +1776,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
 
       {/* Ambassador Overlay */}
       {showAmbassadorOverlay && userData && (
-        <div className="overlay">
+        <div className="overlay ambassador-overlay">
           <div className="overlay-content">
             <div className="qa-header">
               <div>

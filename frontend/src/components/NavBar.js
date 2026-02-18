@@ -25,6 +25,7 @@ function NavBar({
   unreadMessages,
   onOpenDrawer,
   onCloseDrawer,
+  isDrawerOpen,
   onAnnouncementHeight,
 }) {
   const navigate = useNavigate();
@@ -300,15 +301,19 @@ function NavBar({
   };
 
   const handleHamburgerClick = () => {
+    if (isDrawerOpen) {
+      if (onCloseDrawer) onCloseDrawer();
+      return;
+    }
     if (isMobileSearchOpen) {
       setIsMobileSearchOpen(false);
       // allow layout to settle before showing drawer so it appears immediately
       setTimeout(() => {
         if (onOpenDrawer) onOpenDrawer();
       }, 0);
-    } else if (onOpenDrawer) {
-      onOpenDrawer();
+      return;
     }
+    if (onOpenDrawer) onOpenDrawer();
   };
 
   useEffect(() => {
@@ -345,6 +350,11 @@ function NavBar({
           aria-label="Go to Home"
           onClick={handleLogoClick}
           >
+          <img
+            src="/uploads/logos/StudentSphere.png"
+            alt="StudentSphere logo"
+            className="brand-logo"
+          />
           <span className="brand-title">StudentSphere</span>
         </Link>
       </div>
