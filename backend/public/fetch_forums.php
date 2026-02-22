@@ -22,6 +22,7 @@ try {
             f.forum_id, 
             f.name, 
             f.description, 
+            f.banner_path,
             f.created_at, 
             f.created_by,
             u.first_name AS created_by_first_name,
@@ -40,6 +41,7 @@ try {
             f.forum_id,
             f.name,
             f.description,
+            f.banner_path,
             f.created_at,
             f.created_by,
             u.first_name,
@@ -54,6 +56,7 @@ try {
     $forums = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($forums as &$forum) {
         $forum['created_by_avatar_path'] = appendAvatarPath($forum['created_by_avatar_path'] ?? null);
+        $forum['banner_path'] = appendBannerPath($forum['banner_path'] ?? null);
     }
     unset($forum);
 

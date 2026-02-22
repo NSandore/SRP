@@ -20,6 +20,7 @@ try {
             f.community_id,
             f.name,
             f.description,
+            f.banner_path,
             f.created_at,
             f.created_by,
             u.first_name AS created_by_first_name,
@@ -35,6 +36,7 @@ try {
 
     if ($forum) {
         $forum['created_by_avatar_path'] = appendAvatarPath($forum['created_by_avatar_path'] ?? null);
+        $forum['banner_path'] = appendBannerPath($forum['banner_path'] ?? null);
         $withTags = srp_attach_tags_to_forums($db, [$forum]);
         echo json_encode($withTags[0]);
     } else {

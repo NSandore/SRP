@@ -632,7 +632,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
           )}
           <div className="hero-right hero-actions">
             {userData && userData.user_id !== parseInt(user_id, 10) && (
-              <div className="profile-actions" style={{ position: "relative" }}>
+              <div className="profile-actions">
                 {connectionStatus === "accepted" ? (
                   <RouterLink
                     to={`/messages?user=${user_id}`}
@@ -656,34 +656,34 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                     Connect
                   </button>
                 )}
-                {!isMobileView && (
-                  <div className="kebab-menu" ref={menuRef}>
-                    <FaEllipsisV
-                      className="menu-icon"
-                      onClick={() => setOpenMenu((prev) => !prev)}
-                    />
-                    {openMenu && (
-                      <div className="dropdown-menu" style={{ right: 0 }}>
-                        <button
-                          className="dropdown-item"
-                          onClick={handleFollowToggle}
-                          disabled={loadingFollowStatus}
-                        >
-                          {isFollowing ? "Unfollow" : "Follow"}
-                        </button>
-                        {connectionStatus === "accepted" && (
-                          <button className="dropdown-item" onClick={handleRemoveConnection}>
-                            Remove Connection
-                          </button>
-                        )}
-                        <button
-                          className="dropdown-item"
-                          onClick={() => alert("Report/Block coming soon")}
-                        >
-                          Report or Block
-                        </button>
-                      </div>
+              </div>
+            )}
+            {userData && userData.user_id !== parseInt(user_id, 10) && !isMobileView && (
+              <div className="kebab-menu" ref={menuRef} style={{ position: "relative" }}>
+                <FaEllipsisV
+                  className="menu-icon"
+                  onClick={() => setOpenMenu((prev) => !prev)}
+                />
+                {openMenu && (
+                  <div className="dropdown-menu" style={{ right: 0 }}>
+                    <button
+                      className="dropdown-item"
+                      onClick={handleFollowToggle}
+                      disabled={loadingFollowStatus}
+                    >
+                      {isFollowing ? "Unfollow" : "Follow"}
+                    </button>
+                    {connectionStatus === "accepted" && (
+                      <button className="dropdown-item" onClick={handleRemoveConnection}>
+                        Remove Connection
+                      </button>
                     )}
+                    <button
+                      className="dropdown-item"
+                      onClick={() => alert("Report/Block coming soon")}
+                    >
+                      Report or Block
+                    </button>
                   </div>
                 )}
               </div>

@@ -8,14 +8,21 @@ require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
-// Retrieve JSON input
+// Retrieve input (supports JSON or multipart form data)
 $data = json_decode(file_get_contents('php://input'), true);
-
-// Extract data
-$community_id = isset($data['community_id']) ? normalizeId($data['community_id']) : '';
-$name = trim($data['name'] ?? '');
-$description = trim($data['description'] ?? '');
-$tags = isset($data['tags']) && is_array($data['tags']) ? $data['tags'] : [];
+$usingForm = !empty($_POST) || !empty($_FILES);
+$community_id = $usingForm ? normalizeId($_POST['community_id'] ?? '') : (isset($data['community_id']) ? normalizeId($data['community_id']) : '');
+$name = trim($usingForm ? ($_POST['name'] ?? '') : ($data['name'] ?? ''));
+$description = trim($usingForm ? ($_POST['description'] ?? '') : ($data['description'] ?? ''));
+$tagsRaw = $usingForm ? ($_POST['tags'] ?? '[]') : ($data['tags'] ?? []);
+if (is_string($tagsRaw)) {
+    $decodedTags = json_decode($tagsRaw, true);
+    $tags = is_array($decodedTags) ? $decodedTags : [];
+} elseif (is_array($tagsRaw)) {
+    $tags = $tagsRaw;
+} else {
+    $tags = [];
+}
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
     http_response_code(403); // Forbidden
     echo json_encode(['error' => 'Not authenticated.']);
@@ -72,15 +79,48 @@ try {
     }
 
     $forumId = generateUniqueId($db, 'forums');
+    $bannerPath = '/uploads/banners/DefaultBanner.jpeg';
+    $bannerUploadDir = __DIR__ . '/../../uploads/banners/';
+
+    if (isset($_FILES['banner']) && $_FILES['banner']['error'] === UPLOAD_ERR_OK) {
+        $allowedTypes = ['image/jpeg', 'image/png'];
+        $bannerMimeType = mime_content_type($_FILES['banner']['tmp_name']);
+        if (!in_array($bannerMimeType, $allowedTypes, true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid banner file type. Only JPEG and PNG allowed.']);
+            exit;
+        }
+        if (!is_dir($bannerUploadDir) || !is_writable($bannerUploadDir)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Banner upload directory is not writable.']);
+            exit;
+        }
+        $bannerExtension = pathinfo($_FILES['banner']['name'], PATHINFO_EXTENSION);
+        $bannerFilename = 'forum_' . $forumId . '_' . time() . '.' . $bannerExtension;
+        $bannerDestination = $bannerUploadDir . $bannerFilename;
+        if (move_uploaded_file($_FILES['banner']['tmp_name'], $bannerDestination)) {
+            $bannerPath = '/uploads/banners/' . $bannerFilename;
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => 'Banner upload failed.']);
+            exit;
+        }
+    } elseif (isset($_FILES['banner'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Banner upload error.']);
+        exit;
+    }
+
     $stmt = $db->prepare("
-        INSERT INTO forums (forum_id, community_id, name, description, created_at, created_by)
-        VALUES (:forum_id, :cid, :name, :desc, NOW(), :created_by)
+        INSERT INTO forums (forum_id, community_id, name, description, banner_path, created_at, created_by)
+        VALUES (:forum_id, :cid, :name, :desc, :banner_path, NOW(), :created_by)
     ");
     $stmt->execute([
         ':forum_id' => $forumId,
         ':cid' => $community_id,
         ':name' => $name,
         ':desc' => $description,
+        ':banner_path' => $bannerPath,
         ':created_by' => $creatorUserId
     ]);
 

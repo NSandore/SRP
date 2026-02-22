@@ -27,6 +27,7 @@ CREATE TABLE `forums` (
   `community_id` int NOT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
+  `banner_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`forum_id`),
   KEY `community_id` (`community_id`),
   CONSTRAINT `forums_ibfk_1` FOREIGN KEY (`community_id`) REFERENCES `communities` (`community_id`) ON DELETE CASCADE

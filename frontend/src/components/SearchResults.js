@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fa';
 import { FiMessageCircle } from 'react-icons/fi';
 import buildUploadSrc from '../utils/uploads';
+import { getTagStyle } from '../utils/tagStyle';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -430,7 +431,7 @@ function SearchResults() {
               <div className="search-grid">
                 {sorted.tags.map((tag) => (
                   <Link key={tag} to={`/search?q=%23${tag}`} className="search-card">
-                    <div className="search-card-title">#{tag}</div>
+                    <div className="search-card-title" style={getTagStyle(tag)}>#{tag}</div>
                     <div className="search-card-meta">Tag</div>
                   </Link>
                 ))}

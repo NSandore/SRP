@@ -19,7 +19,7 @@
   border: 1px solid var(--card-border);
   border-radius: 24px;
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 360px minmax(0, 1fr);
   overflow: hidden;
   align-items: stretch;
   box-shadow: 0 30px 70px rgba(15, 23, 42, 0.18);
@@ -171,19 +171,24 @@
 
 .conversation-meta {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 0.9rem;
 }
 
 .conversation-meta time {
   color: var(--muted-text);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .conversation-name {
   font-weight: 600;
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .conversation-preview {

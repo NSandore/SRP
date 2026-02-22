@@ -140,12 +140,16 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [newForumName, setNewForumName] = useState('');
   const [newForumDescription, setNewForumDescription] = useState('');
   const [newForumTags, setNewForumTags] = useState([]);
+  const [newForumBannerFile, setNewForumBannerFile] = useState(null);
+  const [newForumBannerPreview, setNewForumBannerPreview] = useState('');
   const [isCreatingForum, setIsCreatingForum] = useState(false);
 
   const [editForumId, setEditForumId] = useState(null);
   const [editForumName, setEditForumName] = useState('');
   const [editForumDescription, setEditForumDescription] = useState('');
   const [editForumTags, setEditForumTags] = useState([]);
+  const [editForumBannerFile, setEditForumBannerFile] = useState(null);
+  const [editForumBannerPreview, setEditForumBannerPreview] = useState('');
   const [isEditingForum, setIsEditingForum] = useState(false);
 
   const [notification, setNotification] = useState(null);
@@ -158,6 +162,23 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     const timeoutId = window.setTimeout(() => setNotification(null), 5000);
     return () => window.clearTimeout(timeoutId);
   }, [notification]);
+
+  useEffect(() => {
+    if (!newForumBannerFile) {
+      setNewForumBannerPreview('');
+      return undefined;
+    }
+    const previewUrl = URL.createObjectURL(newForumBannerFile);
+    setNewForumBannerPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [newForumBannerFile]);
+
+  useEffect(() => {
+    if (!editForumBannerFile) return undefined;
+    const previewUrl = URL.createObjectURL(editForumBannerFile);
+    setEditForumBannerPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [editForumBannerFile]);
 
   const notificationNode = notification ? (
     <div className={`notification ${notification.type}`}>
@@ -876,6 +897,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     setExploreTags([]);
   };
 
+  // tag click handlers removed; tags are display-only
+
   const exploreTagOptions = useMemo(
     () => (tagOptions || []).map((opt) => ({ value: opt.slug, label: opt.name })),
     [tagOptions]
@@ -1161,16 +1184,21 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     // Info board community id (fixed)
     const infoCommunityId = 'c57b7fd6c45b9d57b';
     try {
-      const resp = await axios.post('/api/create_forum.php', {
-        community_id: infoCommunityId,
-        name: newForumName,
-        description: newForumDescription,
-        tags: newForumTags
-      });
+      const payload = new FormData();
+      payload.append('community_id', infoCommunityId);
+      payload.append('name', newForumName);
+      payload.append('description', newForumDescription);
+      payload.append('tags', JSON.stringify(newForumTags));
+      if (newForumBannerFile) {
+        payload.append('banner', newForumBannerFile);
+      }
+      const resp = await axios.post('/api/create_forum.php', payload);
       if (resp.data.success) {
         setNewForumName('');
         setNewForumDescription('');
         setNewForumTags([]);
+        setNewForumBannerFile(null);
+        setNewForumBannerPreview('');
         setShowCreateForumModal(false);
         fetchForums(infoCommunityId);
         setNotification({ type: 'success', message: 'Forum created successfully!' });
@@ -1190,15 +1218,19 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     setNewForumName('');
     setNewForumDescription('');
     setNewForumTags([]);
+    setNewForumBannerFile(null);
+    setNewForumBannerPreview('');
     setIsCreatingForum(false);
   };
 
   // ------------- EDIT FORUM -------------
   const startEditingForum = (forum) => {
     setEditForumId(forum.forum_id);
-    setEditForumName('');
-    setEditForumDescription('');
+    setEditForumName(forum.name || '');
+    setEditForumDescription(forum.description || '');
     setEditForumTags(mapTagNamesToSlugs(forum.tags || [], tagOptions));
+    setEditForumBannerFile(null);
+    setEditForumBannerPreview(buildUploadSrc(forum.banner_path || '/uploads/banners/DefaultBanner.jpeg'));
     setIsEditingForum(true);
   };
 
@@ -1207,18 +1239,23 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     setEditForumName('');
     setEditForumDescription('');
     setEditForumTags([]);
+    setEditForumBannerFile(null);
+    setEditForumBannerPreview('');
     setIsEditingForum(false);
   };
 
   const handleEditForumSubmit = async (e) => {
     e.preventDefault();
     try {
-      const resp = await axios.post('/api/edit_forum.php', {
-        forum_id: editForumId,
-        name: editForumName,
-        description: editForumDescription,
-        tags: editForumTags
-      });
+      const payload = new FormData();
+      payload.append('forum_id', editForumId);
+      payload.append('name', editForumName);
+      payload.append('description', editForumDescription);
+      payload.append('tags', JSON.stringify(editForumTags));
+      if (editForumBannerFile) {
+        payload.append('banner', editForumBannerFile);
+      }
+      const resp = await axios.post('/api/edit_forum.php', payload);
       if (resp.data.success) {
         fetchForums(INFO_COMMUNITY_ID);
         setNotification({ type: 'success', message: 'Forum updated successfully.' });
@@ -2256,6 +2293,22 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                         helperText="Choose up to 5 tags that describe this forum."
                       />
                     </div>
+                    <div className="creation-field">
+                      <label htmlFor="forum-banner">Forum banner</label>
+                      <input
+                        type="file"
+                        id="forum-banner"
+                        accept="image/png, image/jpeg"
+                        onChange={(e) => setNewForumBannerFile(e.target.files?.[0] || null)}
+                      />
+                      {newForumBannerPreview && (
+                        <img
+                          src={newForumBannerPreview}
+                          alt="Forum banner preview"
+                          style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 10, marginTop: 8 }}
+                        />
+                      )}
+                    </div>
                     <div className="creation-actions">
                       <button
                         type="button"
@@ -2313,6 +2366,22 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       helperText="Update the tags for this forum."
                     />
                   </div>
+                  <div className="form-group">
+                    <label htmlFor="edit-forum-banner">Forum Banner:</label>
+                    <input
+                      type="file"
+                      id="edit-forum-banner"
+                      accept="image/png, image/jpeg"
+                      onChange={(e) => setEditForumBannerFile(e.target.files?.[0] || null)}
+                    />
+                    {editForumBannerPreview && (
+                      <img
+                        src={editForumBannerPreview}
+                        alt="Forum banner preview"
+                        style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 10, marginTop: 8 }}
+                      />
+                    )}
+                  </div>
                   <div className="form-actions">
                     <button type="submit">Save</button>
                     <button type="button" onClick={cancelEditingForum}>
@@ -2324,7 +2393,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             </div>
           )}
 
-          <h2 className="forum-title" style={{ marginTop: '8px' }}>Forums</h2>
           {isLoadingForums ? (
             <p>Loading forums...</p>
           ) : filteredForums.length === 0 ? (

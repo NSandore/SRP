@@ -1,6 +1,6 @@
 // src/components/ForumView.js
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import TextEditor from './TextEditor';
 import './ForumView.css';  // Adjusted to match feed styling
@@ -11,9 +11,11 @@ import ThreadCard from './ThreadCard';
 import ReportModal from './ReportModal';
 import TagPicker from './TagPicker';
 import useTagOptions from '../hooks/useTagOptions';
-import { mapTagNamesToSlugs } from '../utils/tagUtils';
+import { mapTagNamesToSlugs, normalizeTagValue } from '../utils/tagUtils';
 import { isSuperAdmin } from '../constants/roles';
 import { buildAvatarSrc } from '../utils/avatar';
+import buildUploadSrc from '../utils/uploads';
+import { getTagStyle } from '../utils/tagStyle';
 
 // Sorting function
 const sortItems = (items, criteria) => {
@@ -59,6 +61,7 @@ const timeAgo = (dateStr) => {
 
 function ForumView({ userData, onRequireAuth }) {
   const { forum_id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { tags: tagOptions } = useTagOptions();
 
   // Forum data & threads
@@ -68,6 +71,43 @@ function ForumView({ userData, onRequireAuth }) {
 
   // Sorting
   const [sortBy, setSortBy] = useState('mostRecent');
+  const [showTagFilter, setShowTagFilter] = useState(false);
+
+  // Tag filter
+  const [activeTags, setActiveTags] = useState([]);
+  const tagNameToSlug = useMemo(
+    () => new Map((tagOptions || []).map((opt) => [opt.name, opt.slug])),
+    [tagOptions]
+  );
+  const tagNameLowerToSlug = useMemo(
+    () => new Map((tagOptions || []).map((opt) => [String(opt.name || '').toLowerCase(), opt.slug])),
+    [tagOptions]
+  );
+  const tagNameNormalizedToSlug = useMemo(
+    () => new Map((tagOptions || []).map((opt) => [normalizeTagValue(opt.name || ''), opt.slug])),
+    [tagOptions]
+  );
+  const tagSlugSet = useMemo(
+    () => new Set((tagOptions || []).map((opt) => String(opt.slug || '').toLowerCase()).filter(Boolean)),
+    [tagOptions]
+  );
+
+  const resolveTagSlug = useMemo(
+    () => (value) => {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      const lower = raw.toLowerCase();
+      if (tagSlugSet.has(lower)) return lower;
+      const byName = tagNameLowerToSlug.get(lower);
+      if (byName) return byName;
+      const normalized = normalizeTagValue(raw);
+      if (tagSlugSet.has(normalized)) return normalized;
+      const byNormalizedName = tagNameNormalizedToSlug.get(normalized);
+      if (byNormalizedName) return byNormalizedName;
+      return normalized;
+    },
+    [tagNameLowerToSlug, tagNameNormalizedToSlug, tagSlugSet]
+  );
 
   // Create Thread
   const [showCreateThreadModal, setShowCreateThreadModal] = useState(false);
@@ -156,6 +196,63 @@ function ForumView({ userData, onRequireAuth }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forum_id, userData]);
 
+  useEffect(() => {
+    const param = searchParams.get('tag') || searchParams.get('tags') || '';
+    const parsed = param
+      ? param
+          .split(',')
+          .map((value) => resolveTagSlug(value))
+          .filter(Boolean)
+      : [];
+    const unique = Array.from(new Set(parsed));
+    setActiveTags(unique);
+  }, [searchParams, resolveTagSlug]);
+
+  const handleTagFilter = (tag) => {
+    const slug = resolveTagSlug(tag);
+    if (!slug) return;
+    const current = new Set(activeTags);
+    if (current.has(slug)) {
+      current.delete(slug);
+    } else {
+      current.add(slug);
+    }
+    const next = Array.from(current);
+    const params = new URLSearchParams(searchParams);
+    params.delete('tag');
+    if (next.length) {
+      params.set('tags', next.join(','));
+    } else {
+      params.delete('tags');
+    }
+    setSearchParams(params);
+    setActiveTags(next);
+  };
+
+  const handleTagSelect = (event) => {
+    const value = event?.target?.value || '';
+    if (!value) {
+      const params = new URLSearchParams(searchParams);
+      params.delete('tag');
+      params.delete('tags');
+      setSearchParams(params);
+      setActiveTags([]);
+      return;
+    }
+    handleTagFilter(value);
+  };
+
+  const tagSlugToName = useMemo(
+    () => new Map((tagOptions || []).map((opt) => [opt.slug, opt.name])),
+    [tagOptions]
+  );
+
+  const activeTagLabel = activeTags.length
+    ? activeTags
+        .map((slug) => tagSlugToName.get(slug) || slug)
+        .join(', ')
+    : 'All tags';
+
   // Load ambassador communities when user is ambassador
   useEffect(() => {
     const loadAmbassadorCommunities = async () => {
@@ -174,7 +271,13 @@ function ForumView({ userData, onRequireAuth }) {
   }, [userData]);
 
   // Sort threads
-  const sortedThreads = sortItems(threads, sortBy);
+  const filteredThreads = activeTags.length
+    ? threads.filter((thread) => {
+        if (!Array.isArray(thread.tags) || thread.tags.length === 0) return false;
+        return thread.tags.some((tag) => activeTags.includes(resolveTagSlug(tag)));
+      })
+    : threads;
+  const sortedThreads = sortItems(filteredThreads, sortBy);
 
   // kebab menu handled inside ThreadCard
 
@@ -433,47 +536,20 @@ function ForumView({ userData, onRequireAuth }) {
       return Number(id) === Number(communityId);
     });
   const canCreateThread = Boolean(userData && (isSuperAdminUser || ambassadorHasAccess));
+  const bannerSrc = buildUploadSrc(forumData?.banner_path || '/uploads/banners/DefaultBanner.jpeg');
 
   return (
     <div className="feed-container forum-view">
-    {/* Breadcrumbs */}
-    <nav className="breadcrumbs" aria-label="Breadcrumb">
-      <Link to="/info">Info Board</Link>
-      <span className="breadcrumb-sep">&gt;</span>
-      {/*<span className="breadcrumb-current" aria-current="page">
-        {forumData?.name ? forumData.name : `Forum ${forum_id}`}
-      </span>*/}
-    </nav>
-    {/* Top Header Row */}
-    <div
-      className="feed-header"
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '1.1vh', paddingBottom: '1.7rem' }}
-    >
-      {/* Left side: arrow + forum title in one flex row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <Link to="/info" className="arrow-link">
-          ←
-        </Link>
-        <h2 className="forum-title">
+    {/* Breadcrumbs + Actions */}
+    <div className="forum-header-row">
+      <nav className="breadcrumbs" aria-label="Breadcrumb">
+        <Link to="/info">Info Board</Link>
+        <span className="breadcrumb-sep">&gt;</span>
+        {/*<span className="breadcrumb-current" aria-current="page">
           {forumData?.name ? forumData.name : `Forum ${forum_id}`}
-        </h2>
-      </div>
-
+        </span>*/}
+      </nav>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <button
-          type="button"
-          className="pill-button ghost"
-          onClick={() =>
-            handleOpenReport({
-              id: forum_id,
-              type: 'forum',
-              label: forumData?.name || 'forum',
-              context: stripHtml(forumData?.description || '').slice(0, 200),
-            })
-          }
-        >
-          Report
-        </button>
         {canCreateThread && (
           <button
             type="button"
@@ -486,35 +562,101 @@ function ForumView({ userData, onRequireAuth }) {
       </div>
     </div>
 
-    {forumData?.created_by && (
-      <div className="meta-quiet" style={{ marginTop: '-10px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-        <span>Created by</span>
-        <img
-          src={buildAvatarSrc(forumData.created_by_avatar_path)}
-          alt={`${forumData.created_by_first_name || 'User'} ${forumData.created_by_last_name || ''}`}
-          style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = buildAvatarSrc(null);
-          }}
-        />
-        <Link to={`/user/${forumData.created_by}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 600 }}>
-          {forumData.created_by_first_name || 'User'} {forumData.created_by_last_name || ''}
-        </Link>
-        {forumData.created_at ? <span>· {timeAgo(forumData.created_at)}</span> : null}
+    <section className="forum-intro">
+      <div className="forum-hero">
+        <div className="forum-banner">
+          <img
+            src={bannerSrc}
+            alt={`${forumData?.name || 'Forum'} banner`}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = buildUploadSrc('/uploads/banners/DefaultBanner.jpeg');
+            }}
+          />
+        </div>
+        <div className="forum-title-row">
+          <h2 className="forum-title">
+            {forumData?.name ? forumData.name : `Forum ${forum_id}`}
+          </h2>
+          <div className="forum-tag-filter">
+            <div className="topic-dropdown">
+              <button
+                type="button"
+                className={`topic-dropdown-toggle${showTagFilter ? ' open' : ''}`}
+                aria-haspopup="listbox"
+                aria-expanded={showTagFilter}
+                onClick={() => setShowTagFilter((prev) => !prev)}
+              >
+                <span className="topic-dropdown-label">{activeTagLabel}</span>
+              </button>
+              {showTagFilter && (
+                <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
+                  <button
+                    type="button"
+                    className="topic-dropdown-option"
+                    role="option"
+                    aria-selected={activeTags.length === 0}
+                    onClick={() => {
+                      handleTagSelect({ target: { value: '' } });
+                    }}
+                  >
+                    <input type="checkbox" readOnly checked={activeTags.length === 0} />
+                    All tags
+                  </button>
+                  {(tagOptions || []).map((opt) => (
+                    <button
+                      key={opt.slug}
+                      type="button"
+                      className="topic-dropdown-option"
+                      role="option"
+                      aria-selected={activeTags.includes(opt.slug)}
+                      onClick={() => {
+                        handleTagSelect({ target: { value: opt.slug } });
+                      }}
+                    >
+                      <input type="checkbox" readOnly checked={activeTags.includes(opt.slug)} />
+                      {opt.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        {Array.isArray(forumData?.tags) && forumData.tags.length > 0 && (
+          <div className="chips-row" style={{ marginBottom: 0 }}>
+            {forumData.tags.map((tag) => (
+              <span key={tag} className="chip tag-chip" style={getTagStyle(tag)}>
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+        {forumData?.description && (
+          <p className="forum-description">{forumData.description}</p>
+        )}
       </div>
-    )}
 
-      {Array.isArray(forumData?.tags) && forumData.tags.length > 0 && (
-        <div className="chips-row" style={{ marginBottom: '12px' }}>
-          {forumData.tags.map((tag) => (
-            <span key={tag} className="chip tag-chip">
-              {tag}
-            </span>
-          ))}
+      {forumData?.created_by && (
+        <div className="meta-quiet forum-meta-row">
+          <span>Created by</span>
+          <img
+            src={buildAvatarSrc(forumData.created_by_avatar_path)}
+            alt={`${forumData.created_by_first_name || 'User'} ${forumData.created_by_last_name || ''}`}
+            style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = buildAvatarSrc(null);
+            }}
+          />
+          <Link to={`/user/${forumData.created_by}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 600 }}>
+            {forumData.created_by_first_name || 'User'} {forumData.created_by_last_name || ''}
+          </Link>
+          {forumData.created_at ? <span>· {timeAgo(forumData.created_at)}</span> : null}
         </div>
       )}
-    
+    </section>
+
       {/* Sorting */}
       <div className="sort-container">
         <label htmlFor="sort-by">Sort by:</label>
@@ -531,7 +673,7 @@ function ForumView({ userData, onRequireAuth }) {
 
       {/* Thread list */}
       {sortedThreads.length === 0 ? (
-        <p>No threads available.</p>
+        <p>{activeTags.length ? 'No threads match these tags.' : 'No threads available.'}</p>
       ) : (
         <div className="forum-list">
           {sortedThreads.map((thread) => {

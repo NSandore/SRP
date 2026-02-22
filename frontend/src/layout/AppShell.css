@@ -65,6 +65,8 @@
 
 .app-shell-grid.messages-layout {
   grid-template-columns: 240px 1fr;
+  margin: 0;
+  height: calc(100vh - var(--nav-height));
 }
 .app-shell-grid.messages-layout .right-rail {
   display: none;
@@ -78,6 +80,10 @@
 .app-shell-grid.messages-layout .center-rail,
 .app-shell-grid.messages-layout .center-rail > main {
   height: calc(100vh - var(--nav-height));
+  overflow: hidden;
+}
+
+.app-shell-main:has(.app-shell-grid.messages-layout) {
   overflow: hidden;
 }
 
@@ -172,7 +178,7 @@
   .app-shell-grid {
     grid-template-columns: 1fr;
     width: 100%;
-    margin: 12px auto 20px;
+    margin: 0 auto 20px;
     gap: 16px;
   }
   .app-shell-grid.messages-layout {
@@ -204,7 +210,7 @@
     padding: 0;
   }
   .app-shell-grid {
-    margin: 16px auto;
+    margin: 0 auto;
     gap: 12px;
   }
   .app-shell-grid.messages-layout {

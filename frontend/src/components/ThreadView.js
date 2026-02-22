@@ -44,6 +44,7 @@ import DOMPurify from 'dompurify';
 import ReportModal from './ReportModal';
 import { buildAvatarSrc } from '../utils/avatar';
 import { buildUploadSrc } from '../utils/uploads';
+import { getTagStyle } from '../utils/tagStyle';
 
 // Helper: relative time formatter
 const timeAgo = (dateStr) => {
@@ -653,7 +654,7 @@ function PostItem({
               </div>
             )}
             {/* Reply header: avatar + meta */}
-            <div className="post-header-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
+            <div className="post-header-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '2px', marginBottom: '6px' }}>
               {/* 3-dot menu */}
               <FaEllipsisV
                 className="menu-icon post-header-menu"
@@ -965,14 +966,6 @@ function ThreadView({ userData, onRequireAuth }) {
     return ambassadorCommunityIds.includes(communityId);
   }, [userData?.user_id, threadData?.community_id, ambassadorCommunityIds]);
 
-  const tagStyle = (tag) => {
-    const t = String(tag || '').toLowerCase();
-    if (t.includes('hous')) return { background: '#ffedd5', color: '#9a3412', borderColor: '#fed7aa' }; // amber
-    if (t.includes('campus')) return { background: '#e0e7ff', color: '#3730a3', borderColor: '#c7d2fe' }; // indigo
-    if (t.includes('academ')) return { background: '#dbeafe', color: '#1d4ed8', borderColor: '#bfdbfe' }; // blue
-    if (t.includes('admiss')) return { background: '#dcfce7', color: '#166534', borderColor: '#bbf7d0' }; // green
-    return {};
-  };
 
   const promptAuthOverlay = () => {
     if (onRequireAuth) {
@@ -1521,7 +1514,11 @@ function ThreadView({ userData, onRequireAuth }) {
       {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
         <div className="chips-row" style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
           {threadData.tags.map((tag, idx) => (
-            <span key={idx} className="chip tag-chip" style={{ ...tagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}>
+            <span
+              key={idx}
+              className="chip tag-chip"
+              style={{ ...getTagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}
+            >
               {tag}
             </span>
           ))}

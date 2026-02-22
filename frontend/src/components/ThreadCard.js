@@ -16,6 +16,7 @@ import {
 import IconBubble from './IconBubble';
 import { isSuperAdmin } from '../constants/roles';
 import { buildUploadSrc } from '../utils/uploads';
+import { getTagStyle } from '../utils/tagStyle';
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return '';
@@ -263,7 +264,7 @@ export default function ThreadCard({
         {Array.isArray(thread.tags) && thread.tags.length > 0 && (
           <div className="chips-row">
             {thread.tags.map((tag) => (
-              <span key={tag} className="chip tag-chip">
+              <span key={tag} className="chip tag-chip" style={getTagStyle(tag)}>
                 {tag}
               </span>
             ))}

@@ -6,6 +6,7 @@ import axios from 'axios';
 import { FaEllipsisV } from 'react-icons/fa';
 import { isSuperAdmin } from '../constants/roles';
 import { buildAvatarSrc } from '../utils/avatar';
+import { getTagStyle } from '../utils/tagStyle';
 
 const ForumCard = ({
   forum,
@@ -238,7 +239,7 @@ const ForumCard = ({
         {Array.isArray(forum.tags) && forum.tags.length > 0 && (
           <div className="chips-row" style={{ marginTop: 0 }}>
             {forum.tags.map((tag) => (
-              <span key={tag} className="chip tag-chip">
+              <span key={tag} className="chip tag-chip" style={getTagStyle(tag)}>
                 {tag}
               </span>
             ))}

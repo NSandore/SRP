@@ -37,6 +37,17 @@ function Messages({ userData }) {
     }).replace(',', '');
   };
 
+  const formatDaysAgo = (timestamp) => {
+    if (!timestamp) return '';
+    const normalized = timestamp.includes('T') ? timestamp : timestamp.replace(' ', 'T');
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return '';
+    const now = new Date();
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const days = Math.max(0, Math.floor((now - date) / msPerDay));
+    return `${days} Days ago`;
+  };
+
   useEffect(() => {
     if (userData) {
       fetchConversations();
@@ -303,7 +314,7 @@ function Messages({ userData }) {
                       <div className="conversation-body">
                         <div className="conversation-meta">
                           <span className="conversation-name">{c.first_name} {c.last_name}</span>
-                          <time>{formatTimestamp(c.last_date)}</time>
+                          <time>{formatDaysAgo(c.last_date)}</time>
                         </div>
                         <p className="conversation-preview">{c.last_message}</p>
                       </div>
