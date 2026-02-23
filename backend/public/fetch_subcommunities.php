@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/cors.php';
 // fetch_subcommunities.php
 // Retrieve all child communities for a given parent community.
 

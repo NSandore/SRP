@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/public/cors.php';
 // Flip this to false to disable Dev mode safeguards.
 const SRP_DEV_MODE = false;
 function loadEnvFile(string $path): void {

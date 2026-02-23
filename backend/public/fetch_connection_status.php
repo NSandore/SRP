@@ -1,6 +1,8 @@
 <?php
 // fetch_connection_status.php
 
+require_once __DIR__ . '/cors.php';
+
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 

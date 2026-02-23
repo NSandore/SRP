@@ -47,6 +47,16 @@ try {
         exit;
     }
 
+    // Check recipient preference for reply notifications
+    $prefStmt = $db->prepare("SELECT JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_replies')) AS notify_replies FROM account_settings WHERE user_id = :rid");
+    $prefStmt->execute([':rid' => $post_owner_id]);
+    $prefRow = $prefStmt->fetch(PDO::FETCH_ASSOC);
+    $notifyPref = isset($prefRow['notify_replies']) ? (int)$prefRow['notify_replies'] : 1;
+    if ($notifyPref !== 1) {
+        echo json_encode(['success' => true, 'message' => 'Recipient disabled reply notifications']);
+        exit;
+    }
+
     // Get the replier's name
     $stmt2 = $db->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
     $stmt2->execute([$replier_id]);

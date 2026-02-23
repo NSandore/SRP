@@ -2,6 +2,7 @@
 // delete_notification.php
 // Deletes a single notification for the logged-in recipient.
 
+require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../session_bootstrap.php';
 
 startSession();

@@ -1,5 +1,6 @@
 <?php
 // fetch_group_questions.php
+require_once __DIR__ . '/cors.php';
 // Returns group questions filtered by viewer role (public, asker, or ambassador).
 
 require_once __DIR__ . '/../db_connection.php';

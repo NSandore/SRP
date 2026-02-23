@@ -320,6 +320,15 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               },
             }));
           }
+          if (typeof res.data.user.notify_replies !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              notifications: {
+                ...prev.notifications,
+                replies: Boolean(Number(res.data.user.notify_replies)),
+              },
+            }));
+          }
           if (typeof res.data.user.session_timeout_minutes !== 'undefined') {
             setSettings((prev) => ({
               ...prev,
@@ -536,6 +545,22 @@ function AccountSettings({ userData, onInterestsUpdated }) {
     }
   };
 
+  const persistRepliesPref = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          notify_replies: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving reply notifications preference', err);
+    }
+  };
+
   const persistSessionTimeout = async (value) => {
     if (!userData?.user_id) return;
     try {
@@ -619,6 +644,9 @@ function AccountSettings({ userData, onInterestsUpdated }) {
     }
     if (section === 'notifications' && key === 'votes') {
       persistVotesPref(value);
+    }
+    if (section === 'notifications' && key === 'replies') {
+      persistRepliesPref(value);
     }
     if (section === 'feed' && key === 'defaultFeed') {
       try {

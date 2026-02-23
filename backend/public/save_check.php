@@ -1,6 +1,8 @@
 <?php
+require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/../db_connection.php';
+
 header('Content-Type: application/json');
-require_once '../db_connection.php';
 
 try {
     if (!isset($_GET['user_id']) || !isset($_GET['item_type']) || !isset($_GET['item_id'])) {

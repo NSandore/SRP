@@ -7,8 +7,12 @@ $allowed_origins = [
     'http://172.16.11.133',
     'http://172.16.11.133:3000',
     'http://localhost:3000',
+    'http://localhost:8081',
+    'http://10.0.0.251:8081',
+    'http://10.0.0.251:8082',
     'http://localhost:5173',
     'http://127.0.0.1:3000',
+    'http://127.0.0.1:8081',
     'http://127.0.0.1:5173',
 ];
 
@@ -23,7 +27,7 @@ if (in_array($origin, $allowed_origins, true)) {
     header("Vary: Origin");
     header("Access-Control-Allow-Credentials: true");
     header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-    header("Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Requested-With");
+    header("Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Session-Id");
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {

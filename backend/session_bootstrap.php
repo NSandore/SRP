@@ -4,6 +4,16 @@ function startSession(): void {
         return;
     }
 
+    $headerSessionId = $_SERVER['HTTP_X_SESSION_ID'] ?? '';
+    $querySessionId = $_GET['session_id'] ?? '';
+    $incomingSessionId = $headerSessionId !== '' ? $headerSessionId : $querySessionId;
+    if ($incomingSessionId !== '') {
+        $incomingSessionId = preg_replace('/[^a-zA-Z0-9,-]/', '', (string)$incomingSessionId);
+        if ($incomingSessionId !== '') {
+            session_id($incomingSessionId);
+        }
+    }
+
     $appBase = getenv('APP_BASE_URL') ?: '';
     $host = '';
     if ($appBase !== '') {

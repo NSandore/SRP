@@ -1,6 +1,8 @@
 <?php
 // fetch_community.php
 
+require_once __DIR__ . '/cors.php';
+
 // Enable error reporting for debugging (disable in production)
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -18,7 +20,12 @@ if (!isset($_GET['community_id'])) {
 }
 
 // Sanitize input
-$community_id = (int) $_GET['community_id'];
+$community_id = normalizeId($_GET['community_id']);
+if ($community_id === '') {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Missing community_id']);
+    exit;
+}
 
 try {
     $db = getDB();

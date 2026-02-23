@@ -33,11 +33,24 @@ $showEmailProvided = array_key_exists('show_email', $input);
 $discoverableProvided = array_key_exists('discoverable', $input);
 $sessionTimeoutProvided = array_key_exists('session_timeout_minutes', $input);
 $notifyVotesProvided = array_key_exists('notify_votes', $input);
+$notifyRepliesProvided = array_key_exists('notify_replies', $input);
 $defaultFeedProvided = array_key_exists('default_feed', $input);
 $twoFactorProvided = array_key_exists('two_factor_enabled', $input);
 $autoJoinProvided = array_key_exists('auto_join_campus', $input);
 
-if (!$profileVisibilityProvided && !$showOnlineProvided && !$dmSettingProvided && !$showEmailProvided && !$discoverableProvided && !$sessionTimeoutProvided && !$notifyVotesProvided && !$defaultFeedProvided && !$twoFactorProvided && !$autoJoinProvided) {
+if (
+    !$profileVisibilityProvided &&
+    !$showOnlineProvided &&
+    !$dmSettingProvided &&
+    !$showEmailProvided &&
+    !$discoverableProvided &&
+    !$sessionTimeoutProvided &&
+    !$notifyVotesProvided &&
+    !$notifyRepliesProvided &&
+    !$defaultFeedProvided &&
+    !$twoFactorProvided &&
+    !$autoJoinProvided
+) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'No settings provided']);
     exit;
@@ -147,6 +160,17 @@ if ($notifyVotesProvided) {
     $notifyVotes = $parsed === null ? (intval($input['notify_votes']) ? 1 : 0) : ($parsed ? 1 : 0);
 }
 
+$notifyReplies = null;
+if ($notifyRepliesProvided) {
+    $parsed = filter_var($input['notify_replies'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($parsed === null && !is_numeric($input['notify_replies'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid notify_replies value']);
+        exit;
+    }
+    $notifyReplies = $parsed === null ? (intval($input['notify_replies']) ? 1 : 0) : ($parsed ? 1 : 0);
+}
+
 $defaultFeed = null;
 if ($defaultFeedProvided) {
     $defaultFeed = trim($input['default_feed']);
@@ -203,20 +227,26 @@ try {
         $params[':show_online'] = $showOnline;
     }
 
-    $extrasUpdates = [];
-    if ($dmSettingProvided) {
-        $extrasUpdates['allow_messages_from'] = $allowMessagesFrom;
-    }
-    if ($twoFactorProvided) {
-        $extrasUpdates['two_factor_enabled'] = $twoFactorEnabled;
-    }
-    if ($autoJoinProvided) {
-        $extrasUpdates['auto_join_campus'] = $autoJoinCampus;
-    }
-    if (!empty($extrasUpdates)) {
-        $jsonSetParts = [];
-        foreach ($extrasUpdates as $key => $value) {
-            $param = ':extras_' . $key;
+$extrasUpdates = [];
+if ($dmSettingProvided) {
+    $extrasUpdates['allow_messages_from'] = $allowMessagesFrom;
+}
+if ($twoFactorProvided) {
+    $extrasUpdates['two_factor_enabled'] = $twoFactorEnabled;
+}
+if ($autoJoinProvided) {
+    $extrasUpdates['auto_join_campus'] = $autoJoinCampus;
+}
+if ($notifyVotesProvided) {
+    $extrasUpdates['notify_votes'] = $notifyVotes;
+}
+if ($notifyRepliesProvided) {
+    $extrasUpdates['notify_replies'] = $notifyReplies;
+}
+if (!empty($extrasUpdates)) {
+    $jsonSetParts = [];
+    foreach ($extrasUpdates as $key => $value) {
+        $param = ':extras_' . $key;
             $jsonSetParts[] = "'$." . $key . "', " . $param;
             $params[$param] = $value;
         }
@@ -244,18 +274,10 @@ try {
 
     if ($sessionTimeoutProvided) {
         $insertColumns[] = 'session_timeout_minutes';
-        $insertValues[] = ':session_timeout_minutes';
-        $updateParts[] = 'session_timeout_minutes = VALUES(session_timeout_minutes)';
-        $params[':session_timeout_minutes'] = $sessionTimeoutMinutes;
-    }
-
-    if ($notifyVotesProvided) {
-        $updateParts[] = "extras = JSON_SET(COALESCE(extras, JSON_OBJECT()), '$.notify_votes', :notify_votes)";
-        $insertColumns[] = 'extras';
-        $insertValues[] = "JSON_SET(COALESCE(:extras, JSON_OBJECT()), '$.notify_votes', :notify_votes)";
-        $params[':notify_votes'] = $notifyVotes;
-        $params[':extras'] = null;
-    }
+    $insertValues[] = ':session_timeout_minutes';
+    $updateParts[] = 'session_timeout_minutes = VALUES(session_timeout_minutes)';
+    $params[':session_timeout_minutes'] = $sessionTimeoutMinutes;
+}
 
     if ($defaultFeedProvided) {
         $insertColumns[] = 'default_feed';
@@ -311,6 +333,9 @@ try {
     }
     if ($notifyVotesProvided) {
         $response['notify_votes'] = $notifyVotes;
+    }
+    if ($notifyRepliesProvided) {
+        $response['notify_replies'] = $notifyReplies;
     }
     if ($defaultFeedProvided) {
         $response['default_feed'] = $defaultFeed;

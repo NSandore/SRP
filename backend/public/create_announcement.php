@@ -2,6 +2,8 @@
 // create_announcement.php
 // Create a global or community announcement.
 
+require_once __DIR__ . '/cors.php';
+
 require_once __DIR__ . '/../session_bootstrap.php';
 
 startSession();
