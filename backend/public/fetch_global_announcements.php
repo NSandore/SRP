@@ -2,6 +2,8 @@
 // fetch_global_announcements.php
 // Return active global announcements that should show in the banner.
 
+require_once __DIR__ . '/cors.php';
+
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
 

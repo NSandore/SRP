@@ -186,7 +186,11 @@ try {
 
     unset($_SESSION['pending_2fa_user_id'], $_SESSION['pending_2fa_user_agent'], $_SESSION['pending_2fa_ip']);
 
-    echo json_encode(['success' => true, 'user' => $user]);
+    echo json_encode([
+        'success' => true,
+        'user' => $user,
+        'session_id' => session_id(),
+    ]);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);

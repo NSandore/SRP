@@ -85,6 +85,20 @@ try {
 
             // Prevent notifying self-replies
             if ($original_poster_id != $user_id) {
+                // Check recipient preference for reply notifications
+                $prefStmt = $db->prepare("SELECT JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_replies')) AS notify_replies FROM account_settings WHERE user_id = :rid");
+                $prefStmt->execute([':rid' => $original_poster_id]);
+                $prefRow = $prefStmt->fetch(PDO::FETCH_ASSOC);
+                $notifyPref = isset($prefRow['notify_replies']) ? (int)$prefRow['notify_replies'] : 1;
+                if ($notifyPref !== 1) {
+                    echo json_encode([
+                        'success' => true,
+                        'post_id' => $post_id,
+                        'message' => 'Reply created successfully.'
+                    ]);
+                    exit;
+                }
+
                 // Fetch replier's name for the notification message
                 $stmt2 = $db->prepare("SELECT first_name, last_name FROM users WHERE user_id = ?");
                 $stmt2->execute([$user_id]);

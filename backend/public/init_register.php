@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
+require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/onboarding.php';
@@ -210,6 +211,7 @@ try {
         'email_verification_skipped' => false,
         'email_sent' => $emailSent,
         'dev_mode' => $devMode,
+        'session_id' => $sessionId,
     ]);
 } catch (Throwable $e) {
     if (isset($db) && $db instanceof PDO && $db->inTransaction()) {

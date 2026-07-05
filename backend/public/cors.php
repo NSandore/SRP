@@ -7,8 +7,12 @@ $allowed_origins = [
     'http://172.16.11.133',
     'http://172.16.11.133:3000',
     'http://localhost:3000',
+    'http://localhost:8081',
+    'http://10.0.0.251:8081',
+    'http://10.0.0.251:8082',
     'http://localhost:5173',
     'http://127.0.0.1:3000',
+    'http://127.0.0.1:8081',
     'http://127.0.0.1:5173',
 ];
 
@@ -18,12 +22,19 @@ if (!$origin && isset($_SERVER['HTTP_HOST'])) {
     $origin = 'http://' . $_SERVER['HTTP_HOST'];
 }
 
-if (in_array($origin, $allowed_origins, true)) {
+$origin_parts = parse_url($origin);
+$host_parts = parse_url('http://' . ($_SERVER['HTTP_HOST'] ?? ''));
+$is_same_host_dev_origin =
+    isset($origin_parts['host'], $host_parts['host'])
+    && $origin_parts['host'] === $host_parts['host']
+    && (($origin_parts['port'] ?? null) === 8081);
+
+if (in_array($origin, $allowed_origins, true) || $is_same_host_dev_origin) {
     header("Access-Control-Allow-Origin: {$origin}");
     header("Vary: Origin");
     header("Access-Control-Allow-Credentials: true");
     header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-    header("Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Requested-With");
+    header("Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Session-Id");
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
@@ -26,6 +27,7 @@ try {
             t.upvotes,
             t.downvotes,
             COALESCE(tv.vote_type, '') AS user_vote,
+            f.name AS forum_name,
             u.first_name,
             u.last_name,
             u.verified AS author_verified,

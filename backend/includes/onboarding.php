@@ -161,6 +161,7 @@ function srp_default_onboarding_state(): array {
         'completed_steps' => [],
         'status' => 'in_progress',
         'role_intent' => null,
+        'role_selected' => false,
         'interests_selected' => false,
         'follows_selected' => false,
         'profile_basics_completed' => false,
@@ -204,10 +205,31 @@ function srp_get_onboarding_state(PDO $db, string $userId): array {
         srp_mark_step_complete($state, 1);
     }
 
-    if (empty($state['role_intent'])) {
-        $state['role_intent'] = srp_normalize_role_intent($user['education_status'] ?? '');
+    $normalizedEducationStatus = srp_normalize_role_intent($user['education_status'] ?? '');
+    $roleSelected = !empty($state['role_selected']);
+    if (
+        !$roleSelected
+        && (
+            !empty($state['interests_selected'])
+            || !empty($state['follows_selected'])
+            || !empty($state['profile_basics_completed'])
+            || !empty($state['context_completed'])
+            || !empty($state['verification_requested'])
+            || !empty($state['verification_skipped'])
+            || ($state['status'] ?? '') === 'completed'
+        )
+    ) {
+        $roleSelected = true;
     }
-    if (!empty($state['role_intent'])) {
+    if (!$roleSelected && $normalizedEducationStatus && $normalizedEducationStatus !== 'prospect') {
+        $roleSelected = true;
+    }
+
+    $state['role_selected'] = $roleSelected;
+    if (!empty($state['role_selected']) && empty($state['role_intent']) && $normalizedEducationStatus) {
+        $state['role_intent'] = $normalizedEducationStatus;
+    }
+    if (!empty($state['role_selected']) && !empty($state['role_intent'])) {
         srp_mark_step_complete($state, 2);
     }
 

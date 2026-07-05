@@ -129,7 +129,8 @@ try {
 
                 echo json_encode([
                     "requires_two_factor" => true,
-                    "message" => "Verification code sent."
+                    "message" => "Verification code sent.",
+                    "session_id" => session_id(),
                 ]);
                 exit;
             }
@@ -186,7 +187,8 @@ try {
 
         echo json_encode([
             "success" => true,
-            "user" => $user
+            "user" => $user,
+            "session_id" => session_id(),
         ]);
     } else {
         echo json_encode(["error" => "Invalid email or password."]);

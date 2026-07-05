@@ -361,8 +361,13 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
     setNotice('');
     setIsWorking(true);
     try {
-      await axios.post('/api/onboarding_wizard.php', { action: 'skip_email_verification' }, { withCredentials: true });
-      navigate('/home');
+      const res = await axios.post(
+        '/api/onboarding_wizard.php',
+        { action: 'skip_email_verification' },
+        { withCredentials: true }
+      );
+      applyWizardState(res.data?.wizard, 2);
+      setNotice('You can verify your email later. Continue setting up your account.');
     } catch (err) {
       setError(err?.response?.data?.error || 'Unable to skip right now.');
     } finally {
