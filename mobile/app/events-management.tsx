@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -9,6 +8,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  interpolate,
+} from 'react-native-reanimated';
 import { useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
@@ -228,7 +233,11 @@ export default function EventsManagementScreen() {
   const [isZoomSaving, setIsZoomSaving] = useState(false);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [communityMenuOpen, setCommunityMenuOpen] = useState(false);
-  const segAnim = useRef(new Animated.Value(0)).current;
+  const segAnim = useSharedValue(0);
+  const scopeIndicatorStyle = useAnimatedStyle(() => ({
+    width: 110,
+    transform: [{ translateX: interpolate(segAnim.value, [0, 1], [0, 118]) }],
+  }));
 
   const primaryCommunityId = adminCommunityIds[0] || ambassadorCommunityIds[0] || '';
   const initialForm = useMemo(
@@ -264,13 +273,12 @@ export default function EventsManagementScreen() {
   }, [isSuperAdminUser, primaryCommunityId]);
 
   useEffect(() => {
-    const index = form.scope === 'global' ? 0 : 1;
-    Animated.timing(segAnim, {
-      toValue: index,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [form.scope, segAnim]);
+    segAnim.value = withSpring(form.scope === 'global' ? 0 : 1, {
+      damping: 22,
+      stiffness: 220,
+      mass: 0.7,
+    });
+  }, [form.scope]);
 
   const readLocalEvents = async () => {
     setLoadingEvents(true);
@@ -549,6 +557,23 @@ export default function EventsManagementScreen() {
     return itemsToShow;
   }, [filterType, itemsToShow]);
 
+  const [activeItemsView, setActiveItemsView] = useState<'list' | 'grid' | 'calendar'>('list');
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
+
+  const eventsByDay = useMemo(() => {
+    const map = new Map<string, EventItem[]>();
+    for (const item of filteredItems) {
+      if (!item.date) continue;
+      const d = new Date(item.date);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const existing = map.get(key) ?? [];
+      map.set(key, [...existing, item]);
+    }
+    return map;
+  }, [filteredItems]);
+
   const resetForm = () => {
     setEditingId(null);
     setForm({
@@ -803,6 +828,94 @@ export default function EventsManagementScreen() {
     : form.type === 'announcement'
     ? 'Publish time (optional)'
     : 'Date & time';
+
+  // Calendar grid computation
+  const calYear = calendarDate.getFullYear();
+  const calMonth = calendarDate.getMonth();
+  const calMonthLabel = calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const daysInCalMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const firstWeekday = new Date(calYear, calMonth, 1).getDay();
+  const todayStr = (() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  })();
+  const calendarRows: (number | null)[][] = (() => {
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstWeekday; i++) cells.push(null);
+    for (let d = 1; d <= daysInCalMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    const rows: (number | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+    return rows;
+  })();
+  const selectedDayItems = selectedCalendarDay ? (eventsByDay.get(selectedCalendarDay) ?? []) : [];
+
+  const renderEventCard = (item: EventItem) => {
+    const itemType = item.type || 'event';
+    const pollOptions = Array.isArray(item.pollOptions) ? item.pollOptions : [];
+    const typePillStyle =
+      itemType === 'announcement'
+        ? styles.eventPill_announcement
+        : itemType === 'poll'
+        ? styles.eventPill_poll
+        : styles.eventPill_event;
+    return (
+      <View key={item.id} style={styles.eventCard}>
+        <View style={styles.eventMetaRow}>
+          <View style={styles.pillRow}>
+            <View style={[styles.eventPill, typePillStyle]}>
+              <ThemedText style={styles.eventPillText}>{getTypeLabel(itemType)}</ThemedText>
+            </View>
+            <View style={[styles.eventPill, item.scope === 'global' ? styles.eventPillGlobal : styles.eventPillCommunity]}>
+              <ThemedText style={styles.eventPillText}>
+                {item.scope === 'global' ? 'Global' : 'Community'}
+              </ThemedText>
+            </View>
+          </View>
+          <ThemedText style={styles.eventDate}>
+            {item.date ? `${getDatePrefix(itemType)} ${formatDateTime(item.date)}` : 'Date TBD'}
+          </ThemedText>
+        </View>
+        <ThemedText style={styles.eventTitle}>{item.title}</ThemedText>
+        <ThemedText style={styles.eventDescription}>
+          {item.description || 'No description provided.'}
+        </ThemedText>
+        {itemType === 'poll' && pollOptions.length > 0 ? (
+          <View style={styles.pollOptions}>
+            {pollOptions.map((opt, idx) => (
+              <ThemedText key={`${item.id}-opt-${idx}`} style={styles.pollOptionText}>
+                • {opt}
+              </ThemedText>
+            ))}
+          </View>
+        ) : null}
+        <View style={styles.eventFooter}>
+          <View style={styles.eventFooterMeta}>
+            <ThemedText style={styles.eventAudience}>{audienceLabel(item)}</ThemedText>
+            {item.location ? (
+              <ThemedText style={styles.eventLocation}>{item.location}</ThemedText>
+            ) : null}
+            {item.zoomJoinUrl ? (
+              <ThemedText style={styles.eventLocation}>Join Zoom: {item.zoomJoinUrl}</ThemedText>
+            ) : null}
+            {item.zoomStartUrl && canManageEvent(item) ? (
+              <ThemedText style={styles.eventLocation}>Start Zoom: {item.zoomStartUrl}</ThemedText>
+            ) : null}
+          </View>
+          {canManage && !item.isRemote ? (
+            <View style={styles.eventActions}>
+              <Pressable style={styles.ghostButtonSmall} onPress={() => startEdit(item)}>
+                <ThemedText style={styles.ghostButtonText}>Edit</ThemedText>
+              </Pressable>
+              <Pressable style={styles.dangerButton} onPress={() => handleDelete(item.id)}>
+                <ThemedText style={styles.dangerButtonText}>Delete</ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <AppShell>
@@ -1061,22 +1174,7 @@ export default function EventsManagementScreen() {
                   <ThemedText style={styles.label}>Audience</ThemedText>
                   {isSuperAdminUser ? (
                     <View style={styles.scopeRow}>
-                      <Animated.View
-                        style={[
-                          styles.scopeIndicator,
-                          {
-                            width: 110,
-                            transform: [
-                              {
-                                translateX: segAnim.interpolate({
-                                  inputRange: [0, 1],
-                                  outputRange: [0, 118],
-                                }),
-                              },
-                            ],
-                          },
-                        ]}
-                      />
+                      <Animated.View style={[styles.scopeIndicator, scopeIndicatorStyle]} />
                       <Pressable
                         style={styles.scopeOption}
                         onPress={() => setForm((prev) => ({ ...prev, scope: 'global' }))}
@@ -1227,89 +1325,178 @@ export default function EventsManagementScreen() {
                     : 'No items from communities you follow yet.'}
                 </ThemedText>
               </View>
+              <View style={styles.viewToggleRow}>
+                {(['list', 'grid', 'calendar'] as const).map((view) => (
+                  <Pressable
+                    key={view}
+                    style={[styles.viewToggleBtn, activeItemsView === view && styles.viewToggleBtnActive]}
+                    onPress={() => {
+                      setActiveItemsView(view);
+                      setSelectedCalendarDay(null);
+                    }}
+                    accessibilityLabel={`${view} view`}
+                  >
+                    <MaterialCommunityIcons
+                      name={view === 'list' ? 'view-list' : view === 'grid' ? 'view-grid' : 'calendar-month'}
+                      size={17}
+                      color={activeItemsView === view ? colors.primaryFrom : colors.subtext}
+                    />
+                  </Pressable>
+                ))}
+              </View>
             </View>
-            <View style={styles.list}>
-              {filteredItems.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <ThemedText style={styles.emptyText}>
-                    {canManage
-                      ? loadingAnnouncements
-                        ? 'Loading announcements...'
-                        : 'No items to manage yet.'
-                      : loadingFollowed || loadingAnnouncements
-                      ? 'Loading items from your communities...'
-                      : 'Follow more communities or check back later for new items.'}
-                  </ThemedText>
+            {activeItemsView === 'calendar' ? (
+              /* ── Calendar view ── */
+              <View style={styles.calendarContainer}>
+                <View style={styles.calendarNavRow}>
+                  <Pressable
+                    style={styles.calendarNavBtn}
+                    onPress={() => { setCalendarDate(new Date(calYear, calMonth - 1, 1)); setSelectedCalendarDay(null); }}
+                  >
+                    <MaterialCommunityIcons name="chevron-left" size={22} color={colors.text} />
+                  </Pressable>
+                  <ThemedText style={styles.calendarMonthLabel}>{calMonthLabel}</ThemedText>
+                  <Pressable
+                    style={styles.calendarNavBtn}
+                    onPress={() => { setCalendarDate(new Date(calYear, calMonth + 1, 1)); setSelectedCalendarDay(null); }}
+                  >
+                    <MaterialCommunityIcons name="chevron-right" size={22} color={colors.text} />
+                  </Pressable>
                 </View>
-              ) : null}
-
-              {filteredItems.map((item) => {
-                const itemType = item.type || 'event';
-                const pollOptions = Array.isArray(item.pollOptions) ? item.pollOptions : [];
-                const typePillStyle =
-                  itemType === 'announcement'
-                    ? styles.eventPill_announcement
-                    : itemType === 'poll'
-                    ? styles.eventPill_poll
-                    : styles.eventPill_event;
-                return (
-                  <View key={item.id} style={styles.eventCard}>
-                    <View style={styles.eventMetaRow}>
-                      <View style={styles.pillRow}>
-                        <View style={[styles.eventPill, typePillStyle]}>
-                          <ThemedText style={styles.eventPillText}>{getTypeLabel(itemType)}</ThemedText>
-                        </View>
-                        <View style={[styles.eventPill, item.scope === 'global' ? styles.eventPillGlobal : styles.eventPillCommunity]}>
-                          <ThemedText style={styles.eventPillText}>
-                            {item.scope === 'global' ? 'Global' : 'Community'}
-                          </ThemedText>
-                        </View>
-                      </View>
-                      <ThemedText style={styles.eventDate}>
-                        {item.date ? `${getDatePrefix(itemType)} ${formatDateTime(item.date)}` : 'Date TBD'}
-                      </ThemedText>
+                <View style={styles.calendarWeekRow}>
+                  {['S','M','T','W','T','F','S'].map((d, i) => (
+                    <View key={i} style={styles.calendarWeekCell}>
+                      <ThemedText style={styles.calendarWeekText}>{d}</ThemedText>
                     </View>
-                    <ThemedText style={styles.eventTitle}>{item.title}</ThemedText>
-                    <ThemedText style={styles.eventDescription}>
-                      {item.description || 'No description provided.'}
-                    </ThemedText>
-                    {itemType === 'poll' && pollOptions.length > 0 ? (
-                      <View style={styles.pollOptions}>
-                        {pollOptions.map((opt, idx) => (
-                          <ThemedText key={`${item.id}-opt-${idx}`} style={styles.pollOptionText}>
-                            • {opt}
+                  ))}
+                </View>
+                {calendarRows.map((row, rowIdx) => (
+                  <View key={rowIdx} style={styles.calendarRow}>
+                    {row.map((day, colIdx) => {
+                      if (day === null) return <View key={`e-${rowIdx}-${colIdx}`} style={styles.calendarCell} />;
+                      const dateKey = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const dayItems = eventsByDay.get(dateKey) ?? [];
+                      const isToday = dateKey === todayStr;
+                      const isSelected = dateKey === selectedCalendarDay;
+                      return (
+                        <Pressable
+                          key={dateKey}
+                          style={[
+                            styles.calendarCell,
+                            isToday && styles.calendarCellToday,
+                            isSelected && styles.calendarCellSelected,
+                          ]}
+                          onPress={() => setSelectedCalendarDay(isSelected ? null : dateKey)}
+                        >
+                          <ThemedText style={[
+                            styles.calendarDayNum,
+                            isToday && styles.calendarDayNumToday,
+                            isSelected && styles.calendarDayNumSelected,
+                          ]}>
+                            {day}
                           </ThemedText>
-                        ))}
-                      </View>
-                    ) : null}
-                    <View style={styles.eventFooter}>
-                      <View style={styles.eventFooterMeta}>
-                        <ThemedText style={styles.eventAudience}>{audienceLabel(item)}</ThemedText>
-                        {item.location ? (
-                          <ThemedText style={styles.eventLocation}>{item.location}</ThemedText>
-                        ) : null}
-                        {item.zoomJoinUrl ? (
-                          <ThemedText style={styles.eventLocation}>Join Zoom: {item.zoomJoinUrl}</ThemedText>
-                        ) : null}
-                        {item.zoomStartUrl && canManageEvent(item) ? (
-                          <ThemedText style={styles.eventLocation}>Start Zoom: {item.zoomStartUrl}</ThemedText>
-                        ) : null}
-                      </View>
-                      {canManage && !item.isRemote ? (
-                        <View style={styles.eventActions}>
-                          <Pressable style={styles.ghostButtonSmall} onPress={() => startEdit(item)}>
-                            <ThemedText style={styles.ghostButtonText}>Edit</ThemedText>
-                          </Pressable>
-                          <Pressable style={styles.dangerButton} onPress={() => handleDelete(item.id)}>
-                            <ThemedText style={styles.dangerButtonText}>Delete</ThemedText>
-                          </Pressable>
-                        </View>
-                      ) : null}
-                    </View>
+                          {dayItems.length > 0 ? (
+                            <View style={styles.calendarDotRow}>
+                              {dayItems.slice(0, 3).map((evt, di) => (
+                                <View
+                                  key={di}
+                                  style={[
+                                    styles.calendarDot,
+                                    evt.type === 'announcement' ? styles.calendarDotAnnouncement
+                                      : evt.type === 'poll' ? styles.calendarDotPoll
+                                      : styles.calendarDotEvent,
+                                  ]}
+                                />
+                              ))}
+                            </View>
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
                   </View>
-                );
-              })}
-            </View>
+                ))}
+                {selectedCalendarDay ? (
+                  <View style={styles.calendarDaySection}>
+                    <ThemedText style={styles.calendarDaySectionTitle}>
+                      {new Date(selectedCalendarDay + 'T12:00').toLocaleDateString('default', {
+                        weekday: 'long', month: 'long', day: 'numeric',
+                      })}
+                    </ThemedText>
+                    {selectedDayItems.length === 0 ? (
+                      <ThemedText style={styles.mutedText}>No events on this day.</ThemedText>
+                    ) : (
+                      selectedDayItems.map(renderEventCard)
+                    )}
+                  </View>
+                ) : (
+                  <ThemedText style={styles.calendarHint}>Tap a day to see its events.</ThemedText>
+                )}
+              </View>
+            ) : activeItemsView === 'grid' ? (
+              /* ── Grid view ── */
+              <View style={styles.list}>
+                {filteredItems.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <ThemedText style={styles.emptyText}>
+                      {canManage
+                        ? loadingAnnouncements ? 'Loading announcements...' : 'No items to manage yet.'
+                        : loadingFollowed || loadingAnnouncements ? 'Loading items from your communities...'
+                        : 'Follow more communities or check back later for new items.'}
+                    </ThemedText>
+                  </View>
+                ) : null}
+                <View style={styles.gridLayout}>
+                  {filteredItems.map((item) => {
+                    const itemType = item.type || 'event';
+                    const typePillStyle =
+                      itemType === 'announcement' ? styles.eventPill_announcement
+                      : itemType === 'poll' ? styles.eventPill_poll
+                      : styles.eventPill_event;
+                    return (
+                      <Pressable key={item.id} style={styles.gridCard} onPress={() => startEdit(item)}>
+                        <View style={styles.gridCardTop}>
+                          <View style={[styles.eventPill, typePillStyle]}>
+                            <ThemedText style={styles.eventPillText}>{getTypeLabel(itemType)}</ThemedText>
+                          </View>
+                          <View style={[styles.eventPill, item.scope === 'global' ? styles.eventPillGlobal : styles.eventPillCommunity]}>
+                            <ThemedText style={styles.eventPillText}>
+                              {item.scope === 'global' ? 'Global' : 'Comm.'}
+                            </ThemedText>
+                          </View>
+                        </View>
+                        <ThemedText style={styles.gridCardTitle} numberOfLines={2}>{item.title}</ThemedText>
+                        <ThemedText style={styles.gridCardDate} numberOfLines={1}>
+                          {item.date ? formatDateTime(item.date) : 'No date'}
+                        </ThemedText>
+                        {item.communityName ? (
+                          <ThemedText style={styles.gridCardMeta} numberOfLines={1}>{item.communityName}</ThemedText>
+                        ) : null}
+                        {canManage && !item.isRemote ? (
+                          <Pressable style={styles.gridCardDelete} onPress={() => handleDelete(item.id)}>
+                            <MaterialCommunityIcons name="trash-can-outline" size={14} color={colors.danger} />
+                          </Pressable>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              /* ── List view ── */
+              <View style={styles.list}>
+                {filteredItems.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <ThemedText style={styles.emptyText}>
+                      {canManage
+                        ? loadingAnnouncements ? 'Loading announcements...' : 'No items to manage yet.'
+                        : loadingFollowed || loadingAnnouncements ? 'Loading items from your communities...'
+                        : 'Follow more communities or check back later for new items.'}
+                    </ThemedText>
+                  </View>
+                ) : null}
+                {filteredItems.map(renderEventCard)}
+              </View>
+            )}
           </View>
         </View>
 
@@ -1447,6 +1634,9 @@ const createStyles = (colors: BrandColors) =>
   mutedText: {
     fontSize: 11,
     color: colors.subtext,
+  },
+  errorText: {
+    color: colors.danger,
   },
   pill: {
     alignSelf: 'flex-start',
@@ -1773,5 +1963,178 @@ const createStyles = (colors: BrandColors) =>
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  // View toggle
+  viewToggleRow: {
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+  },
+  viewToggleBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: hexToRgba(colors.text, 0.06),
+  },
+  viewToggleBtnActive: {
+    backgroundColor: hexToRgba(colors.primaryFrom, 0.14),
+  },
+  // Grid view
+  gridLayout: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  gridCard: {
+    width: '47%',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: colors.card,
+    gap: 6,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
+  },
+  gridCardTop: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  gridCardTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+    lineHeight: 18,
+  },
+  gridCardDate: {
+    fontSize: 11,
+    color: colors.subtext,
+  },
+  gridCardMeta: {
+    fontSize: 11,
+    color: colors.subtext,
+  },
+  gridCardDelete: {
+    alignSelf: 'flex-end',
+    padding: 4,
+    marginTop: 2,
+  },
+  // Calendar
+  calendarContainer: {
+    marginTop: 8,
+    gap: 4,
+  },
+  calendarNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  calendarNavBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: hexToRgba(colors.text, 0.06),
+  },
+  calendarMonthLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  calendarWeekRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: 6,
+    marginBottom: 2,
+  },
+  calendarWeekCell: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  calendarWeekText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.subtext,
+  },
+  calendarRow: {
+    flexDirection: 'row',
+  },
+  calendarCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    borderRadius: 10,
+    minHeight: 44,
+    gap: 2,
+  },
+  calendarCellToday: {
+    borderWidth: 1.5,
+    borderColor: colors.primaryFrom,
+  },
+  calendarCellSelected: {
+    backgroundColor: colors.primaryFrom,
+  },
+  calendarDayNum: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  calendarDayNumToday: {
+    color: colors.primaryFrom,
+    fontWeight: '700',
+  },
+  calendarDayNumSelected: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  calendarDotRow: {
+    flexDirection: 'row',
+    gap: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 999,
+  },
+  calendarDotEvent: {
+    backgroundColor: '#6366f1',
+  },
+  calendarDotAnnouncement: {
+    backgroundColor: '#f59e0b',
+  },
+  calendarDotPoll: {
+    backgroundColor: '#38bdf8',
+  },
+  calendarDaySection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: 10,
+  },
+  calendarDaySectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  calendarHint: {
+    fontSize: 12,
+    color: colors.subtext,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
   },
 });

@@ -1,5 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, Modal, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Image, Modal, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  interpolate,
+  runOnJS,
+  Easing,
+} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -13,6 +22,34 @@ import { useLockedFeature } from '@/providers/LockedFeatureProvider';
 import { useAppTheme } from '@/providers/AppThemeProvider';
 import { buildAvatarSrc } from '@/lib/uploads';
 import { useBrandStyles } from '@/hooks/use-brand-styles';
+
+function IconButton({
+  onPress,
+  style,
+  accessibilityLabel,
+  children,
+}: {
+  onPress: () => void;
+  style?: object;
+  accessibilityLabel?: string;
+  children: React.ReactNode;
+}) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => { scale.value = withSpring(0.8, { damping: 18, stiffness: 380 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 18, stiffness: 380 }); }}
+        style={style}
+        accessibilityLabel={accessibilityLabel}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export type NavBarProps = {
   onMenuPress: () => void;
@@ -29,20 +66,19 @@ export default function NavBar({ onMenuPress }: NavBarProps) {
   const [query, setQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
-  const progress = useRef(new Animated.Value(0)).current;
+  const progress = useSharedValue(0);
   const inputRef = useRef<TextInput | null>(null);
 
+  const focusInput = () => inputRef.current?.focus();
+
   useEffect(() => {
-    Animated.timing(progress, {
-      toValue: isSearchOpen ? 1 : 0,
+    progress.value = withTiming(isSearchOpen ? 1 : 0, {
       duration: 220,
-      useNativeDriver: false,
-    }).start(() => {
-      if (isSearchOpen) {
-        inputRef.current?.focus();
-      }
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+    }, (finished) => {
+      if (finished && isSearchOpen) runOnJS(focusInput)();
     });
-  }, [isSearchOpen, progress]);
+  }, [isSearchOpen]);
 
   useEffect(() => {
     if (!user && isAccountMenuOpen) {
@@ -50,24 +86,14 @@ export default function NavBar({ onMenuPress }: NavBarProps) {
     }
   }, [user, isAccountMenuOpen]);
 
+  const searchAnimStyle = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [0, 220]),
+    opacity: progress.value,
+  }));
 
-  const searchWidth = useMemo(
-    () =>
-      progress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, 220],
-      }),
-    [progress]
-  );
-
-  const brandOpacity = useMemo(
-    () =>
-      progress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, 0],
-      }),
-    [progress]
-  );
+  const brandAnimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 1], [1, 0]),
+  }));
 
 
   const handleSearch = () => {
@@ -99,22 +125,22 @@ export default function NavBar({ onMenuPress }: NavBarProps) {
         colors={[colors.primaryFrom, colors.primaryTo]}
         style={[styles.navBar, { paddingTop: Brand.spacing.md + insets.top, minHeight: 64 + insets.top }]}
       >
-        <Pressable onPress={onMenuPress} style={styles.iconButton} accessibilityLabel="Open menu">
+        <IconButton onPress={onMenuPress} style={styles.iconButton} accessibilityLabel="Open menu">
           <MaterialCommunityIcons name="menu" size={22} color={colors.navText} />
-        </Pressable>
+        </IconButton>
 
         <Pressable
           style={styles.brand}
           onPress={() => router.push('/feed')}
           accessibilityLabel="Go to home"
         >
-          <Animated.View style={{ opacity: brandOpacity }}>
+          <Animated.View style={brandAnimStyle}>
             <ThemedText style={styles.brandText}>StudentSphere</ThemedText>
           </Animated.View>
         </Pressable>
 
         <View style={styles.actions}>
-          <Animated.View style={[styles.searchInline, { width: searchWidth, opacity: progress }]}>
+          <Animated.View style={[styles.searchInline, searchAnimStyle]}>
             <View style={styles.searchInlineInner}>
               <MaterialCommunityIcons name="magnify" size={16} color={colors.subtext} />
               <TextInput
@@ -132,14 +158,14 @@ export default function NavBar({ onMenuPress }: NavBarProps) {
               </Pressable>
             </View>
           </Animated.View>
-          <Pressable
+          <IconButton
             onPress={() => setIsSearchOpen((prev) => !prev)}
             style={styles.iconButton}
             accessibilityLabel="Search"
           >
             <MaterialCommunityIcons name="magnify" size={20} color={colors.navText} />
-          </Pressable>
-          <Pressable
+          </IconButton>
+          <IconButton
             onPress={() => {
               if (!user) {
                 openLockedFeature('Messaging');
@@ -151,8 +177,8 @@ export default function NavBar({ onMenuPress }: NavBarProps) {
             accessibilityLabel="Messages"
           >
             <MaterialCommunityIcons name="email-outline" size={20} color={colors.navText} />
-          </Pressable>
-          <Pressable
+          </IconButton>
+          <IconButton
             onPress={() => {
               if (!user) {
                 openLockedFeature('Notifications');
@@ -164,7 +190,7 @@ export default function NavBar({ onMenuPress }: NavBarProps) {
             accessibilityLabel="Notifications"
           >
             <MaterialCommunityIcons name="bell-outline" size={20} color={colors.navText} />
-          </Pressable>
+          </IconButton>
           {user ? (
             <Pressable
               onPress={() => setIsAccountMenuOpen(true)}

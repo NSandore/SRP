@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import type { SessionUser } from '@/lib/api/types';
-import { loginWithPassword, verifyTwoFactor } from '@/lib/api/session';
+import { loginWithPassword, logout, verifyTwoFactor } from '@/lib/api/session';
 import {
   clearStoredSessionId,
   clearStoredUser,
@@ -95,6 +95,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    try {
+      await logout();
+    } catch {
+      // Clear local session state even if the backend logout request fails.
+    }
     setUser(null);
     await clearStoredUser();
     await clearStoredSessionId();

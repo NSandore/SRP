@@ -1,12 +1,18 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
-  Animated,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { usePathname, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -53,17 +59,31 @@ export default function DrawerMenu({ visible, onClose }: DrawerMenuProps) {
   const normalizedPath = pathname === '/' ? '/feed' : pathname;
   const { user } = useSession();
   const { openLockedFeature } = useLockedFeature();
-  const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+  const slideX = useSharedValue(-DRAWER_WIDTH);
+  const backdropOpacity = useSharedValue(0);
   const colors = useBrandColors();
   const styles = useBrandStyles(createStyles);
 
   useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: visible ? 0 : -DRAWER_WIDTH,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [visible, slideAnim]);
+    slideX.value = withSpring(visible ? 0 : -DRAWER_WIDTH, {
+      damping: 22,
+      stiffness: 180,
+      mass: 0.85,
+      overshootClamping: false,
+    });
+    backdropOpacity.value = withTiming(visible ? 1 : 0, {
+      duration: 200,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [visible]);
+
+  const drawerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: slideX.value }],
+  }));
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
 
   const items = useMemo(() => {
     const list = [...baseItems];
@@ -85,8 +105,10 @@ export default function DrawerMenu({ visible, onClose }: DrawerMenuProps) {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <Animated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }] }]}>
+      <Animated.View style={[StyleSheet.absoluteFillObject, backdropStyle]} pointerEvents="box-none">
+        <Pressable style={styles.backdrop} onPress={onClose} />
+      </Animated.View>
+      <Animated.View style={[styles.drawer, drawerStyle]}>
         <View style={styles.header}>
           <ThemedText style={styles.headerTitle}>Navigation</ThemedText>
           {user ? (

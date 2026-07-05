@@ -22,7 +22,14 @@ if (!$origin && isset($_SERVER['HTTP_HOST'])) {
     $origin = 'http://' . $_SERVER['HTTP_HOST'];
 }
 
-if (in_array($origin, $allowed_origins, true)) {
+$origin_parts = parse_url($origin);
+$host_parts = parse_url('http://' . ($_SERVER['HTTP_HOST'] ?? ''));
+$is_same_host_dev_origin =
+    isset($origin_parts['host'], $host_parts['host'])
+    && $origin_parts['host'] === $host_parts['host']
+    && (($origin_parts['port'] ?? null) === 8081);
+
+if (in_array($origin, $allowed_origins, true) || $is_same_host_dev_origin) {
     header("Access-Control-Allow-Origin: {$origin}");
     header("Vary: Origin");
     header("Access-Control-Allow-Credentials: true");

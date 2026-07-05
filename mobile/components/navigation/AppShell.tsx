@@ -1,6 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  runOnJS,
+  Easing,
+} from 'react-native-reanimated';
 
 import NavBar from '@/components/navigation/NavBar';
 import DrawerMenu from '@/components/navigation/DrawerMenu';
@@ -15,27 +22,30 @@ export default function AppShell({ children }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { theme } = useAppTheme();
   const [prevTheme, setPrevTheme] = useState(theme);
-  const transition = useRef(new Animated.Value(1)).current;
+  const transition = useSharedValue(1);
   const colors = useBrandColors();
   const prevColors = getBrandColors(prevTheme);
 
   useEffect(() => {
     if (theme === prevTheme) return;
-    transition.setValue(0);
-    Animated.timing(transition, {
-      toValue: 1,
-      duration: 220,
-      useNativeDriver: false,
-    }).start(() => {
-      setPrevTheme(theme);
+    transition.value = 0;
+    transition.value = withTiming(1, {
+      duration: 260,
+      easing: Easing.out(Easing.quad),
+    }, (finished) => {
+      if (finished) runOnJS(setPrevTheme)(theme);
     });
-  }, [theme, prevTheme, transition]);
+  }, [theme, prevTheme]);
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: transition.value,
+  }));
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
       <View style={styles.background} pointerEvents="none">
         <View style={[styles.bgLayer, { backgroundColor: prevColors.page }]} />
-        <Animated.View style={[styles.bgLayer, { backgroundColor: colors.page, opacity: transition }]} />
+        <Animated.View style={[styles.bgLayer, { backgroundColor: colors.page }, overlayStyle]} />
       </View>
       <NavBar onMenuPress={() => setDrawerOpen(true)} />
       <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />

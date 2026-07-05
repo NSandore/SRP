@@ -30,3 +30,8 @@ export async function resetPassword(email: string, newPassword: string) {
   });
   return data;
 }
+
+export async function logout() {
+  const { data } = await apiClient.post<ApiResponse<Record<string, never>>>('/logout.php', {});
+  return data;
+}

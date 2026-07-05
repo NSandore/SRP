@@ -1,4 +1,12 @@
+import { useEffect } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
@@ -30,11 +38,38 @@ export default function LockedFeatureOverlay({
   const colors = useBrandColors();
   const styles = useBrandStyles(createStyles);
 
+  const backdropOpacity = useSharedValue(0);
+  const cardScale = useSharedValue(0.88);
+  const cardOpacity = useSharedValue(0);
+  const cardY = useSharedValue(20);
+
+  useEffect(() => {
+    if (visible) {
+      backdropOpacity.value = 0;
+      cardScale.value = 0.88;
+      cardOpacity.value = 0;
+      cardY.value = 20;
+
+      backdropOpacity.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.quad) });
+      cardOpacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) });
+      cardScale.value = withSpring(1, { damping: 18, stiffness: 220, mass: 0.8 });
+      cardY.value = withSpring(0, { damping: 18, stiffness: 220, mass: 0.8 });
+    }
+  }, [visible]);
+
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: backdropOpacity.value }));
+  const cardAnimStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ scale: cardScale.value }, { translateY: cardY.value }],
+  }));
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View style={[StyleSheet.absoluteFillObject, backdropStyle]} pointerEvents="box-none">
+        <Pressable style={styles.backdrop} onPress={onClose} />
+      </Animated.View>
       <View style={styles.center}>
-        <View style={styles.card}>
+        <Animated.View style={[styles.card, cardAnimStyle]}>
           <Pressable style={styles.closeButton} onPress={onClose} accessibilityLabel="Close">
             <MaterialCommunityIcons name="close" size={18} color={colors.subtext} />
           </Pressable>
@@ -67,7 +102,7 @@ export default function LockedFeatureOverlay({
               <ThemedText style={styles.ghostText}>Log in instead</ThemedText>
             </Pressable>
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

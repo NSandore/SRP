@@ -17,7 +17,7 @@ function respond_json(array $payload, int $status = 200): void {
 }
 
 function onboarding_next_step(array $state, bool $isVerified): int {
-    $hasRole = !empty($state['role_intent']);
+    $hasRole = !empty($state['role_selected']) && !empty($state['role_intent']);
     $hasInterests = !empty($state['interests_selected']);
     $hasProfileBasics = !empty($state['profile_basics_completed']);
     $wantsVerification = !empty($state['wants_verification_now']);
@@ -304,6 +304,7 @@ try {
         }
 
         $state['role_intent'] = $roleIntent;
+        $state['role_selected'] = true;
         srp_mark_step_complete($state, 2);
         $state['current_step'] = 3;
     } elseif ($action === 'set_interests') {
@@ -490,6 +491,7 @@ try {
         $extras['onboarding_context'] = $context;
         srp_save_account_settings_extras($db, $userId, $extras);
         $state['role_intent'] = $roleIntent;
+        $state['role_selected'] = true;
         $state['context_completed'] = true;
         srp_mark_step_complete($state, 6);
     } elseif ($action === 'submit_verification_request') {

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -10,6 +9,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  interpolate,
+} from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -65,12 +70,12 @@ export default function CommunitiesScreen() {
   const [communities, setCommunities] = useState<CommunityItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [typeSegWidth, setTypeSegWidth] = useState(0);
-  const [filterSegWidth, setFilterSegWidth] = useState(0);
+  const typeSegWidthSV = useSharedValue(0);
+  const filterSegWidthSV = useSharedValue(0);
   const scrollRef = useRef<ScrollView | null>(null);
 
-  const typeSegAnim = useRef(new Animated.Value(0)).current;
-  const filterSegAnim = useRef(new Animated.Value(0)).current;
+  const typeSegAnim = useSharedValue(0);
+  const filterSegAnim = useSharedValue(0);
 
   const isLoggedIn = Boolean(user?.user_id);
 
@@ -86,22 +91,45 @@ export default function CommunitiesScreen() {
   );
 
   useEffect(() => {
-    const index = selectedType === 'university' ? 0 : 1;
-    Animated.timing(typeSegAnim, {
-      toValue: index,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [selectedType, typeSegAnim]);
+    typeSegAnim.value = withSpring(selectedType === 'university' ? 0 : 1, {
+      damping: 22,
+      stiffness: 220,
+      mass: 0.7,
+    });
+  }, [selectedType]);
 
   useEffect(() => {
     const index = communityFilter === 'All' ? 0 : communityFilter === 'Followed' ? 1 : 2;
-    Animated.timing(filterSegAnim, {
-      toValue: index,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [communityFilter, filterSegAnim]);
+    filterSegAnim.value = withSpring(index, {
+      damping: 22,
+      stiffness: 220,
+      mass: 0.7,
+    });
+  }, [communityFilter]);
+
+  const typeIndicatorStyle = useAnimatedStyle(() => {
+    const w = typeSegWidthSV.value;
+    return {
+      width: w ? w / 2 - 6 : 0,
+      transform: [{
+        translateX: interpolate(typeSegAnim.value, [0, 1], [3, w ? w / 2 + 3 : 0]),
+      }],
+    };
+  });
+
+  const filterIndicatorStyle = useAnimatedStyle(() => {
+    const w = filterSegWidthSV.value;
+    return {
+      width: w ? w / 3 - 6 : 0,
+      transform: [{
+        translateX: interpolate(
+          filterSegAnim.value,
+          [0, 1, 2],
+          [3, w ? w / 3 + 3 : 0, w ? (w / 3) * 2 + 3 : 0]
+        ),
+      }],
+    };
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -159,70 +187,57 @@ export default function CommunitiesScreen() {
           <View style={styles.controls}>
             <View style={styles.controlGroup}>
               <ThemedText style={styles.controlLabel}>Type</ThemedText>
-              <View
-                style={styles.segmentControl}
-                onLayout={(event) => setTypeSegWidth(event.nativeEvent.layout.width)}
-              >
-                <Animated.View
-                  style={[
-                    styles.segmentIndicator,
-                    {
-                      width: typeSegWidth ? typeSegWidth / 2 - 6 : 0,
-                      transform: [
-                        {
-                          translateX: typeSegAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [3, typeSegWidth / 2 + 3],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                />
-                <View style={styles.segmentPillBackground} />
-                {TYPE_TABS.map((tab, index) => (
-                  <Pressable
-                    key={tab.key}
-                    style={[
-                      styles.segmentButton,
-                      index === 0 ? styles.segmentButtonLeft : styles.segmentButtonRight,
-                    ]}
-                    onPress={() => setSelectedType(tab.key)}
-                  >
-                    <ThemedText
+              <View style={styles.typeRow}>
+                <View
+                  style={styles.segmentControl}
+                  onLayout={(event) => { typeSegWidthSV.value = event.nativeEvent.layout.width; }}
+                >
+                  <Animated.View style={[styles.segmentIndicator, typeIndicatorStyle]} />
+                  <View style={styles.segmentPillBackground} />
+                  {TYPE_TABS.map((tab, index) => (
+                    <Pressable
+                      key={tab.key}
                       style={[
-                        styles.segmentButtonText,
-                        selectedType === tab.key && styles.segmentButtonTextActive,
+                        styles.segmentButton,
+                        index === 0 ? styles.segmentButtonLeft : styles.segmentButtonRight,
                       ]}
+                      onPress={() => setSelectedType(tab.key)}
                     >
-                      {tab.label}
-                    </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.segmentButtonText,
+                          selectedType === tab.key && styles.segmentButtonTextActive,
+                        ]}
+                      >
+                        {tab.label}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {selectedType === 'group' ? (
+                  <Pressable
+                    style={[styles.requestButton, !isLoggedIn && styles.requestButtonDisabled]}
+                    onPress={() => {
+                      if (!isLoggedIn) {
+                        openLockedFeature('Community requests');
+                        return;
+                      }
+                      Alert.alert('Coming soon', 'Community requests are not yet available on mobile.');
+                    }}
+                  >
+                    <LinearGradient
+                      colors={[colors.primaryFrom, colors.primaryTo]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.requestButtonGradient}
+                    >
+                      <ThemedText style={styles.requestButtonText}>{requestLabel}</ThemedText>
+                    </LinearGradient>
                   </Pressable>
-                ))}
+                ) : null}
               </View>
             </View>
-
-            {selectedType === 'group' ? (
-              <Pressable
-                style={[styles.requestButton, !isLoggedIn && styles.requestButtonDisabled]}
-                onPress={() => {
-                  if (!isLoggedIn) {
-                    openLockedFeature('Community requests');
-                    return;
-                  }
-                  Alert.alert('Coming soon', 'Community requests are not yet available on mobile.');
-                }}
-              >
-                <LinearGradient
-                  colors={[colors.primaryFrom, colors.primaryTo]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.requestButtonGradient}
-                >
-                  <ThemedText style={styles.requestButtonText}>{requestLabel}</ThemedText>
-                </LinearGradient>
-              </Pressable>
-            ) : null}
           </View>
 
           <View style={styles.searchRow}>
@@ -255,28 +270,9 @@ export default function CommunitiesScreen() {
                 <ThemedText style={styles.controlLabel}>Filter</ThemedText>
                 <View
                   style={styles.segmentControlSmall}
-                  onLayout={(event) => setFilterSegWidth(event.nativeEvent.layout.width)}
+                  onLayout={(event) => { filterSegWidthSV.value = event.nativeEvent.layout.width; }}
                 >
-                  <Animated.View
-                    style={[
-                      styles.segmentIndicatorSmall,
-                      {
-                        width: filterSegWidth ? filterSegWidth / 3 - 6 : 0,
-                        transform: [
-                          {
-                            translateX: filterSegAnim.interpolate({
-                              inputRange: [0, 1, 2],
-                              outputRange: [
-                                3,
-                                filterSegWidth / 3 + 3,
-                                (filterSegWidth / 3) * 2 + 3,
-                              ],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
+                  <Animated.View style={[styles.segmentIndicatorSmall, filterIndicatorStyle]} />
                   {FILTER_TABS.map((tab) => {
                     const disabled = !isLoggedIn && tab.key !== 'All';
                     return (
@@ -465,6 +461,12 @@ const createStyles = (colors: BrandColors) =>
   },
   controlGroup: {
     gap: 6,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
   },
   controlLabel: {
     fontSize: 12,

@@ -43,6 +43,45 @@ const extractFirstHref = (html = '') => {
   return match ? match[1] : '';
 };
 
+const typeIcon = (type?: string): string => {
+  switch (type) {
+    case 'message': return 'message-text';
+    case 'connection': return 'account-plus';
+    case 'follow': return 'account-heart';
+    case 'verification_request': return 'shield-account';
+    case 'verification_result': return 'shield-check';
+    default: return 'bell';
+  }
+};
+
+const typeColor = (type?: string, primaryFrom?: string): string => {
+  switch (type) {
+    case 'message': return '#0ea5e9';
+    case 'connection': return '#10b981';
+    case 'follow': return '#f43f5e';
+    case 'verification_request': return '#f59e0b';
+    case 'verification_result': return '#8b5cf6';
+    default: return primaryFrom ?? '#6366f1';
+  }
+};
+
+const relativeTime = (timestamp?: string): string => {
+  if (!timestamp) return '';
+  const normalized = timestamp.includes('T') ? timestamp : timestamp.replace(' ', 'T');
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return '';
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
+};
+
 export default function NotificationsScreen() {
   const { user, isLoading } = useSession();
   const router = useRouter();
@@ -140,50 +179,76 @@ export default function NotificationsScreen() {
     router.push(target);
   };
 
-  const formatTimestamp = (timestamp?: string) => {
-    if (!timestamp) return '';
-    const normalized = timestamp.includes('T') ? timestamp : timestamp.replace(' ', 'T');
-    const date = new Date(normalized);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleString();
-  };
-
   return (
     <AppShell>
       <View style={styles.screen}>
-        <View style={styles.header}>
-          <ThemedText type="title" style={styles.pageTitle}>
-            Notifications
-          </ThemedText>
+        {/* Page header */}
+        <View style={styles.pageHeader}>
+          <View>
+            <ThemedText type="title" style={styles.pageTitle}>Notifications</ThemedText>
+            <ThemedText style={styles.pageSubtitle}>
+              {unreadCount > 0 ? `${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}` : 'All caught up'}
+            </ThemedText>
+          </View>
+          <View style={styles.bellWrap}>
+            <MaterialCommunityIcons name="bell" size={22} color={colors.primaryFrom} />
+            {unreadCount > 0 ? (
+              <View style={styles.badge}>
+                <ThemedText style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</ThemedText>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.card}>
+          {/* Card header */}
           <LinearGradient
-            colors={[hexToRgba('#0277b5', 0.12), hexToRgba('#38bdf8', 0.08)]}
+            colors={[hexToRgba(colors.primaryFrom, 0.14), hexToRgba(colors.primaryFrom, 0.04)]}
             start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+            end={{ x: 1, y: 1 }}
             style={styles.cardHeader}
           >
-            <View>
-              <ThemedText style={styles.cardTitle}>Notifications</ThemedText>
-              <ThemedText style={styles.cardSubtitle}>
-                {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
-              </ThemedText>
+            <View style={styles.cardHeaderLeft}>
+              <View style={styles.cardIconCircle}>
+                <MaterialCommunityIcons name="bell-outline" size={16} color={colors.primaryFrom} />
+              </View>
+              <View>
+                <ThemedText style={styles.cardTitle}>Activity</ThemedText>
+                <ThemedText style={styles.cardSubtitle}>
+                  {unreadCount > 0 ? `${unreadCount} new` : 'Nothing new'}
+                </ThemedText>
+              </View>
             </View>
             {notifications.length > 0 ? (
               <Pressable style={styles.markReadButton} onPress={markAllRead}>
+                <MaterialCommunityIcons name="check-all" size={13} color={colors.primaryFrom} />
                 <ThemedText style={styles.markReadText}>Mark all read</ThemedText>
               </Pressable>
             ) : null}
           </LinearGradient>
 
+          {/* Body */}
           <ScrollView contentContainerStyle={styles.cardBody}>
-            {isFetching ? <ActivityIndicator /> : null}
-            {error ? <ThemedText style={styles.errorText}>{error}</ThemedText> : null}
+            {isFetching ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator color={colors.primaryFrom} />
+                <ThemedText style={styles.loadingText}>Loading notifications…</ThemedText>
+              </View>
+            ) : null}
 
-            {!isFetching && notifications.length === 0 ? (
+            {error ? (
+              <View style={styles.errorWrap}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.danger} />
+                <ThemedText style={styles.errorText}>{error}</ThemedText>
+              </View>
+            ) : null}
+
+            {!isFetching && notifications.length === 0 && !error ? (
               <View style={styles.emptyState}>
-                <ThemedText style={styles.emptyTitle}>You&apos;re all caught up.</ThemedText>
+                <View style={styles.emptyIconWrap}>
+                  <MaterialCommunityIcons name="bell-check-outline" size={32} color={colors.primaryFrom} />
+                </View>
+                <ThemedText style={styles.emptyTitle}>You&apos;re all caught up</ThemedText>
                 <ThemedText style={styles.emptyText}>
                   We&apos;ll let you know when something new arrives.
                 </ThemedText>
@@ -193,30 +258,51 @@ export default function NotificationsScreen() {
             {notifications.map((notif) => {
               const unread = String(notif.is_read) === '0';
               const fullName = `${notif.first_name || 'User'} ${notif.last_name || ''}`.trim();
+              const accent = typeColor(notif.notification_type, colors.primaryFrom);
+              const icon = typeIcon(notif.notification_type);
               return (
                 <Pressable
                   key={notif.notification_id}
-                  style={[styles.notificationItem, unread && styles.notificationItemUnread]}
+                  style={[styles.notifItem, unread && styles.notifItemUnread]}
                   onPress={() => handleNavigate(notif)}
                 >
-                  <View style={styles.notificationBody}>
-                    <Image
-                      source={{ uri: buildAvatarSrc(notif.avatar_path) }}
-                      style={styles.notificationAvatar}
-                    />
-                    <View style={styles.notificationCopy}>
-                      <ThemedText style={styles.notificationText}>
+                  {unread ? <View style={[styles.unreadBar, { backgroundColor: accent }]} /> : null}
+
+                  <View style={styles.notifInner}>
+                    {/* Avatar + type icon badge */}
+                    <View style={styles.avatarWrap}>
+                      <Image
+                        source={{ uri: buildAvatarSrc(notif.avatar_path) }}
+                        style={styles.avatar}
+                      />
+                      <View style={[styles.typeIconBadge, { backgroundColor: accent }]}>
+                        <MaterialCommunityIcons name={icon as any} size={9} color="#fff" />
+                      </View>
+                    </View>
+
+                    {/* Copy */}
+                    <View style={styles.notifCopy}>
+                      <ThemedText style={styles.notifText} numberOfLines={3}>
                         {stripHtml(notif.message || `${fullName} sent an update.`)}
                       </ThemedText>
-                      <ThemedText style={styles.notificationTime}>
-                        {formatTimestamp(notif.created_at)}
-                      </ThemedText>
+                      <View style={styles.notifMeta}>
+                        <MaterialCommunityIcons name="clock-outline" size={10} color={colors.subtext} />
+                        <ThemedText style={styles.notifTime}>
+                          {relativeTime(notif.created_at)}
+                        </ThemedText>
+                        {unread ? (
+                          <View style={[styles.unreadDot, { backgroundColor: accent }]} />
+                        ) : null}
+                      </View>
                     </View>
+
+                    {/* Dismiss */}
                     <Pressable
-                      style={styles.dismissButton}
+                      style={styles.dismissBtn}
                       onPress={() => deleteNotification(notif.notification_id)}
+                      hitSlop={8}
                     >
-                      <MaterialCommunityIcons name="close" size={14} color={colors.subtext} />
+                      <MaterialCommunityIcons name="close" size={13} color={colors.subtext} />
                     </Pressable>
                   </View>
                 </Pressable>
@@ -237,32 +323,80 @@ const createStyles = (colors: BrandColors) =>
     backgroundColor: colors.page,
     gap: 16,
   },
-  header: {
-    gap: 6,
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   pageTitle: {
     fontWeight: '700',
   },
+  pageSubtitle: {
+    fontSize: 12,
+    color: colors.subtext,
+    marginTop: 2,
+  },
+  bellWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: hexToRgba(colors.primaryFrom, 0.1),
+    borderWidth: 1,
+    borderColor: hexToRgba(colors.primaryFrom, 0.2),
+  },
+  badge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#fff',
+  },
   card: {
     flex: 1,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card,
     overflow: 'hidden',
     shadowColor: '#0f172a',
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 18 },
-    shadowRadius: 28,
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 20,
     elevation: 6,
   },
   cardHeader: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cardIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: hexToRgba(colors.primaryFrom, 0.12),
   },
   cardTitle: {
     fontSize: 14,
@@ -272,92 +406,163 @@ const createStyles = (colors: BrandColors) =>
   cardSubtitle: {
     fontSize: 11,
     color: colors.subtext,
+    marginTop: 1,
   },
   markReadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     borderRadius: 999,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: hexToRgba(colors.text, 0.08),
+    paddingVertical: 7,
+    backgroundColor: hexToRgba(colors.primaryFrom, 0.1),
+    borderWidth: 1,
+    borderColor: hexToRgba(colors.primaryFrom, 0.2),
   },
   markReadText: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.text,
+    color: colors.primaryFrom,
   },
   cardBody: {
     padding: 12,
-    gap: 10,
+    gap: 8,
   },
-  emptyState: {
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: hexToRgba(colors.text, 0.04),
+  loadingWrap: {
+    padding: 20,
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
-  emptyTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  emptyText: {
-    fontSize: 11,
-    color: colors.subtext,
-    textAlign: 'center',
-  },
-  notificationItem: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    padding: 12,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 14,
-    elevation: 2,
-  },
-  notificationItemUnread: {
-    borderColor: hexToRgba(colors.primaryFrom, 0.35),
-    backgroundColor: hexToRgba(colors.primaryFrom, 0.08),
-  },
-  notificationBody: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-  },
-  notificationAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  notificationCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6,
-  },
-  notificationText: {
+  loadingText: {
     fontSize: 12,
-    color: colors.text,
-  },
-  notificationTime: {
-    fontSize: 10,
     color: colors.subtext,
   },
-  dismissButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 999,
-    backgroundColor: hexToRgba(colors.text, 0.06),
+  errorWrap: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: hexToRgba('#ef4444', 0.08),
+    borderWidth: 1,
+    borderColor: hexToRgba('#ef4444', 0.2),
   },
   errorText: {
     fontSize: 12,
     color: colors.danger,
+    flex: 1,
+  },
+  emptyState: {
+    padding: 32,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: hexToRgba(colors.primaryFrom, 0.08),
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  emptyText: {
+    fontSize: 12,
+    color: colors.subtext,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  notifItem: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  notifItemUnread: {
+    borderColor: hexToRgba(colors.primaryFrom, 0.25),
+    backgroundColor: hexToRgba(colors.primaryFrom, 0.04),
+  },
+  unreadBar: {
+    height: 3,
+    borderRadius: 999,
+    marginHorizontal: 12,
+    marginTop: 10,
+    marginBottom: -2,
+    opacity: 0.7,
+  },
+  notifInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 12,
+  },
+  avatarWrap: {
+    position: 'relative',
+    width: 42,
+    height: 42,
+  },
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  typeIconBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    width: 18,
+    height: 18,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.card,
+  },
+  notifCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 5,
+  },
+  notifText: {
+    fontSize: 12,
+    color: colors.text,
+    lineHeight: 17,
+  },
+  notifMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  notifTime: {
+    fontSize: 10,
+    color: colors.subtext,
+  },
+  unreadDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: 4,
+  },
+  dismissBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: hexToRgba(colors.text, 0.06),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
   },
 });

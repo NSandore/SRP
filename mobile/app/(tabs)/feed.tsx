@@ -2,13 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  interpolate,
+} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -113,10 +118,10 @@ export default function FeedScreen() {
   } | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [feedSegWidth, setFeedSegWidth] = useState(0);
-  const [contentSegWidth, setContentSegWidth] = useState(0);
-  const feedSegAnim = useRef(new Animated.Value(0)).current;
-  const contentSegAnim = useRef(new Animated.Value(0)).current;
+  const feedSegWidthSV = useSharedValue(0);
+  const contentSegWidthSV = useSharedValue(0);
+  const feedSegAnim = useSharedValue(0);
+  const contentSegAnim = useSharedValue(0);
   const activeContentTab = activeFeed === 'yourFeed' ? yourFeedView : exploreView;
   const appliedDefaultRef = useRef(false);
 
@@ -192,22 +197,40 @@ export default function FeedScreen() {
   }, [user, activeFeed]);
 
   useEffect(() => {
-    const index = activeFeed === 'yourFeed' ? 0 : 1;
-    Animated.timing(feedSegAnim, {
-      toValue: index,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [activeFeed, feedSegAnim]);
+    feedSegAnim.value = withSpring(activeFeed === 'yourFeed' ? 0 : 1, {
+      damping: 22,
+      stiffness: 220,
+      mass: 0.7,
+    });
+  }, [activeFeed]);
 
   useEffect(() => {
-    const index = activeContentTab === 'forums' ? 0 : 1;
-    Animated.timing(contentSegAnim, {
-      toValue: index,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [activeContentTab, contentSegAnim]);
+    contentSegAnim.value = withSpring(activeContentTab === 'forums' ? 0 : 1, {
+      damping: 22,
+      stiffness: 220,
+      mass: 0.7,
+    });
+  }, [activeContentTab]);
+
+  const feedIndicatorStyle = useAnimatedStyle(() => {
+    const w = feedSegWidthSV.value;
+    return {
+      width: w ? w / 2 - 6 : 0,
+      transform: [{
+        translateX: interpolate(feedSegAnim.value, [0, 1], [3, w ? w / 2 + 3 : 0]),
+      }],
+    };
+  });
+
+  const contentIndicatorStyle = useAnimatedStyle(() => {
+    const w = contentSegWidthSV.value;
+    return {
+      width: w ? w / 2 - 6 : 0,
+      transform: [{
+        translateX: interpolate(contentSegAnim.value, [0, 1], [3, w ? w / 2 + 3 : 0]),
+      }],
+    };
+  });
 
   const exploreTagOptions = useMemo(
     () => (tagOptions || []).map((opt) => ({ value: opt.slug, label: opt.name })),
@@ -521,24 +544,9 @@ export default function FeedScreen() {
         <View style={styles.topControls}>
           <View
             style={styles.segmentControl}
-            onLayout={(event) => setFeedSegWidth(event.nativeEvent.layout.width)}
+            onLayout={(event) => { feedSegWidthSV.value = event.nativeEvent.layout.width; }}
           >
-            <Animated.View
-              style={[
-                styles.segmentIndicator,
-                {
-                  width: feedSegWidth ? feedSegWidth / 2 - 6 : 0,
-                  transform: [
-                    {
-                      translateX: feedSegAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [3, feedSegWidth / 2 + 3],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
+            <Animated.View style={[styles.segmentIndicator, feedIndicatorStyle]} />
             <View style={styles.segmentPillBackground} />
             {FEED_TABS.map((tab, index) => (
               <Pressable
@@ -591,24 +599,9 @@ export default function FeedScreen() {
               <ThemedText style={styles.filterLabel}>Content</ThemedText>
               <View
                 style={styles.segmentControlSmall}
-                onLayout={(event) => setContentSegWidth(event.nativeEvent.layout.width)}
+                onLayout={(event) => { contentSegWidthSV.value = event.nativeEvent.layout.width; }}
               >
-                <Animated.View
-                  style={[
-                    styles.segmentIndicatorSmall,
-                    {
-                      width: contentSegWidth ? contentSegWidth / 2 - 6 : 0,
-                      transform: [
-                        {
-                          translateX: contentSegAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [3, contentSegWidth / 2 + 3],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                />
+                <Animated.View style={[styles.segmentIndicatorSmall, contentIndicatorStyle]} />
                 {CONTENT_TABS.map((tab, index) => (
                   <Pressable
                     key={tab.key}

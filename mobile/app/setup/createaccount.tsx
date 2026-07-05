@@ -177,7 +177,7 @@ function CommunitySearch({
 
 export default function CreateAccountScreen() {
   const router = useRouter();
-  const { user, setSession } = useSession();
+  const { user, setSession, signOut } = useSession();
   const { tags: tagOptions, loading: loadingTags } = useTagOptions();
   const colors = useBrandColors();
   const styles = useBrandStyles(createStyles);
@@ -446,8 +446,11 @@ export default function CreateAccountScreen() {
     setNotice('');
     setIsWorking(true);
     try {
-      await apiClient.post('/onboarding_wizard.php', { action: 'skip_email_verification' });
-      router.replace('/feed');
+      const { data } = await apiClient.post('/onboarding_wizard.php', {
+        action: 'skip_email_verification',
+      });
+      applyWizardState(data?.wizard, 2);
+      setNotice('You can verify your email later. Continue setting up your account.');
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Unable to skip right now.');
     } finally {
@@ -730,6 +733,39 @@ export default function CreateAccountScreen() {
     router.push('/login');
   };
 
+  const resetSignupFlow = async () => {
+    setError('');
+    setNotice('');
+    setIsWorking(true);
+    try {
+      await signOut();
+      setSessionUser(null);
+      setVerificationCode('');
+      setRoleIntent('prospect');
+      setSelectedTags([]);
+      setSelectedCommunityIds([]);
+      setInterestFilter('topics');
+      setLocationCity('');
+      setLocationState('');
+      setSkillsInput('');
+      setStudentSchoolId('');
+      setStudentStartDate('');
+      setStaffPosition('');
+      setStaffInstitutionId('');
+      setVerificationMethod('id_photo');
+      setVerificationPending(false);
+      setVerificationSelfieFile(null);
+      setVerificationIdFrontFile(null);
+      setVerificationDocumentFile(null);
+      setStep(0);
+      setNotice('Start a new account below.');
+    } catch {
+      setError('Unable to reset signup right now.');
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -761,6 +797,11 @@ export default function CreateAccountScreen() {
                     <ThemedText style={styles.switchLink}>Sign in</ThemedText>
                   </Pressable>
                 </View>
+                {step > 0 && sessionUser ? (
+                  <Pressable onPress={resetSignupFlow} disabled={isWorking}>
+                    <ThemedText style={styles.linkTextSubtle}>Start over with a different email</ThemedText>
+                  </Pressable>
+                ) : null}
                 {error ? <ThemedText style={styles.errorText}>{error}</ThemedText> : null}
                 {notice ? <ThemedText style={styles.successText}>{notice}</ThemedText> : null}
 
