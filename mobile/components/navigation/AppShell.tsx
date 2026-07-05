@@ -16,9 +16,10 @@ import { useAppTheme } from '@/providers/AppThemeProvider';
 
 type AppShellProps = {
   children: React.ReactNode;
+  showSearch?: boolean;
 };
 
-export default function AppShell({ children }: AppShellProps) {
+export default function AppShell({ children, showSearch = true }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { theme } = useAppTheme();
   const [prevTheme, setPrevTheme] = useState(theme);
@@ -47,7 +48,7 @@ export default function AppShell({ children }: AppShellProps) {
         <View style={[styles.bgLayer, { backgroundColor: prevColors.page }]} />
         <Animated.View style={[styles.bgLayer, { backgroundColor: colors.page }, overlayStyle]} />
       </View>
-      <NavBar onMenuPress={() => setDrawerOpen(true)} />
+      <NavBar onMenuPress={() => setDrawerOpen(true)} showSearch={showSearch} />
       <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
       <View style={styles.content}>{children}</View>
     </SafeAreaView>

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import * as Linking from 'expo-linking';
 
 import AppShell from '@/components/navigation/AppShell';
@@ -176,7 +176,7 @@ export default function NotificationsScreen() {
       await Linking.openURL(target);
       return;
     }
-    router.push(target);
+    router.push(target as Href);
   };
 
   return (

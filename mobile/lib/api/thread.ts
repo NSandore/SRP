@@ -20,6 +20,8 @@ export type ThreadData = {
   last_name?: string;
   creator_avatar_path?: string;
   author_verified?: number | string;
+  is_connection?: number | string;
+  user_role?: string | null;
   ambassador_logo_path?: string | null;
   tags?: string[];
 };
@@ -43,6 +45,8 @@ export type PostData = {
   last_name?: string;
   avatar_path?: string;
   author_verified?: number | string;
+  is_connection?: number | string;
+  user_role?: string | null;
   ambassador_logo_path?: string | null;
   updated_by_first_name?: string | null;
   updated_by_last_name?: string | null;

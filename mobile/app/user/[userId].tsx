@@ -204,8 +204,7 @@ export default function UserProfileScreen() {
         if ((resp.data as any)?.success) {
           const nextProfile = (resp.data as any)?.user as ProfileUser;
           setProfile(nextProfile);
-          const isVerified =
-            nextProfile?.verified === 1 || nextProfile?.verified === '1' || nextProfile?.verified === true;
+          const isVerified = Number(nextProfile?.verified) === 1;
           setVerified(Boolean(isVerified));
 
           const communityIds = parseAmbassadorIds(nextProfile?.community_ambassador_of);

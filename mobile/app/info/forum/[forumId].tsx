@@ -983,6 +983,9 @@ const createStyles = (colors: BrandColors) =>
     fontWeight: '700',
     color: colors.text,
   },
+  dropdownAnchor: {
+    alignSelf: 'flex-start',
+  },
   sortDropdown: {
     flexDirection: 'row',
     alignItems: 'center',

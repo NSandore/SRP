@@ -219,11 +219,7 @@ export default function ProfileScreen() {
       if ((resp.data as any)?.success) {
         const nextProfile = (resp.data as any)?.user as ProfileUser;
         setProfile(nextProfile);
-        setVerified(
-          nextProfile?.verified === 1 ||
-            nextProfile?.verified === '1' ||
-            nextProfile?.verified === true
-        );
+        setVerified(Number(nextProfile?.verified) === 1);
         setAvatarPath(nextProfile?.avatar_path || '/uploads/avatars/DefaultAvatar.png');
         setBannerPath(nextProfile?.banner_path || '/uploads/banners/DefaultBanner.jpeg');
         setPrimaryColor(nextProfile?.primary_color || colors.primaryFrom);
@@ -910,7 +906,21 @@ export default function ProfileScreen() {
                       {reply.community_name && reply.community_id && reply.community_type ? (
                         <>
                           <ThemedText style={styles.metaText}>•</ThemedText>
-                          <Pressable onPress={() => router.push(`/${reply.community_type}/${reply.community_id}`)}>
+                          <Pressable
+                            onPress={() =>
+                              router.push(
+                                reply.community_type === 'group'
+                                  ? {
+                                      pathname: '/group/[communityId]',
+                                      params: { communityId: reply.community_id! },
+                                    }
+                                  : {
+                                      pathname: '/university/[communityId]',
+                                      params: { communityId: reply.community_id! },
+                                    }
+                              )
+                            }
+                          >
                             <ThemedText style={[styles.replyLink, { color: accentColor }]}>
                               {reply.community_name}
                             </ThemedText>

@@ -573,16 +573,16 @@ export default function AccountSettingsScreen() {
     setShowResetModal(false);
 
     if (user?.user_id) {
-      const showEmailMap = {
+      const showEmailMap: Record<string, number> = {
         hidden: 0,
         connections: 1,
         everyone: 2,
-      } as const;
-      const discoverMap = {
+      };
+      const discoverMap: Record<string, number> = {
         no_one: 0,
         connections: 1,
         everyone: 2,
-      } as const;
+      };
       try {
         await apiClient.post('/update_account_settings.php', {
           user_id: user.user_id,
@@ -1364,7 +1364,7 @@ export default function AccountSettingsScreen() {
             <View style={styles.card}>
               <View style={styles.cardHeading}>
                 <View style={styles.cardEyebrow}>
-                  <MaterialCommunityIcons name="plug" size={16} color={colors.text} />
+                  <MaterialCommunityIcons name="power-plug" size={16} color={colors.text} />
                   <ThemedText style={styles.cardEyebrowText}>Integrations</ThemedText>
                 </View>
                 <ThemedText style={styles.cardHelp}>

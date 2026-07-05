@@ -1,4 +1,4 @@
-import axios from 'axios/dist/esm/axios.js';
+import axios from 'axios';
 
 import { API_URL } from '@/lib/config';
 import { loadStoredSessionId } from '@/lib/storage';
@@ -16,10 +16,7 @@ apiClient.interceptors.request.use(async (config) => {
   try {
     const sessionId = await loadStoredSessionId();
     if (sessionId) {
-      config.headers = {
-        ...(config.headers || {}),
-        'X-Session-Id': sessionId,
-      };
+      config.headers.set('X-Session-Id', sessionId);
       config.params = {
         ...(config.params || {}),
         session_id: sessionId,

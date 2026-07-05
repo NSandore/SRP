@@ -53,9 +53,10 @@ function IconButton({
 
 export type NavBarProps = {
   onMenuPress: () => void;
+  showSearch?: boolean;
 };
 
-export default function NavBar({ onMenuPress }: NavBarProps) {
+export default function NavBar({ onMenuPress, showSearch = true }: NavBarProps) {
   const router = useRouter();
   const { user, signOut } = useSession();
   const { openLockedFeature } = useLockedFeature();
@@ -140,31 +141,35 @@ export default function NavBar({ onMenuPress }: NavBarProps) {
         </Pressable>
 
         <View style={styles.actions}>
-          <Animated.View style={[styles.searchInline, searchAnimStyle]}>
-            <View style={styles.searchInlineInner}>
-              <MaterialCommunityIcons name="magnify" size={16} color={colors.subtext} />
-              <TextInput
-                ref={inputRef}
-                placeholder="Search"
-                placeholderTextColor={colors.subtext}
-                style={styles.searchInlineInput}
-                value={query}
-                onChangeText={setQuery}
-                returnKeyType="search"
-                onSubmitEditing={handleSearch}
-              />
-              <Pressable onPress={() => setIsSearchOpen(false)} style={styles.searchInlineClose}>
-                <MaterialCommunityIcons name="close" size={16} color={colors.subtext} />
-              </Pressable>
-            </View>
-          </Animated.View>
-          <IconButton
-            onPress={() => setIsSearchOpen((prev) => !prev)}
-            style={styles.iconButton}
-            accessibilityLabel="Search"
-          >
-            <MaterialCommunityIcons name="magnify" size={20} color={colors.navText} />
-          </IconButton>
+          {showSearch ? (
+            <>
+              <Animated.View style={[styles.searchInline, searchAnimStyle]}>
+                <View style={styles.searchInlineInner}>
+                  <MaterialCommunityIcons name="magnify" size={16} color={colors.subtext} />
+                  <TextInput
+                    ref={inputRef}
+                    placeholder="Search"
+                    placeholderTextColor={colors.subtext}
+                    style={styles.searchInlineInput}
+                    value={query}
+                    onChangeText={setQuery}
+                    returnKeyType="search"
+                    onSubmitEditing={handleSearch}
+                  />
+                  <Pressable onPress={() => setIsSearchOpen(false)} style={styles.searchInlineClose}>
+                    <MaterialCommunityIcons name="close" size={16} color={colors.subtext} />
+                  </Pressable>
+                </View>
+              </Animated.View>
+              <IconButton
+                onPress={() => setIsSearchOpen((prev) => !prev)}
+                style={styles.iconButton}
+                accessibilityLabel="Search"
+              >
+                <MaterialCommunityIcons name="magnify" size={20} color={colors.navText} />
+              </IconButton>
+            </>
+          ) : null}
           <IconButton
             onPress={() => {
               if (!user) {

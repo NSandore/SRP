@@ -626,11 +626,17 @@ export default function UniversityProfileScreen() {
                   key={sub.community_id}
                   style={styles.subCard}
                   onPress={() => {
-                    const target =
+                    router.push(
                       sub.community_type === 'university'
-                        ? `/university/${sub.community_id}`
-                        : `/group/${sub.community_id}`;
-                    router.push(target);
+                        ? {
+                            pathname: '/university/[communityId]',
+                            params: { communityId: sub.community_id },
+                          }
+                        : {
+                            pathname: '/group/[communityId]',
+                            params: { communityId: sub.community_id },
+                          }
+                    );
                   }}
                 >
                   <Image

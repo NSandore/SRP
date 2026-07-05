@@ -73,6 +73,8 @@ function CommunitySearch({
   multiSelect = true,
   communityType = 'university',
 }: CommunitySearchProps) {
+  const colors = useBrandColors();
+  const styles = useBrandStyles(createStyles);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CommunityResult[]>([]);
   const [loading, setLoading] = useState(false);
