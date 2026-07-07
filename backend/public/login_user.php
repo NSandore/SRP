@@ -22,7 +22,7 @@ if (empty($email) || empty($password)) {
 try {
     $db = getDB();
 
-    $query = "SELECT user_id, first_name, last_name, email, password_hash, role_id, avatar_path, banner_path, is_ambassador, login_count, is_public, is_verified, education_status, recent_university_id FROM users WHERE email = :email LIMIT 1";
+    $query = "SELECT user_id, first_name, last_name, email, password_hash, role_id, avatar_path, banner_path, is_ambassador, login_count, is_public, is_verified, verified, verified_community_id, education_status, recent_university_id FROM users WHERE email = :email LIMIT 1";
     $stmt = $db->prepare($query);
     $stmt->bindParam(':email', $email, PDO::PARAM_STR);
     $stmt->execute();
@@ -159,6 +159,8 @@ try {
         $_SESSION['banner_path'] = $user['banner_path'] ?? appendBannerPath(null);
         $_SESSION['is_ambassador'] = $user['is_ambassador'];
         $_SESSION['is_verified'] = (int)($user['is_verified'] ?? 0);
+        $_SESSION['verified'] = (int)($user['verified'] ?? 0);
+        $_SESSION['verified_community_id'] = $user['verified_community_id'] ?? null;
         $_SESSION['education_status'] = $user['education_status'] ?? ($_SESSION['education_status'] ?? 'Prospect');
         $_SESSION['recent_university_id'] = $user['recent_university_id'] ?? ($_SESSION['recent_university_id'] ?? null);
         $_SESSION['login_count'] = $user['login_count'];

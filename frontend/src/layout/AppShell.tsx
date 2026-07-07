@@ -3,6 +3,7 @@ import './AppShell.css';
 import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
 import ContactUsButton from '../components/ContactUsButton';
+import { ProfileContactProvider } from '../context/ProfileContactContext';
 import NavBar from '../components/NavBar';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -26,6 +27,8 @@ export default function AppShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
+  const [pendingReportCount, setPendingReportCount] = useState(0);
+  const [pendingConnectionCount, setPendingConnectionCount] = useState(0);
   const location = useLocation();
   const pathname = location.pathname;
   const isWideLayout =
@@ -38,33 +41,73 @@ export default function AppShell({
   const isSearchRoute = pathname.startsWith('/search');
   const isSettingsRoute = pathname.startsWith('/settings');
   const isDonateRoute = pathname.startsWith('/donate');
+  const isHomeRoute = pathname === '/home';
+  const isCommunityProfileRoute = /^\/(university|group)\/[^/]+/.test(pathname);
+  // Saved, Connections, Event Management, Verifications, and Reported Items have no
+  // content for the right rail, so let the center rail claim that column's width.
+  const NO_RIGHT_RAIL_PATHS = ['/saved', '/connections', '/events', '/admin/verifications', '/reports'];
+  const isNoRightRailRoute = NO_RIGHT_RAIL_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
   const effectiveLockedKeys = lockedNavKeys ?? ['saved', 'connections', 'profile', 'polls_feed'];
 
   const [announcementHeight, setAnnouncementHeight] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     let intervalId: number | null = null;
-    const loadPendingCount = async () => {
-      if (!isSuperAdmin(userData?.role_id)) {
-        setPendingVerificationCount(0);
+    const loadPendingCounts = async () => {
+      if (!userData?.user_id) {
+        if (!cancelled) {
+          setPendingVerificationCount(0);
+          setPendingReportCount(0);
+          setPendingConnectionCount(0);
+        }
         return;
       }
-      try {
-        const res = await axios.get('/api/fetch_verification_request_count.php', { withCredentials: true });
-        setPendingVerificationCount(Number(res.data?.pending_count || 0));
-      } catch (err) {
-        setPendingVerificationCount(0);
-      }
+
+      const canReviewVerifications = isSuperAdmin(userData?.role_id);
+      const canReviewReports = canReviewVerifications || Number(userData?.is_ambassador) === 1;
+      const requests = [
+        axios.get('/api/fetch_connection_request_count.php', { withCredentials: true }),
+        canReviewVerifications
+          ? axios.get('/api/fetch_verification_request_count.php', { withCredentials: true })
+          : Promise.resolve(null),
+        canReviewReports
+          ? axios.get('/api/fetch_reported_item_count.php', { withCredentials: true })
+          : Promise.resolve(null),
+      ];
+      const [connectionsResult, verificationsResult, reportsResult] = await Promise.allSettled(requests);
+      if (cancelled) return;
+
+      setPendingConnectionCount(
+        connectionsResult.status === 'fulfilled'
+          ? Number(connectionsResult.value?.data?.pending_count || 0)
+          : 0
+      );
+      setPendingVerificationCount(
+        verificationsResult.status === 'fulfilled'
+          ? Number(verificationsResult.value?.data?.pending_count || 0)
+          : 0
+      );
+      setPendingReportCount(
+        reportsResult.status === 'fulfilled'
+          ? Number(reportsResult.value?.data?.pending_count || 0)
+          : 0
+      );
     };
 
-    loadPendingCount();
-    if (isSuperAdmin(userData?.role_id)) {
-      intervalId = window.setInterval(loadPendingCount, 60000);
-    }
+    loadPendingCounts();
+    intervalId = window.setInterval(loadPendingCounts, 60000);
+    window.addEventListener('sidebarCountsUpdated', loadPendingCounts);
     return () => {
-      if (intervalId) window.clearInterval(intervalId);
+      cancelled = true;
+      window.removeEventListener('sidebarCountsUpdated', loadPendingCounts);
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
     };
-  }, [userData?.role_id]);
+  }, [pathname, userData?.is_ambassador, userData?.role_id, userData?.user_id]);
 
   // Listen for announcement bar height changes from NavBar
   const handleAnnouncementHeight = useCallback((height: number) => {
@@ -72,7 +115,7 @@ export default function AppShell({
   }, []);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell home-shell scholarly-shell">
       {/* TopBar */}
       <NavBar
         {...navBarProps}
@@ -98,6 +141,8 @@ export default function AppShell({
           userData={userData}
           lockedKeys={effectiveLockedKeys}
           pendingVerificationCount={pendingVerificationCount}
+          pendingReportCount={pendingReportCount}
+          pendingConnectionCount={pendingConnectionCount}
           onNavigate={() => setDrawerOpen(false)}
           isDrawer
         />
@@ -106,9 +151,11 @@ export default function AppShell({
       {/* Main three-column grid */}
       <main className="app-shell-main" style={{ paddingTop: announcementHeight ? `${announcementHeight}px` : undefined }}>
         <div
-          className={`app-shell-grid ${sidebarCollapsed ? 'nav-collapsed' : ''} ${isWideLayout ? 'communities-layout' : ''} ${
+          className={`app-shell-grid ${sidebarCollapsed ? 'nav-collapsed' : ''} ${isHomeRoute ? 'home-layout' : ''} ${isWideLayout ? 'communities-layout' : ''} ${
             isMessagesRoute ? 'messages-layout' : ''
-          } ${isSearchRoute ? 'search-layout' : ''} ${isSettingsRoute ? 'settings-layout' : ''} ${isDonateRoute ? 'donate-layout' : ''}`}
+          } ${isSearchRoute ? 'search-layout' : ''} ${isSettingsRoute ? 'settings-layout' : ''} ${isDonateRoute ? 'donate-layout' : ''} ${
+            isNoRightRailRoute ? 'no-right-rail-layout' : ''
+          }`}
         >
           <div className="left-rail">
             <LeftSidebar
@@ -116,18 +163,24 @@ export default function AppShell({
               lockedKeys={effectiveLockedKeys}
               collapsed={sidebarCollapsed}
               pendingVerificationCount={pendingVerificationCount}
+              pendingReportCount={pendingReportCount}
+              pendingConnectionCount={pendingConnectionCount}
               onToggle={() => setSidebarCollapsed((prev) => !prev)}
             />
           </div>
-          <div className="center-rail">
-            {children}
-          </div>
-          <div className="right-rail">
-            <RightSidebar userData={userData} />
-            <div style={{ marginTop: '1rem' }}>
-              <ContactUsButton />
+          <ProfileContactProvider>
+            <div className="center-rail">
+              {children}
             </div>
-          </div>
+            <div className="right-rail">
+              <RightSidebar userData={userData} />
+              {!isCommunityProfileRoute && (
+                <div style={{ marginTop: '1rem' }}>
+                  <ContactUsButton />
+                </div>
+              )}
+            </div>
+          </ProfileContactProvider>
         </div>
       </main>
     </div>

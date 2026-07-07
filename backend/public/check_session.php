@@ -118,7 +118,7 @@ if (isset($_SESSION['user_id'])) {
         $_SESSION['is_ambassador'] = count($ambassadorCommunities) > 0 ? 1 : 0;
 
         $userMetaStmt = $db->prepare("
-            SELECT is_verified, education_status, recent_university_id
+            SELECT is_verified, verified, verified_community_id, education_status, recent_university_id
             FROM users
             WHERE user_id = :uid
             LIMIT 1
@@ -126,6 +126,8 @@ if (isset($_SESSION['user_id'])) {
         $userMetaStmt->execute([':uid' => $userId]);
         $userMeta = $userMetaStmt->fetch(PDO::FETCH_ASSOC) ?: [];
         $_SESSION['is_verified'] = (int)($userMeta['is_verified'] ?? 0);
+        $_SESSION['verified'] = (int)($userMeta['verified'] ?? 0);
+        $_SESSION['verified_community_id'] = $userMeta['verified_community_id'] ?? null;
         $_SESSION['education_status'] = $userMeta['education_status'] ?? ($_SESSION['education_status'] ?? 'Prospect');
         $_SESSION['recent_university_id'] = $userMeta['recent_university_id'] ?? ($_SESSION['recent_university_id'] ?? null);
     } catch (PDOException $e) {
@@ -143,6 +145,8 @@ if (isset($_SESSION['user_id'])) {
             "avatar_path" => appendAvatarPath($_SESSION['avatar_path'] ?? null),
             "is_ambassador" => $_SESSION['is_ambassador'],
             "is_verified" => (int)($_SESSION['is_verified'] ?? 0),
+            "verified" => (int)($_SESSION['verified'] ?? 0),
+            "verified_community_id" => $_SESSION['verified_community_id'] ?? null,
             "education_status" => $_SESSION['education_status'] ?? 'Prospect',
             "recent_university_id" => $_SESSION['recent_university_id'] ?? null,
             "ambassador_communities" => $ambassadorCommunities,

@@ -2803,7 +2803,7 @@ button:focus-visible,
   position: sticky;
   top: 1rem;
   align-self: start;
-  width: 240px;
+  width: 220px;
   background-color: var(--card-background);
   border-radius: 12px;
   padding: 0.75rem;
@@ -3548,7 +3548,6 @@ button:focus-visible,
 .pill-button.locked,
 .pill-button:disabled {
   background: rgba(148, 163, 184, 0.12);
-  color: var(--muted-text);
   border: 1px dashed var(--card-border);
   cursor: not-allowed;
   box-shadow: none;
@@ -3632,9 +3631,6 @@ button:focus-visible,
 /* Shared Profile Page Layout */
 .profile-container { max-width: 1200px; margin-left: auto; margin-right: auto; padding-right: 1.5rem; padding-top: 1.5rem; padding-bottom: 1.5rem; }
 .profile-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
-@media (min-width: 1024px) {
-  .profile-grid { grid-template-columns: 1fr 320px; }
-}
 @media (max-width: 1023px) {
   .profile-container {
     max-width: 100%;
@@ -3643,7 +3639,6 @@ button:focus-visible,
   }
 }
 .profile-main { min-width: 0; }
-.profile-aside { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .info-card { background: var(--card-background); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; }
 .info-card h3 { margin: 0 0 8px 0; }
 
@@ -4139,7 +4134,7 @@ select:focus {
   background-color: transparent;
   border: none;
   border-radius: 0;
-  padding: 1.25rem 0;
+  padding: 1.25rem 0 0 0;
   margin-bottom: 0;
   color: var(--text-color);
   transition: color 0.2s ease;

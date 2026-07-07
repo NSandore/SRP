@@ -30,6 +30,7 @@ const createDefaultSettings = () => ({
     mentions: true,
     replies: true,
     votes: true,
+    events: true,
     messages: true,
     communityAnnouncements: true,
     weeklyDigest: true,
@@ -329,6 +330,15 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               },
             }));
           }
+          if (typeof res.data.user.notify_events !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              notifications: {
+                ...prev.notifications,
+                events: Boolean(Number(res.data.user.notify_events)),
+              },
+            }));
+          }
           if (typeof res.data.user.session_timeout_minutes !== 'undefined') {
             setSettings((prev) => ({
               ...prev,
@@ -561,6 +571,22 @@ function AccountSettings({ userData, onInterestsUpdated }) {
     }
   };
 
+  const persistEventsPref = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          notify_events: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving event notifications preference', err);
+    }
+  };
+
   const persistSessionTimeout = async (value) => {
     if (!userData?.user_id) return;
     try {
@@ -647,6 +673,9 @@ function AccountSettings({ userData, onInterestsUpdated }) {
     }
     if (section === 'notifications' && key === 'replies') {
       persistRepliesPref(value);
+    }
+    if (section === 'notifications' && key === 'events') {
+      persistEventsPref(value);
     }
     if (section === 'feed' && key === 'defaultFeed') {
       try {
@@ -994,7 +1023,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Email updates <span className="settings-badge">On-hold</span></div>
+              <div className="setting-label">Email updates <span className="settings-badge hold-badge">On hold</span></div>
               <p className="setting-help">Security alerts and activity summaries.</p>
             </div>
             <label className="setting-toggle">
@@ -1032,6 +1061,21 @@ function AccountSettings({ userData, onInterestsUpdated }) {
                 type="checkbox"
                 checked={settings.notifications.replies}
                 onChange={(e) => updateSetting('notifications', 'replies', e.target.checked)}
+              />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+
+          <div className="setting-row">
+            <div className="setting-text">
+              <div className="setting-label">Upcoming events <span className="settings-badge live-badge">{liveBadge}</span></div>
+              <p className="setting-help">Notify me about new events available to my account.</p>
+            </div>
+            <label className="setting-toggle">
+              <input
+                type="checkbox"
+                checked={settings.notifications.events}
+                onChange={(e) => updateSetting('notifications', 'events', e.target.checked)}
               />
               <span className="toggle-slider" />
             </label>
@@ -1079,7 +1123,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
 
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Login alerts <span className="settings-badge">On-Hold</span></div>
+              <div className="setting-label">Login alerts <span className="settings-badge hold-badge">On hold</span></div>
               <p className="setting-help">Email me when a new device signs in.</p>
             </div>
             <label className="setting-toggle">
@@ -1145,7 +1189,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Auto-join campus groups <span className="settings-badge">in testing</span></div>
+              <div className="setting-label">Auto-join campus groups <span className="settings-badge testing-badge">In testing</span></div>
               <p className="setting-help">Automatically accept invites from your university teams.</p>
             </div>
             <label className="setting-toggle">
@@ -1435,7 +1479,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Download data <span className="settings-badge">On-hold</span></div>
+              <div className="setting-label">Download data <span className="settings-badge hold-badge">On hold</span></div>
               <p className="setting-help">Export posts, messages, and connections as a zip.</p>
             </div>
             <button type="button" className="pill-button secondary small">

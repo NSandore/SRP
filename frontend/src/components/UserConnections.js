@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import './Connections.css';
 import { FaEllipsisV } from 'react-icons/fa';
 import useOnClickOutside from '../hooks/useOnClickOutside';
@@ -8,6 +9,7 @@ import { buildAvatarSrc } from '../utils/avatar';
 
 function UserConnections({ userData }) {
   const [activeTab, setActiveTab] = useState('connections');
+  const [search, setSearch] = useState('');
   const [connections, setConnections] = useState([]);
   const [incoming, setIncoming] = useState([]);
   const [outgoing, setOutgoing] = useState([]);
@@ -15,56 +17,70 @@ function UserConnections({ userData }) {
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
   const menuRef = useRef(null);
-  const segmentRef = useRef(null);
+  const filterSegmentRef = useRef(null);
   useOnClickOutside(menuRef, () => setOpenMenuId(null));
 
   useEffect(() => {
-    if (!userData) return;
+    if (!userData?.user_id) return;
+    let cancelled = false;
     const fetchAll = async () => {
+      setLoading(true);
       try {
-        const connRes = await axios.get(`/api/fetch_user_connections.php?user_id=${userData.user_id}`);
-        if (connRes.data.success) {
-          setConnections(connRes.data.connections);
+        const [connectionResponse, requestResponse] = await Promise.all([
+          axios.get(`/api/fetch_user_connections.php?user_id=${userData.user_id}`),
+          axios.get(`/api/fetch_connection_requests.php?user_id=${userData.user_id}`),
+        ]);
+        const connectionIds = connectionResponse.data?.success
+          ? connectionResponse.data.connections || []
+          : [];
+        const incomingRequests = requestResponse.data?.success
+          ? requestResponse.data.incoming || []
+          : [];
+        const outgoingRequests = requestResponse.data?.success
+          ? requestResponse.data.outgoing || []
+          : [];
+        if (cancelled) return;
+        setConnections(connectionIds);
+        setIncoming(incomingRequests);
+        setOutgoing(outgoingRequests);
+
+        const ids = Array.from(new Set([
+          ...connectionIds,
+          ...incomingRequests.map((request) => request.user_id),
+          ...outgoingRequests.map((request) => request.user_id),
+        ].map(String)));
+        const responses = await Promise.all(ids.map(async (userId) => {
+          try {
+            const response = await axios.get(`/api/fetch_user.php?user_id=${userId}`);
+            return response.data?.success ? [userId, response.data.user] : null;
+          } catch {
+            return null;
+          }
+        }));
+        if (!cancelled) {
+          setUserDetails(Object.fromEntries(responses.filter(Boolean)));
         }
-        const reqRes = await axios.get(`/api/fetch_connection_requests.php?user_id=${userData.user_id}`);
-        if (reqRes.data.success) {
-          setIncoming(reqRes.data.incoming);
-          setOutgoing(reqRes.data.outgoing);
-          const ids = [
-            ...connRes.data.connections,
-            ...reqRes.data.incoming.map(r => r.user_id),
-            ...reqRes.data.outgoing.map(r => r.user_id)
-          ];
-          fetchUserDetails(ids);
-        }
-      } catch (err) {
-        console.error('Error fetching connections:', err);
+      } catch (error) {
+        console.error('Error fetching connections:', error);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchAll();
-  }, [userData]);
-
-  const fetchUserDetails = async (ids) => {
-    const info = { ...userDetails };
-    for (let uid of ids) {
-      if (info[uid]) continue;
-      try {
-        const res = await axios.get(`/api/fetch_user.php?user_id=${uid}`);
-        if (res.data.success) info[uid] = res.data.user;
-      } catch (err) {}
-    }
-    setUserDetails(info);
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [userData?.user_id]);
 
   const acceptRequest = async (connectionId) => {
     try {
       await axios.post('/api/accept_connection.php', { connection_id: connectionId }, { withCredentials: true });
-      setIncoming(prev => prev.filter(r => r.connection_id !== connectionId));
-      setConnections(prev => [...prev, incoming.find(r => r.connection_id === connectionId).user_id]);
-    } catch (err) {
-      console.error('Error accepting connection:', err);
+      const request = incoming.find((item) => item.connection_id === connectionId);
+      setIncoming((prev) => prev.filter((item) => item.connection_id !== connectionId));
+      if (request) setConnections((prev) => [...prev, request.user_id]);
+      window.dispatchEvent(new CustomEvent('sidebarCountsUpdated'));
+    } catch (error) {
+      console.error('Error accepting connection:', error);
     }
   };
 
@@ -72,42 +88,84 @@ function UserConnections({ userData }) {
     try {
       await axios.post('/api/cancel_connection.php', { connection_id: connectionId }, { withCredentials: true });
       if (isOutgoing) {
-        setOutgoing(prev => prev.filter(r => r.connection_id !== connectionId));
+        setOutgoing((prev) => prev.filter((item) => item.connection_id !== connectionId));
       } else {
-        setIncoming(prev => prev.filter(r => r.connection_id !== connectionId));
+        setIncoming((prev) => prev.filter((item) => item.connection_id !== connectionId));
+        window.dispatchEvent(new CustomEvent('sidebarCountsUpdated'));
       }
-    } catch (err) {
-      console.error('Error cancelling request:', err);
+    } catch (error) {
+      console.error('Error cancelling request:', error);
     }
   };
 
-  const removeConnection = async (uid) => {
+  const removeConnection = async (userId) => {
     try {
       await axios.post(
         '/api/remove_connection.php',
-        { user_id1: userData.user_id, user_id2: uid },
+        { user_id1: userData.user_id, user_id2: userId },
         { withCredentials: true }
       );
-      setConnections(prev => prev.filter(id => id !== uid));
-    } catch (err) {
-      console.error('Error removing connection:', err);
+      setConnections((prev) => prev.filter((id) => String(id) !== String(userId)));
+      setOpenMenuId(null);
+    } catch (error) {
+      console.error('Error removing connection:', error);
     }
   };
 
+  const tabs = [
+    { id: 'connections', label: 'Connections', count: connections.length },
+    { id: 'incoming', label: 'Incoming', count: incoming.length },
+    { id: 'outgoing', label: 'Pending', count: outgoing.length },
+  ];
+
+  const activeRecords = useMemo(() => {
+    if (activeTab === 'connections') {
+      return connections.map((userId) => ({ key: String(userId), userId: String(userId) }));
+    }
+    const source = activeTab === 'incoming' ? incoming : outgoing;
+    return source.map((request) => ({
+      key: String(request.connection_id),
+      userId: String(request.user_id),
+      connectionId: request.connection_id,
+    }));
+  }, [activeTab, connections, incoming, outgoing]);
+
+  const visibleRecords = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return activeRecords;
+    return activeRecords.filter((record) => {
+      const user = userDetails[record.userId] || {};
+      return `${user.first_name || ''} ${user.last_name || ''} ${user.headline || ''}`
+        .toLowerCase()
+        .includes(term);
+    });
+  }, [activeRecords, search, userDetails]);
+
+  const emptyCopy = search.trim()
+    ? 'No people match this search.'
+    : activeTab === 'connections'
+      ? 'No connections yet.'
+      : activeTab === 'incoming'
+        ? 'No incoming requests.'
+        : 'No pending requests.';
+  const countLabel = activeTab === 'connections'
+    ? 'connections in view'
+    : activeTab === 'incoming'
+      ? 'incoming requests'
+      : 'pending requests';
+
   const updateSegmentIndicator = useCallback(() => {
-    const container = segmentRef.current;
+    const container = filterSegmentRef.current;
     if (!container) return;
     const activeChip = container.querySelector('.chip.active');
     if (!activeChip) return;
     const containerRect = container.getBoundingClientRect();
     const chipRect = activeChip.getBoundingClientRect();
-    const left = Math.max(chipRect.left - containerRect.left, 0);
-    const width = chipRect.width;
-    container.style.setProperty('--seg-left', `${left}px`);
-    container.style.setProperty('--seg-width', `${width}px`);
+    container.style.setProperty('--seg-left', `${Math.max(chipRect.left - containerRect.left, 0)}px`);
+    container.style.setProperty('--seg-width', `${chipRect.width}px`);
   }, []);
 
-  const scheduleSegmentUpdate = useCallback(() => {
+  useEffect(() => {
     const run = () => updateSegmentIndicator();
     const raf1 = requestAnimationFrame(run);
     const raf2 = requestAnimationFrame(run);
@@ -115,169 +173,147 @@ function UserConnections({ userData }) {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
     };
-  }, [updateSegmentIndicator]);
+  }, [activeTab, connections.length, incoming.length, outgoing.length, updateSegmentIndicator]);
 
   useEffect(() => {
-    return scheduleSegmentUpdate();
-  }, [activeTab, scheduleSegmentUpdate]);
-
-  useEffect(() => {
-    const handleResize = () => updateSegmentIndicator();
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('resize', updateSegmentIndicator);
+    updateSegmentIndicator();
+    return () => window.removeEventListener('resize', updateSegmentIndicator);
   }, [updateSegmentIndicator]);
 
   return (
-    <div className="feed-container connections-container">
-      <div>
-        <h1 className="section-title" style={{ marginBottom: 4 }}>Connections</h1>
-        <p className="muted-text" style={{ marginTop: 0, marginBottom: 0 }}>
-          Manage your network, incoming invites, and pending requests in one place.
-        </p>
-      </div>
-      <div className="section-controls section-controls-sticky connections-controls">
-        <div
-          ref={segmentRef}
-          className="chips-row segmented-control"
-          style={{
-            '--seg-count': 3,
-            '--seg-index': activeTab === 'connections' ? 0 : activeTab === 'incoming' ? 1 : 2
-          }}
-        >
-          <button
-            type="button"
-            className={`chip ${activeTab === 'connections' ? 'active' : ''}`}
-            onClick={() => setActiveTab('connections')}
-          >
-            Connections
-          </button>
-          <button
-            type="button"
-            className={`chip ${activeTab === 'incoming' ? 'active' : ''}`}
-            onClick={() => setActiveTab('incoming')}
-          >
-            Incoming
-          </button>
-          <button
-            type="button"
-            className={`chip ${activeTab === 'outgoing' ? 'active' : ''}`}
-            onClick={() => setActiveTab('outgoing')}
-          >
-            Pending
-          </button>
-        </div>
-      </div>
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <div className="connections-list">
-          {activeTab === 'connections' && (
-            connections.length === 0 ? (
-              <p>No connections yet.</p>
-            ) : (
-              <ul>
-                {connections.map(uid => {
-                  const user = userDetails[uid] || {};
-                  return (
-                    <li key={uid} style={{ position: 'relative' }}>
+    <main className="scholarly-page scholarly-connections-page">
+      <div className="feed-container scholarly-page-panel connections-page-panel">
+        <header className="scholarly-page-header connections-directory__header">
+          <div>
+            <p className="scholarly-page-kicker">Your academic network</p>
+            <h1>Connections</h1>
+            <p>Keep up with peers, collaborators, and pending introductions.</p>
+          </div>
+          <div className="scholarly-page-count connections-directory__count" aria-live="polite">
+            <strong>{visibleRecords.length}</strong>
+            <span>{countLabel}</span>
+          </div>
+        </header>
+
+        <div className="connections-directory">
+          <div className="connections-directory__tools filter-toolbar filter-toolbar--filter-first">
+            <div
+              ref={filterSegmentRef}
+              className="connections-directory__tabs admin-review__filters chips-row segmented-control"
+              style={{
+                '--seg-count': tabs.length,
+                '--seg-index': tabs.findIndex((tab) => tab.id === activeTab)
+              }}
+              role="tablist"
+              aria-label="Connection views"
+            >
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`chip ${activeTab === tab.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setOpenMenuId(null);
+                  }}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                >
+                  {tab.label} <span>{tab.count}</span>
+                </button>
+              ))}
+            </div>
+            <label className="connections-directory__search">
+              <Search size={16} aria-hidden="true" />
+              <span className="sr-only">Search connections</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search people"
+              />
+            </label>
+          </div>
+
+          {loading ? (
+            <div className="connections-directory__empty">Loading your network…</div>
+          ) : visibleRecords.length === 0 ? (
+            <div className="connections-directory__empty">{emptyCopy}</div>
+          ) : (
+            <ul className="connections-directory__list">
+              {visibleRecords.map((record) => {
+                const user = userDetails[record.userId] || {};
+                const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'StudentSphere member';
+                return (
+                  <li key={record.key} className="connections-directory__row">
+                    <Link to={`/user/${record.userId}`} className="connections-directory__identity">
                       <img
                         src={buildAvatarSrc(user.avatar_path)}
-                        alt={`${user.first_name || ''} ${user.last_name || ''}`}
+                        alt=""
                         className="connection-avatar"
                       />
-                      <div className="connection-info">
-                        <p className="connection-name">
-                          <Link to={`/user/${uid}`}>{user.first_name} {user.last_name}</Link>
-                          {/* Presence temporarily disabled */}
-                        </p>
-                        <p className="connection-headline">{user.headline || 'No headline'}</p>
+                      <span>
+                        <strong>{name}</strong>
+                        <small>{user.headline || 'StudentSphere member'}</small>
+                      </span>
+                    </Link>
+
+                    {activeTab === 'incoming' && (
+                      <div className="connections-directory__actions">
+                        <button type="button" className="primary-button" onClick={() => acceptRequest(record.connectionId)}>
+                          Accept
+                        </button>
+                        <button type="button" className="ghost-button" onClick={() => cancelRequest(record.connectionId)}>
+                          Decline
+                        </button>
                       </div>
-                      <FaEllipsisV
-                        className="menu-icon"
-                        onClick={() => setOpenMenuId(openMenuId === uid ? null : uid)}
-                        style={{ position: 'absolute', top: '8px', right: '8px' }}
-                      />
-                      {openMenuId === uid && (
-                        <div ref={menuRef} className="dropdown-menu">
-                          <Link to={`/messages?user=${uid}`} className="dropdown-item">
-                            Message
-                          </Link>
-                          <button className="dropdown-item" onClick={() => removeConnection(uid)}>
-                            Remove Connection
-                          </button>
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )
-          )}
-          {activeTab === 'incoming' && (
-            incoming.length === 0 ? (
-              <p>No incoming requests.</p>
-            ) : (
-              <ul>
-                {incoming.map(req => {
-                  const user = userDetails[req.user_id] || {};
-                  return (
-                    <li key={req.connection_id}>
-                      <img
-                        src={buildAvatarSrc(user.avatar_path)}
-                        alt={`${user.first_name || ''} ${user.last_name || ''}`}
-                        className="connection-avatar"
-                      />
-                      <div className="connection-info">
-                        <p className="connection-name">
-                          <Link to={`/user/${req.user_id}`}>{user.first_name} {user.last_name}</Link>
-                          {/* Presence temporarily disabled */}
-                        </p>
-                        <p className="connection-headline">{user.headline || 'No headline'}</p>
+                    )}
+
+                    {activeTab === 'outgoing' && (
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={() => cancelRequest(record.connectionId, true)}
+                      >
+                        Unsend
+                      </button>
+                    )}
+
+                    {activeTab === 'connections' && (
+                      <div
+                        className="connections-directory__menu"
+                        ref={openMenuId === record.userId ? menuRef : null}
+                      >
+                        <button
+                          type="button"
+                          className="connections-directory__menu-trigger"
+                          onClick={() => setOpenMenuId(openMenuId === record.userId ? null : record.userId)}
+                          aria-label={`Actions for ${name}`}
+                          aria-expanded={openMenuId === record.userId}
+                        >
+                          <FaEllipsisV aria-hidden="true" />
+                        </button>
+                        {openMenuId === record.userId && (
+                          <div className="dropdown-menu connections-directory__menu-popover">
+                            <Link to={`/messages?user=${record.userId}`} className="dropdown-item">
+                              Message
+                            </Link>
+                            <button type="button" className="dropdown-item" onClick={() => removeConnection(record.userId)}>
+                              Remove connection
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <div className="connection-actions">
-                        <button className="follow-button" onClick={() => acceptRequest(req.connection_id)}>Accept</button>
-                        <button className="follow-button unfollow" onClick={() => cancelRequest(req.connection_id)}>Decline</button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )
-          )}
-          {activeTab === 'outgoing' && (
-            outgoing.length === 0 ? (
-              <p>No pending requests.</p>
-            ) : (
-              <ul>
-                {outgoing.map(req => {
-                  const user = userDetails[req.user_id] || {};
-                  return (
-                    <li key={req.connection_id}>
-                      <img
-                        src={buildAvatarSrc(user.avatar_path)}
-                        alt={`${user.first_name || ''} ${user.last_name || ''}`}
-                        className="connection-avatar"
-                      />
-                      <div className="connection-info">
-                        <p className="connection-name">
-                          <Link to={`/user/${req.user_id}`}>{user.first_name} {user.last_name}</Link>
-                          {/* Presence temporarily disabled */}
-                        </p>
-                        <p className="connection-headline">{user.headline || 'No headline'}</p>
-                      </div>
-                      <div className="connection-actions">
-                        <button className="follow-button unfollow" onClick={() => cancelRequest(req.connection_id, true)}>Unsend</button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
-      )}
-    </div>
+      </div>
+    </main>
   );
 }
 

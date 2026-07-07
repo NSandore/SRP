@@ -19,6 +19,7 @@ const labelForMethod = (method) => {
 
 export default function VerificationReview({ userData }) {
   const [status, setStatus] = useState('pending');
+  const [searchTerm, setSearchTerm] = useState('');
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -79,16 +80,41 @@ export default function VerificationReview({ userData }) {
     try {
       await axios.post('/api/update_verification_request.php', { request_id: requestId, decision }, { withCredentials: true });
       setRequests((prev) => prev.filter((item) => item.request_id !== requestId));
+      window.dispatchEvent(new CustomEvent('sidebarCountsUpdated'));
     } catch (err) {
       setError('Unable to update verification request.');
     }
   };
 
+  const filteredRequests = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return requests;
+    return requests.filter((request) =>
+      [
+        request.first_name,
+        request.last_name,
+        request.email,
+        request.community_name,
+        request.verification_type,
+        labelForMethod(request.verification_method),
+        request.staff_position,
+        request.status,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [requests, searchTerm]);
+
   const emptyState = useMemo(() => {
     if (loading) return 'Loading submissions…';
     if (error) return error;
+    if (requests.length > 0 && filteredRequests.length === 0) {
+      return 'No submissions match your search.';
+    }
     return 'No submissions in this view.';
-  }, [loading, error]);
+  }, [loading, error, requests.length, filteredRequests.length]);
 
   const updateSegmentIndicator = useCallback(() => {
     const container = filterSegmentRef.current;
@@ -139,32 +165,43 @@ export default function VerificationReview({ userData }) {
           <h1>Verification submissions</h1>
           <p className="admin-review__subtitle muted-text">Review student and staff proof uploads and take action.</p>
         </div>
-        <div
-          ref={filterSegmentRef}
-          className="admin-review__filters chips-row segmented-control"
-          style={{
-            '--seg-count': STATUS_OPTIONS.length,
-            '--seg-index': STATUS_OPTIONS.findIndex((opt) => opt.value === status)
-          }}
-        >
-          {STATUS_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`chip ${status === opt.value ? 'active' : ''}`}
-              onClick={() => setStatus(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="admin-review__toolbar filter-toolbar filter-toolbar--filter-first">
+          <div
+            ref={filterSegmentRef}
+            className="admin-review__filters chips-row segmented-control"
+            style={{
+              '--seg-count': STATUS_OPTIONS.length,
+              '--seg-index': STATUS_OPTIONS.findIndex((opt) => opt.value === status)
+            }}
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`chip ${status === opt.value ? 'active' : ''}`}
+                onClick={() => setStatus(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <label className="admin-review__search">
+            <span className="sr-only">Search verification submissions</span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search submissions"
+            />
+          </label>
         </div>
       </div>
 
-      {requests.length === 0 ? (
+      {filteredRequests.length === 0 ? (
         <div className="admin-review__empty">{emptyState}</div>
       ) : (
         <div className="admin-review__grid">
-          {requests.map((req) => (
+          {filteredRequests.map((req) => (
             <div
               key={req.request_id}
               ref={(el) => {
@@ -179,7 +216,9 @@ export default function VerificationReview({ userData }) {
                   <div className="admin-review__name">{req.first_name} {req.last_name}</div>
                   <div className="admin-review__meta">{req.email}</div>
                 </div>
-                <div className="admin-review__status">{req.status}</div>
+                <div className={`admin-review__status admin-review__status--${req.status}`}>
+                  {req.status}
+                </div>
               </div>
 
               <div className="admin-review__details">
@@ -217,9 +256,7 @@ export default function VerificationReview({ userData }) {
                     <button className="admin-review__approve" onClick={() => handleDecision(req.request_id, 'approve')}>Approve</button>
                     <button className="admin-review__reject" onClick={() => handleDecision(req.request_id, 'reject')}>Reject</button>
                   </>
-                ) : (
-                  <span className="admin-review__resolved">Reviewed</span>
-                )}
+                ) : null}
               </div>
             </div>
           ))}

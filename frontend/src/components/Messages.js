@@ -263,7 +263,7 @@ function Messages({ userData }) {
   return (
     <div className="messages-page">
       <div className={`messages-card ${activeConv ? 'has-active' : ''}`}>
-        <div className="conversations-panel">
+        <header className="messages-page-header">
           <div className="panel-header">
             <h2>Messages</h2>
             <p>Stay connected with your communities and contacts.</p>
@@ -277,6 +277,9 @@ function Messages({ userData }) {
               placeholder="Search people"
             />
           </label>
+        </header>
+        <div className="messages-workspace">
+          <div className="conversations-panel">
           {searchResults.length > 0 && (
             <ul className="conversation-search-results">
               {searchResults.map((u) => (
@@ -325,8 +328,8 @@ function Messages({ userData }) {
               </ul>
             )}
           </div>
-        </div>
-        <div className="thread-panel">
+          </div>
+          <div className="thread-panel">
           {activeConv ? (
             <>
               <div className="thread-header">
@@ -414,6 +417,7 @@ function Messages({ userData }) {
               <p>Choose a thread on the left or search for a member to begin chatting.</p>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

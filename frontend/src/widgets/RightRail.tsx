@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { isSuperAdmin } from '../constants/roles';
+import { useNavigate } from 'react-router-dom';
+import { isAdmin, isSuperAdmin } from '../constants/roles';
+import { buildAvatarSrc } from '../utils/avatar';
 
 type ManagedItem = {
   id: string;
@@ -8,10 +10,14 @@ type ManagedItem = {
   title: string;
   description?: string;
   date?: string;
+  timezone?: string;
   location?: string;
   scope?: 'global' | 'community';
   communityId?: string;
   communityName?: string;
+  subCommunityId?: string;
+  subCommunityName?: string;
+  sourceCommunityId?: string;
   pollOptions?: string[];
   createdAt?: string;
   showResults?: boolean;
@@ -20,10 +26,36 @@ type ManagedItem = {
   zoomStartUrl?: string;
   zoomHostEmail?: string;
   zoomDuration?: number;
+  rsvpCount?: number;
+  viewerRsvped?: boolean;
+  isRemote?: boolean;
+  createdById?: string;
+  allowedAudiences?: string[];
+  invitedUsers?: Array<{ user_id?: string }>;
 };
 
 type RightRailProps = {
   userData?: any;
+  communityContext?: {
+    id: string;
+    type: 'university' | 'group' | string;
+  } | null;
+  section?: 'all' | 'ambassadors' | 'contact' | 'events' | 'polls';
+  embedded?: boolean;
+  hideGenericWidgets?: boolean;
+};
+
+type CommunitySummary = {
+  id?: string;
+  name?: string;
+  community_type?: string;
+  parent_community_id?: string;
+  website?: string;
+  phone?: string;
+  phone_number?: string;
+  telephone?: string;
+  contact_email?: string;
+  email?: string;
 };
 
 const STORAGE_KEY = 'managedEvents';
@@ -31,22 +63,134 @@ const POLL_RESPONSES_KEY = 'managedPollResponses';
 const POLL_RESULTS_KEY = 'managedPollTallies';
 const RSVP_KEY = 'managedEventRsvps';
 
+const railSampleDate = (daysFromNow: number, hour = 16) => {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  date.setHours(hour, 0, 0, 0);
+  return date.toISOString();
+};
+
+const SAMPLE_RAIL_EVENTS: ManagedItem[] = [
+  {
+    id: 'sample-event-research-roundtable',
+    type: 'event',
+    title: 'Research Methods Roundtable',
+    description: 'A practical cross-disciplinary discussion.',
+    date: railSampleDate(3),
+    location: 'Library Seminar Room 2',
+    scope: 'global',
+    communityName: 'Academic Commons',
+  },
+];
+
+const SAMPLE_RAIL_POLLS: ManagedItem[] = [
+  {
+    id: 'sample-rail-reading-format',
+    type: 'poll',
+    title: 'Which reading-group format works best?',
+    date: railSampleDate(6, 17),
+    scope: 'global',
+    communityName: 'Academic Commons',
+    pollOptions: ['One monthly session', 'Two shorter sessions', 'Asynchronous notes'],
+    showResults: true,
+  },
+];
+
+const UHART_COMMUNITY_ID = 'c8c95ee34ea174266';
+const SAMPLE_UHART_POLLS: ManagedItem[] = [
+  {
+    id: 'sample-uhart-study-space',
+    type: 'poll',
+    title: 'Which campus study setting helps you focus?',
+    description: 'Help shape future peer recommendations for productive study spaces.',
+    date: railSampleDate(8, 21),
+    scope: 'community',
+    communityId: UHART_COMMUNITY_ID,
+    sourceCommunityId: UHART_COMMUNITY_ID,
+    communityName: 'University of Hartford',
+    pollOptions: ['Quiet library floor', 'Reserveable study room', 'Student center table', 'Outdoor campus space'],
+    showResults: true,
+    allowedAudiences: ['public', 'members', 'verified', 'ambassadors', 'admins'],
+  },
+  {
+    id: 'sample-uhart-community-programming',
+    type: 'poll',
+    title: 'What should the next UHart community session focus on?',
+    description: 'Choose the practical topic that would be most useful this month.',
+    date: railSampleDate(13, 21),
+    scope: 'community',
+    communityId: UHART_COMMUNITY_ID,
+    sourceCommunityId: UHART_COMMUNITY_ID,
+    communityName: 'University of Hartford',
+    pollOptions: ['Academic planning', 'Campus resources', 'Career preparation', 'Arts and performances'],
+    showResults: true,
+    allowedAudiences: ['public', 'members', 'verified', 'ambassadors', 'admins'],
+  },
+];
+
 const datePrefix = (type?: string) => {
   if (type === 'poll') return 'Closes';
   if (type === 'announcement') return 'Publishes';
   return 'Occurs';
 };
 
-export default function RightRail({ userData }: RightRailProps) {
+const formatRailDateTime = (value?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+};
+
+const formatCalendarDate = (value?: string, timeZone?: string) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const options = timeZone ? { timeZone } : {};
+  try {
+    return {
+      iso: date.toISOString(),
+      month: date.toLocaleDateString(undefined, { ...options, month: 'short' }).toUpperCase(),
+      day: date.toLocaleDateString(undefined, { ...options, day: '2-digit' }),
+      weekday: date.toLocaleDateString(undefined, { ...options, weekday: 'short' }).toUpperCase(),
+    };
+  } catch {
+    return {
+      iso: date.toISOString(),
+      month: date.toLocaleDateString(undefined, { month: 'short' }).toUpperCase(),
+      day: date.toLocaleDateString(undefined, { day: '2-digit' }),
+      weekday: date.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase(),
+    };
+  }
+};
+
+export default function RightRail({
+  userData,
+  communityContext = null,
+  section = 'all',
+  embedded = false,
+  hideGenericWidgets = false,
+}: RightRailProps) {
+  const navigate = useNavigate();
   const isSuperAdminUser = isSuperAdmin(userData?.role_id);
+  const isAdminUser = isAdmin(userData?.role_id);
   const adminCommunityIds = useMemo(() => {
     if (!Array.isArray(userData?.admin_community_ids)) return [];
     return userData.admin_community_ids.map((id: any) => String(id));
   }, [userData]);
 
   const [items, setItems] = useState<ManagedItem[]>([]);
+  const [remoteEvents, setRemoteEvents] = useState<ManagedItem[]>([]);
   const [followed, setFollowed] = useState<string[]>([]);
-  const [loadingFollowed, setLoadingFollowed] = useState(false);
+  const [community, setCommunity] = useState<CommunitySummary | null>(null);
+  const [communityAmbassadors, setCommunityAmbassadors] = useState<any[]>([]);
+  const [eventIndex, setEventIndex] = useState(0);
   const [pollIndex, setPollIndex] = useState(0);
   const [pollResponses, setPollResponses] = useState<Record<string, string>>(() => {
     try {
@@ -121,6 +265,68 @@ export default function RightRail({ userData }: RightRailProps) {
   };
 
   useEffect(() => {
+    let cancelled = false;
+    const loadEvents = async () => {
+      try {
+        const res = await axios.get('/api/fetch_events.php', { withCredentials: true });
+        if (!cancelled) {
+          setRemoteEvents(Array.isArray(res.data?.events) ? res.data.events : []);
+        }
+      } catch {
+        if (!cancelled) setRemoteEvents([]);
+      }
+    };
+    loadEvents();
+    return () => {
+      cancelled = true;
+    };
+  }, [userData?.user_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!communityContext?.id) {
+      setCommunity(null);
+      setCommunityAmbassadors([]);
+      return undefined;
+    }
+
+    const loadCommunityRail = async () => {
+      const [communityResult, ambassadorsResult] = await Promise.allSettled([
+        axios.get(`/api/fetch_community.php?community_id=${encodeURIComponent(communityContext.id)}`),
+        axios.get(`/api/fetch_ambassador_list.php?community_id=${encodeURIComponent(communityContext.id)}`),
+      ]);
+      if (cancelled) return;
+
+      if (
+        communityResult.status === 'fulfilled'
+        && communityResult.value.data?.success
+      ) {
+        setCommunity(communityResult.value.data.community || null);
+      } else {
+        setCommunity(null);
+      }
+
+      if (
+        ambassadorsResult.status === 'fulfilled'
+        && ambassadorsResult.value.data?.success
+      ) {
+        setCommunityAmbassadors(
+          Array.isArray(ambassadorsResult.value.data.ambassadors)
+            ? ambassadorsResult.value.data.ambassadors
+            : []
+        );
+      } else {
+        setCommunityAmbassadors([]);
+      }
+    };
+
+    loadCommunityRail();
+    return () => {
+      cancelled = true;
+    };
+  }, [communityContext?.id]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60000);
     return () => window.clearInterval(timer);
   }, []);
@@ -147,7 +353,6 @@ export default function RightRail({ userData }: RightRailProps) {
     let isCancelled = false;
     const loadFollowed = async () => {
       if (!userData?.user_id) return;
-      setLoadingFollowed(true);
       try {
         const res = await axios.get(`/api/followed_communities.php?user_id=${userData.user_id}`);
         if (!isCancelled) {
@@ -158,8 +363,6 @@ export default function RightRail({ userData }: RightRailProps) {
       } catch (err) {
         console.error('Unable to fetch followed communities', err);
         if (!isCancelled) setFollowed([]);
-      } finally {
-        if (!isCancelled) setLoadingFollowed(false);
       }
     };
     loadFollowed();
@@ -168,24 +371,84 @@ export default function RightRail({ userData }: RightRailProps) {
     };
   }, [userData?.user_id]);
 
-  const followsCommunity = (communityId?: string) => {
-    if (!communityId) return false;
-    if (adminCommunityIds.includes(String(communityId))) return true;
-    return followed.includes(String(communityId));
-  };
-
-  const isVisible = (item: ManagedItem) => {
-    if (item.scope === 'global') return true;
-    if (!item.communityId) return false;
+  const isVisible = useCallback((item: ManagedItem) => {
+    const userId = String(userData?.user_id || '');
+    if (userId && String(item.createdById || '') === userId) return true;
+    if (userId && item.invitedUsers?.some((user) => String(user.user_id || '') === userId)) return true;
+    const audiences = Array.isArray(item.allowedAudiences) && item.allowedAudiences.length
+      ? item.allowedAudiences
+      : ['public', 'members', 'verified', 'ambassadors', 'admins'];
+    if (item.scope === 'global') {
+      return audiences.includes('public')
+        || (Boolean(userId) && audiences.includes('members'))
+        || (isAdminUser && audiences.includes('admins'))
+        || (Number(userData?.is_ambassador) === 1 && audiences.includes('ambassadors'))
+        || (Number(userData?.verified) === 1 && audiences.includes('verified'));
+    }
+    const sourceCommunityId = String(item.subCommunityId || item.communityId || '');
+    if (!sourceCommunityId) return false;
     if (isSuperAdminUser) return true;
-    if (adminCommunityIds.includes(String(item.communityId))) return true;
-    return followsCommunity(item.communityId);
-  };
 
-  const visibleItems = useMemo(
-    () => items.filter((i) => isVisible(i)),
-    [items, adminCommunityIds, followed, isSuperAdminUser]
-  );
+    const ambassadorCommunityIds = Array.isArray(userData?.ambassador_communities)
+      ? userData.ambassador_communities
+          .map((entry: any) => String(entry?.community_id ?? entry?.id ?? entry ?? ''))
+          .filter(Boolean)
+      : [];
+    const verifiedCommunityId = String(userData?.verified_community_id || '');
+    const isVerifiedForCommunity =
+      Number(userData?.verified) === 1
+      && (
+        verifiedCommunityId === sourceCommunityId
+        || (
+          String(communityContext?.id || '') === sourceCommunityId
+          && verifiedCommunityId === String(community?.parent_community_id || '')
+        )
+      );
+
+    return audiences.includes('public')
+      || (
+        audiences.includes('admins')
+        && (isAdminUser || adminCommunityIds.includes(sourceCommunityId))
+      )
+      || (
+        audiences.includes('ambassadors')
+        && ambassadorCommunityIds.includes(sourceCommunityId)
+      )
+      || (
+        audiences.includes('verified')
+        && isVerifiedForCommunity
+      )
+      || (
+        audiences.includes('members')
+        && followed.includes(sourceCommunityId)
+      );
+  }, [
+    adminCommunityIds,
+    community?.parent_community_id,
+    communityContext?.id,
+    followed,
+    isAdminUser,
+    isSuperAdminUser,
+    userData?.ambassador_communities,
+    userData?.is_ambassador,
+    userData?.user_id,
+    userData?.verified,
+    userData?.verified_community_id,
+  ]);
+
+  const visibleItems = useMemo(() => {
+    const merged = new Map<string, ManagedItem>();
+    items.forEach((item) => merged.set(String(item.id), item));
+    remoteEvents.forEach((item) => merged.set(String(item.id), item));
+    const accessible = Array.from(merged.values()).filter((item) => item.isRemote || isVisible(item));
+    if (!communityContext?.id) return accessible;
+    return accessible.filter((item) => {
+      const sourceCommunityId = String(
+        item.sourceCommunityId || item.subCommunityId || item.communityId || ''
+      );
+      return sourceCommunityId === String(communityContext.id);
+    });
+  }, [communityContext?.id, items, remoteEvents, isVisible]);
 
   const sortedEvents = useMemo(() => {
     const isUpcomingEvent = (item: ManagedItem) => {
@@ -207,7 +470,7 @@ export default function RightRail({ userData }: RightRailProps) {
       return Number.MAX_SAFE_INTEGER;
     };
     return visibleItems
-      .filter((i) => i.type !== 'poll')
+      .filter((i) => i.type !== 'poll' && i.type !== 'announcement')
       .filter((i) => isUpcomingEvent(i))
       .sort((a, b) => rank(a) - rank(b))
       .slice(0, 8);
@@ -217,13 +480,43 @@ export default function RightRail({ userData }: RightRailProps) {
     () => visibleItems.filter((i) => i.type === 'poll').slice(0, 5),
     [visibleItems]
   );
+  const communityKind = community?.parent_community_id
+    ? 'Sub-Group'
+    : communityContext?.type === 'university'
+      ? 'University'
+      : communityContext?.type === 'group'
+        ? 'Group'
+        : 'Community';
+  const displayEvents = communityContext
+    ? sortedEvents
+    : sortedEvents.length
+      ? sortedEvents
+      : SAMPLE_RAIL_EVENTS;
+  const displayPolls = communityContext
+    ? (
+        polls.length
+          ? polls
+          : String(communityContext.id) === UHART_COMMUNITY_ID
+            ? SAMPLE_UHART_POLLS
+            : []
+      )
+    : polls.length
+      ? polls
+      : SAMPLE_RAIL_POLLS;
+
+  useEffect(() => {
+    setEventIndex((idx) => {
+      if (displayEvents.length === 0) return 0;
+      return Math.min(idx, displayEvents.length - 1);
+    });
+  }, [displayEvents.length]);
 
   useEffect(() => {
     setPollIndex((idx) => {
-      if (polls.length === 0) return 0;
-      return Math.min(idx, polls.length - 1);
+      if (displayPolls.length === 0) return 0;
+      return Math.min(idx, displayPolls.length - 1);
     });
-  }, [polls.length]);
+  }, [displayPolls.length]);
 
   useEffect(() => {
     try {
@@ -252,20 +545,26 @@ export default function RightRail({ userData }: RightRailProps) {
   const scopeLabel = (item: ManagedItem) =>
     item.scope === 'global'
       ? 'Global'
-      : item.communityName || (item.communityId ? `Community ${item.communityId}` : 'Community item');
+      : [
+          `Community: ${item.communityName || (item.communityId ? `Community ${item.communityId}` : 'Community item')}`,
+          item.subCommunityName ? `Sub-community: ${item.subCommunityName}` : '',
+        ].filter(Boolean).join(' · ');
 
   const renderItemMeta = (item: ManagedItem) => {
-    const dateText = item.date ? `${datePrefix(item.type)} ${new Date(item.date).toLocaleString()}` : '';
+    const formattedDate = formatRailDateTime(item.date);
+    const dateText = formattedDate ? `${datePrefix(item.type)} ${formattedDate}` : '';
     const baseType = item.type === 'announcement' ? 'Announcement' : 'Event';
     return `${baseType} · ${scopeLabel(item)}${dateText ? ` · ${dateText}` : ''}`;
   };
 
   const renderPollMeta = (item: ManagedItem) => {
-    const dateText = item.date ? `${datePrefix(item.type)} ${new Date(item.date).toLocaleString()}` : '';
+    const formattedDate = formatRailDateTime(item.date);
+    const dateText = formattedDate ? `${datePrefix(item.type)} ${formattedDate}` : '';
     return `Poll · ${scopeLabel(item)}${dateText ? ` · ${dateText}` : ''}`;
   };
 
-  const currentPoll = polls[pollIndex];
+  const currentPoll = displayPolls[pollIndex];
+  const currentEvent = displayEvents[eventIndex];
 
   const handleVote = (option: string) => {
     if (!currentPoll) return;
@@ -275,8 +574,8 @@ export default function RightRail({ userData }: RightRailProps) {
     }
 
     const prevChoice = pollResponses[currentPoll.id];
-    if (prevChoice === option) {
-      setPollMessage('You already selected this option.');
+    if (prevChoice) {
+      setPollMessage('Your response is final for this poll.');
       return;
     }
 
@@ -284,30 +583,22 @@ export default function RightRail({ userData }: RightRailProps) {
     setPollTallies((prev) => {
       const next = { ...prev };
       const pollTotals = { ...(next[currentPoll.id] || {}) };
-      if (prevChoice && pollTotals[prevChoice]) {
-        pollTotals[prevChoice] = Math.max(0, pollTotals[prevChoice] - 1);
-      }
       pollTotals[option] = (pollTotals[option] || 0) + 1;
       next[currentPoll.id] = pollTotals;
       return next;
     });
-    setPollMessage(prevChoice ? 'Vote updated.' : 'Thanks for voting!');
-    if (!prevChoice && polls.length > 1) {
-      setTimeout(() => {
-        setPollIndex((prev) => (prev + 1) % polls.length);
-      }, 3000);
-    }
+    setPollMessage('Thanks for voting!');
   };
 
   const goNextPoll = () => {
-    if (!polls.length) return;
-    setPollIndex((prev) => (prev + 1) % polls.length);
+    if (!displayPolls.length) return;
+    setPollIndex((prev) => (prev + 1) % displayPolls.length);
     setPollMessage('');
   };
 
   const goPrevPoll = () => {
-    if (!polls.length) return;
-    setPollIndex((prev) => (prev - 1 + polls.length) % polls.length);
+    if (!displayPolls.length) return;
+    setPollIndex((prev) => (prev - 1 + displayPolls.length) % displayPolls.length);
     setPollMessage('');
   };
 
@@ -315,24 +606,54 @@ export default function RightRail({ userData }: RightRailProps) {
     setPollMessage('');
   }, [pollIndex]);
 
+  const goNextEvent = () => {
+    if (!displayEvents.length) return;
+    setEventIndex((prev) => (prev + 1) % displayEvents.length);
+  };
+
+  const goPrevEvent = () => {
+    if (!displayEvents.length) return;
+    setEventIndex((prev) => (prev - 1 + displayEvents.length) % displayEvents.length);
+  };
+
   const userId = userData?.user_id ? String(userData.user_id) : '';
-  const toggleRsvp = async (eventId: string) => {
+  const toggleRsvp = async (item: ManagedItem) => {
+    const eventId = item.id;
     if (!userId) {
       setRsvpMessages((prev) => ({ ...prev, [eventId]: 'Log in or sign up to RSVP.' }));
       return;
     }
     const currentList = rsvps[eventId] || [];
-    const hasRsvped = currentList.includes(userId);
-    try {
-      await postWithFallback(
-        '/api/rsvp_event.php',
-        '/rsvp_event.php',
-        { event_id: eventId, action: hasRsvped ? 'cancel' : 'register' }
-      );
-    } catch (err) {
-      console.error('Unable to update RSVP', err);
-      setRsvpMessages((prev) => ({ ...prev, [eventId]: 'Unable to update RSVP right now.' }));
-      return;
+    const hasRsvped = Boolean(item.viewerRsvped || currentList.includes(userId));
+    if (!eventId.startsWith('sample-')) {
+      try {
+        await postWithFallback(
+          '/api/rsvp_event.php',
+          '/rsvp_event.php',
+          { event_id: eventId, action: hasRsvped ? 'cancel' : 'register' }
+        );
+        setRemoteEvents((prev) => prev.map((event) => (
+          event.id === eventId
+            ? {
+                ...event,
+                viewerRsvped: !hasRsvped,
+                rsvpCount: Math.max(0, Number(event.rsvpCount || 0) + (hasRsvped ? -1 : 1)),
+              }
+            : event
+        )));
+        try {
+          const refreshed = await axios.get('/api/fetch_events.php', { withCredentials: true });
+          if (Array.isArray(refreshed.data?.events)) {
+            setRemoteEvents(refreshed.data.events);
+          }
+        } catch {
+          // The RSVP succeeded; keep the optimistic rail state if refresh fails.
+        }
+      } catch (err) {
+        console.error('Unable to update RSVP', err);
+        setRsvpMessages((prev) => ({ ...prev, [eventId]: 'Unable to update RSVP right now.' }));
+        return;
+      }
     }
     setRsvps((prev) => {
       const next = { ...prev };
@@ -348,93 +669,222 @@ export default function RightRail({ userData }: RightRailProps) {
     }));
   };
 
+  const communityPhone = community?.phone || community?.phone_number || community?.telephone || '';
+  const communityEmail = community?.contact_email || community?.email || '';
+  const showSection = (candidate: RightRailProps['section']) => section === 'all' || section === candidate;
+  const idPrefix = embedded ? `community-mobile-${section}` : 'community-rail';
+
   return (
-    <div className="right-rail-stack">
-      <section className="widget-card" aria-labelledby="events-header">
+    <div
+      className={`right-rail-stack${communityContext ? ' community-context-rail' : ''}${embedded ? ' community-context-rail--embedded' : ''}`}
+    >
+      {communityContext && showSection('ambassadors') && (
+        <section className="widget-card community-ambassadors-widget" aria-labelledby={`${idPrefix}-ambassadors-header`}>
+          <div id={`${idPrefix}-ambassadors-header`} className="widget-header compact-widget-header">
+            <h3 className="widget-title">Ambassadors</h3>
+            <span>{communityAmbassadors.length}</span>
+          </div>
+          <div className="widget-body">
+            {communityAmbassadors.length ? (
+              <ul className="community-rail-ambassadors" aria-label={`${community?.name || communityKind} ambassadors`}>
+                {communityAmbassadors.slice(0, 5).map((ambassador) => (
+                  <li key={ambassador.user_id || ambassador.id}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/user/${ambassador.user_id || ambassador.id}`)}
+                    >
+                      <img
+                        src={buildAvatarSrc(ambassador.avatar_path)}
+                        alt=""
+                        aria-hidden="true"
+                      />
+                      <span>
+                        <strong>{ambassador.first_name} {ambassador.last_name}</strong>
+                        <small>{ambassador.headline || ambassador.community_role || 'Community ambassador'}</small>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="community-rail-empty">No current ambassadors.</p>
+            )}
+            {userData?.user_id && (
+              <button
+                type="button"
+                className="widget-cta community-rail-view-all"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('openCommunityAmbassadors', {
+                    detail: { communityId: communityContext.id },
+                  }));
+                }}
+              >
+                View all
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {communityContext && showSection('contact') && (
+        <section className="widget-card community-contact-widget" aria-labelledby={`${idPrefix}-contact-header`}>
+          <div id={`${idPrefix}-contact-header`} className="widget-header compact-widget-header">
+            <h3 className="widget-title">Contact</h3>
+          </div>
+          <div className="widget-body community-contact-list">
+            {community?.website && (
+              <a href={community.website} target="_blank" rel="noopener noreferrer">
+                Visit website
+              </a>
+            )}
+            {communityPhone && (
+              <a href={`tel:${communityPhone}`} aria-label={`Call ${communityPhone}`}>
+                <span>Phone</span>
+                <strong>{communityPhone}</strong>
+              </a>
+            )}
+            {communityEmail && (
+              <a href={`mailto:${communityEmail}`}>
+                <span>Email</span>
+                <strong>{communityEmail}</strong>
+              </a>
+            )}
+            {!community?.website && !communityPhone && !communityEmail && (
+              <p className="community-rail-empty">No contact information provided.</p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {showSection('events') && !(hideGenericWidgets && !communityContext) && (
+      <section className="widget-card compact-agenda-widget" aria-labelledby={`${idPrefix}-events-header`}>
         <div
-          id="events-header"
-          className="widget-header"
-          style={{ backgroundColor: '#2563EB' }}
+          id={`${idPrefix}-events-header`}
+          className="widget-header compact-widget-header"
         >
-          <h3 className="widget-title">Upcoming Events</h3>
+          <h3 className="widget-title">
+            {communityContext ? `${communityKind} Events` : 'Upcoming Events'}
+          </h3>
+          <span>{displayEvents.length}</span>
         </div>
         <div className="widget-body">
-          {!sortedEvents.length && (
-            <div className="widget-item-meta">
-              {loadingFollowed
-                ? 'Loading your upcoming events...'
-                : 'No upcoming events for your communities yet.'}
-            </div>
-          )}
-          <ul className="widget-list" aria-label="Upcoming events">
-            {sortedEvents.map((item) => {
+          <ul className="widget-list" aria-label={communityContext ? `${communityKind} events` : 'Upcoming events'}>
+            {currentEvent && [currentEvent].map((item) => {
               const rsvpList = rsvps[item.id] || [];
-              const rsvpCount = rsvpList.length;
-              const hasRsvped = Boolean(userId && rsvpList.includes(userId));
+              const rsvpCount = Math.max(Number(item.rsvpCount) || 0, rsvpList.length);
+              const hasRsvped = Boolean(item.viewerRsvped || (userId && rsvpList.includes(userId)));
               const rsvpMessage = rsvpMessages[item.id];
               const isEvent = item.type !== 'announcement' && item.type !== 'poll';
+              const calendarDate = formatCalendarDate(item.date, item.timezone);
+              const eventParams = new URLSearchParams({
+                event: String(item.id),
+                from: communityContext ? 'community' : 'rail',
+              });
+              if (communityContext?.id) {
+                eventParams.set('community', String(communityContext.id));
+              }
+              const eventDestination = `/events-feed?${eventParams.toString()}`;
               return (
                 <li
                   key={item.id}
-                  className="widget-list-item"
-                  style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '6px' }}
+                  className="widget-list-item compact-event-item"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => navigate(eventDestination)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      navigate(eventDestination);
+                    }
+                  }}
                 >
-                  <div className="widget-item-title">{item.title}</div>
-                  <div className="widget-item-meta">{renderItemMeta(item)}</div>
-                  {item.description && (
-                    <div className="widget-item-meta" style={{ color: 'var(--text-color)' }}>
-                      {item.description.length > 140 ? `${item.description.slice(0, 140)}…` : item.description}
-                    </div>
-                  )}
-                  {isEvent && (
-                    <div className="widget-item-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className={`widget-cta${hasRsvped ? ' selected' : ''}`}
-                        onClick={() => toggleRsvp(item.id)}
-                      >
-                        {hasRsvped ? 'Going' : 'RSVP'}
-                      </button>
-                      {item.zoomJoinUrl && (
-                        <a
-                          href={item.zoomJoinUrl}
-                          className="widget-cta secondary"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Join Zoom
-                        </a>
+                  <div className="community-event-card-layout">
+                    {calendarDate && (
+                      <time className="community-event-date" dateTime={calendarDate.iso}>
+                        <span>{calendarDate.month}</span>
+                        <strong>{calendarDate.day}</strong>
+                        <small>{calendarDate.weekday}</small>
+                      </time>
+                    )}
+                    <div className="community-event-card-copy">
+                      <div className="widget-item-title">{item.title}</div>
+                      <div className="widget-item-meta">{renderItemMeta(item)}</div>
+                      {item.description && (
+                        <div className="community-event-description">
+                          {item.description.length > 180 ? `${item.description.slice(0, 180)}…` : item.description}
+                        </div>
+                      )}
+                      {isEvent && (
+                        <div className="widget-item-actions community-event-actions">
+                          <button
+                            type="button"
+                            className={`widget-cta${hasRsvped ? ' selected' : ''}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleRsvp(item);
+                            }}
+                          >
+                            {hasRsvped ? 'Going' : 'RSVP'}
+                          </button>
+                          {item.zoomJoinUrl && (
+                            <a
+                              href={item.zoomJoinUrl}
+                              className="widget-cta secondary"
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              Join Zoom
+                            </a>
+                          )}
+                          {rsvpCount > 0 && (
+                            <span className="community-event-rsvp-count">{rsvpCount} going</span>
+                          )}
+                        </div>
+                      )}
+                      {isEvent && rsvpMessage && (
+                        <div className="widget-item-meta">{rsvpMessage}</div>
                       )}
                     </div>
-                  )}
-                  {isEvent && rsvpCount > 0 && (
-                    <div className="widget-item-meta">{rsvpCount} going</div>
-                  )}
-                  {isEvent && rsvpMessage && (
-                    <div className="widget-item-meta">{rsvpMessage}</div>
-                  )}
+                  </div>
                 </li>
               );
             })}
           </ul>
+          {!currentEvent && (
+            <p className="community-rail-empty">No viewable events for this {communityKind.toLowerCase()}.</p>
+          )}
+          {displayEvents.length > 0 && (
+          <div className="poll-nav rail-event-nav">
+            <button type="button" onClick={goPrevEvent} disabled={displayEvents.length <= 1} aria-label="Previous event">
+              ‹
+            </button>
+            <div className="poll-dots" aria-label="Event pagination">
+              {displayEvents.map((_, idx) => (
+                <span key={idx} className={`poll-dot${idx === eventIndex ? ' active' : ''}`} aria-hidden="true" />
+              ))}
+            </div>
+            <button type="button" onClick={goNextEvent} disabled={displayEvents.length <= 1} aria-label="Next event">
+              ›
+            </button>
+          </div>
+          )}
         </div>
       </section>
+      )}
 
-      <section className="widget-card" aria-labelledby="polls-header">
+      {showSection('polls') && !(hideGenericWidgets && !communityContext) && (
+      <section className="widget-card compact-poll-widget" aria-labelledby={`${idPrefix}-polls-header`}>
         <div
-          id="polls-header"
-          className="widget-header"
-          style={{ backgroundColor: '#F59E0B' }}
+          id={`${idPrefix}-polls-header`}
+          className="widget-header compact-widget-header"
         >
-          <h3 className="widget-title">Polls</h3>
+          <h3 className="widget-title">
+            {communityContext ? `${communityKind} Polls` : 'Polls'}
+          </h3>
+          <span>{displayPolls.length}</span>
         </div>
         <div className="widget-body">
-          {!polls.length && (
-            <div className="widget-item-meta">
-              {loadingFollowed ? 'Loading polls...' : 'No polls from your communities yet.'}
-            </div>
-          )}
-          {polls.length > 0 && currentPoll && (
+          {displayPolls.length > 0 && currentPoll && (
             <div
               className="widget-list poll-slide"
               aria-label="Community polls"
@@ -452,31 +902,28 @@ export default function RightRail({ userData }: RightRailProps) {
                     Log in or sign up to vote in polls.
                   </div>
                 )}
-                {currentPoll.pollOptions && currentPoll.pollOptions.length > 0 ? (
+                {!pollResponses[currentPoll.id] && currentPoll.pollOptions && currentPoll.pollOptions.length > 0 ? (
                   <div className="widget-poll-options" role="group" aria-label="Poll options">
                     {currentPoll.pollOptions.map((opt, idx) => {
-                      const chosen = pollResponses[currentPoll.id];
-                      const isSelected = chosen === opt;
                       return (
                         <button
                           key={idx}
                           type="button"
-                          className={`poll-option-button${isSelected ? ' selected' : ''}`}
+                          className="poll-option-button"
                           onClick={() => handleVote(opt)}
                           disabled={!userData?.user_id}
                           style={{ width: '100%', textAlign: 'left', justifyContent: 'space-between' }}
                         >
                           <span>{opt}</span>
-                          {isSelected && <span>✓</span>}
                         </button>
                       );
                     })}
                   </div>
-                ) : (
+                ) : !pollResponses[currentPoll.id] ? (
                   <div className="widget-item-meta">This poll has no options configured.</div>
-                )}
+                ) : null}
                 {pollMessage && <div className="widget-item-meta">{pollMessage}</div>}
-                {pollResponses[currentPoll.id] && currentPoll.showResults && (
+                {pollResponses[currentPoll.id] && (
                   <div className="poll-results">
                     {(currentPoll.pollOptions || []).map((opt, idx) => {
                       const pollTotal = pollTallies[currentPoll.id] || {};
@@ -499,11 +946,11 @@ export default function RightRail({ userData }: RightRailProps) {
                   </div>
                 )}
                 <div className="poll-nav" style={{ alignSelf: 'center' }}>
-                  <button type="button" onClick={goPrevPoll} disabled={polls.length <= 1} aria-label="Previous poll">
+                  <button type="button" onClick={goPrevPoll} disabled={displayPolls.length <= 1} aria-label="Previous poll">
                     ‹
                   </button>
                   <div className="poll-dots" aria-label="Poll pagination">
-                    {polls.map((_, idx) => (
+                    {displayPolls.map((_, idx) => (
                       <span
                         key={idx}
                         className={`poll-dot${idx === pollIndex ? ' active' : ''}`}
@@ -511,15 +958,20 @@ export default function RightRail({ userData }: RightRailProps) {
                       />
                     ))}
                   </div>
-                  <button type="button" onClick={goNextPoll} disabled={polls.length <= 1} aria-label="Next poll">
+                  <button type="button" onClick={goNextPoll} disabled={displayPolls.length <= 1} aria-label="Next poll">
                     ›
                   </button>
                 </div>
               </div>
             </div>
           )}
+          {!currentPoll && (
+            <p className="community-rail-empty">No viewable polls for this {communityKind.toLowerCase()}.</p>
+          )}
         </div>
       </section>
+      )}
+
     </div>
   );
 }

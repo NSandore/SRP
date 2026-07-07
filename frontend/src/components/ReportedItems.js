@@ -16,6 +16,7 @@ const formatDate = (value) => {
 function ReportedItems({ userData }) {
   const [reports, setReports] = useState([]);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [processingId, setProcessingId] = useState(null);
@@ -29,6 +30,33 @@ function ReportedItems({ userData }) {
     () => isSuperAdmin(userData?.role_id) || Number(userData?.is_ambassador) === 1,
     [userData]
   );
+
+  const filteredReports = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return reports;
+    return reports.filter((report) =>
+      [
+        report.item_type,
+        report.reason,
+        report.details,
+        report.community_name,
+        report.status,
+        report.reporter_first,
+        report.reporter_last,
+        report.reporter_email,
+        report.post_content,
+        report.item_context,
+        report.thread_title,
+        report.forum_name,
+        report.announcement_body,
+        report.event_description,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [reports, searchTerm]);
 
   const buildItemLink = (report) => {
     if (report.item_type === 'forum') {
@@ -191,6 +219,7 @@ function ReportedItems({ userData }) {
       );
       if (resp.data.success) {
         fetchReports();
+        window.dispatchEvent(new CustomEvent('sidebarCountsUpdated'));
       } else {
         setError(resp.data.error || 'Unable to update report.');
       }
@@ -233,7 +262,7 @@ function ReportedItems({ userData }) {
             Items flagged by the community. Resolve, edit, or remove them to keep discussions healthy.
           </p>
         </div>
-        <div className="reported-actions">
+        <div className="reported-actions filter-toolbar filter-toolbar--filter-first">
           <label htmlFor="status-filter" className="sr-only">Status filter</label>
           <select
             id="status-filter"
@@ -248,6 +277,15 @@ function ReportedItems({ userData }) {
             <option value="removed">Removed</option>
             <option value="all">All</option>
           </select>
+          <label className="reported-items__search">
+            <span className="sr-only">Search reported items</span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search reports"
+            />
+          </label>
           <button type="button" className="pill-button ghost" onClick={fetchReports} disabled={loading}>
             Refresh
           </button>
@@ -259,14 +297,18 @@ function ReportedItems({ userData }) {
 
       {loading ? (
         <p>Loading reports…</p>
-      ) : reports.length === 0 ? (
+      ) : filteredReports.length === 0 ? (
         <div className="report-empty-card">
-          <h3>No reported items</h3>
-          <p>When someone flags content, it will appear here for review.</p>
+          <h3>{reports.length ? 'No matching reports' : 'No reported items'}</h3>
+          <p>
+            {reports.length
+              ? 'Try another name, community, reason, or content phrase.'
+              : 'When someone flags content, it will appear here for review.'}
+          </p>
         </div>
       ) : (
         <div className="report-grid">
-          {reports.map((report) => {
+          {filteredReports.map((report) => {
             const link = buildItemLink(report);
             const reporterName = [report.reporter_first, report.reporter_last].filter(Boolean).join(' ') || 'Someone';
             const context =
@@ -292,35 +334,38 @@ function ReportedItems({ userData }) {
 
             return (
               <div key={report.report_id} className="report-card card-lift">
-                <div className="report-card__meta">
-                  <span className="report-chip">{report.item_type}</span>
-                  <span className={`status-chip ${report.status}`}>{statusLabel}</span>
-                  <span className="report-community">{report.community_name || 'Community'}</span>
-                  <span className="report-date">{formatDate(report.created_at)}</span>
-                  {hidden && <span className="status-chip hidden-chip">Hidden</span>}
-                </div>
-
-                <div className="report-card__title">
-                  <div>
-                    <div className="report-reason">Reason: {report.reason}</div>
-                    <div className="report-reporter">Reported by {reporterName}</div>
+                <div className="report-card__summary">
+                  <div className="report-card__meta">
+                    <span className="report-chip">{report.item_type}</span>
+                    <span className={`status-chip ${report.status}`}>{statusLabel}</span>
+                    <span className="report-community">{report.community_name || 'Community'}</span>
+                    <span className="report-date">{formatDate(report.created_at)}</span>
+                    {hidden && <span className="status-chip hidden-chip">Hidden</span>}
                   </div>
-                  {link && (
-                    <Link className="pill-button ghost" to={link}>
-                      Open item
-                    </Link>
+
+                  <div className="report-card__title">
+                    <div>
+                      <div className="report-reason">Reason: {report.reason}</div>
+                      <div className="report-reporter">Reported by {reporterName}</div>
+                    </div>
+                    {link && (
+                      <Link className="pill-button ghost" to={link}>
+                        Open item
+                      </Link>
+                    )}
+                  </div>
+
+                  {context && <div className="report-context">{context}</div>}
+                  {report.details && (
+                    <div className="reporter-note">
+                      Reporter note: <span>{report.details}</span>
+                    </div>
                   )}
                 </div>
 
-                {context && <div className="report-context">{context}</div>}
-                {report.details && (
-                  <div className="reporter-note">
-                    Reporter note: <span>{report.details}</span>
-                  </div>
-                )}
-
-                {report.status === 'pending' || report.status === 'under_review' ? (
-                  <div className="report-card__actions">
+                <div className="report-card__review">
+                  {report.status === 'pending' || report.status === 'under_review' ? (
+                    <div className="report-card__actions">
                     {report.item_type === 'forum' && (
                       <div className="forum-edit-fields">
                         <label className="report-details-label">Title</label>
@@ -432,26 +477,31 @@ function ReportedItems({ userData }) {
                         Remove item
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  <div className="report-resolution">
-                    <span>
-                      {report.status === 'removed' ? 'Removed' : 'Retained'} by{' '}
-                      {resolverName || 'moderator'}
-                    </span>
-                    {report.resolved_at && <span> · {formatDate(report.resolved_at)}</span>}
-                    {report.resolution_notes && (
-                      <div className="resolution-note">Notes: {report.resolution_notes}</div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  ) : (
+                    <div className="report-resolution">
+                      <span>
+                        {report.status === 'removed' ? 'Removed' : 'Retained'} by{' '}
+                        {resolverName || 'moderator'}
+                      </span>
+                      {report.resolved_at && <span> · {formatDate(report.resolved_at)}</span>}
+                      {report.resolution_notes && (
+                        <div className="resolution-note">Notes: {report.resolution_notes}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       )}
       {editTarget && editTarget.item_type !== 'forum' && (
-        <ModalOverlay isOpen onClose={() => { setEditTarget(null); setEditFields({ title: '', description: '', content: '' }); }}>
+        <ModalOverlay
+          isOpen
+          onClose={() => { setEditTarget(null); setEditFields({ title: '', description: '', content: '' }); }}
+          contentClassName="report-dialog-overlay"
+        >
           <form className="report-modal" onSubmit={handleEditSubmit}>
             <div className="report-modal__header">
               <p className="report-pill">Edit</p>

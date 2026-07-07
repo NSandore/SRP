@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { isAdmin, isSuperAdmin } from '../constants/roles';
+import ModalOverlay from './ModalOverlay';
 
 function EventManagement({ userData }) {
   const [searchParams] = useSearchParams();
@@ -63,6 +64,11 @@ function EventManagement({ userData }) {
     }
   });
   const [editingId, setEditingId] = useState(null);
+  const [showEditor, setShowEditor] = useState(false);
+  const [eventView, setEventView] = useState('tiles');
+  const [inviteSearch, setInviteSearch] = useState('');
+  const [inviteResults, setInviteResults] = useState([]);
+  const [searchingInvites, setSearchingInvites] = useState(false);
   const primaryCommunityId = adminCommunityIds[0] || ambassadorCommunityIds[0] || '';
   const initialForm = {
     type: 'event',
@@ -81,6 +87,9 @@ function EventManagement({ userData }) {
     zoomStartUrl: '',
     zoomHostEmail: '',
     zoomDuration: 60,
+    allowedAudiences: ['public', 'members', 'verified', 'ambassadors', 'admins'],
+    invitedUsers: [],
+    notifyRsvpsDateChange: false,
   };
 
   const [form, setForm] = useState(initialForm);
@@ -96,6 +105,43 @@ function EventManagement({ userData }) {
       throw err;
     }
   };
+
+  useEffect(() => {
+    const term = inviteSearch.trim();
+    if (term.length < 2 || !showEditor) {
+      setInviteResults([]);
+      setSearchingInvites(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setSearchingInvites(true);
+      try {
+        const res = await axios.get(`/api/search_users.php?term=${encodeURIComponent(term)}`, {
+          withCredentials: true,
+        });
+        if (!cancelled) {
+          const selectedIds = new Set(form.invitedUsers.map((user) => String(user.user_id)));
+          const users = Array.isArray(res.data?.users) ? res.data.users : [];
+          setInviteResults(
+            users.filter(
+              (user) =>
+                String(user.user_id) !== String(userData?.user_id || '')
+                && !selectedIds.has(String(user.user_id))
+            )
+          );
+        }
+      } catch (error) {
+        if (!cancelled) setInviteResults([]);
+      } finally {
+        if (!cancelled) setSearchingInvites(false);
+      }
+    }, 220);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [inviteSearch, showEditor, form.invitedUsers, userData?.user_id]);
 
   useEffect(() => {
     setForm((prev) => ({
@@ -116,6 +162,7 @@ function EventManagement({ userData }) {
           id: String(c.id ?? c.community_id ?? ''),
           name: c.name || 'Unnamed community',
           tagline: c.tagline || '',
+          parentCommunityId: c.parent_community_id ? String(c.parent_community_id) : '',
         })).filter((c) => c.id);
         if (!isCancelled) {
           setAllCommunities(normalized);
@@ -322,23 +369,42 @@ function EventManagement({ userData }) {
 
   const resetForm = () => {
     setEditingId(null);
+    setCommunitySearch('');
+    setInviteSearch('');
+    setInviteResults([]);
     setForm({
       ...initialForm,
       scope: isSuperAdminUser ? 'global' : 'community',
       communityId: primaryCommunityId,
     });
+    setShowEditor(false);
+  };
+
+  const openCreateEvent = () => {
+    resetForm();
+    setForm((prev) => ({ ...prev, type: 'event' }));
+    setShowEditor(true);
   };
 
   const formatDateTime = (value) => {
     if (!value) return 'Date TBD';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return date.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
   };
 
   const getAudienceLabel = (event) => {
     if (event.scope === 'global') return 'Global';
-    return event.communityName || `Community ${event.communityId}`;
+    const community = event.communityName || `Community ${event.communityId}`;
+    return event.subCommunityName
+      ? `${community} · Sub-community: ${event.subCommunityName}`
+      : community;
   };
 
   const permittedCommunities = useMemo(() => {
@@ -463,8 +529,14 @@ function EventManagement({ userData }) {
       zoomStartUrl: event.zoomStartUrl || '',
       zoomHostEmail: event.zoomHostEmail || '',
       zoomDuration: Number(event.zoomDuration) || 60,
+      allowedAudiences: Array.isArray(event.allowedAudiences) && event.allowedAudiences.length
+        ? event.allowedAudiences
+        : ['public', 'members', 'verified', 'ambassadors', 'admins'],
+      invitedUsers: [],
+      notifyRsvpsDateChange: false,
     });
     setMessage({ type: 'info', text: 'Editing an existing item.' });
+    setShowEditor(true);
   };
 
   const handleDelete = async (eventId) => {
@@ -508,6 +580,8 @@ function EventManagement({ userData }) {
     const date = form.date;
     let communityId = scope === 'community' ? String(form.communityId || '').trim() : '';
     let communityName = form.communityName.trim();
+    let subCommunityId = '';
+    let subCommunityName = '';
 
     if (!title) {
       setMessage({ type: 'error', text: 'Please add a title for this item.' });
@@ -547,7 +621,16 @@ function EventManagement({ userData }) {
       }
       const option = permittedCommunities.find((c) => String(c.id) === communityId);
       if (option) {
-        communityName = communityName || option.name;
+        if (option.parentCommunityId) {
+          const parent = allCommunities.find(
+            (community) => String(community.id) === String(option.parentCommunityId)
+          );
+          communityName = parent?.name || `Community ${option.parentCommunityId}`;
+          subCommunityId = option.id;
+          subCommunityName = option.name;
+        } else {
+          communityName = option.name;
+        }
       }
       communityName = communityName || `Community ${communityId}`;
     }
@@ -604,6 +687,12 @@ function EventManagement({ userData }) {
     }
 
     let eventId = editingId || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+    if (type === 'event' || type === 'poll') {
+      if (!form.allowedAudiences.length) {
+        setMessage({ type: 'error', text: `Select at least one access level for this ${type}.` });
+        return;
+      }
+    }
     if (type === 'event') {
       try {
         const res = await postWithFallback(
@@ -618,9 +707,12 @@ function EventManagement({ userData }) {
             community_id: scope === 'community' ? communityId : '',
             location,
             meeting_provider: zoomJoinUrl ? 'zoom' : 'other',
-            meeting_link: zoomJoinUrl || location || '',
+            meeting_link: zoomJoinUrl || '',
             meeting_id: zoomMeetingId || '',
             duration_minutes: zoomDuration,
+            allowed_audiences: form.allowedAudiences,
+            invite_user_ids: form.invitedUsers.map((user) => user.user_id),
+            notify_rsvps_date_change: Boolean(form.notifyRsvpsDateChange),
           }
         );
         if (!res.data?.success) {
@@ -645,6 +737,8 @@ function EventManagement({ userData }) {
       scope,
       communityId: scope === 'community' ? communityId : '',
       communityName: scope === 'community' ? communityName : '',
+      subCommunityId: scope === 'community' ? subCommunityId : '',
+      subCommunityName: scope === 'community' ? subCommunityName : '',
       pollOptions: type === 'poll' ? pollOptions : [],
       showResults: type === 'poll' ? Boolean(form.showResults) : false,
       zoomMeetingId,
@@ -652,7 +746,10 @@ function EventManagement({ userData }) {
       zoomStartUrl,
       zoomHostEmail,
       zoomDuration,
+      allowedAudiences: type === 'announcement' ? [] : form.allowedAudiences,
+      invitedUsers: type === 'event' ? form.invitedUsers : [],
       createdBy: `${userData?.first_name || 'Unknown'} ${userData?.last_name || ''}`.trim() || 'Unknown user',
+      createdById: String(userData?.user_id || ''),
       createdAt: new Date().toISOString(),
     };
 
@@ -698,6 +795,7 @@ function EventManagement({ userData }) {
 
   const isPoll = form.type === 'poll';
   const isEventType = form.type === 'event';
+  const hasAudienceControls = form.type === 'event' || form.type === 'poll';
   const dateLabel = isPoll
     ? 'Poll closes at (optional)'
     : form.type === 'announcement'
@@ -719,13 +817,58 @@ function EventManagement({ userData }) {
     }
     return itemsToShow;
   }, [filterType, itemsToShow]);
+
+  const eventPageItems = useMemo(
+    () =>
+      canManage
+        ? filteredItems
+        : filteredItems.filter((item) => (item.type || 'event') === 'event'),
+    [canManage, filteredItems]
+  );
+
+  const calendarItems = useMemo(() => {
+    if (eventView === 'tiles') return eventPageItems;
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+    return eventPageItems
+      .filter((item) => item.date)
+      .filter((item) => {
+        const date = new Date(item.date);
+        if (Number.isNaN(date.getTime())) return false;
+        if (eventView === 'week') return date >= startOfWeek && date < endOfWeek;
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+      })
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  }, [eventView, eventPageItems]);
+
+  const calendarGroups = useMemo(
+    () =>
+      calendarItems.reduce((groups, item) => {
+        const date = new Date(item.date);
+        const key = date.toLocaleDateString(undefined, {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+        });
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(item);
+        return groups;
+      }, {}),
+    [calendarItems]
+  );
+
   return (
     <div className="feed-container">
       <div className="event-management">
         <div className="reported-items__header event-management__header">
           <div>
             <h2 className="section-title" style={{ marginBottom: 4 }}>
-              Event & content management
+              {canManage ? 'Event Management' : 'Events'}
             </h2>
             <p className="report-subtitle muted-text">
               {canManage
@@ -736,17 +879,25 @@ function EventManagement({ userData }) {
                     : 'Admins and ambassadors can manage announcements, polls, and events for the communities they oversee.'
                 : 'Viewing items from communities you follow. Global items appear for everyone.'}
             </p>
+            {canManage && (
+              <div className="event-management__badge">
+                {isSuperAdminUser
+                  ? 'Super admin'
+                  : isCommunityAdmin
+                    ? 'Community admin'
+                    : isAdminRole
+                      ? 'Admin'
+                      : 'Ambassador'}
+              </div>
+            )}
           </div>
-          <div className="event-management__badge">
-            {canManage
-              ? isSuperAdminUser
-                ? 'Super admin'
-                : isCommunityAdmin
-                  ? 'Community admin'
-                  : isAdminRole
-                    ? 'Admin'
-                    : 'Ambassador'
-              : 'Member'}
+          <div className="event-management__header-actions">
+            {canManage && (
+              <button type="button" className="primary-button" onClick={openCreateEvent}>
+                Create Event
+              </button>
+            )}
+            {!canManage && <div className="event-management__badge">Member</div>}
           </div>
         </div>
 
@@ -757,11 +908,12 @@ function EventManagement({ userData }) {
       )}
 
       <div className="event-management__grid report-grid">
-        {canManage && (
-          <section className="event-management__panel report-card card-lift">
+        {canManage && showEditor && (
+          <ModalOverlay isOpen={showEditor} onClose={resetForm} contentClassName="event-editor-overlay">
+          <section className="event-management__panel event-management__panel--composer event-editor-dialog">
             <div className="event-management__panel-head">
               <div>
-                <h3>{editingId ? 'Edit item' : 'Create item'}</h3>
+                <h3>{editingId ? 'Edit item' : 'Create event'}</h3>
                 <p className="muted-text">
                   {isSuperAdminUser
                     ? 'Create a global item or target a specific community.'
@@ -774,6 +926,11 @@ function EventManagement({ userData }) {
                 </button>
               )}
             </div>
+            {message && (
+              <div className={`event-management__alert ${message.type}`} role="status">
+                {message.text}
+              </div>
+            )}
             <form className="event-management__form" onSubmit={handleSubmit}>
               <div className="event-management__field">
                 <label htmlFor="item-type">Item type</label>
@@ -822,7 +979,7 @@ function EventManagement({ userData }) {
               </div>
               {isEventType && canUseZoom && (
                 <>
-                  <div className="event-management__field event-management__zoom">
+                  <div className="event-management__field event-management__field--wide event-management__zoom">
                     <label className="event-management__zoom-title">Zoom meeting</label>
                     {zoomStatus.loading ? (
                       <p className="muted-text small-text">Checking Zoom connection...</p>
@@ -854,7 +1011,7 @@ function EventManagement({ userData }) {
                     )}
                   </div>
                   {form.useZoom && zoomStatus.connected && (
-                    <div className="event-management__field">
+                    <div className="event-management__field event-management__field--wide">
                       <label htmlFor="zoom-duration">Meeting duration (minutes)</label>
                       <input
                         id="zoom-duration"
@@ -868,7 +1025,7 @@ function EventManagement({ userData }) {
                     </div>
                   )}
                   {form.useZoom && (form.zoomJoinUrl || form.zoomStartUrl) && (
-                    <div className="event-management__field">
+                    <div className="event-management__field event-management__field--wide">
                       <label>Current Zoom links</label>
                       <div className="muted-text small-text" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                         {form.zoomJoinUrl && (
@@ -886,7 +1043,7 @@ function EventManagement({ userData }) {
                   )}
                 </>
               )}
-              <div className="event-management__field">
+              <div className="event-management__field event-management__field--wide">
                 <label htmlFor="event-description">Description</label>
                 <textarea
                   id="event-description"
@@ -897,7 +1054,7 @@ function EventManagement({ userData }) {
                 />
               </div>
             {isPoll && (
-              <div className="event-management__field">
+              <div className="event-management__field event-management__field--wide">
                 <label htmlFor="poll-options">Poll options</label>
                 <textarea
                   id="poll-options"
@@ -933,7 +1090,7 @@ function EventManagement({ userData }) {
                 )}
               </div>
               {(form.scope === 'community' || !isSuperAdminUser) && (
-                <div className="event-management__field">
+                <div className="event-management__field event-management__field--wide">
                   <label htmlFor="event-community">Community</label>
                   <input
                     type="text"
@@ -967,24 +1124,142 @@ function EventManagement({ userData }) {
                   </p>
                 </div>
               )}
+              {hasAudienceControls && (
+                <div className="event-management__field event-management__field--wide event-access-field">
+                  <label>{form.type === 'poll' ? 'Poll' : 'Event'} access</label>
+                  <p className="muted-text small-text">
+                    Only selected access levels can discover this {form.type === 'poll' ? 'poll' : 'event'}.
+                  </p>
+                  <div className="event-access-options">
+                    {[
+                      ['public', 'All platform members'],
+                      ['members', 'Community members'],
+                      ['verified', 'Verified community members'],
+                      ['ambassadors', 'Ambassadors'],
+                      ['admins', 'Administrators'],
+                    ].map(([value, label]) => (
+                      <label key={value} className="event-access-option">
+                        <input
+                          type="checkbox"
+                          checked={form.allowedAudiences.includes(value)}
+                          onChange={(event) => {
+                            setForm((prev) => ({
+                              ...prev,
+                              allowedAudiences: event.target.checked
+                                ? [...prev.allowedAudiences, value]
+                                : prev.allowedAudiences.filter((audience) => audience !== value),
+                            }));
+                          }}
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {isEventType && (
+                <div className="event-management__field event-management__field--wide event-invite-field">
+                  <label htmlFor="event-invite-search">Invite people</label>
+                  <input
+                    id="event-invite-search"
+                    type="search"
+                    value={inviteSearch}
+                    onChange={(event) => setInviteSearch(event.target.value)}
+                    placeholder="Search by name or email"
+                  />
+                  {form.invitedUsers.length > 0 && (
+                    <div className="event-invite-selected">
+                      {form.invitedUsers.map((user) => (
+                        <button
+                          key={user.user_id}
+                          type="button"
+                          onClick={() => setForm((prev) => ({
+                            ...prev,
+                            invitedUsers: prev.invitedUsers.filter(
+                              (selected) => String(selected.user_id) !== String(user.user_id)
+                            ),
+                          }))}
+                          aria-label={`Remove ${user.first_name} ${user.last_name}`}
+                        >
+                          {user.first_name} {user.last_name} <span aria-hidden="true">×</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {inviteSearch.trim().length >= 2 && (
+                    <div className="event-invite-results">
+                      {searchingInvites && <span className="muted-text small-text">Searching…</span>}
+                      {!searchingInvites && inviteResults.map((user) => (
+                        <button
+                          key={user.user_id}
+                          type="button"
+                          onClick={() => {
+                            setForm((prev) => ({
+                              ...prev,
+                              invitedUsers: [...prev.invitedUsers, user],
+                            }));
+                            setInviteSearch('');
+                          }}
+                        >
+                          <span>{user.first_name} {user.last_name}</span>
+                          <small>{user.email}</small>
+                        </button>
+                      ))}
+                      {!searchingInvites && inviteResults.length === 0 && (
+                        <span className="muted-text small-text">No matching people.</span>
+                      )}
+                    </div>
+                  )}
+                  <p className="muted-text small-text">
+                    Invited people receive a platform notification and can access the event regardless of level.
+                  </p>
+                </div>
+              )}
+              {isEventType && editingId && (
+                <div className="event-management__field event-management__field--wide">
+                  <label className="event-management__toggle">
+                    <input
+                      type="checkbox"
+                      className="event-management__toggle-input"
+                      checked={form.notifyRsvpsDateChange}
+                      onChange={(event) => setForm((prev) => ({
+                        ...prev,
+                        notifyRsvpsDateChange: event.target.checked,
+                      }))}
+                    />
+                    <span className="event-management__toggle-label">
+                      Notify RSVP’d attendees if the date or time changed
+                    </span>
+                  </label>
+                </div>
+              )}
               <div className="event-management__actions">
                 <button type="submit" className="primary-button" disabled={isZoomSaving}>
-                  {isZoomSaving ? 'Creating Zoom meeting...' : editingId ? 'Save changes' : 'Create item'}
+                  {isZoomSaving
+                    ? 'Creating Zoom meeting...'
+                    : editingId
+                      ? 'Save changes'
+                      : form.type === 'announcement'
+                        ? 'Publish announcement'
+                        : form.type === 'poll'
+                          ? 'Create poll'
+                          : 'Create event'}
                 </button>
                 <button type="button" className="ghost-button" onClick={resetForm}>
-                  Clear
+                  Cancel
                 </button>
               </div>
             </form>
           </section>
+          </ModalOverlay>
         )}
 
-        <section className="event-management__panel report-card card-lift">
+        <section className="event-management__panel event-management__panel--queue report-card card-lift">
           <div className="event-management__panel-head">
             <div>
-              <h3>Active items</h3>
+              <h3>{canManage ? 'Active items' : 'Upcoming events'}</h3>
               <p className="muted-text">
-                {filteredItems.length
+                {eventPageItems.length
                   ? canManage
                     ? 'Edit or remove upcoming items.'
                     : loadingFollowed || loadingAnnouncements
@@ -999,9 +1274,27 @@ function EventManagement({ userData }) {
                       : 'No items from communities you follow yet.'}
               </p>
             </div>
+            {!canManage && (
+              <div className="event-view-switcher" aria-label="Event view">
+                {[
+                  { value: 'tiles', label: 'Tiles' },
+                  { value: 'month', label: 'Month' },
+                  { value: 'week', label: 'Week' },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={eventView === option.value ? 'active' : ''}
+                    onClick={() => setEventView(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="event-management__list">
-            {filteredItems.length === 0 && (
+            {(eventView === 'tiles' ? eventPageItems : calendarItems).length === 0 && (
               <div className="event-management__empty">
                 <p>
                   {canManage
@@ -1014,7 +1307,33 @@ function EventManagement({ userData }) {
                 </p>
               </div>
             )}
-            {filteredItems.map((event) => {
+            {!canManage && eventView !== 'tiles' ? (
+              <div className={`event-management__calendar event-management__calendar--${eventView}`}>
+                {Object.entries(calendarGroups).map(([dateLabel, items]) => (
+                  <section key={dateLabel} className="event-calendar__day">
+                    <h4>{dateLabel}</h4>
+                    <div className="event-calendar__entries">
+                      {items.map((event) => (
+                        <article key={event.id} className="event-calendar__entry">
+                          <time>
+                            {new Date(event.date).toLocaleTimeString(undefined, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hourCycle: 'h23',
+                            })}
+                          </time>
+                          <div>
+                            <strong>{event.title}</strong>
+                            <span>{getAudienceLabel(event)}</span>
+                            {event.location && <span>{event.location}</span>}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : eventPageItems.map((event) => {
               const itemType = event.type || 'event';
               const typeLabel = getTypeLabel(itemType);
               const datePrefix = getDatePrefix(itemType);

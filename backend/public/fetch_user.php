@@ -82,6 +82,7 @@ try {
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.allow_messages_from')) AS allow_messages_from,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_votes')) AS notify_votes,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_replies')) AS notify_replies,
+            JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_events')) AS notify_events,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.two_factor_enabled')) AS two_factor_enabled,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.auto_join_campus')) AS auto_join_campus,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.default_feed')) AS default_feed_json,
@@ -101,6 +102,7 @@ try {
     $allow_messages_from = $settings['allow_messages_from'] ?? 'everyone';
     $notify_votes = isset($settings['notify_votes']) ? (int)$settings['notify_votes'] : 1;
     $notify_replies = isset($settings['notify_replies']) ? (int)$settings['notify_replies'] : 1;
+    $notify_events = isset($settings['notify_events']) ? (int)$settings['notify_events'] : 1;
     $two_factor_enabled = isset($settings['two_factor_enabled']) ? (int)filter_var($settings['two_factor_enabled'], FILTER_VALIDATE_BOOLEAN) : 0;
     $auto_join_campus = isset($settings['auto_join_campus']) ? (int)filter_var($settings['auto_join_campus'], FILTER_VALIDATE_BOOLEAN) : 1;
     $default_feed = $settings['default_feed'] ?? ($settings['default_feed_json'] ?? null);
@@ -122,6 +124,7 @@ try {
     $user['allow_messages_from'] = $allow_messages_from;
     $user['notify_votes'] = $notify_votes;
     $user['notify_replies'] = $notify_replies;
+    $user['notify_events'] = $notify_events;
     $user['two_factor_enabled'] = $two_factor_enabled;
     $user['auto_join_campus'] = $auto_join_campus;
     $user['default_feed'] = $default_feed;

@@ -4,14 +4,23 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
-  FaArrowAltCircleUp,
-  FaRegArrowAltCircleUp,
-  FaArrowAltCircleDown,
-  FaRegArrowAltCircleDown,
-  FaMedal,
   FaLock,
   FaFilter
 } from 'react-icons/fa';
+import {
+  ArrowUpRight,
+  BadgeDollarSign,
+  Bookmark,
+  BookOpenText,
+  CalendarClock,
+  CalendarDays,
+  Compass,
+  GraduationCap,
+  LibraryBig,
+  MoreVertical,
+  Search,
+  Users,
+} from 'lucide-react';
 
 import ForumCard from './ForumCard'; // Adjust path if ForumCard is located elsewhere
 import ThreadCard from './ThreadCard';
@@ -26,6 +35,7 @@ import { mapTagNamesToSlugs } from '../utils/tagUtils';
 import { isSuperAdmin } from '../constants/roles';
 import './LockedFeature.css';
 import './CreationModal.css';
+import './HomeDashboard.css';
 
 const ALL_TOPICS_VALUE = 'all';
 
@@ -124,8 +134,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [showInfoFilters, setShowInfoFilters] = useState(false);
 
   const [followedCommunities, setFollowedCommunities] = useState([]);
-  const [isLoadingFollowed, setIsLoadingFollowed] = useState(false);
-
   const [allCommunities, setAllCommunities] = useState([]);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
 
@@ -153,7 +161,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [isEditingForum, setIsEditingForum] = useState(false);
 
   const [notification, setNotification] = useState(null);
-  const [showFundingModal, setShowFundingModal] = useState(false);
   const [reportTarget, setReportTarget] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
@@ -226,6 +233,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [savedForums, setSavedForums] = useState([]);
   const [savedThreads, setSavedThreads] = useState([]);
   const [savedPosts, setSavedPosts] = useState([]);
+  const [savedSearch, setSavedSearch] = useState('');
+  const [openSavedMenu, setOpenSavedMenu] = useState(null);
   // Track which saved tab is active
   const [savedTab, setSavedTab] = useState('forums'); // 'forums' | 'threads' | 'posts'
   const [feedThreads, setFeedThreads] = useState([]);
@@ -247,9 +256,21 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const exploreContentRef = useRef(null);
   const communityTypeRef = useRef(null);
   const communityFilterRef = useRef(null);
+  const homeReadingRoomRef = useRef(null);
   const savedSegmentRef = useRef(null);
   const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const INFO_COMMUNITY_ID = 'c57b7fd6c45b9d57b';
+
+  useEffect(() => {
+    if (!openSavedMenu) return undefined;
+    const handlePointerDown = (event) => {
+      if (!event.target.closest('.saved-card__menu')) {
+        setOpenSavedMenu(null);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [openSavedMenu]);
 
   const searchParamsRef = useRef(searchParams);
   useEffect(() => {
@@ -328,7 +349,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
   useEffect(() => {
     return scheduleSegmentUpdate(savedSegmentRef);
-  }, [savedTab, scheduleSegmentUpdate]);
+  }, [savedTab, savedForums.length, savedThreads.length, savedPosts.length, scheduleSegmentUpdate]);
 
   useEffect(() => {
     return scheduleSegmentUpdate(feedSegmentRef);
@@ -346,7 +367,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     if (activeSection === 'saved') {
       return scheduleSegmentUpdate(savedSegmentRef);
     }
-  }, [activeSection, scheduleSegmentUpdate]);
+  }, [activeSection, showCommunityFilters, scheduleSegmentUpdate]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -361,12 +382,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, [updateSegmentIndicator]);
-
-  useEffect(() => {
-    if (activeSection === 'funding') {
-      setShowFundingModal(true);
-    }
-  }, [activeSection]);
 
   useEffect(() => {
     if (userData) {
@@ -384,13 +399,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       }
     }
   }, [showRequestModal, userData]);
-
-  const handleDismissFundingModal = () => setShowFundingModal(false);
-
-  const handleFundingNavigateHome = () => {
-    setShowFundingModal(false);
-    navigate('/home');
-  };
 
   const handleOpenReport = (target) => {
     if (!userData) {
@@ -684,7 +692,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // ------------- COMMUNITIES -------------
   const fetchFollowedCommunities = async () => {
     if (!userData) return;
-    setIsLoadingFollowed(true);
     try {
       const response = await axios.get(
         `/api/followed_communities.php?user_id=${userData.user_id}`
@@ -693,8 +700,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     } catch (error) {
       console.error('Error fetching followed communities:', error);
       setFollowedCommunities([]);
-    } finally {
-      setIsLoadingFollowed(false);
     }
   };
 
@@ -971,7 +976,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // ------------- INITIAL HOOKS -------------
   // When the user goes to "communities"
   useEffect(() => {
-    if (activeSection === 'communities' && userData) {
+    if ((activeSection === 'home' || activeSection === 'communities') && userData) {
       fetchFollowedCommunities();
     }
     if (activeSection === 'communities') {
@@ -1437,20 +1442,138 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // ------------- RENDER LOGIC -------------
   // HOME SECTION
   if (activeSection === 'home') {
+    const homeDateLabel = new Intl.DateTimeFormat(undefined, {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    }).format(new Date());
+    const homeVisibleCount =
+      activeFeed === 'yourFeed'
+        ? (yourFeedView === 'forums' ? feedForums.length : feedThreads.length)
+        : (exploreView === 'forums' ? exploreForums.length : exploreThreads.length);
+    const homeVisibleLabel =
+      (activeFeed === 'yourFeed' ? yourFeedView : exploreView) === 'forums'
+        ? 'forums'
+        : 'threads';
+    const homeViewDescription =
+      activeFeed === 'yourFeed'
+        ? 'A focused reading list shaped by the communities and topics you follow.'
+        : 'A broader index of conversations from across the StudentSphere commons.';
+    const homePathways = [
+      {
+        to: '/info',
+        eyebrow: 'Research & answers',
+        title: 'Info Board',
+        description: 'Find questions, guides, and ambassador-verified answers.',
+        Icon: BookOpenText,
+      },
+      {
+        to: '/communities',
+        eyebrow: 'Find your circle',
+        title: 'Communities',
+        description: 'Browse university and group spaces built around shared interests.',
+        Icon: Users,
+      },
+      {
+        to: '/events-feed',
+        eyebrow: 'Community agenda',
+        title: 'Events',
+        description: 'Review upcoming events and RSVP to the sessions that matter.',
+        Icon: CalendarDays,
+      },
+      userData
+        ? {
+            to: '/saved',
+            eyebrow: 'Your collection',
+            title: 'Saved reading',
+            description: 'Return to the forums, threads, and comments you kept.',
+            Icon: Bookmark,
+          }
+        : {
+            to: '/signup',
+            eyebrow: 'Join the commons',
+            title: 'Create a profile',
+            description: 'Follow communities and build a personalized reading list.',
+            Icon: LibraryBig,
+          },
+    ];
+    const setHomeTab = (nextTab) => {
+      if (nextTab === 'feed' && !userData) {
+        onRequireAuth?.();
+        return;
+      }
+      const params = new URLSearchParams(searchParams);
+      if (params.get('tab') !== nextTab) {
+        params.set('tab', nextTab);
+        safeSetSearchParams(params);
+      }
+    };
+
     return withNotification(
-      <main>
+      <main className="home-dashboard">
         {reportModal}
-        <div className="feed-container">
-          {/* Hero */}
-          <div>
-            <h1 className="section-title" style={{ marginBottom: 4 }}>
-              {activeFeed === 'yourFeed' ? 'Your Feed' : 'Explore'}
+        <section className="home-hero" aria-labelledby="home-dashboard-title">
+          <div className="home-hero-copy">
+            <p className="home-kicker">
+              <span>Academic commons</span>
+              <span aria-hidden="true">•</span>
+              {homeDateLabel}
+            </p>
+            <h1 id="home-dashboard-title">
+              {userData?.first_name
+                ? <>Welcome back, <em>{userData.first_name}</em>.</>
+                : <>A thoughtful place to <em>learn together</em>.</>}
             </h1>
+            <p className="home-hero-description">
+              Useful questions, people, and communities—gathered in one considered place.
+            </p>
           </div>
-          <p className="muted-text" style={{ marginTop: 0 }}>
-            Welcome back, {userData?.first_name ? `${userData.first_name}` : 'there'}!
-          </p>
-          <div className="section-controls home-controls section-controls-sticky">
+          <button
+            type="button"
+            className="home-button home-button-primary home-hero-cta"
+            onClick={() => {
+              setHomeTab('explore');
+              homeReadingRoomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          >
+            <Compass size={17} aria-hidden="true" />
+            Explore
+            <ArrowUpRight size={16} aria-hidden="true" />
+          </button>
+        </section>
+
+        <nav className="home-pathways" aria-label="Dashboard shortcuts">
+          {homePathways.map(({ to, eyebrow, title, description, Icon }) => (
+            <Link key={to} to={to} className="home-pathway-card">
+              <span className="home-pathway-icon" aria-hidden="true">
+                <Icon size={19} />
+              </span>
+              <span className="home-pathway-copy">
+                <small>{eyebrow}</small>
+                <strong>{title}</strong>
+                <span>{description}</span>
+              </span>
+              <ArrowUpRight className="home-pathway-arrow" size={17} aria-hidden="true" />
+            </Link>
+          ))}
+        </nav>
+
+        <section className="home-reading-room" aria-labelledby="home-reading-room-title" ref={homeReadingRoomRef}>
+          <header className="home-reading-room-header">
+            <div>
+              <p className="home-section-kicker">Discussion index</p>
+              <h2 id="home-reading-room-title">
+                {activeFeed === 'yourFeed' ? 'Your reading room' : 'Explore the commons'}
+              </h2>
+              <p>{homeViewDescription}</p>
+            </div>
+            <div className="home-entry-count" aria-live="polite">
+              <strong>{homeVisibleCount}</strong>
+              <span>{homeVisibleLabel} in view</span>
+            </div>
+          </header>
+
+          <div className="section-controls home-controls filter-toolbar filter-toolbar--filter-first">
             <div className="control-group">
               <div
                 ref={feedSegmentRef}
@@ -1460,17 +1583,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 <button
                   type="button"
                   className={`chip your-feed-chip ${activeFeed === 'yourFeed' ? 'active' : ''} ${!userData ? 'chip-locked' : ''}`}
-                  onClick={() => {
-                    if (!userData) {
-                      onRequireAuth?.();
-                      return;
-                    }
-                    const params = new URLSearchParams(searchParams);
-                    if (params.get('tab') !== 'feed') {
-                      params.set('tab', 'feed');
-                      safeSetSearchParams(params);
-                    }
-                  }}
+                  onClick={() => setHomeTab('feed')}
                   aria-disabled={!userData}
                   title={!userData ? 'Log in to access Your Feed' : 'View Your Feed'}
                 >
@@ -1482,13 +1595,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 <button
                   type="button"
                   className={`chip ${activeFeed === 'explore' ? 'active' : ''}`}
-                  onClick={() => {
-                    const params = new URLSearchParams(searchParams);
-                    if (params.get('tab') !== 'explore') {
-                      params.set('tab', 'explore');
-                      safeSetSearchParams(params);
-                    }
-                  }}
+                  onClick={() => setHomeTab('explore')}
                 >
                   Explore
                 </button>
@@ -1556,7 +1663,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               </div>
               {activeFeed === 'explore' && (
                 <div className="control-group topic-multi-select-wrapper">
-                  <span className="sort-pill" style={{ marginRight: '8px' }}>Tags</span>
+                  <span className="sort-pill">Tags</span>
                   <div className="topic-dropdown" ref={exploreDropdownRef}>
                     <button
                       type="button"
@@ -1591,7 +1698,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       </div>
                     )}
                   </div>
-                  <div className="topic-selection-meta" style={{ marginLeft: '4px' }}>
+                  <div className="topic-selection-meta">
                     <button
                       type="button"
                       className="clear-topics-button"
@@ -1605,7 +1712,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               )}
               {activeFeed === 'yourFeed' && (
                 <div className="control-group">
-                  <label htmlFor="feed-sort" className="sort-pill" style={{ margin: 0 }}>
+                  <label htmlFor="feed-sort" className="sort-pill">
                     Sort
                   </label>
                   <select
@@ -1624,13 +1731,17 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
           {activeFeed === 'yourFeed' && userData ? (
             <>
-              <div className="feed-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '8px' }} />
               {isLoadingFeed ? (
-                <p>Loading feed...</p>
+                <div className="home-loading-state" aria-label="Loading your feed">
+                  <span />
+                  <span />
+                  <span />
+                </div>
               ) : isFeedEmpty ? (
                 <div className="empty-feed-card">
-                  <p style={{ marginBottom: '8px', fontWeight: 600 }}>Your feed is currently empty.</p>
-                  <p className="muted" style={{ marginBottom: '12px' }}>
+                  <LibraryBig size={24} aria-hidden="true" />
+                  <h3>Your reading room is ready to be shaped.</h3>
+                  <p className="muted">
                     {hasInterests
                       ? 'Follow communities or check back soon to see personalized forums and threads here.'
                       : 'Follow communities or choose interest tags to see personalized forums and threads here.'}
@@ -1649,17 +1760,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 </div>
               ) : isFeedSelectionEmpty ? (
                 <div className="empty-feed-card">
-                  <p style={{ marginBottom: '8px', fontWeight: 600 }}>
+                  <BookOpenText size={24} aria-hidden="true" />
+                  <h3>
                     No {yourFeedView === 'forums' ? 'forums' : 'threads'} to show yet.
-                  </p>
-                  <p className="muted" style={{ marginBottom: '12px' }}>
+                  </h3>
+                  <p className="muted">
                     Try switching to {yourFeedView === 'forums' ? 'Threads' : 'Forums'} to see more.
                   </p>
                 </div>
               ) : (
                 <>
                   {yourFeedView === 'forums' && hasFeedForums && (
-                    <div style={{ marginBottom: '20px' }}>
+                    <div className="home-discussion-list">
                       <div className="forum-list">
                         {feedForums.map((forum) => (
                           <ForumCard
@@ -1711,13 +1823,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               )}
             </>
           ) : activeFeed === 'explore' ? (
-            <div className="explore-panel" style={{ marginTop: '12px' }}>
+            <div className="explore-panel">
               {isLoadingExplore ? (
-                <p>Loading explore content...</p>
+                <div className="home-loading-state" aria-label="Loading explore content">
+                  <span />
+                  <span />
+                  <span />
+                </div>
               ) : isExploreEmpty ? (
                 <div className="empty-feed-card">
-                  <p style={{ marginBottom: '8px', fontWeight: 600 }}>No explore results yet.</p>
-                  <p className="muted" style={{ marginBottom: '12px' }}>
+                  <Compass size={24} aria-hidden="true" />
+                  <h3>No discussions match this index.</h3>
+                  <p className="muted">
                     Try clearing filters or selecting different tags.
                   </p>
                   <button type="button" className="pill-button" onClick={clearExploreTags}>
@@ -1726,17 +1843,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 </div>
               ) : isExploreSelectionEmpty ? (
                 <div className="empty-feed-card">
-                  <p style={{ marginBottom: '8px', fontWeight: 600 }}>
+                  <BookOpenText size={24} aria-hidden="true" />
+                  <h3>
                     No {exploreView === 'forums' ? 'forums' : 'threads'} found.
-                  </p>
-                  <p className="muted" style={{ marginBottom: '12px' }}>
+                  </h3>
+                  <p className="muted">
                     Try switching to {exploreView === 'forums' ? 'Threads' : 'Forums'} or adjust your tags.
                   </p>
                 </div>
               ) : (
                 <>
                   {exploreView === 'forums' && hasExploreForums && (
-                    <div style={{ marginBottom: '20px' }}>
+                    <div className="home-discussion-list">
                       <div className="forum-list">
                         {exploreForums.map((forum) => (
                           <ForumCard
@@ -1788,14 +1906,16 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               )}
             </div>
           ) : (
-            <div className="locked-feature-card" style={{ textAlign: 'center' }}>
-              <p>Your Feed is available once you create an account or log in.</p>
-              <button className="pill-button" onClick={() => navigate('/signup')}>
+            <div className="empty-feed-card">
+              <LibraryBig size={24} aria-hidden="true" />
+              <h3>Your Feed is available after you join.</h3>
+              <p>Sign in to follow communities and create a personalized reading room.</p>
+              <button className="pill-button" type="button" onClick={() => navigate('/signup')}>
                 Create Account
               </button>
             </div>
           )}
-        </div>
+        </section>
       </main>
     );
   }
@@ -1803,20 +1923,61 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // COMMUNITIES SECTION
   if (activeSection === 'communities') {
     return withNotification(
-      <main>
+      <main className="scholarly-page scholarly-communities-page">
         {reportModal}
-        <div className="feed-container">
-          <h1 className="section-title" style={{ marginBottom: 0 }}>Communities</h1>
-          {/* Top control bar: tabs + scope + search + action (sticky under header) */}
-          <div
-            className="section-controls section-controls-sticky"
-            style={{
-              position: 'sticky',
-              top: 'calc(var(--nav-height) + env(safe-area-inset-top, 0px))',
-              zIndex: 12
-            }}
-          >
-            <div className="community-controls">
+        <div className="feed-container scholarly-page-panel">
+          <header className="scholarly-page-header">
+            <div>
+              <p className="scholarly-page-kicker">Find your circle</p>
+              <h1>Communities</h1>
+              <p>Discover university and group spaces organized around shared experience.</p>
+            </div>
+            <div className="scholarly-page-count" aria-live="polite">
+              <strong>{isLoadingAll ? '—' : filteredCommunities.length}</strong>
+              <span>communities in view</span>
+            </div>
+          </header>
+          <div className="section-controls section-controls-sticky scholarly-controls community-controls filter-toolbar filter-toolbar--search-first">
+            <div className="community-controls__primary">
+              <label className="community-search-field" htmlFor="community-search">
+                <Search size={17} aria-hidden="true" />
+                <span className="sr-only">Search communities</span>
+                <input
+                  id="community-search"
+                  type="search"
+                  placeholder="Search universities and groups"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="community-filter-trigger mobile-only"
+                onClick={() => setShowCommunityFilters((prev) => !prev)}
+                aria-expanded={showCommunityFilters}
+                aria-controls="community-filter-panel"
+                aria-label="Open community filters and sort"
+              >
+                <FaFilter aria-hidden="true" />
+              </button>
+              {selectedCommunityTab === 'group' && (
+                <div className="control-action">
+                  <button
+                    type="button"
+                    className="pill-button community-request-button toolbar-primary-action"
+                    onClick={openRequestCommunityModal}
+                    aria-disabled={!userData}
+                  >
+                    {isSuperAdminUser ? '+ Create Group' : '+ Request Group'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div
+              id="community-filter-panel"
+              className={`community-filter-panel community-controls__secondary ${showCommunityFilters ? 'open' : ''}`}
+            >
               <div className="control-group">
                 <span className="sort-pill">Type</span>
                 <div
@@ -1841,107 +2002,54 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 </div>
               </div>
 
-              {selectedCommunityTab === 'group' && (
-                <div className="control-action">
+              <div className="control-group">
+                <span className="sort-pill">Following</span>
+                <div
+                  ref={communityFilterRef}
+                  className="chips-row segmented-control"
+                  style={{
+                    '--seg-count': 3,
+                    '--seg-index':
+                      communityFilter === 'All' ? 0 : communityFilter === 'Followed' ? 1 : 2
+                  }}
+                >
                   <button
                     type="button"
-                    className="pill-button community-request-button"
-                    onClick={openRequestCommunityModal}
-                    aria-disabled={!userData}
+                    className={`chip ${communityFilter === 'All' ? 'active' : ''}`}
+                    onClick={() => setCommunityFilter('All')}
                   >
-                    {isSuperAdminUser ? '+ Create Group' : '+ Request Group'}
+                    All
                   </button>
-                </div>
-              )}
-              {/* {selectedCommunityTab === 'university' && (
-                <div className="control-action">
                   <button
                     type="button"
-                    className="pill-button community-request-button"
-                    onClick={openRequestCommunityModal}
-                    aria-disabled={!userData}
+                    className={`chip ${communityFilter === 'Followed' ? 'active' : ''}`}
+                    onClick={() => setCommunityFilter('Followed')}
                   >
-                    + Request University
+                    Followed
                   </button>
-                </div>
-              )} */}
-
-              <div className="control-search">
-                <div className="community-search-row">
-                  <input
-                    id="community-search"
-                    type="text"
-                    placeholder="Search universities, groups…"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pill-search"
-                    style={{ minWidth: '220px', flex: 1 }}
-                  />
                   <button
                     type="button"
-                    className="community-filter-trigger mobile-only"
-                    onClick={() => setShowCommunityFilters((prev) => !prev)}
-                    aria-expanded={showCommunityFilters}
-                    aria-controls="community-filter-panel"
-                    aria-label="Open filters and sort"
+                    className={`chip ${communityFilter === 'Unfollowed' ? 'active' : ''}`}
+                    onClick={() => setCommunityFilter('Unfollowed')}
                   >
-                    <FaFilter aria-hidden="true" />
+                    Unfollowed
                   </button>
                 </div>
               </div>
-              <div
-                id="community-filter-panel"
-                className={`community-filter-panel ${showCommunityFilters ? 'open' : ''}`}
-              >
-                <div className="control-group">
-                  <span className="sort-pill">Filter</span>
-                  <div
-                    ref={communityFilterRef}
-                    className="chips-row segmented-control"
-                    style={{
-                      '--seg-count': 3,
-                      '--seg-index':
-                        communityFilter === 'All' ? 0 : communityFilter === 'Followed' ? 1 : 2
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className={`chip ${communityFilter === 'All' ? 'active' : ''}`}
-                      onClick={() => setCommunityFilter('All')}
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      className={`chip ${communityFilter === 'Followed' ? 'active' : ''}`}
-                      onClick={() => setCommunityFilter('Followed')}
-                    >
-                      Followed
-                    </button>
-                    <button
-                      type="button"
-                      className={`chip ${communityFilter === 'Unfollowed' ? 'active' : ''}`}
-                      onClick={() => setCommunityFilter('Unfollowed')}
-                    >
-                      Unfollowed
-                    </button>
-                  </div>
-                </div>
-                <div className="control-group community-sort-group">
-                  <label htmlFor="community-sort" className="sort-pill" style={{ margin: 0 }}>
-                    Sort
-                  </label>
-                  <select
-                    id="community-sort"
-                    value={communitySort}
-                    onChange={(e) => setCommunitySort(e.target.value)}
-                    className="sort-select"
-                    aria-label="Sort communities"
-                  >
-                    <option value="popularity">Most Followers</option>
-                    <option value="alpha">A-Z</option>
-                  </select>
-                </div>
+              <div className="control-group community-sort-group">
+                <label htmlFor="community-sort" className="sort-pill">
+                  Sort
+                </label>
+                <select
+                  id="community-sort"
+                  value={communitySort}
+                  onChange={(e) => setCommunitySort(e.target.value)}
+                  className="sort-select"
+                  aria-label="Sort communities"
+                >
+                  <option value="popularity">Most Followers</option>
+                  <option value="alpha">A-Z</option>
+                </select>
               </div>
             </div>
           </div>
@@ -2133,41 +2241,23 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
           .join(', ');
 
     return withNotification(
-      <main>
+      <main className="scholarly-page scholarly-info-page">
         {reportModal}
-        <div className="feed-container">
-          <div
-            className="feed-header"
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              borderBottom: 'none',
-              marginBottom: '0.25rem',
-            }}
-          >
-            <h1 className="section-title" style={{ margin: 0 }}>Info Board</h1>
-          </div>
-
-          <p className="muted-text" style={{ marginTop: 0 }}>
-            Welcome back, {userData?.first_name ? `${userData.first_name}` : 'there'}!
-          </p>
+        <div className="feed-container scholarly-page-panel">
+          <header className="scholarly-page-header">
+            <div>
+              <p className="scholarly-page-kicker">Research & answers</p>
+              <h1>Info Board</h1>
+              <p>Questions, guides, and community knowledge organized for careful reading.</p>
+            </div>
+            <div className="scholarly-page-count" aria-live="polite">
+              <strong>{isLoadingForums ? '—' : filteredForums.length}</strong>
+              <span>forums in view</span>
+            </div>
+          </header>
 
           {/* Controls: Sort pill + topic chips */}
-          <div className="section-controls info-controls section-controls-sticky">
-            <span className="sort-pill">Sort</span>
-            <label htmlFor="sort-by" className="sr-only">Sort by</label>
-            <select
-              id="sort-by"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="sort-select"
-            >
-              <option value="mostRecent">Most Recent</option>
-              <option value="popularity">Popularity</option>
-              <option value="mostUpvoted">Most Upvoted</option>
-            </select>
-
+          <div className="section-controls info-controls section-controls-sticky scholarly-controls filter-toolbar filter-toolbar--filter-first">
             <button
               type="button"
               className="info-filter-trigger mobile-only"
@@ -2180,7 +2270,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             </button>
             <div
               id="info-filter-panel"
-              className={`info-filter-panel ${showInfoFilters ? 'open' : ''}`}
+              className={`info-filter-panel control-group ${showInfoFilters ? 'open' : ''}`}
             >
               <span className="sort-pill">Tags</span>
               <div className="topic-multi-select-wrapper">
@@ -2225,6 +2315,19 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                   </button>
                 </div>
               </div>
+            </div>
+            <div className="control-group info-sort-group">
+              <label htmlFor="sort-by" className="sort-pill">Sort</label>
+              <select
+                id="sort-by"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="sort-select"
+              >
+                <option value="mostRecent">Most Recent</option>
+                <option value="popularity">Popularity</option>
+                <option value="mostUpvoted">Most Upvoted</option>
+              </select>
             </div>
 
             {isSuperAdminUser && (
@@ -2394,9 +2497,11 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
           )}
 
           {isLoadingForums ? (
-            <p>Loading forums...</p>
+            <div className="info-board-state" role="status">Loading forums…</div>
           ) : filteredForums.length === 0 ? (
-            <p>{isAllTopicsSelected ? 'No forums available.' : 'No forums match these tags.'}</p>
+            <div className="info-board-state">
+              {isAllTopicsSelected ? 'No forums available.' : 'No forums match these tags.'}
+            </div>
           ) : (
             <div className="forum-list">
               {filteredForums.map((forum) => (
@@ -2437,39 +2542,83 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
   // FUNDING SECTION
   if (activeSection === 'funding') {
+    const fundingPlans = [
+      {
+        title: 'Curated opportunities',
+        description: 'A searchable catalog of scholarships and funding sources.',
+        Icon: BadgeDollarSign,
+      },
+      {
+        title: 'Eligibility & deadlines',
+        description: 'Clear requirements, important dates, and school-based filters.',
+        Icon: CalendarClock,
+      },
+      {
+        title: 'Saved funding plans',
+        description: 'A personal place to track opportunities and future reminders.',
+        Icon: GraduationCap,
+      },
+    ];
+
     return withNotification(
-      <main>
+      <main className="scholarly-page scholarly-funding-page">
         {reportModal}
-        <div className="feed-container">
-          <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Funding</h1>
-          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
-            We&apos;re crafting a richer funding experience. Stay tuned!
-          </p>
-        </div>
-        <ModalOverlay
-          isOpen={showFundingModal}
-          onClose={handleDismissFundingModal}
-          showCloseButton={false}
-        >
-          <div className="locked-feature-wrapper">
-            <div className="locked-feature-card coming-soon-card">
-              <div className="locked-icon-circle">
-                <FaMedal />
-              </div>
-              <p className="locked-chip">Funding lab</p>
-              <h2>Funding hub is coming soon</h2>
-              <p>
-                We&apos;re building curated scholarship tracking, mentor tips, and deadline reminders
-                so you can secure the support you need faster.
-              </p>
-              <div className="coming-soon-actions">
-                <button className="primary" onClick={handleFundingNavigateHome}>
-                  Go back home
-                </button>
-              </div>
+        <section className="scholarly-funding-hero" aria-labelledby="funding-title">
+          <div>
+            <p className="scholarly-page-kicker">Funding archive</p>
+            <h1 id="funding-title">A clearer path through education funding.</h1>
+            <p>
+              The funding hub is still in development. There are no live scholarship
+              records or deadline tools here yet.
+            </p>
+            <div className="scholarly-page-actions">
+              <Link className="home-button home-button-primary" to="/info?topics=financial-aid">
+                Browse funding discussions
+                <ArrowUpRight size={16} aria-hidden="true" />
+              </Link>
+              <Link className="home-button scholarly-quiet-button" to="/home">
+                Back to home
+              </Link>
             </div>
           </div>
-        </ModalOverlay>
+          <span className="scholarly-status-badge">Coming soon</span>
+        </section>
+
+        <section className="scholarly-funding-plan" aria-labelledby="funding-plan-title">
+          <header>
+            <div>
+              <p className="scholarly-page-kicker">Planned archive</p>
+              <h2 id="funding-plan-title">What this space is being designed to hold</h2>
+            </div>
+            <span>Planning, not live data</span>
+          </header>
+          <div className="scholarly-funding-grid">
+            {fundingPlans.map(({ title, description, Icon }) => (
+              <article key={title}>
+                <span className="scholarly-funding-icon" aria-hidden="true">
+                  <Icon size={20} />
+                </span>
+                <h3>{title}</h3>
+                <p>{description}</p>
+                <small>Planned</small>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <aside className="scholarly-page-note">
+          <BookOpenText size={19} aria-hidden="true" />
+          <div>
+            <strong>Funding conversations are available now.</strong>
+            <p>
+              Use the Info Board for current community discussions about financial aid,
+              scholarships, and education costs.
+            </p>
+          </div>
+          <Link to="/info?topics=financial-aid" aria-label="Open financial aid discussions">
+            <ArrowUpRight size={18} />
+          </Link>
+        </aside>
       </main>
     );
   }
@@ -2487,64 +2636,90 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         : savedTab === 'threads'
           ? savedThreads.length
           : savedPosts.length;
+    const savedQuery = savedSearch.trim().toLowerCase();
+    const matchesSavedQuery = (...values) =>
+      !savedQuery ||
+      values
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(savedQuery);
+    const filteredSavedForums = savedForums.filter((forum) =>
+      matchesSavedQuery(forum.name, forum.description, forum.community_name)
+    );
+    const filteredSavedThreads = savedThreads.filter((thread) =>
+      matchesSavedQuery(thread.title, thread.first_post_content, thread.forum_name)
+    );
+    const filteredSavedPosts = savedPosts.filter((post) =>
+      matchesSavedQuery(post.content, post.original_post_content, post.thread_title, post.forum_name)
+    );
+    const activeResults =
+      savedTab === 'forums'
+        ? filteredSavedForums
+        : savedTab === 'threads'
+          ? filteredSavedThreads
+          : filteredSavedPosts;
 
     return withNotification(
-      <main>
+      <main className="scholarly-page scholarly-saved-page">
         {reportModal}
-        <div className="feed-container">
-          <div className="saved-section">
-            <h1 className="section-title" style={{ marginBottom: 4 }}>Saved</h1>
-            <p className="muted-text" style={{ marginTop: 0 }}>
-              Curate your favorites across forums, threads, and comments.
-            </p>
-
-            <div className="saved-metrics">
-              {savedMetrics.map((metric) => (
-                <button
-                  key={metric.key}
-                  type="button"
-                  className={`saved-metric ${savedTab === metric.key ? 'active' : ''}`}
-                  onClick={() => setSavedTab(metric.key)}
-                >
-                  <span className="saved-metric__label">{metric.label}</span>
-                  <span className="saved-metric__value">{metric.count}</span>
-                </button>
-              ))}
+        <div className="feed-container scholarly-page-panel saved-page-panel">
+          <header className="scholarly-page-header saved-page-header">
+            <div>
+              <p className="scholarly-page-kicker">Reading library</p>
+              <h1>Saved</h1>
+              <p>Return to the forums, threads, and comments you kept for later.</p>
             </div>
+            <div className="scholarly-page-count saved-active-count" aria-live="polite">
+              <strong>{activeResults.length}</strong>
+              <span>saved {savedTab === 'posts' ? 'comments' : savedTab} in view</span>
+            </div>
+          </header>
 
-            <div className="section-controls saved-controls">
-              <span className="sort-pill">View</span>
+          <div className="saved-section saved-page-body">
+            <div className="saved-library-controls filter-toolbar filter-toolbar--filter-first">
               <div
                 ref={savedSegmentRef}
-                className="chips-row segmented-control"
+                className="saved-metrics admin-review__filters chips-row segmented-control"
                 style={{
-                  '--seg-count': 3,
-                  '--seg-index': savedTab === 'forums' ? 0 : savedTab === 'threads' ? 1 : 2
+                  '--seg-count': savedMetrics.length,
+                  '--seg-index': savedMetrics.findIndex((metric) => metric.key === savedTab)
                 }}
+                role="tablist"
+                aria-label="Saved content types"
               >
-                <button
-                  type="button"
-                  className={`chip ${savedTab === 'forums' ? 'active' : ''}`}
-                  onClick={() => setSavedTab('forums')}
-                >
-                  Forums
-                </button>
-                <button
-                  type="button"
-                  className={`chip ${savedTab === 'threads' ? 'active' : ''}`}
-                  onClick={() => setSavedTab('threads')}
-                >
-                  Threads
-                </button>
-                <button
-                  type="button"
-                  className={`chip ${savedTab === 'posts' ? 'active' : ''}`}
-                  onClick={() => setSavedTab('posts')}
-                >
-                  Comments
-                </button>
+                {savedMetrics.map((metric) => (
+                  <button
+                    key={metric.key}
+                    type="button"
+                    className={`chip saved-metric ${savedTab === metric.key ? 'active' : ''}`}
+                    onClick={() => {
+                      setSavedTab(metric.key);
+                      setOpenSavedMenu(null);
+                    }}
+                    role="tab"
+                    aria-selected={savedTab === metric.key}
+                  >
+                    <span className="saved-metric__label">{metric.label}</span>
+                    <span className="saved-metric__value">{metric.count}</span>
+                  </button>
+                ))}
               </div>
-              <span className="saved-active-count muted-text">{activeCount} saved</span>
+
+              <label className="saved-search">
+                <Search size={17} aria-hidden="true" />
+                <span className="sr-only">Search saved items</span>
+                <input
+                  type="search"
+                  value={savedSearch}
+                  onChange={(event) => {
+                    setSavedSearch(event.target.value);
+                    setOpenSavedMenu(null);
+                  }}
+                  placeholder={`Search saved ${savedTab === 'posts' ? 'comments' : savedTab}`}
+                />
+                {savedQuery && <span>{activeResults.length} found</span>}
+              </label>
             </div>
 
             {activeCount === 0 && (
@@ -2554,74 +2729,119 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               </div>
             )}
 
-            {savedTab === 'forums' && savedForums.length > 0 && (
+            {activeCount > 0 && activeResults.length === 0 && (
+              <div className="saved-empty saved-search-empty">
+                <h3>No matching saved items</h3>
+                <p>Try a title, community, forum, or phrase from the content.</p>
+              </div>
+            )}
+
+            {savedTab === 'forums' && filteredSavedForums.length > 0 && (
               <div className="saved-grid">
-                {savedForums.map((f) => (
+                {filteredSavedForums.map((f) => {
+                  const menuKey = `forum-${f.forum_id}`;
+                  return (
                   <article key={f.forum_id} className="saved-card">
                     <div className="saved-card__meta">
                       <span className="saved-card__type">Forum</span>
                       {f.saved_at && <span className="saved-card__time">Saved {formatSavedAt(f.saved_at)}</span>}
                     </div>
-                    <p className="saved-card__crumbs">
+                    <div className="saved-card__crumbs">
                       <span>{f.community_name || 'Community'}</span>
-                    </p>
+                      <div className="saved-card__menu">
+                          <button
+                            type="button"
+                            className="saved-card__menu-trigger"
+                            onClick={() => setOpenSavedMenu(openSavedMenu === menuKey ? null : menuKey)}
+                            aria-label={`Actions for ${f.name}`}
+                            aria-expanded={openSavedMenu === menuKey}
+                          >
+                            <MoreVertical size={17} aria-hidden="true" />
+                          </button>
+                          {openSavedMenu === menuKey && (
+                            <div className="dropdown-menu saved-card__menu-popover">
+                              <button
+                                type="button"
+                                className="dropdown-item"
+                                onClick={() => {
+                                  handleSaveForum(f.forum_id, true);
+                                  setOpenSavedMenu(null);
+                                }}
+                              >
+                                Unsave
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                    </div>
                     <Link className="saved-card__title" to={`/info/forum/${f.forum_id}`}>
                       <h3>{f.name}</h3>
                     </Link>
                     <p className="saved-card__text">
                       {summarizeWithEllipsis(f.description || '', SAVED_CARD_MAX_CHARS) || 'No description provided...'}
                     </p>
-                    <div className="saved-card__actions">
-                      <button
-                        type="button"
-                        className="pill-button secondary"
-                        onClick={() => handleSaveForum(f.forum_id, true)}
-                      >
-                        Unsave
-                      </button>
-                    </div>
                   </article>
-                ))}
+                  );
+                })}
               </div>
             )}
 
-            {savedTab === 'threads' && savedThreads.length > 0 && (
+            {savedTab === 'threads' && filteredSavedThreads.length > 0 && (
               <div className="saved-grid">
-                {savedThreads.map((t) => (
+                {filteredSavedThreads.map((t) => {
+                  const menuKey = `thread-${t.thread_id}`;
+                  return (
                   <article key={t.thread_id} className="saved-card">
                     <div className="saved-card__meta">
                       <span className="saved-card__type">Thread</span>
                       {t.saved_at && <span className="saved-card__time">Saved {formatSavedAt(t.saved_at)}</span>}
                     </div>
-                    <p className="saved-card__crumbs">
+                    <div className="saved-card__crumbs">
                       <span>Info Board</span>
                       <span className="saved-card__crumb-sep">/</span>
                       <span>{t.forum_name || 'Forum'}</span>
                       <span className="saved-card__crumb-sep">/</span>
-                    </p>
+                      <div className="saved-card__menu">
+                          <button
+                            type="button"
+                            className="saved-card__menu-trigger"
+                            onClick={() => setOpenSavedMenu(openSavedMenu === menuKey ? null : menuKey)}
+                            aria-label={`Actions for ${t.title || 'saved thread'}`}
+                            aria-expanded={openSavedMenu === menuKey}
+                          >
+                            <MoreVertical size={17} aria-hidden="true" />
+                          </button>
+                          {openSavedMenu === menuKey && (
+                            <div className="dropdown-menu saved-card__menu-popover">
+                              <button
+                                type="button"
+                                className="dropdown-item"
+                                onClick={() => {
+                                  handleUnsaveThread(t.thread_id);
+                                  setOpenSavedMenu(null);
+                                }}
+                              >
+                                Unsave
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                    </div>
                     <Link className="saved-card__title" to={`/info/forum/${t.forum_id || 0}/thread/${t.thread_id}`}>
                       <h3>{t.title || 'Untitled thread'}</h3>
                     </Link>
                     <p className="saved-card__text">
                       {summarizeWithEllipsis(t.first_post_content || '', SAVED_CARD_MAX_CHARS) || 'No thread preview available...'}
                     </p>
-                    <div className="saved-card__actions">
-                      <button
-                        type="button"
-                        className="pill-button secondary"
-                        onClick={() => handleUnsaveThread(t.thread_id)}
-                      >
-                        Unsave
-                      </button>
-                    </div>
                   </article>
-                ))}
+                  );
+                })}
               </div>
             )}
 
-            {savedTab === 'posts' && savedPosts.length > 0 && (
+            {savedTab === 'posts' && filteredSavedPosts.length > 0 && (
               <div className="saved-grid">
-                {savedPosts.map((p) => (
+                {filteredSavedPosts.map((p) => (
                   <article
                     key={p.post_id}
                     className={`saved-card saved-card--post ${Number(p.verified) === 1 ? 'saved-card--verified' : ''}`}
@@ -2641,7 +2861,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     {Number(p.verified) === 1 && (
                       <span className="saved-card__verified">Verified Answer</span>
                     )}
-                    <p className="saved-card__crumbs">
+                    <div className="saved-card__crumbs">
                       <span>Info Board</span>
                       <span className="saved-card__crumb-sep">/</span>
                       <span>{p.forum_name || 'Forum'}</span>
@@ -2656,7 +2876,35 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                           </span>
                         </>
                       )}
-                    </p>
+                      <div className="saved-card__menu">
+                          <button
+                            type="button"
+                            className="saved-card__menu-trigger"
+                            onClick={() => {
+                              const menuKey = `post-${p.post_id}`;
+                              setOpenSavedMenu(openSavedMenu === menuKey ? null : menuKey);
+                            }}
+                            aria-label="Actions for saved comment"
+                            aria-expanded={openSavedMenu === `post-${p.post_id}`}
+                          >
+                            <MoreVertical size={17} aria-hidden="true" />
+                          </button>
+                          {openSavedMenu === `post-${p.post_id}` && (
+                            <div className="dropdown-menu saved-card__menu-popover">
+                              <button
+                                type="button"
+                                className="dropdown-item"
+                                onClick={() => {
+                                  handleUnsavePost(p.post_id);
+                                  setOpenSavedMenu(null);
+                                }}
+                              >
+                                Unsave
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                    </div>
                     {(() => {
                       const originalPostText = stripHtml(p.original_post_content || '');
                       const headingText = summarizeWithEllipsis(originalPostText, SAVED_CARD_MAX_CHARS)
@@ -2679,15 +2927,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     <p className="saved-card__text">
                       {summarizeWithEllipsis(p.content, SAVED_CARD_MAX_CHARS) || 'No preview available...'}
                     </p>
-                    <div className="saved-card__actions">
-                      <button
-                        type="button"
-                        className="pill-button secondary"
-                        onClick={() => handleUnsavePost(p.post_id)}
-                      >
-                        Unsave
-                      </button>
-                    </div>
                         </>
                       );
                     })()}

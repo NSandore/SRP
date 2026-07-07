@@ -1483,7 +1483,11 @@ function ThreadView({ userData, onRequireAuth }) {
   };
 
   if (isLoadingThread || isLoadingPosts) {
-    return <p>Loading thread and posts...</p>;
+    return (
+      <div className="feed-container thread-view thread-view--loading">
+        <p>Loading Threads and Posts...</p>
+      </div>
+    );
   }
 
   // Final return block
@@ -1666,8 +1670,8 @@ function ThreadView({ userData, onRequireAuth }) {
     </div>
   )}
 
-  <div className="reply-sort-controls">
-        <label htmlFor="replySort" className="sr-only">Sort Replies</label>
+  <div className="reply-sort-controls filter-toolbar filter-toolbar--sort-only">
+        <label htmlFor="replySort" className="sort-pill">Sort replies</label>
         <select
           id="replySort"
           value={replySortCriteria}

@@ -230,7 +230,7 @@ function SearchResults() {
           <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Results for “{query}”</h2>
         </div>
         <div className="section-controls" style={{ marginBottom: 0 }}>
-          <div className="search-tabs">
+          <div className="search-tabs filter-toolbar filter-toolbar--filter-first">
             <div className="search-tab-buttons">
               {tabs.map((tab) => (
                 <button

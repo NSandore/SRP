@@ -61,6 +61,7 @@ import PollsPage from './components/PollsPage';
 import DonationPage from './components/DonationPage';
 import { buildAvatarSrc } from './utils/avatar';
 import VerificationReview from './components/VerificationReview';
+import './layout/PlatformPolish.css';
 
 const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/polls', '/admin/verifications'];
 

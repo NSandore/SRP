@@ -76,6 +76,7 @@ function getIdConfig(): array {
         'posts' => ['prefix' => 'p', 'column' => 'post_id'],
         'events' => ['prefix' => 'ev', 'column' => 'event_id'],
         'event_registrations' => ['prefix' => 'er', 'column' => 'id'],
+        'event_invitations' => ['prefix' => 'ei', 'column' => 'id'],
         'messages' => ['prefix' => 'm', 'column' => 'message_id'],
         'notifications' => ['prefix' => 'n', 'column' => 'notification_id'],
         'connections' => ['prefix' => 'x', 'column' => 'connection_id'],

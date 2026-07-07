@@ -41,7 +41,7 @@ function ReportModal({ isOpen, target, onClose, onSubmit, submitting = false }) 
   };
 
   return (
-    <ModalOverlay isOpen={isOpen} onClose={onClose}>
+    <ModalOverlay isOpen={isOpen} onClose={onClose} contentClassName="report-dialog-overlay">
       <form className="report-modal" onSubmit={handleSubmit}>
         <div className="report-modal__header">
           <p className="report-pill">Report</p>

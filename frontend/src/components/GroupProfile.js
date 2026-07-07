@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import axios from 'axios';
-import { FaLock, FaEllipsisV } from 'react-icons/fa';
+import { FaLock, FaEllipsisV, FaSearch } from 'react-icons/fa';
 import './GroupProfile.css';
 import ModalOverlay from './ModalOverlay';
 import ReportModal from './ReportModal';
@@ -10,6 +10,7 @@ import { buildAvatarSrc } from '../utils/avatar';
 import buildUploadSrc from '../utils/uploads';
 import { getAdjustedColor, getReadableTextColor } from '../utils/color';
 import { isSuperAdmin } from '../constants/roles';
+import RightRail from '../widgets/RightRail';
 
 function GroupProfile({ userData, onRequireAuth }) {
   const { id } = useParams(); // group community id
@@ -22,6 +23,8 @@ function GroupProfile({ userData, onRequireAuth }) {
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const [ambassadors, setAmbassadors] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [subgroupSearch, setSubgroupSearch] = useState('');
+  const [questionSearch, setQuestionSearch] = useState('');
   const [questions, setQuestions] = useState([]);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [questionTitle, setQuestionTitle] = useState('');
@@ -240,6 +243,18 @@ function GroupProfile({ userData, onRequireAuth }) {
   useEffect(() => {
     fetchAmbassadors();
   }, [id]);
+
+  useEffect(() => {
+    const handleOpenAmbassadors = (event) => {
+      if (String(event?.detail?.communityId || '') !== String(id) || !userData) return;
+      setShowAmbassadorOverlay(true);
+      setMenuOpenFor(null);
+      fetchAmbassadors(true);
+    };
+    window.addEventListener('openCommunityAmbassadors', handleOpenAmbassadors);
+    return () => window.removeEventListener('openCommunityAmbassadors', handleOpenAmbassadors);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, userData?.user_id]);
 
   const isLoggedIn = Boolean(userData);
   const isAmbassador =
@@ -464,13 +479,6 @@ function GroupProfile({ userData, onRequireAuth }) {
   };
 
   useEffect(() => {
-    if (activeTab === 'posts') {
-      refreshGroupPosts();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, id, userData?.user_id]);
-
-  useEffect(() => {
     if (!openPinnedMenuId) return undefined;
     const handleClickOutside = (event) => {
       if (event.target.closest('.pinned-menu-container')) return;
@@ -640,7 +648,6 @@ function GroupProfile({ userData, onRequireAuth }) {
   if (loading) return <p>Loading...</p>;
   if (error) return <p>{error}</p>;
   if (!group) return <p>No group found.</p>;
-  const hasAmbassadors = ambassadors.length > 0;
 
   const openEdit = () => {
     if (!canEditCommunity) return;
@@ -742,6 +749,30 @@ function GroupProfile({ userData, onRequireAuth }) {
   const gradientLight = getAdjustedColor(primaryColor, 1.12);
   const gradientDark = getAdjustedColor(primaryColor, 0.85);
   const pillTextColor = getReadableTextColor(primaryColor);
+  const subgroupQuery = subgroupSearch.trim().toLowerCase();
+  const questionQuery = questionSearch.trim().toLowerCase();
+  const visibleSubcommunities = subgroupQuery
+    ? subcommunities.filter((child) => (
+        [child.name, child.tagline, child.location, child.community_type]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(subgroupQuery))
+      ))
+    : subcommunities;
+  const visibleQuestions = questionQuery
+    ? questions.filter((question) => (
+        [
+          question.title,
+          question.body,
+          question.asker_first_name,
+          question.asker_last_name,
+          ...(Array.isArray(question.answers)
+            ? question.answers.flatMap((answer) => [answer.body, answer.first_name, answer.last_name])
+            : []),
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(questionQuery))
+      ))
+    : questions;
 
   return (
     <div
@@ -838,29 +869,97 @@ function GroupProfile({ userData, onRequireAuth }) {
             )}
             <button
               type="button"
-              className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
-              onClick={() => setActiveTab('posts')}
-            >
-              Pinned Topics
-            </button>
-            <button
-              type="button"
               className={`tab-link ${activeTab === 'qa' ? 'active' : ''}`}
               onClick={() => setActiveTab('qa')}
             >
               Q+A
             </button>
+            <button
+              type="button"
+              className={`tab-link community-mobile-tab ${activeTab === 'events' ? 'active' : ''}`}
+              onClick={() => setActiveTab('events')}
+            >
+              Events
+            </button>
+            <button
+              type="button"
+              className={`tab-link community-mobile-tab ${activeTab === 'polls' ? 'active' : ''}`}
+              onClick={() => setActiveTab('polls')}
+            >
+              Polls
+            </button>
+            <button
+              type="button"
+              className={`tab-link community-mobile-tab ${activeTab === 'contact' ? 'active' : ''}`}
+              onClick={() => setActiveTab('contact')}
+            >
+              Contact
+            </button>
+            <button
+              type="button"
+              className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('posts')}
+            >
+              Pinned Topics
+            </button>
           </div>
         </div>
 
-        {/* Below hero: two-column split — main content + right cards */}
-        <div className={`profile-split ${activeTab === 'qa' ? 'fullwidth' : ''}`}>
+        <div className="community-profile-content">
           <div className="split-main">
             {activeTab === 'overview' && (
-              <div className="content-card">
+              <div className="content-card community-overview-card">
                 <div className="qa-header">
                   <div>
-                    <h3>Pinned</h3>
+                    <h3>Overview</h3>
+                    <p className="muted">About {group.name}.</p>
+                  </div>
+                </div>
+                {group.tagline ? (
+                  <p className="community-overview__lead">{group.tagline}</p>
+                ) : (
+                  <p className="muted">This group has not added an introduction yet.</p>
+                )}
+                <dl className="community-overview__facts">
+                  <div>
+                    <dt>Type</dt>
+                    <dd>{group.parent_community_id ? 'Sub-Group' : 'Group'}</dd>
+                  </div>
+                  {group.parent_name && (
+                    <div>
+                      <dt>Part of</dt>
+                      <dd>{group.parent_name}</dd>
+                    </div>
+                  )}
+                  {group.location && (
+                    <div>
+                      <dt>Location</dt>
+                      <dd>{group.location}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>Community</dt>
+                    <dd>{followersCount} follower{followersCount === 1 ? '' : 's'}</dd>
+                  </div>
+                  {group.website && (
+                    <div>
+                      <dt>Website</dt>
+                      <dd>
+                        <a href={group.website} target="_blank" rel="noreferrer">
+                          Visit website
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
+
+            {activeTab === 'posts' && (
+              <div className="content-card community-pinned-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Pinned Topics</h3>
                     <p className="muted">Ambassador-picked threads and forums for {group.name}.</p>
                   </div>
                 </div>
@@ -871,7 +970,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                 ) : pinnedItems.length === 0 ? (
                   <p className="muted">No pinned threads or forums yet.</p>
                 ) : (
-                  <div className="posts-list">
+                  <div className="posts-list pinned-topic-list">
                     {pinnedItems.map((item) => {
                       const isThread = item.item_type === 'thread';
                       const threadId = item.thread_id || item.item_id;
@@ -881,7 +980,10 @@ function GroupProfile({ userData, onRequireAuth }) {
                         : `/info/forum/${forumId}`;
                       const canShowPinnedMenu = Boolean(userData);
                       return (
-                        <div key={item.pin_id || `${item.item_type}:${item.item_id}`} className="forum-card card-lift" style={{ marginBottom: '12px', position: 'relative' }}>
+                        <article
+                          key={item.pin_id || `${item.item_type}:${item.item_id}`}
+                          className={`forum-card pinned-topic-card pinned-topic-card--${isThread ? 'thread' : 'forum'}`}
+                        >
                           {canShowPinnedMenu ? (
                             <div className="pinned-menu-container" style={{ position: 'absolute', right: 10, top: 10, zIndex: 10000 }}>
                               <button
@@ -945,9 +1047,14 @@ function GroupProfile({ userData, onRequireAuth }) {
                             </RouterLink>
                           </h4>
                           {isThread && item.forum_name ? (
-                            <p className="muted" style={{ marginTop: 4 }}>{item.forum_name}</p>
+                            <p className="pinned-topic-card__context">{item.forum_name}</p>
+                          ) : item.description ? (
+                            <p className="pinned-topic-card__summary">
+                              {stripHtml(item.description).slice(0, 180)}
+                              {stripHtml(item.description).length > 180 ? '…' : ''}
+                            </p>
                           ) : null}
-                        </div>
+                        </article>
                       );
                     })}
                   </div>
@@ -956,12 +1063,27 @@ function GroupProfile({ userData, onRequireAuth }) {
             )}
 
             {activeTab === 'subgroups' && (
-              <div className="content-card">
+              <div className="content-card community-subgroups-card">
                 <div className="qa-header">
                   <div>
                     <h3>Sub-Groups</h3>
                     <p className="muted">Teams or programs inside {group.name}.</p>
                   </div>
+                </div>
+                <div className="community-tab-search">
+                  <FaSearch aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={subgroupSearch}
+                    onChange={(event) => setSubgroupSearch(event.target.value)}
+                    placeholder="Search sub-groups"
+                    aria-label="Search sub-groups"
+                  />
+                  {subgroupSearch && (
+                    <button type="button" onClick={() => setSubgroupSearch('')} aria-label="Clear sub-group search">
+                      ×
+                    </button>
+                  )}
                 </div>
                 {loadingSubcommunities ? (
                   <p>Loading sub-groups...</p>
@@ -969,9 +1091,11 @@ function GroupProfile({ userData, onRequireAuth }) {
                   <p>{subcommunitiesError}</p>
                 ) : subcommunities.length === 0 ? (
                   <p className="muted">No sub-groups yet.</p>
+                ) : visibleSubcommunities.length === 0 ? (
+                  <p className="community-tab-empty">No sub-groups match “{subgroupSearch}”.</p>
                 ) : (
-                  <div className="community-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {subcommunities.map((child) => {
+                  <div className="community-list community-subgroup-list">
+                    {visibleSubcommunities.map((child) => {
                       const isFollowingChild =
                         child.is_following === true ||
                         child.is_following === 1 ||
@@ -980,13 +1104,17 @@ function GroupProfile({ userData, onRequireAuth }) {
                       return (
                         <div
                           key={child.community_id}
-                          className={`community-row-card${isFollowingChild ? ' followed' : ''}`}
+                          className={`community-row-card community-subgroup-card${isFollowingChild ? ' followed' : ''}`}
                         >
                           <img
                             src={logoSrc}
                             alt={`${child.name} Logo`}
                             className="community-row-logo"
                             loading="lazy"
+                            onError={(event) => {
+                              event.currentTarget.onerror = null;
+                              event.currentTarget.src = buildUploadSrc('/uploads/logos/School Image.png');
+                            }}
                           />
                           <div className="community-row-content">
                             <div className="community-row-header">
@@ -998,7 +1126,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                                   <span className="truncate-38ch">{child.name}</span>
                                 </RouterLink>
                               </h4>
-                              <span className="pill-button secondary" style={{ padding: '4px 10px' }}>
+                              <span className="community-subgroup-type">
                                 {child.community_type === 'group' ? 'Group' : 'University'}
                               </span>
                             </div>
@@ -1009,11 +1137,8 @@ function GroupProfile({ userData, onRequireAuth }) {
                               {child.location && (
                                 <span className="community-location">{child.location}</span>
                               )}
-                              <span
-                                className="followers-count"
-                                style={{ marginLeft: child.location ? 12 : 0 }}
-                              >
-                                Followers: {child.followers_count || 0}
+                              <span className="followers-count">
+                                {child.followers_count || 0} follower{Number(child.followers_count || 0) === 1 ? '' : 's'}
                               </span>
                             </div>
                           </div>
@@ -1044,8 +1169,14 @@ function GroupProfile({ userData, onRequireAuth }) {
               </div>
             )}
 
-            {activeTab === 'posts' && (
+            {false && activeTab === 'posts' && (
               <div className="content-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Recent Topics</h3>
+                    <p className="muted">Recent conversations from {group.name}.</p>
+                  </div>
+                </div>
                 <div className="posts-list">
                   {postsLoading ? (
                     <p>Loading posts...</p>
@@ -1082,7 +1213,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                                     className="dropdown-item"
                                     onClick={() => handlePinThreadToOverview(p)}
                                   >
-                                    Pin to Overview
+                                    Pin to Pinned Topics
                                   </button>
                                 )}
                                 {canManageThread && (
@@ -1152,15 +1283,15 @@ function GroupProfile({ userData, onRequireAuth }) {
             )}
 
             {activeTab === 'qa' && (
-              <div className="content-card">
+              <div className="content-card community-qa-card">
                 <div className="qa-header">
                   <div>
-                    <h3>Group Q+A</h3>
-                    <p className="muted">Submit a question for ambassadors. Approved items appear for everyone.</p>
+                    <h3>Questions &amp; answers</h3>
+                    <p className="muted">Ask {group.name} ambassadors and browse verified community guidance.</p>
                   </div>
                   <button
                     type="button"
-                    className="pill-button"
+                    className="pill-button community-qa-ask"
                     onClick={() => {
                       if (!isLoggedIn) {
                         onRequireAuth?.();
@@ -1172,60 +1303,85 @@ function GroupProfile({ userData, onRequireAuth }) {
                     Ask a question
                   </button>
                 </div>
+                <div className="community-tab-search">
+                  <FaSearch aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={questionSearch}
+                    onChange={(event) => setQuestionSearch(event.target.value)}
+                    placeholder="Search questions and answers"
+                    aria-label="Search questions and answers"
+                  />
+                  {questionSearch && (
+                    <button type="button" onClick={() => setQuestionSearch('')} aria-label="Clear Q and A search">
+                      ×
+                    </button>
+                  )}
+                </div>
 
                 <div className="qa-list">
                   {isLoadingQuestions ? (
                     <p>Loading questions...</p>
                   ) : questions.length === 0 ? (
                     <p>No questions yet.</p>
+                  ) : visibleQuestions.length === 0 ? (
+                    <p className="community-tab-empty">No questions match “{questionSearch}”.</p>
                   ) : (
-                    questions.map((q) => {
+                    visibleQuestions.map((q) => {
                       const isPending = q.status === 'pending';
+                      const questionId = q.question_id || q.id;
                       return (
-                        <div key={q.id} className="qa-item">
+                        <article key={questionId} className="qa-item community-qa-item">
                           <div className="qa-item-header">
-                            <div>
+                            <div className="community-qa-item__heading">
+                              <div className="community-qa-item__eyebrow">
+                                <span>Question</span>
+                                {isPending && <span className="community-qa-status">Pending review</span>}
+                              </div>
                               <h4>{q.title}</h4>
-                              <p className="muted">
+                              <p className="community-qa-item__byline">
                                 Asked by {q.asker_first_name} {q.asker_last_name}
-                                {isPending && ' · Pending approval'}
+                                {q.created_at ? ` · ${timeAgo(q.created_at)}` : ''}
                               </p>
                             </div>
-                      {isAmbassador && isPending && (
-                        <div className="qa-actions">
-                          <button
-                            type="button"
-                            className="pill-button secondary"
-                            onClick={() => handleApproveQuestion(q.id)}
-                          >
-                            Add to Q+A list
-                          </button>
-                          <button
-                            type="button"
-                            className="pill-button secondary"
-                            onClick={() => {
-                              const reason = window.prompt('Provide a justification for declining:');
-                              if (!reason) return;
-                              handleRejectQuestion(q.id, reason);
-                            }}
-                          >
-                            Decline
-                          </button>
-                        </div>
-                      )}
+                            {isAmbassador && isPending && (
+                              <div className="qa-actions community-qa-moderation">
+                                <button
+                                  type="button"
+                                  className="pill-button secondary"
+                                  onClick={() => handleApproveQuestion(questionId)}
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  className="pill-button secondary"
+                                  onClick={() => {
+                                    const reason = window.prompt('Provide a justification for declining:');
+                                    if (!reason) return;
+                                    handleRejectQuestion(questionId, reason);
+                                  }}
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          <p style={{ marginTop: 6 }}>{q.body}</p>
+                          <p className="community-qa-item__question">{q.body}</p>
 
                           <div className="qa-answers">
                             {q.answers && q.answers.length > 0 ? (
                               q.answers.map((a) => (
-                                <div key={a.id} className="qa-answer">
-                                  <strong>{a.first_name} {a.last_name}</strong>
+                                <div key={a.answer_id || a.id} className="qa-answer community-qa-answer">
+                                  <div className="community-qa-answer__meta">
+                                    <span>Ambassador answer</span>
+                                    <strong>{a.first_name} {a.last_name}</strong>
+                                  </div>
                                   <p>{a.body}</p>
                                 </div>
                               ))
                             ) : (
-                              <p className="muted">No answers yet.</p>
+                              <p className="community-qa-unanswered">Awaiting an ambassador response.</p>
                             )}
                           </div>
 
@@ -1233,107 +1389,52 @@ function GroupProfile({ userData, onRequireAuth }) {
                             <div className="qa-answer-form">
                               <textarea
                                 placeholder="Write an answer..."
-                                value={answerDrafts[q.id] || ''}
+                                value={answerDrafts[questionId] || ''}
                                 onChange={(e) =>
-                                  setAnswerDrafts((prev) => ({ ...prev, [q.id]: e.target.value }))
+                                  setAnswerDrafts((prev) => ({ ...prev, [questionId]: e.target.value }))
                                 }
                               />
                               <div className="qa-actions">
                                 <button
                                   type="button"
                                   className="pill-button secondary"
-                                  onClick={() => handleSubmitAnswer(q.id)}
+                                  onClick={() => handleSubmitAnswer(questionId)}
                                 >
                                   Post answer
                                 </button>
                               </div>
                             </div>
                           )}
-                        </div>
+                        </article>
                       );
                     })
                   )}
                 </div>
               </div>
             )}
+            {['contact', 'events', 'polls'].includes(activeTab) && (
+              <div className="community-mobile-context" role="tabpanel">
+                <RightRail
+                  userData={userData}
+                  communityContext={{ id: communityId, type: 'group' }}
+                  section={activeTab}
+                  embedded
+                />
+              </div>
+            )}
           </div>
-          {activeTab !== 'qa' && (
-          <aside className="split-aside">
-            <div className="info-card">
-              <h3>Ambassadors</h3>
-              {hasAmbassadors ? (
-                <div className="avatar-stack" style={{ marginBottom: 8 }}>
-                  {ambassadors.slice(0, 6).map((a) => {
-                    const initials = getInitials(a.first_name, a.last_name);
-                    const key = a.user_id || a.id || initials;
-                    return a.avatar_path ? (
-                      <img
-                        key={key}
-                        className="avatar"
-                        src={buildAvatarSrc(a.avatar_path)}
-                        alt={`${a.first_name} ${a.last_name}`}
-                      />
-                    ) : (
-                      <div key={key} className="avatar avatar-initial" aria-label={`${a.first_name} ${a.last_name}`}>
-                        {initials}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="muted" style={{ marginBottom: 8 }}>
-                  No current ambassadors.
-                </p>
-              )}
-              <button
-                className={`pill-button ambassadors-view-all ${!isLoggedIn ? 'locked' : ''}`}
-                type="button"
-                onClick={() => {
-                  if (!isLoggedIn) {
-                    onRequireAuth?.();
-                    return;
-                  }
-                  setShowAmbassadorOverlay(true);
-                  fetchAmbassadors(true);
-                }}
-                aria-disabled={!isLoggedIn}
-                title={!isLoggedIn ? 'Log in to view ambassadors' : 'View ambassadors'}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  {!isLoggedIn && <FaLock size={12} />}
-                  View all
-                </span>
-              </button>
-            </div>
-            <div className="info-card">
-              <h3>Contact Us</h3>
-              {group.website ? (
-                <p style={{ margin: 0 }}>
-                  <a href={group.website} target="_blank" rel="noopener noreferrer">{group.website}</a>
-                </p>
-              ) : null}
-              {group.phone ? (
-                <p className="muted" style={{ margin: group.website ? '6px 0 0 0' : 0 }}>{group.phone}</p>
-              ) : null}
-              {group.contact_email || group.email ? (
-                <p className="muted" style={{ margin: '6px 0 0 0' }}>{group.contact_email || group.email}</p>
-              ) : (
-                (!group.website && !group.phone) ? <p className="muted" style={{ margin: 0 }}>No contact info provided.</p> : null
-              )}
-            </div>
-          </aside>
-          )}
         </div>
       </section>
 
       <ModalOverlay
         isOpen={showAmbassadorOverlay && isLoggedIn}
+        contentClassName="ambassador-directory-overlay"
         onClose={() => {
       setShowAmbassadorOverlay(false);
       setMenuOpenFor(null);
     }}
   >
-    <div className="content-card">
+    <div className="ambassador-directory-dialog">
       <div className="qa-header">
         <div>
           <h3>Ambassadors</h3>
@@ -1434,12 +1535,13 @@ function GroupProfile({ userData, onRequireAuth }) {
 
       <ModalOverlay
         isOpen={showEditModal}
+        contentClassName="community-form-overlay community-form-overlay--edit"
         onClose={() => {
           setShowEditModal(false);
           setEditStatus('');
         }}
       >
-        <div className="content-card">
+        <div className="content-card community-form-dialog">
           <div className="qa-header">
             <div>
               <h3>Edit Community</h3>
@@ -1530,12 +1632,13 @@ function GroupProfile({ userData, onRequireAuth }) {
 
       <ModalOverlay
         isOpen={showQuestionModal}
+        contentClassName="community-form-overlay community-form-overlay--question"
         onClose={() => {
           setShowQuestionModal(false);
           setStatusMessage('');
         }}
       >
-        <div className="content-card">
+        <div className="content-card community-form-dialog">
           <div className="qa-header">
             <div>
               <h3>Ask a question</h3>

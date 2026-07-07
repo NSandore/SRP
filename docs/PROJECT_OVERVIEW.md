@@ -3,7 +3,8 @@
 **Product:** StudentSphere  
 **Slogan:** By Students. For Students.  
 **Audit date:** July 5, 2026  
-**Audit scope:** Current `mobile/react-native` branch, local database schema, web source, mobile source, PHP API, and the active local deployment.
+**Audit scope:** Current `dev` branch after PR #23, local database schema, web
+source, mobile source, PHP API, and the active local deployment.
 
 > This document describes what the current implementation does. It does not
 > present roadmap items or database-only scaffolding as completed features.
@@ -123,7 +124,8 @@ Current behavior:
 - Web and mobile provide poll creation and voting interfaces.
 - Community admins can compose community polls, and global admins can compose
   broader poll items in the management UI.
-- Polls can optionally show results after a vote.
+- The web UI locks a response after the first selection and replaces the
+  selectable options with compact results.
 
 Missing or incomplete:
 
@@ -147,22 +149,31 @@ Current behavior:
 - Zoom OAuth connect/disconnect/status flows are implemented.
 - Authorized users can create or update Zoom meetings through the Zoom API.
 - Users can RSVP or cancel an RSVP; registrations are persisted in MySQL.
-- Web and mobile include upcoming-event lists and calendar interfaces.
+- The web event feed is backed by an access-filtered event-list API and provides
+  agenda and full month-calendar views.
+- Events can target members, ambassadors, administrators, or all platform
+  members. Creators can also invite individual users.
+- Included users and invitees receive deduplicated platform notifications;
+  users can disable general upcoming-event notifications in Account Settings.
+- A first Zoom RSVP sends the attendee the join link by email and notifies the
+  event creator once. Repeated RSVP requests do not resend either notification.
+- Creators can optionally notify registered attendees when an event date
+  changes.
 - A reminder script can email registered users approximately 15 minutes before
-  an event.
+  an event and respects the event/email notification preferences.
 - The event schema includes an optional `recording_url`.
 
 Missing or incomplete:
 
-- Event feeds and management screens primarily read `managedEvents` from local
-  browser/device storage. There is no event-list API, so persisted events are
-  not reliably synchronized across users and devices.
+- The web management UI still mirrors created items into `managedEvents` for
+  announcements, polls, and immediate local updates. Mobile event consumption
+  has not been migrated to the new web event-list API.
 - The reminder script exists but is not scheduled by cron or a systemd timer on
   the current server.
 - Zoom meetings are configured with automatic recording disabled.
 - There is no recording-consent workflow.
-- Public versus private meetings are not implemented as a complete access
-  control model. Events currently use global or community scope.
+- Event access is enforced by platform role, community relationship, creator,
+  or direct invitation; it is not a password-based private-meeting model.
 - Zoom behavior depends on valid external OAuth configuration and was not
   exercised against a live Zoom account during this audit.
 
@@ -440,19 +451,58 @@ The prior `/var/www/html/SRP` structure, `setup_srp_project.sh`, backend `src`
 directory, and FastRoute-based single-entry architecture described in the old
 overview do not match this repository.
 
-### 10.2 Current Local Runtime
+### 10.2 Branch and Promotion Model
+
+At the time of this audit:
+
+| Branch | Purpose | Current state |
+| --- | --- | --- |
+| `master` | Production/release branch | At `b9963bb`; does not contain the PR #23 mobile integration |
+| `dev` | Shared integration and testing branch | At `ad92a94`; contains the web, backend, and squash-merged Expo mobile application |
+| Feature branches | Temporary, focused development work | Created from `dev`, merged back through a pull request, then deleted |
+
+The former `mobile/react-native` feature branch was merged into `dev` through
+PR #23, **Integrate Expo mobile application**, and then deleted locally and
+remotely. Its five commits were squash-merged as `ad92a94`. The mobile
+application now lives in the `mobile/` directory on `dev`; “mobile” is a client
+platform, not a permanent deployment branch.
+
+The intended promotion path is:
+
+```text
+feature branch
+    -> draft pull request into dev
+    -> validation and manual testing
+    -> squash merge into dev
+    -> integration testing/soak period
+    -> release pull request from dev into master
+    -> production build and deployment from master
+```
+
+Merging a feature branch into `dev` does not merge it into `master` and does not
+deploy a new production web build. Direct feature development on `master`
+should be avoided.
+
+### 10.3 Current Platform and Runtime State
 
 As verified on July 5, 2026:
 
-- Host: Ubuntu 24.04
-- Source: `/home/nick/services/srp-server/srp`
-- Production web/API: `http://10.0.0.251:3001`
-- Mobile Expo/Metro: `http://10.0.0.251:8081`
-- Process manager: PM2, started by `pm2-nick.service`
-- SRP frontend server: user-managed Nginx on port `3001`
-- SRP API process: PHP server on `127.0.0.1:3003`, proxied under `/api`
-- Database: local MySQL 8
-- Existing production assets: `/var/www/srp-frontend`
+| Platform/runtime | Source or artifact | Process and address | Current status |
+| --- | --- | --- | --- |
+| Production web | Static assets in `/var/www/srp-frontend` | PM2 `srp-production`; user-managed Nginx at `http://10.0.0.251:3001` | Running, but the deployed assets predate the current `dev` source |
+| PHP API | Current checkout at `/home/nick/services/srp-server/srp` | PM2 `srp-api`; PHP at `127.0.0.1:3003`, proxied through `/api` on port `3001` | Running from the current `dev` checkout |
+| Mobile preview | `mobile/` in the current `dev` checkout | PM2 `srp-mobile`; Expo/Metro at `http://10.0.0.251:8081` | Running and manually smoke-tested |
+| Database | Local MySQL 8 | Shared by the running API | Running; no separate development and production databases are established |
+
+The mobile runtime on port `8081` is an Expo development/preview server. It is
+not a signed App Store or Play Store production release.
+
+The current deployment is not fully isolated by environment. The API and mobile
+preview use the checked-out `dev` working tree, while the production web server
+uses separately built static files. Restarting `srp-api` after pulling `dev` can
+therefore expose development API changes immediately, even though the
+production web build and `master` branch remain unchanged. The shared local
+database is another production/development coupling point.
 
 Apache remains active on port `80` but serves the Ubuntu default page and is not
 the current SRP application server. The system Nginx unit is failed because port
@@ -464,9 +514,69 @@ be treated as current infrastructure based on this repository/server. The
 hostname `thestudentsphere.com` did not resolve from the current server during
 this audit.
 
-### 10.3 Operational Commands
+### 10.4 Current Mobile Integration Record
+
+PR #23 was validated, squash-merged into `dev`, and cleaned up as follows:
+
+- Mobile ESLint: 0 errors and 39 warnings
+- Mobile TypeScript check: passed
+- Expo Android, iOS, and web exports: passed
+- PHP syntax checks: 149 files passed
+- Clean React dependency install and production build: passed
+- Production dependency audit: 0 vulnerabilities
+- Runtime API and mobile smoke checks: passed
+- Manual login and primary application flows: passed
+- `mobile/react-native` branch: deleted after merge
+- `master`: intentionally unchanged
+
+The React build was repaired by aligning the frontend with TypeScript `4.9.5`.
+The missing mobile document-picker declaration and mobile TypeScript errors were
+also resolved before the merge.
+
+### 10.5 Release Workflow
+
+For future work:
 
 ```bash
+# 1. Start from the latest integration branch
+cd /home/nick/services/srp-server/srp
+git switch dev
+git pull --ff-only origin dev
+
+# 2. Create a focused feature branch
+git switch -c feature/short-description
+
+# 3. After implementation and local validation
+git push -u origin feature/short-description
+```
+
+Open a draft pull request with `dev` as the base. After review and validation,
+squash-merge it into `dev`, delete the feature branch, and update the local
+checkout:
+
+```bash
+git switch dev
+git pull --ff-only origin dev
+git fetch --prune
+```
+
+When the integrated `dev` state is approved for release, open a separate pull
+request with `master` as the base and `dev` as the comparison branch. Re-run the
+release checks on that exact diff. After merging, build and deploy production
+from `master`, verify the web and API health checks, and tag the release.
+
+Do not treat a PM2 restart as a production deployment. A production deployment
+must identify the source commit, build the web artifact, install it in the
+production asset directory, and verify the running result.
+
+### 10.6 Operational Commands
+
+```bash
+# Confirm the checked-out branch and remote state
+cd /home/nick/services/srp-server/srp
+git status --short --branch
+git branch -vv
+
 # Process status
 pm2 list
 
@@ -475,8 +585,8 @@ pm2 logs srp-production --lines 100
 pm2 logs srp-api --lines 100
 pm2 logs srp-mobile --lines 100
 
-# Restart environments
-pm2 restart srp-production srp-api srp-mobile
+# Restart only the dev-backed API and mobile preview after an approved dev update
+pm2 restart srp-api srp-mobile --update-env
 
 # Save the process list for reboot recovery
 pm2 save
@@ -490,7 +600,128 @@ cd /home/nick/services/srp-server/srp/mobile
 npm start -- --lan --port 8081
 ```
 
+Restart or redeploy `srp-production` only as part of the explicit
+`dev`-to-`master` release workflow.
+
 There is currently no dedicated application health endpoint.
+
+### 10.7 Updating Each Environment (Dev, Production, Mobile)
+
+There are four PM2-managed processes, and **all four must remain running at
+all times**: `srp-api` (PHP backend, shared by every environment),
+`srp-production` (Nginx serving the built web app on port `3001`),
+`srp-mobile` (Expo/Metro dev server on port `8081`), and the local MySQL
+service (not PM2-managed; verify with `sudo systemctl status mysql`). Never
+run `pm2 stop` or `kill` on any of these without immediately restarting them,
+and never let a config edit leave one down — apply the fix and confirm the
+process shows `online` in `pm2 list` before moving on.
+
+**Dev (web, local React dev server on port 3000)**
+
+Dev does not need a "deploy" step — it reads source directly.
+
+```bash
+cd /home/nick/services/srp-server/srp/frontend
+npm start
+```
+
+Leave this running while developing; it hot-reloads on save. This is
+separate from the `srp-production` PM2 process and does not affect port
+`3001`.
+
+**Production (web, served from `/var/www/srp-frontend` via PM2
+`srp-production` + user Nginx on port `3001`)**
+
+Production does **not** read from `frontend/src` or `frontend/build`
+directly — it serves a static copy that must be rebuilt and re-copied every
+time. Skipping the copy step is the reason the button-text fix in this
+session did not show up initially.
+
+```bash
+# 1. Build the current source
+cd /home/nick/services/srp-server/srp/frontend
+npm run build
+
+# 2. Replace the deployed static copy
+sudo rm -rf /var/www/srp-frontend/*
+sudo cp -r /home/nick/services/srp-server/srp/frontend/build/* /var/www/srp-frontend/
+
+# 3. Confirm srp-production is (still) running — do not stop/restart it for a
+#    plain static-asset update, it just serves whatever is on disk
+pm2 list
+```
+
+Per section 10.5, treat an actual `master`-branch release the same way, but
+only after the `dev`-to-`master` pull request has merged.
+
+If `srp-production` itself ever needs restarting (not just the static
+files), use PM2, not systemd Nginx:
+
+```bash
+pm2 restart srp-production
+```
+
+Do not run `sudo systemctl restart nginx` / `sudo killall nginx` for this
+app. The system Nginx unit is a separate, unrelated instance that normally
+fails to bind (see 10.3) because PM2's Nginx already holds ports `80`/`3001`;
+killing PM2's Nginx only causes PM2 to immediately respawn it under a new
+PID, and manually stacking `nginx -g 'daemon on'` invocations on top of it
+just produces more `Address already in use` errors.
+
+**Mobile (Expo preview, PM2 `srp-mobile` on port `8081`)**
+
+Mobile reads live from the `mobile/` checkout (like `srp-api`), so a plain
+`pm2 restart` picks up new source — no build/copy step is required for the
+Expo dev bundle:
+
+```bash
+pm2 restart srp-mobile --update-env
+```
+
+If dependencies changed (`package.json` edited), install first:
+
+```bash
+cd /home/nick/services/srp-server/srp/mobile
+npm install
+pm2 restart srp-mobile --update-env
+```
+
+Remember this is an Expo development/preview server, not a signed
+App Store/Play Store build (see 10.3).
+
+**Backend/API (PM2 `srp-api`, shared by web, mobile, and dev)**
+
+Like mobile, the API reads live from the checkout, so restarting after a
+`git pull` is sufficient:
+
+```bash
+pm2 restart srp-api --update-env
+```
+
+Because `srp-api` is shared, restarting it applies backend changes to
+dev, production, and mobile simultaneously — there is no per-environment API
+isolation yet (see the coupling caveat in 10.3).
+
+**Keeping everything running**
+
+After any restart, always confirm all four processes are `online`:
+
+```bash
+pm2 list
+```
+
+And persist the current process list so a server reboot restores the same
+processes automatically (PM2's systemd startup hook, `pm2-nick`, is already
+enabled):
+
+```bash
+pm2 save
+```
+
+If any process shows `errored` or `stopped`, treat that as an incident, not
+a background task — restart it and check `pm2 logs <name> --lines 100`
+before doing anything else, since dev, production, and mobile all depend on
+`srp-api` and the shared local MySQL instance staying up.
 
 ## 11. Validation Results and Release Blockers
 
@@ -499,17 +730,28 @@ Validation performed July 5, 2026:
 - Existing production web page: HTTP `200`
 - Live API and database-backed tag/community/session checks: HTTP `200`
 - Expo web bundle: HTTP `200`
-- PHP syntax check outside dependencies/cache: passed
-- Targeted web ESLint check: passed with warnings
-- Web production source build: **failed** because the installed
-  `ajv`/`ajv-keywords` dependency tree is invalid
-- Mobile lint: **failed** because
-  `mobile/app/setup/createaccount.tsx` imports a missing
-  `@/lib/document-picker` module; 39 additional warnings were reported
+- PHP syntax checks: 149 files passed
+- Clean React dependency install and production build: passed
+- Mobile lint: passed with 0 errors and 39 warnings
+- Mobile TypeScript check: passed
+- Expo Android, iOS, and web exports: passed
+- Production dependency audit: 0 vulnerabilities
+- Runtime API/mobile smoke checks and manual login: passed
 
 The currently served web build predates the audited source changes. A successful
-clean build and deployment are required before the live web application can be
-claimed to match the current source.
+release pull request from `dev` to `master`, production build, deployment, and
+post-deployment verification are still required before the live web application
+can be claimed to match the current source.
+
+Remaining release/operations gaps include:
+
+- no automated GitHub Actions checks on pull requests;
+- 39 non-blocking mobile lint warnings;
+- development dependency vulnerabilities inherited from the older Create React
+  App toolchain, despite a clean production dependency audit;
+- no dedicated application health endpoint;
+- no isolated production API checkout or production database; and
+- no documented, automated, commit-addressable production deployment.
 
 ## 12. Requirement Gap Summary
 
@@ -525,7 +767,7 @@ claimed to match the current source.
 | Public/private polls | Not implemented | Only global/community display scope exists |
 | Platform decision polls | Partial | Global admin UI exists, but no shared backend vote persistence |
 | Zoom-hosted webinars | Partial | OAuth and meeting creation exist; external account not live-tested |
-| Event calendar and RSVP | Partial | UI and RSVP backend exist; event feeds are local-storage-driven |
+| Event calendar and RSVP | Implemented on web; partial on mobile | Web has a filtered event API, agenda/month views, access controls, invites, and deduplicated RSVP notifications; mobile migration remains |
 | Event reminders | Partial | Email script exists but is not scheduled |
 | Recordings with consent | Not implemented | Schema field only; Zoom auto-recording is off; no consent flow |
 | Follow communities and users | Implemented | End-to-end API, UI, counts, lists, and feed use |
@@ -542,7 +784,7 @@ claimed to match the current source.
 | FERPA/COPPA compliance | Not verified | No compliance program or legal documents in repository |
 | Privacy controls | Partial | Multiple settings work, but no complete privacy/compliance assurance |
 | Privacy Policy and Terms | Not implemented | No current legal pages/documents in repository |
-| React frontend | Implemented | React 19 / CRA; current dependency install cannot produce a build |
+| React frontend | Implemented | React 19 / CRA; clean production build passes after TypeScript 4.9.5 alignment |
 | PHP backend | Implemented | File-per-endpoint PHP, not FastRoute-based centralized routing |
 | MySQL | Implemented | Local MySQL 8 |
 | Apache/systemd SRP deployment | Different implementation | SRP currently uses PM2 plus a user-managed Nginx/PHP process |
@@ -554,8 +796,10 @@ claimed to match the current source.
 1. Remove hard-coded credentials, rotate the exposed database password, remove
    `phpinfo()`, and protect verification uploads.
 2. Configure HTTPS and a resolvable production hostname.
-3. Repair clean web builds and the missing mobile document-picker module.
-4. Add event-list APIs and migrate event feeds away from local storage.
+3. Isolate production from `dev`: use a production checkout/artifact for the
+   API, separate databases/configuration, and a commit-addressable deployment.
+4. Migrate mobile event consumption and the remaining management mirrors to the
+   event-list API.
 5. Implement poll APIs and database-backed voting before presenting polls as
    shared community results.
 6. Schedule and monitor the event-reminder worker.
@@ -564,6 +808,7 @@ claimed to match the current source.
    enforcement controls.
 9. Draft and legally review Privacy Policy, Terms of Service, age handling, and
    FERPA/COPPA applicability.
-10. Build the scholarship data, contribution, verification, categorization,
+10. Add pull-request CI, reduce lint warnings, and plan migration away from the
+    aging Create React App dependency stack.
+11. Build the scholarship data, contribution, verification, categorization,
     save, and reminder workflows.
-

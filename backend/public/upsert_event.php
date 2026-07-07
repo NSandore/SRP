@@ -7,6 +7,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/event_notifications.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -37,6 +38,14 @@ $meetingLink = isset($input['meeting_link']) ? trim((string)$input['meeting_link
 $meetingId = isset($input['meeting_id']) ? trim((string)$input['meeting_id']) : '';
 $durationMinutes = isset($input['duration_minutes']) ? (int)$input['duration_minutes'] : 0;
 $endAtRaw = isset($input['end_at']) ? trim((string)$input['end_at']) : '';
+$allowedAudiences = eventAllowedAudiences($input['allowed_audiences'] ?? null);
+$inviteUserIds = isset($input['invite_user_ids']) && is_array($input['invite_user_ids'])
+    ? $input['invite_user_ids']
+    : [];
+$notifyRsvpsDateChange = filter_var(
+    $input['notify_rsvps_date_change'] ?? false,
+    FILTER_VALIDATE_BOOLEAN
+);
 
 if ($title === '' || $startAtRaw === '') {
     http_response_code(400);
@@ -112,17 +121,27 @@ try {
         echo json_encode(['success' => false, 'error' => 'Access denied']);
         exit;
     }
+    if (!$isAdmin && ($communityId === '' || getCommunityRole($userId, $communityId, $db) === '')) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Ambassadors can only create events for their communities']);
+        exit;
+    }
 
+    $isNewEvent = $eventId === '';
+    $previousStartAt = null;
     if ($eventId !== '') {
-        $checkStmt = $db->prepare("SELECT created_by FROM events WHERE event_id = :eid LIMIT 1");
+        $checkStmt = $db->prepare("SELECT created_by, start_at FROM events WHERE event_id = :eid LIMIT 1");
         $checkStmt->execute([':eid' => $eventId]);
         $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
         if (!$existing) {
             $eventId = '';
+            $isNewEvent = true;
         } elseif (!$isAdmin && $existing['created_by'] !== $userId) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Access denied']);
             exit;
+        } else {
+            $previousStartAt = $existing['start_at'] ?? null;
         }
     }
 
@@ -145,7 +164,8 @@ try {
             location,
             meeting_provider,
             meeting_link,
-            meeting_id
+            meeting_id,
+            allowed_audiences
         )
         VALUES (
             :event_id,
@@ -161,7 +181,8 @@ try {
             :location,
             :meeting_provider,
             :meeting_link,
-            :meeting_id
+            :meeting_id,
+            :allowed_audiences
         )
         ON DUPLICATE KEY UPDATE
             community_id = VALUES(community_id),
@@ -175,6 +196,7 @@ try {
             meeting_provider = VALUES(meeting_provider),
             meeting_link = VALUES(meeting_link),
             meeting_id = VALUES(meeting_id),
+            allowed_audiences = VALUES(allowed_audiences),
             updated_at = NOW()
     ");
 
@@ -192,11 +214,49 @@ try {
         ':meeting_provider' => $meetingProvider,
         ':meeting_link' => $meetingLink,
         ':meeting_id' => $meetingId !== '' ? $meetingId : null,
+        ':allowed_audiences' => json_encode($allowedAudiences),
     ]);
+
+    $parentCommunityId = null;
+    if ($communityId !== '') {
+        $parentStmt = $db->prepare(
+            "SELECT parent_community_id FROM communities WHERE id = :community_id LIMIT 1"
+        );
+        $parentStmt->execute([':community_id' => $communityId]);
+        $parentCommunityId = $parentStmt->fetchColumn() ?: null;
+    }
+
+    $eventRecord = [
+        'event_id' => $eventId,
+        'community_id' => $communityId !== '' ? $communityId : null,
+        'parent_community_id' => $parentCommunityId,
+        'created_by' => $userId,
+        'title' => $title,
+        'description' => $description,
+        'start_at' => $startUtc->format('Y-m-d H:i:s'),
+        'end_at' => $endUtc ? $endUtc->format('Y-m-d H:i:s') : null,
+        'timezone' => $timezone,
+        'meeting_provider' => $meetingProvider,
+        'meeting_link' => $meetingLink,
+        'allowed_audiences' => json_encode($allowedAudiences),
+    ];
+
+    $invitedCount = eventProcessInvitations($db, $eventRecord, $userId, $inviteUserIds);
+    $notifiedCount = $isNewEvent ? eventNotifyIncludedUsers($db, $eventRecord, $userId) : 0;
+    $dateChanged = !$isNewEvent
+        && $previousStartAt !== null
+        && $previousStartAt !== $eventRecord['start_at'];
+    $dateChangeNotifiedCount = ($dateChanged && $notifyRsvpsDateChange)
+        ? eventNotifyDateChange($db, $eventRecord, $userId)
+        : 0;
 
     echo json_encode([
         'success' => true,
         'event_id' => $eventId,
+        'invited_count' => $invitedCount,
+        'notified_count' => $notifiedCount,
+        'date_changed' => $dateChanged,
+        'date_change_notified_count' => $dateChangeNotifiedCount,
     ]);
 } catch (PDOException $e) {
     http_response_code(500);

@@ -3,16 +3,16 @@
 
 .app-shell-grid {
   display: grid;
-  grid-template-columns: 240px 1fr 320px;
-  gap: 30px;
-  width: min(1400px, 98vw);
-  margin: 16px auto 24px;
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
+  gap: 24px;
+  width: min(1480px, calc(100vw - 40px));
+  margin: 24px auto 48px;
   align-items: start;
-  transition: grid-template-columns 0.2s ease-in-out;
+  transition: grid-template-columns 180ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .app-shell-grid.nav-collapsed {
-  grid-template-columns: 80px 1fr 320px;
+  grid-template-columns: 76px minmax(0, 1fr) 300px;
 }
 
 .left-rail {
@@ -20,25 +20,25 @@
   top: calc(var(--nav-height, 64px) + 16px); /* below fixed navbar */
   align-self: start;
   justify-self: center;
-  width: 240px;
+  width: 220px;
   height: auto;
   max-height: calc(100vh - 120px);
   min-height: 0;
   overflow-x: visible;
-  transition: width 0.2s ease-in-out;
+  transition: width 180ms cubic-bezier(0.23, 1, 0.32, 1);
   will-change: width;
 }
 
 .app-shell-grid.nav-collapsed .left-rail {
-  width: 80px;
+  width: 76px;
 }
-.center-rail { min-width: 0; justify-self: center; width: 100%; max-width: 1000px; }
+.center-rail { min-width: 0; justify-self: center; width: 100%; max-width: 940px; }
 .right-rail {
   position: sticky;
   top: calc(var(--nav-height, 64px) + 16px); /* below fixed navbar */
   align-self: start;
   justify-self: center;
-  width: 340px;
+  width: 300px;
   height: auto;
   max-height: calc(100vh - 120px);
   min-height: 0;
@@ -49,111 +49,139 @@
 /* Communities route: keep right rail and standard column layout on large screens only */
 @media (min-width: 1280px) {
   .app-shell-grid.communities-layout {
-    grid-template-columns: 240px 1fr 320px;
+    grid-template-columns: 220px minmax(0, 1fr) 300px;
   }
   .app-shell-grid.communities-layout .right-rail {
     display: block;
   }
   .app-shell-grid.communities-layout .center-rail {
-    max-width: 1000px;
+    max-width: 940px;
   }
 
   .app-shell-grid.nav-collapsed.communities-layout {
-    grid-template-columns: 80px 1fr 320px;
+    grid-template-columns: 76px minmax(0, 1fr) 300px;
   }
 }
 
 .app-shell-grid.messages-layout {
-  grid-template-columns: 240px 1fr;
-  margin: 0;
-  height: calc(100vh - var(--nav-height));
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
+  margin: 24px auto 0;
+  height: calc(100vh - var(--nav-height) - 24px);
 }
 .app-shell-grid.messages-layout .right-rail {
   display: none;
 }
 .app-shell-grid.messages-layout .center-rail {
-  max-width: 100%;
+  grid-column: 2 / 4;
+  max-width: none;
   padding-left: 0;
   padding-right: 0;
 }
 
 .app-shell-grid.messages-layout .center-rail,
 .app-shell-grid.messages-layout .center-rail > main {
-  height: calc(100vh - var(--nav-height));
-  overflow: hidden;
-}
-
-.app-shell-main:has(.app-shell-grid.messages-layout) {
+  height: calc(100vh - var(--nav-height) - 24px);
   overflow: hidden;
 }
 
 .app-shell-grid.nav-collapsed.messages-layout {
-  grid-template-columns: 80px 1fr;
+  grid-template-columns: 76px minmax(0, 1fr) 300px;
 }
 
 .app-shell-grid.search-layout {
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
 }
 .app-shell-grid.search-layout .right-rail {
   display: none;
 }
 .app-shell-grid.search-layout .center-rail {
-  max-width: 1200px;
+  max-width: 940px;
 }
 
 .app-shell-grid.nav-collapsed.search-layout {
-  grid-template-columns: 80px 1fr;
+  grid-template-columns: 76px minmax(0, 1fr) 300px;
 }
 
 .app-shell-grid.donate-layout {
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
 }
 .app-shell-grid.donate-layout .right-rail {
   display: none;
 }
 .app-shell-grid.donate-layout .center-rail {
-  max-width: 1340px;
+  max-width: 940px;
   padding-left: 0;
   padding-right: 0;
 }
 
 .app-shell-grid.nav-collapsed.donate-layout {
-  grid-template-columns: 80px 1fr;
+  grid-template-columns: 76px minmax(0, 1fr) 300px;
 }
 
 .app-shell-grid.settings-layout {
-  grid-template-columns: 1fr;
-  width: min(1400px, 98vw);
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
+  width: min(1480px, calc(100vw - 40px));
+}
+.app-shell-grid.nav-collapsed.settings-layout {
+  grid-template-columns: 76px minmax(0, 1fr) 300px;
 }
 .app-shell-grid.settings-layout .left-rail,
 .app-shell-grid.settings-layout .right-rail {
   display: none;
 }
 .app-shell-grid.settings-layout .center-rail {
-  max-width: 1400px;
+  grid-column: 2;
+  max-width: 940px;
   padding-left: 0;
   padding-right: 0;
+}
+
+/* Saved, Connections, Event Management, Verifications, Reported Items: no right-rail
+   content, so let the center rail claim that column while keeping a right inset that
+   matches the grid gap the right rail used to sit behind. */
+.app-shell-grid.no-right-rail-layout .right-rail {
+  display: none;
+}
+.app-shell-grid.no-right-rail-layout .center-rail {
+  grid-column: 2 / 4;
+  max-width: none;
+  padding-right: 24px;
 }
 
 /* Hide right rail below xl (1280px) */
 @media (max-width: 1279px) {
   .app-shell-grid {
-    grid-template-columns: 240px 1fr;
+    grid-template-columns: 220px minmax(0, 1fr);
+    width: min(1184px, calc(100vw - 40px));
   }
   .right-rail { display: none; }
 
   .app-shell-grid.nav-collapsed {
-    grid-template-columns: 80px 1fr;
+    grid-template-columns: 76px minmax(0, 1fr);
   }
 
-  .app-shell-grid.messages-layout,
-  .app-shell-grid.nav-collapsed.messages-layout {
-    grid-template-columns: 1fr;
+  .app-shell-grid.messages-layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .app-shell-grid.messages-layout .center-rail {
+    grid-column: 2;
   }
 
-  .app-shell-grid.communities-layout .center-rail {
-    max-width: 100%;
+  .app-shell-grid.search-layout,
+  .app-shell-grid.donate-layout,
+  .app-shell-grid.settings-layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+    width: min(1184px, calc(100vw - 40px));
   }
+
+  .app-shell-grid.nav-collapsed.messages-layout,
+  .app-shell-grid.nav-collapsed.search-layout,
+  .app-shell-grid.nav-collapsed.donate-layout,
+  .app-shell-grid.nav-collapsed.settings-layout {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .app-shell-grid.communities-layout .center-rail { max-width: 940px; }
 }
 
 /* Convert left rail to drawer below lg (1024px) */
@@ -161,15 +189,32 @@
   .app-shell-main {
     padding: 0 12px 24px;
   }
-  .app-shell-main:has(.app-shell-grid.messages-layout) {
-    padding: 0;
-  }
   .app-shell-grid.messages-layout {
-    min-height: calc(100vh - var(--nav-height));
+    grid-template-columns: 1fr;
+    width: 100%;
+    min-height: calc(100vh - var(--nav-height) - 24px);
+    min-height: calc(100dvh - var(--nav-height) - 24px);
+  }
+  .app-shell-grid.nav-collapsed.messages-layout {
+    grid-template-columns: 1fr;
+  }
+  .app-shell-grid.search-layout,
+  .app-shell-grid.nav-collapsed.search-layout,
+  .app-shell-grid.donate-layout,
+  .app-shell-grid.nav-collapsed.donate-layout,
+  .app-shell-grid.settings-layout,
+  .app-shell-grid.nav-collapsed.settings-layout {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+  .app-shell-grid.settings-layout .center-rail {
+    grid-column: 1;
   }
   .app-shell-grid.messages-layout .center-rail,
   .app-shell-grid.messages-layout .center-rail > main {
-    height: calc(100vh - var(--nav-height));
+    grid-column: 1;
+    height: calc(100vh - var(--nav-height) - 24px);
+    height: calc(100dvh - var(--nav-height) - 24px);
   }
   .center-rail,
   .center-rail > main {
@@ -182,8 +227,8 @@
     gap: 16px;
   }
   .app-shell-grid.messages-layout {
-    margin: 0;
-    gap: 0;
+    margin: 0 auto 20px;
+    gap: 16px;
   }
   .app-shell-grid.communities-layout {
     margin-top: 0;
@@ -206,16 +251,13 @@
   .app-shell-main {
     padding: 0 10px calc(20px + env(safe-area-inset-bottom, 0px));
   }
-  .app-shell-main:has(.app-shell-grid.messages-layout) {
-    padding: 0;
-  }
   .app-shell-grid {
     margin: 0 auto;
     gap: 12px;
   }
   .app-shell-grid.messages-layout {
-    margin: 0;
-    gap: 0;
+    margin: 0 auto;
+    gap: 12px;
   }
   .center-rail {
     max-width: 100%;
@@ -255,15 +297,24 @@
   top: var(--nav-height, 64px);
   left: 0;
   bottom: 0;
-  width: 280px;
-  background: var(--card-background);
-  border-right: 1px solid var(--card-border);
+  width: 230px;
+  visibility: hidden;
+  background: var(--home-paper, var(--card-background));
+  border-right: 1px solid var(--home-line, var(--card-border));
   transform: translateX(-100%);
-  transition: transform 250ms ease;
+  transition: transform 250ms cubic-bezier(0.23, 1, 0.32, 1), visibility 0s linear 250ms;
   z-index: 1100;
   overflow-y: auto;
+  overflow-x: hidden;
+  pointer-events: none;
 }
-.left-drawer.open { transform: translateX(0); }
+.left-drawer .left-sidebar { width: 100%; }
+.left-drawer.open {
+  visibility: visible;
+  transform: translateX(0);
+  transition-delay: 0s;
+  pointer-events: auto;
+}
 
 .drawer-backdrop {
   position: fixed;

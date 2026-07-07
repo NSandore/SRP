@@ -193,3 +193,249 @@
     padding: 1.5rem;
   }
 }
+
+/* Scholarly contact form */
+.feedback-modal {
+  --feedback-kraft: #eee4d1;
+  --feedback-paper: #fbf7ef;
+  --feedback-paper-strong: #fffdf8;
+  --feedback-ink: #20332d;
+  --feedback-ink-soft: #5f6e67;
+  --feedback-forest: #183e35;
+  --feedback-forest-light: #2f6657;
+  --feedback-rust: #a6533e;
+  --feedback-line: #d5c7ae;
+  --feedback-serif: Georgia, 'Times New Roman', Times, serif;
+  --feedback-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  padding: 20px;
+  background: rgba(31, 38, 34, 0.62);
+  animation: feedback-backdrop-in 160ms var(--feedback-ease-out);
+  backdrop-filter: blur(7px);
+}
+
+.feedback-content {
+  width: min(92vw, 640px);
+  padding: 26px;
+  border: 1px solid var(--feedback-line);
+  border-radius: 18px;
+  background: var(--feedback-paper);
+  box-shadow: 0 28px 72px rgba(52, 42, 26, 0.24);
+  color: var(--feedback-ink);
+  animation: feedback-dialog-in 200ms var(--feedback-ease-out);
+  transform-origin: center;
+}
+
+.feedback-header {
+  max-width: 520px;
+  padding-right: 44px;
+}
+
+.feedback-kicker {
+  margin: 0 0 7px;
+  color: var(--feedback-rust);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.feedback-content .feedback-header h3 {
+  margin: 0;
+  color: var(--feedback-ink);
+  font-family: var(--feedback-serif);
+  font-size: clamp(1.7rem, 4vw, 2.15rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.feedback-description {
+  margin: 7px 0 0;
+  color: var(--feedback-ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.feedback-content form {
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.feedback-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.feedback-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--feedback-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.feedback-content .feedback-field input,
+.feedback-content .feedback-field textarea {
+  padding: 11px 12px;
+  border: 1px solid var(--feedback-line);
+  border-radius: 9px;
+  background: var(--feedback-paper-strong);
+  box-shadow: none;
+  color: var(--feedback-ink);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 400;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.feedback-content .feedback-field textarea {
+  min-height: 150px;
+  line-height: 1.5;
+}
+
+.feedback-content .feedback-field input::placeholder,
+.feedback-content .feedback-field textarea::placeholder {
+  color: color-mix(in srgb, var(--feedback-ink-soft) 72%, transparent);
+}
+
+.feedback-content .feedback-field input:focus,
+.feedback-content .feedback-field textarea:focus {
+  outline: none;
+  border-color: var(--feedback-forest-light);
+  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+}
+
+.feedback-content button[type='submit'] {
+  align-self: flex-start;
+  min-height: 42px;
+  padding: 10px 18px;
+  border: 1px solid var(--feedback-forest);
+  border-radius: 9px;
+  background: var(--feedback-forest);
+  box-shadow: none;
+  color: #fffaf0;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 140ms var(--feedback-ease-out);
+}
+
+.feedback-content button[type='submit']:active,
+.feedback-content .close-button:active {
+  transform: scale(0.96);
+}
+
+.feedback-content .close-button {
+  top: 18px;
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--feedback-line);
+  border-radius: 8px;
+  background: var(--feedback-paper-strong);
+  color: var(--feedback-ink-soft);
+  transition: background-color 150ms ease, color 150ms ease, transform 140ms var(--feedback-ease-out);
+}
+
+.feedback-content .status-message {
+  padding: 9px 11px;
+  border: 1px solid var(--feedback-line);
+  border-radius: 8px;
+  background: rgba(47, 102, 87, 0.07);
+  color: var(--feedback-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .feedback-content button[type='submit']:hover {
+    border-color: var(--feedback-forest-light);
+    background: var(--feedback-forest-light);
+    box-shadow: none;
+    filter: none;
+    transform: translateY(-1px);
+  }
+
+  .feedback-content .close-button:hover {
+    background: rgba(24, 62, 53, 0.07);
+    color: var(--feedback-forest);
+    transform: none;
+  }
+}
+
+[data-theme='dark'] .feedback-modal {
+  --feedback-kraft: #181a17;
+  --feedback-paper: #22251f;
+  --feedback-paper-strong: #292c25;
+  --feedback-ink: #ece5d7;
+  --feedback-ink-soft: #b8b3a8;
+  --feedback-forest: #315d50;
+  --feedback-forest-light: #477d6d;
+  --feedback-rust: #d58a70;
+  --feedback-line: #47483e;
+  background: rgba(9, 11, 9, 0.72);
+}
+
+[data-theme='dark'] .feedback-content {
+  border-color: var(--feedback-line);
+  background: var(--feedback-paper);
+  color: var(--feedback-ink);
+  box-shadow: 0 30px 78px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .feedback-content .feedback-header h3,
+[data-theme='dark'] .feedback-field,
+[data-theme='dark'] .feedback-content .status-message {
+  color: var(--feedback-ink);
+}
+
+[data-theme='dark'] .feedback-description {
+  color: var(--feedback-ink-soft);
+}
+
+[data-theme='dark'] .feedback-content .feedback-field input,
+[data-theme='dark'] .feedback-content .feedback-field textarea,
+[data-theme='dark'] .feedback-content .close-button {
+  border-color: var(--feedback-line);
+  background: var(--feedback-paper-strong);
+  color: var(--feedback-ink);
+}
+
+@keyframes feedback-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes feedback-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .feedback-modal {
+    padding: 12px;
+  }
+
+  .feedback-content {
+    padding: 22px 18px 18px;
+    border-radius: 14px;
+  }
+
+  .feedback-field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback-content button[type='submit'] {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback-modal,
+  .feedback-content {
+    animation: none;
+  }
+}

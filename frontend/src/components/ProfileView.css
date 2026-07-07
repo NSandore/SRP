@@ -156,6 +156,13 @@
   align-items: flex-end;
 }
 
+/* User profile pages: put the kebab menu to the right of the action button
+   instead of stacking it underneath. */
+.profile-view .hero-actions {
+  flex-direction: row;
+  align-items: center;
+}
+
 .hero-edit-controls {
   display: flex;
   flex-direction: column;
@@ -831,7 +838,7 @@
 .profile-detail-cta {
   position: sticky;
   top: 40vh; /* <- this is the "stick" height on screen; tweak as you like */
-  margin: 0 auto 1.5rem;
+  margin: 1.5rem auto 1.5rem;
   z-index: 3;
   background: #fff;
   border: 1px solid var(--light-border);

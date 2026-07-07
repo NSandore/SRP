@@ -38,8 +38,14 @@ try {
         FROM event_registrations r
         INNER JOIN events e ON e.event_id = r.event_id
         INNER JOIN users u ON u.user_id = r.user_id
+        LEFT JOIN account_settings a ON a.user_id = r.user_id
         WHERE r.status = 'registered'
           AND r.reminder_sent_at IS NULL
+          AND COALESCE(a.notif_email, 1) = 1
+          AND COALESCE(
+                JSON_UNQUOTE(JSON_EXTRACT(a.extras, '$.notify_events')),
+                '1'
+              ) NOT IN ('0', 'false')
           AND e.start_at BETWEEN
             DATE_ADD(UTC_TIMESTAMP(), INTERVAL (15 - :window) MINUTE)
             AND DATE_ADD(UTC_TIMESTAMP(), INTERVAL (15 + :window) MINUTE)

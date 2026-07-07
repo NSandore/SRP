@@ -34,6 +34,7 @@ $discoverableProvided = array_key_exists('discoverable', $input);
 $sessionTimeoutProvided = array_key_exists('session_timeout_minutes', $input);
 $notifyVotesProvided = array_key_exists('notify_votes', $input);
 $notifyRepliesProvided = array_key_exists('notify_replies', $input);
+$notifyEventsProvided = array_key_exists('notify_events', $input);
 $defaultFeedProvided = array_key_exists('default_feed', $input);
 $twoFactorProvided = array_key_exists('two_factor_enabled', $input);
 $autoJoinProvided = array_key_exists('auto_join_campus', $input);
@@ -47,6 +48,7 @@ if (
     !$sessionTimeoutProvided &&
     !$notifyVotesProvided &&
     !$notifyRepliesProvided &&
+    !$notifyEventsProvided &&
     !$defaultFeedProvided &&
     !$twoFactorProvided &&
     !$autoJoinProvided
@@ -171,6 +173,17 @@ if ($notifyRepliesProvided) {
     $notifyReplies = $parsed === null ? (intval($input['notify_replies']) ? 1 : 0) : ($parsed ? 1 : 0);
 }
 
+$notifyEvents = null;
+if ($notifyEventsProvided) {
+    $parsed = filter_var($input['notify_events'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($parsed === null && !is_numeric($input['notify_events'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid notify_events value']);
+        exit;
+    }
+    $notifyEvents = $parsed === null ? (intval($input['notify_events']) ? 1 : 0) : ($parsed ? 1 : 0);
+}
+
 $defaultFeed = null;
 if ($defaultFeedProvided) {
     $defaultFeed = trim($input['default_feed']);
@@ -242,6 +255,9 @@ if ($notifyVotesProvided) {
 }
 if ($notifyRepliesProvided) {
     $extrasUpdates['notify_replies'] = $notifyReplies;
+}
+if ($notifyEventsProvided) {
+    $extrasUpdates['notify_events'] = $notifyEvents;
 }
 if (!empty($extrasUpdates)) {
     $jsonSetParts = [];
@@ -336,6 +352,9 @@ if (!empty($extrasUpdates)) {
     }
     if ($notifyRepliesProvided) {
         $response['notify_replies'] = $notifyReplies;
+    }
+    if ($notifyEventsProvided) {
+        $response['notify_events'] = $notifyEvents;
     }
     if ($defaultFeedProvided) {
         $response['default_feed'] = $defaultFeed;

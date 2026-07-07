@@ -1,15 +1,58 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { BarChart3, Clock3, Users } from 'lucide-react';
 import { isSuperAdmin } from '../constants/roles';
 
 const STORAGE_KEY = 'managedEvents';
 const POLL_RESPONSES_KEY = 'managedPollResponses';
 const POLL_RESULTS_KEY = 'managedPollTallies';
 
-const datePrefix = (type) => {
-  if (type === 'poll') return 'Closes';
-  if (type === 'announcement') return 'Publishes';
-  return 'Occurs';
+const pollSampleDate = (daysFromNow) => {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  date.setHours(17, 0, 0, 0);
+  return date.toISOString();
+};
+
+const SAMPLE_POLLS = [
+  {
+    id: 'sample-poll-reading-format',
+    type: 'poll',
+    title: 'Which reading-group format works best for you?',
+    description: 'Help the Academic Commons plan the next sequence of facilitated reading groups.',
+    date: pollSampleDate(6),
+    scope: 'global',
+    communityName: 'Academic Commons',
+    pollOptions: ['One longer monthly session', 'Two shorter sessions each month', 'Asynchronous notes with one discussion'],
+    showResults: true,
+    sample: true,
+  },
+  {
+    id: 'sample-poll-funding-workshop',
+    type: 'poll',
+    title: 'What should the next funding workshop cover?',
+    description: 'Choose the topic that would be most useful for your next application cycle.',
+    date: pollSampleDate(10),
+    scope: 'global',
+    communityName: 'Funding & Fellowships',
+    pollOptions: ['Personal statements', 'Project budgets', 'Recommendation strategy', 'Finding smaller grants'],
+    showResults: true,
+    sample: true,
+  },
+];
+
+const SAMPLE_POLL_TALLIES = {
+  'sample-poll-reading-format': {
+    'One longer monthly session': 14,
+    'Two shorter sessions each month': 21,
+    'Asynchronous notes with one discussion': 9,
+  },
+  'sample-poll-funding-workshop': {
+    'Personal statements': 18,
+    'Project budgets': 12,
+    'Recommendation strategy': 8,
+    'Finding smaller grants': 15,
+  },
 };
 
 function PollsPage({ userData }) {
@@ -35,9 +78,11 @@ function PollsPage({ userData }) {
     try {
       const raw = localStorage.getItem(POLL_RESULTS_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
-      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+      return typeof parsed === 'object' && parsed !== null
+        ? { ...SAMPLE_POLL_TALLIES, ...parsed }
+        : SAMPLE_POLL_TALLIES;
     } catch {
-      return {};
+      return SAMPLE_POLL_TALLIES;
     }
   });
   const [pollMessages, setPollMessages] = useState({});
@@ -129,23 +174,17 @@ function PollsPage({ userData }) {
     }
   }, [pollTallies]);
 
-  const followsCommunity = (communityId) => {
-    if (!communityId) return false;
-    if (adminCommunityIds.includes(String(communityId))) return true;
-    return followed.includes(String(communityId));
-  };
-
-  const isVisible = (item) => {
+  const isVisible = useCallback((item) => {
     if (item.scope === 'global') return true;
     if (!item.communityId) return false;
     if (isSuperAdminUser) return true;
     if (adminCommunityIds.includes(String(item.communityId))) return true;
-    return followsCommunity(item.communityId);
-  };
+    return followed.includes(String(item.communityId));
+  }, [adminCommunityIds, followed, isSuperAdminUser]);
 
   const visibleItems = useMemo(
     () => items.filter((i) => isVisible(i)),
-    [items, adminCommunityIds, followed, isSuperAdminUser]
+    [items, isVisible]
   );
 
   const polls = useMemo(() => {
@@ -161,16 +200,12 @@ function PollsPage({ userData }) {
       .filter((i) => i.type === 'poll')
       .sort((a, b) => rank(a) - rank(b));
   }, [visibleItems]);
+  const displayPolls = polls.length ? polls : SAMPLE_POLLS;
 
   const scopeLabel = (item) =>
     item.scope === 'global'
       ? 'Global'
       : item.communityName || (item.communityId ? `Community ${item.communityId}` : 'Community item');
-
-  const renderPollMeta = (item) => {
-    const dateText = item.date ? `${datePrefix(item.type)} ${new Date(item.date).toLocaleString()}` : '';
-    return `Poll · ${scopeLabel(item)}${dateText ? ` · ${dateText}` : ''}`;
-  };
 
   const handleVote = (poll, option) => {
     if (!poll) return;
@@ -180,8 +215,8 @@ function PollsPage({ userData }) {
     }
 
     const prevChoice = pollResponses[poll.id];
-    if (prevChoice === option) {
-      setPollMessages((prev) => ({ ...prev, [poll.id]: 'You already selected this option.' }));
+    if (prevChoice) {
+      setPollMessages((prev) => ({ ...prev, [poll.id]: 'Your response is final for this poll.' }));
       return;
     }
 
@@ -189,103 +224,117 @@ function PollsPage({ userData }) {
     setPollTallies((prev) => {
       const next = { ...prev };
       const pollTotals = { ...(next[poll.id] || {}) };
-      if (prevChoice && pollTotals[prevChoice]) {
-        pollTotals[prevChoice] = Math.max(0, pollTotals[prevChoice] - 1);
-      }
       pollTotals[option] = (pollTotals[option] || 0) + 1;
       next[poll.id] = pollTotals;
       return next;
     });
     setPollMessages((prev) => ({
       ...prev,
-      [poll.id]: prevChoice ? 'Vote updated.' : 'Thanks for voting!',
+      [poll.id]: 'Thanks for voting!',
     }));
   };
 
   return (
-    <div className="feed-container">
+    <div className="feed-container polls-page-shell">
       <div className="polls-page">
-        <div className="polls-page__header">
-          <h2>Polls</h2>
-          <p className="muted-text">
-            {loadingFollowed ? 'Loading polls...' : 'Vote on polls from your communities.'}
-          </p>
-        </div>
-        <section className="widget-card polls-feed-card" aria-labelledby="polls-feed-header">
-          <div
-            id="polls-feed-header"
-            className="widget-header"
-            style={{ backgroundColor: '#F59E0B' }}
-          >
-            <h3 className="widget-title">Polls</h3>
+        <header className="polls-page__header">
+          <div>
+            <p className="scholarly-page-kicker">Community questions</p>
+            <h1>Polls</h1>
+            <p className="muted-text">
+              {loadingFollowed ? 'Loading polls…' : 'Contribute a quick perspective and see where the community stands.'}
+            </p>
           </div>
-          <div className="widget-body">
-            {!polls.length && (
-              <div className="widget-item-meta">
-                {loadingFollowed ? 'Loading polls...' : 'No polls from your communities yet.'}
-              </div>
-            )}
-            <ul className="widget-list" aria-label="Community polls">
-              {polls.map((poll) => {
+          <div className="polls-page__count">
+            <strong>{displayPolls.length}</strong>
+            <span>open polls</span>
+          </div>
+        </header>
+
+        {!polls.length && !loadingFollowed && (
+          <div className="sample-data-note">
+            Showing sample polls until your communities publish a poll.
+          </div>
+        )}
+
+        <section className="polls-list" aria-label="Community polls">
+          {displayPolls.map((poll) => {
                 const chosen = pollResponses[poll.id];
+                const pollTotal = pollTallies[poll.id] || {};
+                const totalVotes = Object.values(pollTotal).reduce((sum, n) => sum + n, 0);
                 return (
-                  <li
+                  <article
                     key={poll.id}
-                    className="widget-list-item"
-                    style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '10px' }}
+                    className="poll-card"
                   >
-                    <div className="widget-item-title">{poll.title}</div>
-                    <div className="widget-item-meta">{renderPollMeta(poll)}</div>
-                    {poll.pollOptions && poll.pollOptions.length > 0 ? (
-                      <div className="widget-poll-options" role="group" aria-label="Poll options">
+                    <header className="poll-card__header">
+                      <div>
+                        <div className="poll-card__eyebrow">
+                          <span>Poll</span>
+                          {poll.sample && <span>Sample</span>}
+                        </div>
+                        <h2>{poll.title}</h2>
+                        <div className="poll-card__meta">
+                          <span><Users size={14} /> {scopeLabel(poll)}</span>
+                          {poll.date && (
+                            <span><Clock3 size={14} /> Closes {new Date(poll.date).toLocaleString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hourCycle: 'h23',
+                            })}</span>
+                          )}
+                          <span><BarChart3 size={14} /> {totalVotes} responses</span>
+                        </div>
+                      </div>
+                    </header>
+                    {poll.description && <p className="poll-card__description">{poll.description}</p>}
+                    {!chosen && poll.pollOptions && poll.pollOptions.length > 0 ? (
+                      <div className="poll-card__options" role="group" aria-label="Poll options">
                         {poll.pollOptions.map((opt, idx) => {
-                          const isSelected = chosen === opt;
                           return (
                             <button
                               key={idx}
                               type="button"
-                              className={`poll-option-button${isSelected ? ' selected' : ''}`}
+                              className="poll-card__option"
                               onClick={() => handleVote(poll, opt)}
                               disabled={!userData?.user_id}
-                              style={{ width: '100%', textAlign: 'left', justifyContent: 'space-between' }}
                             >
                               <span>{opt}</span>
-                              {isSelected && <span>✓</span>}
                             </button>
                           );
                         })}
                       </div>
-                    ) : (
-                      <div className="widget-item-meta">This poll has no options configured.</div>
-                    )}
-                    {pollMessages[poll.id] && <div className="widget-item-meta">{pollMessages[poll.id]}</div>}
-                    {chosen && poll.showResults && (
-                      <div className="poll-results">
+                    ) : !chosen ? (
+                      <div className="poll-card__message">This poll has no options configured.</div>
+                    ) : null}
+                    {pollMessages[poll.id] && <div className="poll-card__message">{pollMessages[poll.id]}</div>}
+                    {chosen && (
+                      <div className="poll-card__results">
                         {(poll.pollOptions || []).map((opt, idx) => {
-                          const pollTotal = pollTallies[poll.id] || {};
                           const votes = pollTotal[opt] || 0;
-                          const totalVotes = Object.values(pollTotal).reduce((sum, n) => sum + n, 0);
                           const percent = totalVotes ? Math.round((votes / totalVotes) * 100) : 0;
                           return (
-                            <div key={idx} className="poll-result-row">
-                              <div className="poll-result-label">{opt}</div>
-                              <div className="poll-result-bar">
-                                <div className="poll-result-fill" style={{ width: `${percent}%` }} />
+                            <div key={idx} className="poll-card__result">
+                              <div className="poll-card__result-copy">
+                                <span>{opt}</span>
+                                <strong>{percent}%</strong>
                               </div>
-                              <div className="poll-result-meta">{votes} vote{votes === 1 ? '' : 's'} • {percent}%</div>
+                              <div className="poll-card__result-track">
+                                <div className="poll-card__result-fill" style={{ width: `${percent}%` }} />
+                              </div>
                             </div>
                           );
                         })}
-                        {!Object.values(pollTallies[poll.id] || {}).length && (
-                          <div className="widget-item-meta">No votes recorded yet.</div>
+                        {!Object.values(pollTotal).length && (
+                          <div className="poll-card__message">No votes recorded yet.</div>
                         )}
                       </div>
                     )}
-                  </li>
+                  </article>
                 );
               })}
-            </ul>
-          </div>
         </section>
       </div>
     </div>

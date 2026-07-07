@@ -59,8 +59,8 @@ function CommunityRequestModal({
   if (!isVisible) return null;
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="request-modal-title">
-      <div className="modal-content">
+    <div className="modal-overlay community-request-modal" role="dialog" aria-modal="true" aria-labelledby="request-modal-title">
+      <div className="modal-content community-request-content">
         <h3 id="request-modal-title">{title || 'Request New Community'}</h3>
         <form onSubmit={onSubmit}>
           <div className="form-group">

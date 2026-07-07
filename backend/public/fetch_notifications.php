@@ -45,6 +45,7 @@ try {
                n.is_read,
                n.created_at,
                n.actor_user_id,
+               n.reference_id,
                u.avatar_path,
                u.first_name,
                u.last_name

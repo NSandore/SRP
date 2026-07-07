@@ -132,16 +132,16 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
       <div className="auth-content">
         <section className="auth-hero">
           <span className="auth-pill">StudentSphere community</span>
-          <h1>Unlock scholarships, mentors, and momentum.</h1>
+          <h1>Learn with people who share your questions.</h1>
           <p>
-            Your personalized home for funding alerts, ambassador insights, threads, and direct
-            messaging — tailored for students and counselors growing together.
+            Explore community discussions, university spaces, events, and verified perspectives
+            from students and representatives.
           </p>
           <ul className="auth-benefits">
             {[
-              'Save promising scholarships and revisit them anytime',
-              'Chat with mentors, classmates, and admissions coaches',
-              'Showcase your story with a profile recruiters love',
+              'Save useful discussions and return to them later',
+              'Follow university and interest-based communities',
+              'Build a profile and connect through shared interests',
             ].map((copy) => (
               <li key={copy}>
                 <FaCheckCircle />

@@ -47,32 +47,49 @@ function ContactUsButton() {
     <div className="feedback-modal" role="dialog" aria-modal="true" aria-label="Send feedback">
       <div className="feedback-content">
         <button className="close-button" onClick={() => setOpen(false)} aria-label="Close feedback form">×</button>
-        <h3>Send Feedback</h3>
+        <header className="feedback-header">
+          <p className="feedback-kicker">Contact the commons</p>
+          <h3>Send feedback</h3>
+          <p className="feedback-description">
+            Share a question, report an issue, or tell us what would make StudentSphere more useful.
+          </p>
+        </header>
         <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            name="name"
-            placeholder="Your Name"
-            value={formData.name}
-            onChange={handleChange}
-            required
-          />
-          <input
-            type="email"
-            name="email"
-            placeholder="Your Email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-          />
-          <textarea
-            name="message"
-            placeholder="Your Feedback"
-            value={formData.message}
-            onChange={handleChange}
-            required
-          />
-          {status && <p className="status-message">{status}</p>}
+          <div className="feedback-field-row">
+            <label className="feedback-field">
+              <span>Name</span>
+              <input
+                type="text"
+                name="name"
+                placeholder="Your name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="feedback-field">
+              <span>Email</span>
+              <input
+                type="email"
+                name="email"
+                placeholder="you@example.edu"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </label>
+          </div>
+          <label className="feedback-field">
+            <span>Message</span>
+            <textarea
+              name="message"
+              placeholder="How can we help?"
+              value={formData.message}
+              onChange={handleChange}
+              required
+            />
+          </label>
+          {status && <p className="status-message" role="status">{status}</p>}
           <button type="submit">Submit</button>
         </form>
       </div>
@@ -84,7 +101,7 @@ function ContactUsButton() {
   return (
     <>
       <button className="contact-us-button" onClick={() => setOpen(true)}>
-        Contact Us
+        Contact
       </button>
       {open && portalTarget && createPortal(modalContent, portalTarget)}
     </>

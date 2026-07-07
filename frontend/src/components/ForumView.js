@@ -519,8 +519,8 @@ function ForumView({ userData, onRequireAuth }) {
 
   if (isLoading) {
     return (
-      <div className="feed-container forum-view">
-        <p>Loading threads...</p>
+      <div className="feed-container forum-view forum-view--loading">
+        <p>Loading Threads...</p>
       </div>
     );
   }
@@ -540,44 +540,71 @@ function ForumView({ userData, onRequireAuth }) {
 
   return (
     <div className="feed-container forum-view">
-    {/* Breadcrumbs + Actions */}
-    <div className="forum-header-row">
-      <nav className="breadcrumbs" aria-label="Breadcrumb">
-        <Link to="/info">Info Board</Link>
-        <span className="breadcrumb-sep">&gt;</span>
-        {/*<span className="breadcrumb-current" aria-current="page">
-          {forumData?.name ? forumData.name : `Forum ${forum_id}`}
-        </span>*/}
-      </nav>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {canCreateThread && (
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => setShowCreateThreadModal(true)}
-          >
-            + New Thread
-          </button>
-        )}
-      </div>
-    </div>
-
-    <section className="forum-intro">
-      <div className="forum-hero">
-        <div className="forum-banner">
-          <img
-            src={bannerSrc}
-            alt={`${forumData?.name || 'Forum'} banner`}
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = buildUploadSrc('/uploads/banners/DefaultBanner.jpeg');
-            }}
-          />
-        </div>
-        <div className="forum-title-row">
-          <h2 className="forum-title">
+      {/* Breadcrumbs */}
+      <div className="forum-header-row">
+        <nav className="breadcrumbs" aria-label="Breadcrumb">
+          <Link to="/info">Info Board</Link>
+          <span className="breadcrumb-sep">&gt;</span>
+          {/*<span className="breadcrumb-current" aria-current="page">
             {forumData?.name ? forumData.name : `Forum ${forum_id}`}
-          </h2>
+          </span>*/}
+        </nav>
+      </div>
+
+      <section className="forum-intro">
+        <div className="forum-hero">
+          <div className="forum-banner">
+            <img
+              src={bannerSrc}
+              alt={`${forumData?.name || 'Forum'} banner`}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = buildUploadSrc('/uploads/banners/DefaultBanner.jpeg');
+              }}
+            />
+          </div>
+          <div className="forum-title-row">
+            <h2 className="forum-title">
+              {forumData?.name ? forumData.name : `Forum ${forum_id}`}
+            </h2>
+          </div>
+          {Array.isArray(forumData?.tags) && forumData.tags.length > 0 && (
+            <div className="chips-row" style={{ marginBottom: 0 }}>
+              {forumData.tags.map((tag) => (
+                <span key={tag} className="chip tag-chip" style={getTagStyle(tag)}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+          {forumData?.description && (
+            <p className="forum-description">{forumData.description}</p>
+          )}
+        </div>
+
+        {forumData?.created_by && (
+          <div className="meta-quiet forum-meta-row">
+            <span>Created by</span>
+            <img
+              src={buildAvatarSrc(forumData.created_by_avatar_path)}
+              alt={`${forumData.created_by_first_name || 'User'} ${forumData.created_by_last_name || ''}`}
+              style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = buildAvatarSrc(null);
+              }}
+            />
+            <Link to={`/user/${forumData.created_by}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 600 }}>
+              {forumData.created_by_first_name || 'User'} {forumData.created_by_last_name || ''}
+            </Link>
+            {forumData.created_at ? <span>· {timeAgo(forumData.created_at)}</span> : null}
+          </div>
+        )}
+      </section>
+
+      <div className="forum-browse-controls section-controls filter-toolbar filter-toolbar--filter-first">
+        <div className="control-group">
+          <span className="sort-pill">Tags</span>
           <div className="forum-tag-filter">
             <div className="topic-dropdown">
               <button
@@ -623,52 +650,30 @@ function ForumView({ userData, onRequireAuth }) {
             </div>
           </div>
         </div>
-        {Array.isArray(forumData?.tags) && forumData.tags.length > 0 && (
-          <div className="chips-row" style={{ marginBottom: 0 }}>
-            {forumData.tags.map((tag) => (
-              <span key={tag} className="chip tag-chip" style={getTagStyle(tag)}>
-                {tag}
-              </span>
-            ))}
+        <div className="control-group">
+          <label htmlFor="sort-by" className="sort-pill">Sort</label>
+          <select
+            id="sort-by"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="sort-select"
+          >
+            <option value="mostRecent">Most Recent</option>
+            <option value="popularity">Popularity</option>
+            <option value="mostUpvoted">Most Upvoted</option>
+          </select>
+        </div>
+        {canCreateThread && (
+          <div className="control-action">
+            <button
+              type="button"
+              className="pill-button toolbar-primary-action"
+              onClick={() => setShowCreateThreadModal(true)}
+            >
+              + New Thread
+            </button>
           </div>
         )}
-        {forumData?.description && (
-          <p className="forum-description">{forumData.description}</p>
-        )}
-      </div>
-
-      {forumData?.created_by && (
-        <div className="meta-quiet forum-meta-row">
-          <span>Created by</span>
-          <img
-            src={buildAvatarSrc(forumData.created_by_avatar_path)}
-            alt={`${forumData.created_by_first_name || 'User'} ${forumData.created_by_last_name || ''}`}
-            style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = buildAvatarSrc(null);
-            }}
-          />
-          <Link to={`/user/${forumData.created_by}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 600 }}>
-            {forumData.created_by_first_name || 'User'} {forumData.created_by_last_name || ''}
-          </Link>
-          {forumData.created_at ? <span>· {timeAgo(forumData.created_at)}</span> : null}
-        </div>
-      )}
-    </section>
-
-      {/* Sorting */}
-      <div className="sort-container">
-        <label htmlFor="sort-by">Sort by:</label>
-        <select
-          id="sort-by"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-        >
-          <option value="mostRecent">Most Recent</option>
-          <option value="popularity">Popularity</option>
-          <option value="mostUpvoted">Most Upvoted</option>
-        </select>
       </div>
 
       {/* Thread list */}
