@@ -845,7 +845,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                   title="Edit this community"
                   onClick={openEdit}
                 >
-                  Edit Community
+                  Edit
                 </button>
               )}
             </div>
@@ -1413,7 +1413,7 @@ function GroupProfile({ userData, onRequireAuth }) {
               </div>
             )}
             {['contact', 'events', 'polls'].includes(activeTab) && (
-              <div className="community-mobile-context" role="tabpanel">
+              <div className="content-card community-mobile-context community-embedded-tab-card" role="tabpanel">
                 <RightRail
                   userData={userData}
                   communityContext={{ id: communityId, type: 'group' }}

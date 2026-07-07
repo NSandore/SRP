@@ -600,8 +600,8 @@
 }
 
 .community-logo {
-  width: 15px;
-  height: 15px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #ccc;
@@ -804,6 +804,11 @@
 /* ===================== */
 .profile-detail-sections {
   position: relative;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--card-background);
+  padding: 12px;
 }
 
 .profile-detail-sections.restricted {
@@ -827,10 +832,10 @@
 
 .profile-detail-wrapper {
   position: relative;
-  background: var(--card-background);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 1.5rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
   margin-top: 1.5rem;
 }
 

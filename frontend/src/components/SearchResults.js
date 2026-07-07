@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import {
-  FaArrowAltCircleUp,
   FaRegArrowAltCircleUp,
-  FaArrowAltCircleDown,
   FaRegArrowAltCircleDown
 } from 'react-icons/fa';
 import { FiMessageCircle } from 'react-icons/fi';
@@ -274,7 +272,7 @@ function SearchResults() {
               </div>
               <div className="search-grid">
                 {sorted.users.map((u) => (
-                  <Link key={u.user_id} to={`/user/${u.user_id}`} className="search-card">
+                  <Link key={u.user_id} to={`/user/${u.user_id}`} className="search-card search-result-item">
                     <div className="search-card-title">{u.first_name} {u.last_name}</div>
                     <div className="search-card-meta">Profile</div>
                   </Link>
@@ -309,7 +307,7 @@ function SearchResults() {
                       <Link
                         key={c.id}
                         to={c.community_type === 'group' ? `/group/${c.id}` : `/university/${c.id}`}
-                        className="community-row-card"
+                        className="community-row-card search-result-item search-result-item--community"
                       >
                         <img
                           src={logoSrc}
@@ -319,7 +317,7 @@ function SearchResults() {
                         />
                         <div className="community-row-content">
                           <div className="community-row-header">
-                            <div className="thread-title">{c.name}</div>
+                            <div className="search-card-title">{c.name}</div>
                             <span className="pill-button secondary" style={{ padding: '4px 10px' }}>
                               {c.community_type === 'group' ? 'Group' : 'University'}
                             </span>
@@ -350,20 +348,20 @@ function SearchResults() {
                 <h3>Forums</h3>
                 <span className="search-count">{sorted.forums.length}</span>
               </div>
-              <div className="search-grid">
+              <div className="search-list">
                 {sorted.forums.map((f) => (
-                <Link key={f.forum_id} to={`/info/forum/${f.forum_id}`} className="search-card">
-                  <div className="search-card-title">{f.name}</div>
-                  <div className="search-card-meta">{f.description || 'Forum'}</div>
-                  <div className="search-card-meta">
-                    <span className="vote-icon"><FaRegArrowAltCircleUp /></span> {(Number(f.upvotes) || 0)}
-                    <span className="vote-icon" style={{ marginLeft: 8 }}><FaRegArrowAltCircleDown /></span> {(Number(f.downvotes) || 0)}
-                    <span className="vote-icon" style={{ marginLeft: 8 }}><FiMessageCircle /></span> {f.reply_count || 0}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
+                  <Link key={f.forum_id} to={`/info/forum/${f.forum_id}`} className="search-card search-result-item search-result-item--forum">
+                    <div className="search-card-title">{f.name}</div>
+                    <div className="search-card-meta">{f.description || 'Forum'}</div>
+                    <div className="search-card-meta search-card-metrics">
+                      <span><span className="vote-icon"><FaRegArrowAltCircleUp /></span> {(Number(f.upvotes) || 0)}</span>
+                      <span><span className="vote-icon"><FaRegArrowAltCircleDown /></span> {(Number(f.downvotes) || 0)}</span>
+                      <span><span className="vote-icon"><FiMessageCircle /></span> {f.reply_count || 0}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
           )}
 
           {activeTab === 'threads' && sorted?.threads?.length > 0 && (
@@ -377,16 +375,15 @@ function SearchResults() {
                   <Link
                     key={t.thread_id}
                     to={`/info/forum/${t.forum_id}/thread/${t.thread_id}`}
-                    className="thread-card card-lift"
-                    style={{ borderBottom: '1px solid var(--card-border)' }}
+                    className="search-card search-result-item search-result-item--thread"
                   >
                     <div className="card-top-row">
-                      <div className="thread-title">{t.title}</div>
+                      <div className="search-card-title">{t.title}</div>
                     </div>
-                    <div className="card-meta">
-                      <span className="vote-icon"><FaRegArrowAltCircleUp /></span> {t.upvotes || 0}
-                      <span className="vote-icon" style={{ marginLeft: 8 }}><FaRegArrowAltCircleDown /></span> {t.downvotes || 0}
-                      <span className="vote-icon" style={{ marginLeft: 8 }}><FiMessageCircle /></span> {t.reply_count || 0}
+                    <div className="card-meta search-card-metrics">
+                      <span><span className="vote-icon"><FaRegArrowAltCircleUp /></span> {t.upvotes || 0}</span>
+                      <span><span className="vote-icon"><FaRegArrowAltCircleDown /></span> {t.downvotes || 0}</span>
+                      <span><span className="vote-icon"><FiMessageCircle /></span> {t.reply_count || 0}</span>
                     </div>
                   </Link>
                 ))}
@@ -400,21 +397,21 @@ function SearchResults() {
                 <h3>Posts</h3>
                 <span className="search-count">{sorted.posts.length}</span>
               </div>
-              <div className="search-grid posts-grid">
+              <div className="search-list">
                 {sorted.posts.map((p) => (
                   <Link
                     key={p.post_id}
                     to={`/info/forum/${p.forum_id}/thread/${p.thread_id}`}
-                    className="search-card"
+                    className="search-card search-result-item search-result-item--post"
                   >
                     <div className="search-card-title">
                       {stripHtml(p.content || '').slice(0, 160)}
                       {stripHtml(p.content || '').length > 160 ? '…' : ''}
                     </div>
-                    <div className="search-card-meta">
-                      <span className="vote-icon"><FaRegArrowAltCircleUp /></span> {(Number(p.upvotes) || 0)}
-                      <span className="vote-icon" style={{ marginLeft: 8 }}><FaRegArrowAltCircleDown /></span> {(Number(p.downvotes) || 0)}
-                      <span className="vote-icon" style={{ marginLeft: 8 }}><FiMessageCircle /></span> {(Number(p.comment_count) || 0)}
+                    <div className="search-card-meta search-card-metrics">
+                      <span><span className="vote-icon"><FaRegArrowAltCircleUp /></span> {(Number(p.upvotes) || 0)}</span>
+                      <span><span className="vote-icon"><FaRegArrowAltCircleDown /></span> {(Number(p.downvotes) || 0)}</span>
+                      <span><span className="vote-icon"><FiMessageCircle /></span> {(Number(p.comment_count) || 0)}</span>
                     </div>
                   </Link>
                 ))}
@@ -428,9 +425,9 @@ function SearchResults() {
                 <h3>Tags</h3>
                 <span className="search-count">{sorted.tags.length}</span>
               </div>
-              <div className="search-grid">
+              <div className="search-grid search-grid--tags">
                 {sorted.tags.map((tag) => (
-                  <Link key={tag} to={`/search?q=%23${tag}`} className="search-card">
+                  <Link key={tag} to={`/search?q=%23${tag}`} className="search-card search-result-item search-result-item--tag">
                     <div className="search-card-title" style={getTagStyle(tag)}>#{tag}</div>
                     <div className="search-card-meta">Tag</div>
                   </Link>

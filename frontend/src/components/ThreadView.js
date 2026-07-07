@@ -729,7 +729,7 @@ function PostItem({
                 />
               </div>
               <div className="post-meta" style={{ margin: 0 }}>
-                <div>
+                <div className="post-author-line">
                   <RouterLink to={`/user/${post.user_id}`} className="post-author-name" style={{ textDecoration: 'none', fontWeight: 600 }}>
                     {getDisplayName(post, userData?.user_id)}
                   </RouterLink>

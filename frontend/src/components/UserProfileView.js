@@ -12,6 +12,9 @@ import { buildAvatarSrc } from "../utils/avatar";
 import buildUploadSrc from "../utils/uploads";
 import { usePublishProfileContact } from "../context/ProfileContactContext";
 
+const getAmbassadorCommunityId = (community) =>
+  String(community?.community_id ?? community?.id ?? community ?? "").trim();
+
 function UserProfileView({ userData, onFollowNotification, onNotificationsRefresh }) {
   const { user_id } = useParams();
   const [profile, setProfile] = useState(null);
@@ -113,6 +116,9 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
               if (!Array.isArray(communityIds)) {
                 communityIds = [communityIds];
               }
+              communityIds = communityIds
+                .map(getAmbassadorCommunityId)
+                .filter(Boolean);
               console.log("Detected ambassador communities:", communityIds);
               setAmbassadorCommunities(communityIds);
               fetchCommunityLogos(communityIds);
@@ -380,7 +386,9 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
 
     console.log("Fetching logos for ambassador communities:", communityIds);
 
-    for (let communityId of communityIds) {
+    for (let community of communityIds) {
+      const communityId = getAmbassadorCommunityId(community);
+      if (!communityId) continue;
       console.log(`Fetching community data for community_id: ${communityId}`);
       try {
         const response = await axios.get(`/api/fetch_community.php?community_id=${communityId}`);
@@ -515,7 +523,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const isAmbassadorProfile = Number(profile.is_ambassador) === 1;
   const viewerCommunityId = userData?.recent_university_id;
   const ambassadorCommunityIds = Array.isArray(ambassadorCommunities)
-    ? ambassadorCommunities.map((c) => Number(c?.community_id ?? c?.id ?? c))
+    ? ambassadorCommunities.map((c) => Number(getAmbassadorCommunityId(c)))
     : [];
   const sharesAmbassadorCommunity =
     Boolean(viewerCommunityId) &&
@@ -566,15 +574,6 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
     setMessageRestriction(reason);
   };
 
-  const primaryAmbassadorCommunity =
-    Array.isArray(ambassadorCommunities) && ambassadorCommunities.length > 0
-      ? ambassadorCommunities[0]
-      : null;
-  const primaryAmbassadorLogo =
-    primaryAmbassadorCommunity && communityLogos[primaryAmbassadorCommunity]
-      ? buildUploadSrc(communityLogos[primaryAmbassadorCommunity])
-      : "";
-
   return (
     <div className="profile-view profile-container">
       <div className="hero-card profile-hero-card">
@@ -607,14 +606,6 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                   />
                 )}
                 {/* Unverified shown under headline */}
-                {primaryAmbassadorLogo && (
-                  <img
-                    src={primaryAmbassadorLogo}
-                    alt="Ambassador badge"
-                    className="ambassador-inline-logo"
-                    title="Ambassador"
-                  />
-                )}
                 {onlineLabel && (
                   <span className={`online-status-text ${isOnline ? "online" : "offline"}`}>
                     {onlineLabel}
@@ -639,7 +630,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                   {ambassadorCommunities.map((communityId) => (
                     <RouterLink key={communityId} to={`/university/${communityId}`}>
                       <img
-                        src={communityLogos[communityId] || "/uploads/logos/default-logo.png"}
+                        src={buildUploadSrc(communityLogos[communityId] || "/uploads/logos/DefaultGroup.png")}
                         alt="Ambassador Community"
                         className="community-logo"
                         title={`${communityNames[communityId] || "Unknown"} Ambassador`}
@@ -681,36 +672,39 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                     Connect
                   </button>
                 )}
-              </div>
-            )}
-            {userData && userData.user_id !== parseInt(user_id, 10) && (
-              <div className="kebab-menu" ref={menuRef} style={{ position: "relative" }}>
-                <FaEllipsisV
-                  className="menu-icon"
-                  onClick={() => setOpenMenu((prev) => !prev)}
-                />
-                {openMenu && (
-                  <div className="dropdown-menu" style={{ right: 0 }}>
-                    <button
-                      className="dropdown-item"
-                      onClick={handleFollowToggle}
-                      disabled={loadingFollowStatus}
-                    >
-                      {isFollowing ? "Unfollow" : "Follow"}
-                    </button>
-                    {connectionStatus === "accepted" && (
-                      <button className="dropdown-item" onClick={handleRemoveConnection}>
-                        Remove Connection
+                <div className="kebab-menu" ref={menuRef} style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    className="kebab-trigger"
+                    onClick={() => setOpenMenu((prev) => !prev)}
+                    aria-label="Profile actions"
+                    aria-expanded={openMenu}
+                  >
+                    <FaEllipsisV className="menu-icon" aria-hidden="true" />
+                  </button>
+                  {openMenu && (
+                    <div className="dropdown-menu" style={{ right: 0 }}>
+                      <button
+                        className="dropdown-item"
+                        onClick={handleFollowToggle}
+                        disabled={loadingFollowStatus}
+                      >
+                        {isFollowing ? "Unfollow" : "Follow"}
                       </button>
-                    )}
-                    <button
-                      className="dropdown-item"
-                      onClick={() => alert("Report/Block coming soon")}
-                    >
-                      Report or Block
-                    </button>
-                  </div>
-                )}
+                      {connectionStatus === "accepted" && (
+                        <button className="dropdown-item" onClick={handleRemoveConnection}>
+                          Remove Connection
+                        </button>
+                      )}
+                      <button
+                        className="dropdown-item"
+                        onClick={() => alert("Report/Block coming soon")}
+                      >
+                        Report or Block
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

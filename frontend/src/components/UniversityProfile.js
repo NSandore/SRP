@@ -1081,7 +1081,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                   className="pill-button secondary"
                   onClick={handleToggleEdit}
                 >
-                  Edit Community
+                  Edit
                 </button>
               )}
             </div>
@@ -1675,7 +1675,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
               </div>
             )}
             {['contact', 'events', 'polls'].includes(activeTab) && (
-              <div className="community-mobile-context" role="tabpanel">
+              <div className="content-card community-mobile-context community-embedded-tab-card" role="tabpanel">
                 <RightRail
                   userData={userData}
                   communityContext={{ id: communityId, type: 'university' }}
