@@ -3,6 +3,7 @@ require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 $data = json_decode(file_get_contents('php://input'), true);
 $code = isset($data['code']) ? trim($data['code']) : '';
@@ -38,6 +39,11 @@ function buildTrustedDeviceEntry(string $userAgent, string $ipAddress): array {
 
 try {
     $db = getDB();
+
+    // Cap 2FA code guesses per user + IP to prevent brute-forcing the 6 digits.
+    srp_rate_limit_enforce($db, '2fa:' . $userId . ':' . srp_client_ip(), 6, 900,
+        'Too many attempts. Please log in again to request a new code.');
+
     $stmt = $db->prepare("
         SELECT
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.two_factor_code')) AS code,
@@ -126,6 +132,9 @@ try {
     $clearStmt = $db->prepare($extrasUpdateSql);
     $clearStmt->execute($extrasParams);
 
+    // Prevent session fixation now that the second factor has passed.
+    session_regenerate_id(true);
+
     $userStmt = $db->prepare("
         SELECT user_id, first_name, last_name, email, role_id, avatar_path, banner_path, is_ambassador, login_count, is_public, is_verified, verified, verified_community_id, education_status, recent_university_id
         FROM users
@@ -195,5 +204,5 @@ try {
     ]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php'; // Adjust if needed
 require_once __DIR__ . '/../includes/onboarding.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 
 header('Content-Type: application/json');
 
@@ -13,20 +14,13 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// OPTIONAL: If only users with role_id = 4 can create posts, uncomment:
-// if ($_SESSION['role_id'] != 4) {
-//     http_response_code(403);
-//     echo json_encode(['error' => 'You do not have permission to create posts.']);
-//     exit;
-// }
-
 // 2. Retrieve JSON input
 $data = json_decode(file_get_contents('php://input'), true);
 
 // 3. Extract and validate necessary fields
 $thread_id = isset($data['thread_id']) ? normalizeId($data['thread_id']) : '';
 $user_id   = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
-$content   = trim($data['content']    ?? '');
+$content   = srp_sanitize_html(trim($data['content'] ?? ''));
 
 if (empty($thread_id) || empty($user_id) || empty($content)) {
     http_response_code(400); // Bad Request
@@ -77,5 +71,5 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500); // Internal Server Error
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }

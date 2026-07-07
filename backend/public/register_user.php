@@ -56,7 +56,7 @@ if (isset($inputData['action']) && $inputData['action'] === 'updateInterests') {
         echo json_encode(['message' => 'Followed communities updated successfully.']);
     } catch (PDOException $e) {
         http_response_code(500);
-        echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        echo json_encode(['error' => 'Database error: ']);
     }
 
     exit;
@@ -153,6 +153,6 @@ try {
     echo json_encode(['message' => 'User registered successfully', 'user_id' => $user_id]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

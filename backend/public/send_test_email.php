@@ -4,6 +4,8 @@ startSession();
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 require __DIR__ . '/../vendor/autoload.php';
 
 use MailerSend\MailerSend;
@@ -18,7 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-if (!isset($_SESSION['user_id'])) {
+// Diagnostic email sender: restrict to super admins so it cannot be abused to
+// send arbitrary mail through the platform's provider.
+if (!isset($_SESSION['user_id']) || !isSuperAdmin((int)($_SESSION['role_id'] ?? 0))) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;

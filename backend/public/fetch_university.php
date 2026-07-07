@@ -52,7 +52,7 @@ try {
     echo json_encode(['success' => true, 'university' => $university]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
     exit;
 }
 ?>

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 header('Content-Type: application/json');
 require_once '../db_connection.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use MailerSend\MailerSend;
@@ -21,6 +22,10 @@ if (empty($email) || empty($password)) {
 
 try {
     $db = getDB();
+
+    // Throttle password attempts per email + IP to blunt credential stuffing.
+    srp_rate_limit_enforce($db, 'login:' . strtolower($email) . ':' . srp_client_ip(), 10, 300,
+        'Too many login attempts. Please wait a moment and try again.');
 
     $query = "SELECT user_id, first_name, last_name, email, password_hash, role_id, avatar_path, banner_path, is_ambassador, login_count, is_public, is_verified, verified, verified_community_id, education_status, recent_university_id FROM users WHERE email = :email LIMIT 1";
     $stmt = $db->prepare($query);
@@ -136,6 +141,11 @@ try {
             }
         }
 
+        // Prevent session fixation: issue a fresh session id now that the
+        // credentials are verified, then track the new id.
+        session_regenerate_id(true);
+        $sessionId = session_id();
+
         // Increment login_count by 1
         $updateStmt = $db->prepare("UPDATE users SET login_count = login_count + 1 WHERE user_id = :user_id");
         $updateStmt->execute([':user_id' => $user['user_id']]);
@@ -196,6 +206,6 @@ try {
         echo json_encode(["error" => "Invalid email or password."]);
     }
 } catch (PDOException $e) {
-    echo json_encode(["error" => "Database error: " . $e->getMessage()]);
+    echo json_encode(["error" => "Database error: "]);
 }
 ?>

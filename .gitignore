@@ -1,0 +1,24 @@
+# Secrets — never commit these. Keep them in the deployment environment only.
+.env
+frontend/.env
+mobile/.env
+*.env.local
+
+# Database dumps / backups (contain real user data + password hashes).
+# NOTE: intentionally specific — migration files under backend/migrations/ and
+# docs/*.sql are meant to be tracked.
+/srp_db.sql
+frontend/srp_app_backup.sql
+*_backup.sql
+*_dump.sql
+
+# Uploaded user content, including sensitive verification documents (PII)
+uploads/verification/
+
+# Dependencies / build output
+vendor/
+node_modules/
+frontend/build/
+
+# HTMLPurifier serializer cache
+backend/htmlpurifier-cache/

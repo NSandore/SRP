@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/public/cors.php';
-// Flip this to false to disable Dev mode safeguards.
-const SRP_DEV_MODE = false;
+// Master dev-mode switch. Set to true ONLY in local development.
+// When true, email 2FA and some safeguards are bypassed. Keep false in production.
+const SRP_DEV_MODE = true;
 function loadEnvFile(string $path): void {
     if (!is_readable($path)) {
         return;
@@ -39,19 +40,58 @@ function loadEnvFile(string $path): void {
 loadEnvFile(__DIR__ . '/../.env');
 
 function srp_is_dev_mode(): bool {
-    if (defined('SRP_DEV_MODE')) {
-        return SRP_DEV_MODE === false;
+    // An explicit environment override always wins.
+    $env = getenv('SRP_DEV_MODE');
+    if ($env !== false && $env !== '') {
+        return (bool)filter_var($env, FILTER_VALIDATE_BOOLEAN);
     }
-    return (bool)filter_var(getenv('SRP_DEV_MODE') ?: 0, FILTER_VALIDATE_BOOLEAN);
+    if (defined('SRP_DEV_MODE')) {
+        return SRP_DEV_MODE === true;
+    }
+    return false;
+}
+
+/**
+ * Best-effort client IP for rate limiting / session tracking.
+ */
+function srp_client_ip(): string {
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+    if ($forwarded !== '') {
+        // First hop in the X-Forwarded-For chain.
+        $first = trim(explode(',', $forwarded)[0]);
+        if ($first !== '') {
+            return substr($first, 0, 45);
+        }
+    }
+    return substr($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 0, 45);
+}
+
+/**
+ * Emit a generic JSON error and stop. Logs the real exception server-side so
+ * database/internal details are never leaked to clients.
+ */
+function srp_safe_error(string $publicMessage = 'A server error occurred.', ?Throwable $e = null, int $status = 500): void {
+    if ($e !== null) {
+        error_log('[SRP] ' . $e->getMessage());
+    }
+    http_response_code($status);
+    echo json_encode(['error' => $publicMessage]);
+    exit;
 }
 
 function getDB() {
     static $db = null;
     if ($db === null) {
-        $host = 'localhost';
-        $dbname = 'srp_db';
-        $user = 'srp_user';
-        $pass = 'Silvia317*';
+        // Credentials come from the environment (.env, loaded above). Only the
+        // non-secret host/name/user have literal fallbacks; the password must be
+        // provided via DB_PASS and is never hard-coded here.
+        $host = getenv('DB_HOST') ?: 'localhost';
+        $dbname = getenv('DB_NAME') ?: 'srp_db';
+        $user = getenv('DB_USER') ?: 'srp_user';
+        $pass = getenv('DB_PASS');
+        if ($pass === false) {
+            $pass = '';
+        }
 
         $dsn = "mysql:host=$host;dbname=$dbname;charset=utf8mb4";
         $options = [
@@ -103,7 +143,10 @@ function getIdConfig(): array {
         'reports' => ['prefix' => 'rp', 'column' => 'report_id'],
         'announcements' => ['prefix' => 'an', 'column' => 'announcement_id'],
         'user_verification_requests' => ['prefix' => 'vr', 'column' => 'request_id'],
-        'ambassador_applications' => ['prefix' => 'aa', 'column' => 'application_id']
+        'ambassador_applications' => ['prefix' => 'aa', 'column' => 'application_id'],
+        'polls' => ['prefix' => 'pl', 'column' => 'poll_id'],
+        'poll_options' => ['prefix' => 'po', 'column' => 'option_id'],
+        'poll_votes' => ['prefix' => 'pv', 'column' => 'vote_id']
     ];
 }
 

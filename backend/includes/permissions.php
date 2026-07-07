@@ -99,8 +99,8 @@ function canManageForums($user_id, $role_id, $community_id, $db) {
         return false;
     }
 
-    // Super admins can manage all forums
-    if (isSuperAdmin($role_id)) {
+    // Global admins (and super admins) can manage all forums platform-wide.
+    if (isAdmin($role_id)) {
         return true;
     }
 
@@ -119,7 +119,7 @@ function canManageForums($user_id, $role_id, $community_id, $db) {
  * @return bool True if user can moderate content
  */
 function canModerateContent($user_id, $role_id, $community_id, $db) {
-    // Moderators, admins, and super admins can moderate all content
+    // Global moderators, admins, and super admins can moderate all content
     if (isModerator($role_id)) {
         return true;
     }
@@ -157,7 +157,7 @@ function isAmbassador($user_id, $community_id, $db) {
  */
 function canEditCommunitySettings($user_id, $role_id, $community_id, $db) {
     if (!hasVerifiedEmail($user_id, $db)) return false;
-    if (isSuperAdmin($role_id)) return true;
+    if (isAdmin($role_id)) return true;
     return getCommunityRole($user_id, $community_id, $db) === 'admin';
 }
 
@@ -166,14 +166,15 @@ function canEditCommunitySettings($user_id, $role_id, $community_id, $db) {
  */
 function canManageAmbassadors($user_id, $role_id, $community_id, $db) {
     if (!hasVerifiedEmail($user_id, $db)) return false;
-    if (isSuperAdmin($role_id)) return true;
+    if (isAdmin($role_id)) return true;
     return getCommunityRole($user_id, $community_id, $db) === 'admin';
 }
 
 /**
  * Moderator+ community moderation permissions (content/report workflows).
+ * Honors both global moderators/admins and community ambassadors.
  */
 function canModerateCommunityContent($user_id, $role_id, $community_id, $db) {
-    if (isSuperAdmin($role_id)) return true;
+    if (isModerator($role_id)) return true;
     return in_array(getCommunityRole($user_id, $community_id, $db), ['admin', 'moderator'], true);
 }

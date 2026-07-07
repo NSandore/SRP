@@ -65,6 +65,6 @@ try {
     echo json_encode($forums ?: ["message" => "No forums found."]);
 } catch (PDOException $e) {
     http_response_code(500); // Internal Server Error
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

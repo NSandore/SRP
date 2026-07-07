@@ -16,7 +16,7 @@ import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
 import { ThemedText } from '@/components/themed-text';
 import { useSession } from '@/hooks/use-session';
-import { resetPassword } from '@/lib/api/session';
+import { requestPasswordReset, confirmPasswordReset } from '@/lib/api/session';
 import { useBrandStyles } from '@/hooks/use-brand-styles';
 
 export default function LoginScreen() {
@@ -38,6 +38,8 @@ export default function LoginScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [resetCodeSent, setResetCodeSent] = useState(false);
+  const [resetCode, setResetCode] = useState('');
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
 
   const heading = useMemo(() => {
@@ -91,8 +93,32 @@ export default function LoginScreen() {
     router.back();
   };
 
+  // Step 1: request an emailed reset code.
+  const handleRequestResetCode = async () => {
+    if (!email.trim()) {
+      setResetMessage('Please enter your email.');
+      return;
+    }
+    setIsSubmitting(true);
+    setResetMessage(null);
+    try {
+      const response = await requestPasswordReset(email.trim());
+      if (response.success) {
+        setResetCodeSent(true);
+        setResetMessage(response.message || 'If that email is registered, a reset code has been sent.');
+      } else {
+        setResetMessage(response.error || 'Unable to send a reset code.');
+      }
+    } catch {
+      setResetMessage('Server error. Please try again later.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Step 2: submit the code plus the new password.
   const handleResetPassword = async () => {
-    if (!email.trim() || !newPassword || !confirmPassword) {
+    if (!email.trim() || !resetCode || !newPassword || !confirmPassword) {
       setResetMessage('Please fill out all fields.');
       return;
     }
@@ -100,13 +126,19 @@ export default function LoginScreen() {
       setResetMessage('Passwords do not match.');
       return;
     }
+    if (newPassword.length < 8) {
+      setResetMessage('New password must be at least 8 characters.');
+      return;
+    }
     setIsSubmitting(true);
     setResetMessage(null);
     try {
-      const response = await resetPassword(email.trim(), newPassword);
+      const response = await confirmPasswordReset(email.trim(), resetCode.trim(), newPassword);
       if (response.success) {
         setResetMessage('Password updated. You can now log in.');
         setShowReset(false);
+        setResetCodeSent(false);
+        setResetCode('');
         setPassword('');
         setNewPassword('');
         setConfirmPassword('');
@@ -165,34 +197,63 @@ export default function LoginScreen() {
                   keyboardType="email-address"
                   value={email}
                   onChangeText={setEmail}
+                  editable={!resetCodeSent}
                 />
-                <ThemedText style={styles.label}>New password</ThemedText>
-                <TextInput
-                  style={styles.input}
-                  placeholder="New password"
-                  placeholderTextColor={colors.subtext}
-                  secureTextEntry
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                />
-                <ThemedText style={styles.label}>Confirm password</ThemedText>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Confirm password"
-                  placeholderTextColor={colors.subtext}
-                  secureTextEntry
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                />
+                {resetCodeSent ? (
+                  <>
+                    <ThemedText style={styles.label}>Reset code</ThemedText>
+                    <ThemedText style={styles.helperText}>Enter the 6-digit code we emailed you.</ThemedText>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="6-digit code"
+                      placeholderTextColor={colors.subtext}
+                      keyboardType="number-pad"
+                      value={resetCode}
+                      onChangeText={(t) => setResetCode(t.replace(/\D/g, '').slice(0, 6))}
+                    />
+                    <ThemedText style={styles.label}>New password</ThemedText>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="New password"
+                      placeholderTextColor={colors.subtext}
+                      secureTextEntry
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                    />
+                    <ThemedText style={styles.label}>Confirm password</ThemedText>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Confirm password"
+                      placeholderTextColor={colors.subtext}
+                      secureTextEntry
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                    />
+                  </>
+                ) : null}
                 {resetMessage ? <ThemedText style={styles.errorText}>{resetMessage}</ThemedText> : null}
-                <Pressable style={styles.primaryButton} onPress={handleResetPassword} disabled={isSubmitting}>
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={resetCodeSent ? handleResetPassword : handleRequestResetCode}
+                  disabled={isSubmitting}
+                >
                   {isSubmitting ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <ThemedText style={styles.primaryButtonText}>Update password</ThemedText>
+                    <ThemedText style={styles.primaryButtonText}>
+                      {resetCodeSent ? 'Update password' : 'Send reset code'}
+                    </ThemedText>
                   )}
                 </Pressable>
-                <Pressable onPress={() => setShowReset(false)} disabled={isSubmitting}>
+                <Pressable
+                  onPress={() => {
+                    setShowReset(false);
+                    setResetCodeSent(false);
+                    setResetCode('');
+                    setResetMessage(null);
+                  }}
+                  disabled={isSubmitting}
+                >
                   <ThemedText style={styles.linkText}>Never mind, take me back</ThemedText>
                 </Pressable>
               </View>

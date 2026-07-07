@@ -4,6 +4,7 @@ session_start(); // Start the session to access session variables
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
@@ -12,8 +13,8 @@ header('Content-Type: application/json');
 $data = json_decode(file_get_contents('php://input'), true);
 $usingForm = !empty($_POST) || !empty($_FILES);
 $community_id = $usingForm ? normalizeId($_POST['community_id'] ?? '') : (isset($data['community_id']) ? normalizeId($data['community_id']) : '');
-$name = trim($usingForm ? ($_POST['name'] ?? '') : ($data['name'] ?? ''));
-$description = trim($usingForm ? ($_POST['description'] ?? '') : ($data['description'] ?? ''));
+$name = srp_sanitize_plain($usingForm ? ($_POST['name'] ?? '') : ($data['name'] ?? ''), 255);
+$description = srp_sanitize_plain($usingForm ? ($_POST['description'] ?? '') : ($data['description'] ?? ''), 2000);
 $tagsRaw = $usingForm ? ($_POST['tags'] ?? '[]') : ($data['tags'] ?? []);
 if (is_string($tagsRaw)) {
     $decodedTags = json_decode($tagsRaw, true);
@@ -134,6 +135,6 @@ try {
     ]);
 } catch (PDOException $e) {
     http_response_code(500); // Internal Server Error
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

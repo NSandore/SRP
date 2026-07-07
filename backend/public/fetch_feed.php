@@ -171,6 +171,6 @@ try {
 
     echo json_encode(["success" => true, "threads" => $threads, "forums" => $forums]);
 } catch (PDOException $e) {
-    echo json_encode(["success" => false, "error" => "Database error: " . $e->getMessage()]);
+    echo json_encode(["success" => false, "error" => "Database error: "]);
 }
 ?>

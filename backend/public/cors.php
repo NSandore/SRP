@@ -16,6 +16,18 @@ $allowed_origins = [
     'http://127.0.0.1:5173',
 ];
 
+// Additional origins can be supplied via the CORS_ALLOWED_ORIGINS env var
+// (comma-separated) so deployments can change hosts without editing code.
+$envOrigins = getenv('CORS_ALLOWED_ORIGINS');
+if ($envOrigins !== false && trim($envOrigins) !== '') {
+    foreach (explode(',', $envOrigins) as $envOrigin) {
+        $envOrigin = trim($envOrigin);
+        if ($envOrigin !== '') {
+            $allowed_origins[] = $envOrigin;
+        }
+    }
+}
+
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (!$origin && isset($_SERVER['HTTP_HOST'])) {
     // Same-host requests without an Origin header should still be allowed.

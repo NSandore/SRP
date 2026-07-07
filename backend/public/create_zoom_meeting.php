@@ -123,8 +123,10 @@ try {
     $settingsStmt->execute([':uid' => $userId]);
     $settings = $settingsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    $accessToken = $settings['zoom_access_token'] ?? '';
-    $refreshToken = $settings['zoom_refresh_token'] ?? '';
+    require_once __DIR__ . '/../includes/crypto.php';
+    // Tokens are stored encrypted; decrypt for use (legacy plaintext passes through).
+    $accessToken = (string)(srp_decrypt($settings['zoom_access_token'] ?? '') ?? '');
+    $refreshToken = (string)(srp_decrypt($settings['zoom_refresh_token'] ?? '') ?? '');
     $expiresAt = isset($settings['zoom_expires_at']) ? (int)$settings['zoom_expires_at'] : 0;
     $zoomEmail = $settings['zoom_email'] ?? '';
 
@@ -176,8 +178,8 @@ try {
             WHERE user_id = :uid
         ");
         $saveStmt->execute([
-            ':access_token' => $accessToken,
-            ':refresh_token' => $refreshToken,
+            ':access_token' => srp_encrypt($accessToken),
+            ':refresh_token' => srp_encrypt($refreshToken),
             ':expires_at' => $expiresAt,
             ':uid' => $userId,
         ]);

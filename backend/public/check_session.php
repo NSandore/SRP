@@ -117,6 +117,12 @@ if (isset($_SESSION['user_id'])) {
         $ambassadorCommunities = $ambStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $_SESSION['is_ambassador'] = count($ambassadorCommunities) > 0 ? 1 : 0;
 
+        // Recompute admin communities too so UI that depends on
+        // admin_community_ids reflects role changes without a fresh login.
+        $adminStmt = $db->prepare("SELECT community_id FROM ambassadors WHERE user_id = :uid AND community_role = 'admin'");
+        $adminStmt->execute([':uid' => $userId]);
+        $_SESSION['admin_community_ids'] = $adminStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
         $userMetaStmt = $db->prepare("
             SELECT is_verified, verified, verified_community_id, education_status, recent_university_id
             FROM users

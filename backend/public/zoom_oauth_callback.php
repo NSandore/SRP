@@ -251,6 +251,11 @@ if ($meResponse !== false && $meStatus < 400) {
 }
 
 try {
+    require_once __DIR__ . '/../includes/crypto.php';
+    // Encrypt OAuth tokens before they are persisted in account_settings.extras.
+    $storedAccessToken = srp_encrypt($accessToken);
+    $storedRefreshToken = srp_encrypt($refreshToken);
+
     $db = getDB();
     $stmt = $db->prepare("
         INSERT INTO account_settings (user_id, extras, updated_at)
@@ -275,8 +280,8 @@ try {
     ");
     $stmt->execute([
         ':uid' => $userId,
-        ':access_token' => $accessToken,
-        ':refresh_token' => $refreshToken,
+        ':access_token' => $storedAccessToken,
+        ':refresh_token' => $storedRefreshToken,
         ':expires_at' => $expiresAt,
         ':zoom_user_id' => $zoomUserId,
         ':zoom_email' => $zoomEmail,

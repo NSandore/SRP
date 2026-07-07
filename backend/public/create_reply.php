@@ -3,6 +3,7 @@ require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';  // Adjust path if needed
 require_once __DIR__ . '/../includes/onboarding.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 
 header('Content-Type: application/json');
 
@@ -21,7 +22,7 @@ if (!isset($_SESSION['user_id'])) {
 $data = json_decode(file_get_contents('php://input'), true);
 $thread_id = isset($data['thread_id']) ? normalizeId($data['thread_id']) : '';
 $user_id   = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
-$content   = trim($data['content']    ?? '');
+$content   = srp_sanitize_html(trim($data['content'] ?? ''));
 $reply_to  = isset($data['reply_to']) ? normalizeId($data['reply_to']) : null;
 
 /**
@@ -132,6 +133,6 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

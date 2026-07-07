@@ -4,6 +4,7 @@ startSession();
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
@@ -22,7 +23,7 @@ $role_id_session = (int) $_SESSION['role_id'];
 $data = json_decode(file_get_contents('php://input'), true);
 
 $thread_id = isset($data['thread_id']) ? normalizeId($data['thread_id']) : '';
-$new_title = trim($data['new_title'] ?? '');
+$new_title = srp_sanitize_plain($data['new_title'] ?? '', 255);
 $tagsProvided = is_array($data) && array_key_exists('tags', $data);
 $tags = $tagsProvided && is_array($data['tags']) ? $data['tags'] : [];
 
@@ -96,6 +97,6 @@ try {
     }
 } catch (PDOException $e) {
     http_response_code(500); // Server error
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

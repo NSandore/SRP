@@ -11,6 +11,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -29,8 +30,8 @@ if (!$input || !is_array($input)) {
     $input = $_POST;
 }
 
-$title = trim($input['title'] ?? '');
-$body = trim($input['body'] ?? '');
+$title = srp_sanitize_plain($input['title'] ?? '', 255);
+$body = srp_sanitize_html($input['body'] ?? '');
 $scope = ($input['scope'] ?? 'community') === 'global' ? 'global' : 'community';
 $communityId = $scope === 'community' ? normalizeId($input['community_id'] ?? '') : '';
 $announcementType = trim($input['announcement_type'] ?? 'general');
@@ -132,6 +133,6 @@ try {
     echo json_encode(['success' => true, 'announcement_id' => $announcementId]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }
 ?>

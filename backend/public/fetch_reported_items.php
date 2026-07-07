@@ -22,13 +22,17 @@ try {
     ensureReportsTable($db);
 
     $isSuperAdmin = isSuperAdmin($roleId);
+    // Global moderators and admins can review reports across every community.
+    $isGlobalModerator = isModerator($roleId);
 
     // Determine accessible communities by moderation scope.
     $accessibleCommunities = [];
-    if ($isSuperAdmin) {
+    if ($isGlobalModerator) {
         $communityStmt = $db->query('SELECT id FROM communities');
         $accessibleCommunities = $communityStmt->fetchAll(PDO::FETCH_COLUMN);
     } else {
+        // Ambassadors moderate their own communities. The community_role enum is
+        // ('admin','moderator'); both tiers may review that community's reports.
         $ambStmt = $db->prepare("
             SELECT community_id
             FROM ambassadors
@@ -39,7 +43,7 @@ try {
         $accessibleCommunities = $ambStmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    if (!$isSuperAdmin && empty($accessibleCommunities)) {
+    if (!$isGlobalModerator && empty($accessibleCommunities)) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'You do not have access to reported items.']);
         exit;
@@ -59,7 +63,7 @@ try {
         $params['status'] = $statusFilter;
     }
 
-    if (!$isSuperAdmin) {
+    if (!$isGlobalModerator) {
         $placeholders = [];
         foreach ($accessibleCommunities as $idx => $cid) {
             $ph = ":cid{$idx}";
@@ -139,5 +143,5 @@ try {
     echo json_encode(['success' => true, 'reports' => $reports]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }

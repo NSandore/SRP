@@ -727,6 +727,32 @@ function EventManagement({ userData }) {
       }
     }
 
+    if (type === 'poll') {
+      try {
+        const res = await axios.post(
+          '/api/create_poll.php',
+          {
+            question: title,
+            description,
+            scope,
+            community_id: scope === 'community' ? communityId : '',
+            options: pollOptions,
+            closes_at: date || '',
+          },
+          { withCredentials: true }
+        );
+        if (!res.data?.success) {
+          setMessage({ type: 'error', text: res.data?.error || 'Unable to create poll.' });
+          return;
+        }
+        eventId = res.data.poll_id || eventId;
+      } catch (err) {
+        console.error('Error creating poll', err);
+        setMessage({ type: 'error', text: err.response?.data?.error || 'Unable to create poll.' });
+        return;
+      }
+    }
+
     const payload = {
       id: eventId,
       type,

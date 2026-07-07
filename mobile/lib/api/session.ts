@@ -23,9 +23,19 @@ export async function verifyTwoFactor(code: string, rememberDevice: boolean) {
   return data;
 }
 
-export async function resetPassword(email: string, newPassword: string) {
+// Step 1: request an emailed reset code.
+export async function requestPasswordReset(email: string) {
+  const { data } = await apiClient.post<ApiResponse<{ requires_code?: boolean }>>('/reset_password.php', {
+    email,
+  });
+  return data;
+}
+
+// Step 2: submit the code plus the new password.
+export async function confirmPasswordReset(email: string, code: string, newPassword: string) {
   const { data } = await apiClient.post<ApiResponse<Record<string, never>>>('/reset_password.php', {
     email,
+    code,
     new_password: newPassword,
   });
   return data;

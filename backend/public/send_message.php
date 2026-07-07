@@ -4,6 +4,7 @@ require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 header('Content-Type: application/json');
 
 $input = file_get_contents('php://input');
@@ -20,7 +21,7 @@ if (!isset($data['sender_id'], $data['recipient_id'], $data['content'])) {
 
 $sender_id = normalizeId($data['sender_id']);
 $recipient_id = normalizeId($data['recipient_id']);
-$content = trim($data['content']);
+$content = srp_sanitize_html(trim($data['content']));
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
@@ -136,6 +137,6 @@ try {
     echo json_encode(['success' => true, 'conversation_id' => $conversation_id]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }
 ?>

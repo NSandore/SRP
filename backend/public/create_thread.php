@@ -5,6 +5,7 @@ require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../includes/onboarding.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
@@ -24,7 +25,7 @@ if (!$data || !is_array($data)) {
 // Extract and sanitize input data
 $forum_id         = isset($data['forum_id']) ? normalizeId($data['forum_id']) : '';
 $user_id          = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
-$title           = isset($data['title']) ? trim($data['title']) : '';
+$title           = isset($data['title']) ? srp_sanitize_plain($data['title'], 255) : '';
 $firstPostContent = isset($data['firstPostContent']) ? trim($data['firstPostContent']) : '';
 $tags            = isset($data['tags']) && is_array($data['tags']) ? $data['tags'] : [];
 
@@ -40,13 +41,8 @@ if ($user_id !== normalizeId($_SESSION['user_id'])) {
     exit;
 }
 
-// Sanitize the firstPostContent to allow only specific HTML tags
-// You can adjust the allowed tags based on your requirements
-$allowed_tags = '<p><a><b><strong><i><em><u><ul><ol><li><br><img><h1><h2><h3><h4><h5><h6>';
-$sanitized_content = strip_tags($firstPostContent, $allowed_tags);
-
-// Optionally, you can further sanitize attributes (e.g., href in <a>, src in <img>)
-// For more robust sanitization, consider using libraries like HTMLPurifier
+// Sanitize the first post's rich text through the shared HTMLPurifier helper.
+$sanitized_content = srp_sanitize_html($firstPostContent);
 
 try {
     $db = getDB();
@@ -122,6 +118,6 @@ try {
     // Log the error for debugging purposes (optional)
     error_log('Database Error: ' . $e->getMessage());
 
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

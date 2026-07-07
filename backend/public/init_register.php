@@ -5,11 +5,8 @@ require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/onboarding.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 require __DIR__ . '/../vendor/autoload.php';
-
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
 
 use Mailgun\Mailgun;
 
@@ -58,6 +55,11 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
 try {
     $db = getDB();
+
+    // Throttle account creation per IP to limit spam signups.
+    srp_rate_limit_enforce($db, 'register:' . srp_client_ip(), 5, 600,
+        'Too many sign-up attempts from this network. Please try again later.');
+
     srp_ensure_onboarding_tables($db);
     $db->beginTransaction();
 

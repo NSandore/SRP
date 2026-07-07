@@ -13,6 +13,8 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetMessage, setResetMessage] = useState('');
+  const [resetCodeSent, setResetCodeSent] = useState(false);
+  const [resetCode, setResetCode] = useState('');
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [twoFactorMessage, setTwoFactorMessage] = useState('');
@@ -91,10 +93,31 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
     }
   };
 
+  // Step 1: request an emailed reset code.
+  const handleRequestResetCode = async (e) => {
+    e.preventDefault();
+    if (!email) {
+      setResetMessage('Please enter your email.');
+      return;
+    }
+    try {
+      const response = await axios.post('/api/reset_password.php', { email });
+      if (response.data && response.data.success) {
+        setResetCodeSent(true);
+        setResetMessage(response.data.message || 'If that email is registered, a reset code has been sent.');
+      } else {
+        setResetMessage(response.data?.error || 'Unable to send a reset code.');
+      }
+    } catch (err) {
+      setResetMessage(err.response?.data?.error || 'Server error. Please try again later.');
+    }
+  };
+
+  // Step 2: submit the code plus the new password.
   const handleResetPassword = async (e) => {
     e.preventDefault();
 
-    if (!email || !newPassword || !confirmPassword) {
+    if (!email || !resetCode || !newPassword || !confirmPassword) {
       setResetMessage('Please fill out all fields.');
       return;
     }
@@ -104,15 +127,23 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
       return;
     }
 
+    if (newPassword.length < 8) {
+      setResetMessage('New password must be at least 8 characters.');
+      return;
+    }
+
     try {
       const response = await axios.post('/api/reset_password.php', {
         email,
+        code: resetCode.trim(),
         new_password: newPassword,
       });
 
       if (response.data && response.data.success) {
         setResetMessage('Password updated. You can now log in.');
         setShowReset(false);
+        setResetCodeSent(false);
+        setResetCode('');
         setPassword('');
         setNewPassword('');
         setConfirmPassword('');
@@ -120,7 +151,7 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
         setResetMessage(response.data.error || 'Failed to reset password.');
       }
     } catch (err) {
-      setResetMessage('Server error. Please try again later.');
+      setResetMessage(err.response?.data?.error || 'Server error. Please try again later.');
     }
   };
 
@@ -159,40 +190,78 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
           <p>{showReset ? 'Choose a new password to regain access.' : 'Log in to continue your journey.'}</p>
 
           {showReset ? (
-            <form className="auth-form" onSubmit={handleResetPassword}>
+            <form className="auth-form" onSubmit={resetCodeSent ? handleResetPassword : handleRequestResetCode}>
               <label htmlFor="reset-email">Email</label>
               <input
                 type="email"
                 id="reset-email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={resetCodeSent}
                 required
               />
 
-              <label htmlFor="new-password">New password</label>
-              <input
-                type="password"
-                id="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-              />
+              {resetCodeSent && (
+                <>
+                  <label htmlFor="reset-code">Reset code</label>
+                  <p className="auth-helper">Enter the 6-digit code we emailed you.</p>
+                  <input
+                    type="text"
+                    id="reset-code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={resetCode}
+                    onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="6-digit code"
+                    required
+                  />
 
-              <label htmlFor="confirm-password">Confirm password</label>
-              <input
-                type="password"
-                id="confirm-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
+                  <label htmlFor="new-password">New password</label>
+                  <input
+                    type="password"
+                    id="new-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    minLength={8}
+                    required
+                  />
+
+                  <label htmlFor="confirm-password">Confirm password</label>
+                  <input
+                    type="password"
+                    id="confirm-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    minLength={8}
+                    required
+                  />
+                </>
+              )}
 
               {resetMessage && <p className="auth-error">{resetMessage}</p>}
 
               <button type="submit" className="auth-primary">
-                Update password
+                {resetCodeSent ? 'Update password' : 'Send reset code'}
               </button>
-              <button type="button" className="auth-link" onClick={() => setShowReset(false)}>
+              {resetCodeSent && (
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={handleRequestResetCode}
+                >
+                  Resend code
+                </button>
+              )}
+              <button
+                type="button"
+                className="auth-link"
+                onClick={() => {
+                  setShowReset(false);
+                  setResetCodeSent(false);
+                  setResetCode('');
+                  setResetMessage('');
+                }}
+              >
                 Never mind, take me back
               </button>
             </form>
