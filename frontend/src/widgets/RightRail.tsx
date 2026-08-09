@@ -3,6 +3,9 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { isAdmin, isSuperAdmin } from '../constants/roles';
 import { buildAvatarSrc } from '../utils/avatar';
+import EventJoinButton from '../components/EventJoinButton';
+import { useLanguage } from '../i18n/LanguageContext';
+import NewsRailPane from './NewsRailPane';
 
 type ManagedItem = {
   id: string;
@@ -62,6 +65,7 @@ const STORAGE_KEY = 'managedEvents';
 const POLL_RESPONSES_KEY = 'managedPollResponses';
 const POLL_RESULTS_KEY = 'managedPollTallies';
 const RSVP_KEY = 'managedEventRsvps';
+const COMMUNITY_EVENT_PAGE_SIZE = 4;
 
 const railSampleDate = (daysFromNow: number, hour = 16) => {
   const date = new Date();
@@ -128,17 +132,79 @@ const SAMPLE_UHART_POLLS: ManagedItem[] = [
   },
 ];
 
-const datePrefix = (type?: string) => {
-  if (type === 'poll') return 'Closes';
-  if (type === 'announcement') return 'Publishes';
-  return 'Occurs';
+const localizeSampleItem = (item: ManagedItem, t: (key: string) => string): ManagedItem => {
+  switch (item.id) {
+    case 'sample-event-research-roundtable':
+      return {
+        ...item,
+        title: t('rail.samples.roundtableTitle'),
+        description: t('rail.samples.roundtableDescription'),
+        location: t('rail.samples.roundtableLocation'),
+        communityName: t('nav.academicCommons'),
+      };
+    case 'sample-rail-reading-format':
+      return {
+        ...item,
+        title: t('rail.samples.readingFormatTitle'),
+        communityName: t('nav.academicCommons'),
+      };
+    case 'sample-uhart-study-space':
+      return {
+        ...item,
+        title: t('rail.samples.studySpaceTitle'),
+        description: t('rail.samples.studySpaceDescription'),
+      };
+    case 'sample-uhart-community-programming':
+      return {
+        ...item,
+        title: t('rail.samples.programmingTitle'),
+        description: t('rail.samples.programmingDescription'),
+      };
+    default:
+      return item;
+  }
 };
 
-const formatRailDateTime = (value?: string) => {
+const SAMPLE_POLL_OPTION_KEYS: Record<string, Record<string, string>> = {
+  'sample-rail-reading-format': {
+    'One monthly session': 'rail.samples.readingFormatMonthly',
+    'Two shorter sessions': 'rail.samples.readingFormatShorter',
+    'Asynchronous notes': 'rail.samples.readingFormatAsync',
+  },
+  'sample-uhart-study-space': {
+    'Quiet library floor': 'rail.samples.quietLibrary',
+    'Reserveable study room': 'rail.samples.studyRoom',
+    'Student center table': 'rail.samples.studentCenter',
+    'Outdoor campus space': 'rail.samples.outdoorSpace',
+  },
+  'sample-uhart-community-programming': {
+    'Academic planning': 'rail.samples.academicPlanning',
+    'Campus resources': 'rail.samples.campusResources',
+    'Career preparation': 'rail.samples.careerPreparation',
+    'Arts and performances': 'rail.samples.artsPerformances',
+  },
+};
+
+const localizePollOption = (
+  pollId: string,
+  option: string,
+  t: (key: string) => string
+) => {
+  const translationKey = SAMPLE_POLL_OPTION_KEYS[pollId]?.[option];
+  return translationKey ? t(translationKey) : option;
+};
+
+const datePrefix = (type: string | undefined, t: (key: string) => string) => {
+  if (type === 'poll') return t('rail.closes');
+  if (type === 'announcement') return t('rail.publishes');
+  return t('rail.occurs');
+};
+
+const formatRailDateTime = (value?: string, locale?: string) => {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString(locale, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -148,7 +214,7 @@ const formatRailDateTime = (value?: string) => {
   });
 };
 
-const formatCalendarDate = (value?: string, timeZone?: string) => {
+const formatCalendarDate = (value?: string, timeZone?: string, locale?: string) => {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
@@ -156,16 +222,16 @@ const formatCalendarDate = (value?: string, timeZone?: string) => {
   try {
     return {
       iso: date.toISOString(),
-      month: date.toLocaleDateString(undefined, { ...options, month: 'short' }).toUpperCase(),
-      day: date.toLocaleDateString(undefined, { ...options, day: '2-digit' }),
-      weekday: date.toLocaleDateString(undefined, { ...options, weekday: 'short' }).toUpperCase(),
+      month: date.toLocaleDateString(locale, { ...options, month: 'short' }).toUpperCase(),
+      day: date.toLocaleDateString(locale, { ...options, day: '2-digit' }),
+      weekday: date.toLocaleDateString(locale, { ...options, weekday: 'short' }).toUpperCase(),
     };
   } catch {
     return {
       iso: date.toISOString(),
-      month: date.toLocaleDateString(undefined, { month: 'short' }).toUpperCase(),
-      day: date.toLocaleDateString(undefined, { day: '2-digit' }),
-      weekday: date.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase(),
+      month: date.toLocaleDateString(locale, { month: 'short' }).toUpperCase(),
+      day: date.toLocaleDateString(locale, { day: '2-digit' }),
+      weekday: date.toLocaleDateString(locale, { weekday: 'short' }).toUpperCase(),
     };
   }
 };
@@ -178,6 +244,7 @@ export default function RightRail({
   hideGenericWidgets = false,
 }: RightRailProps) {
   const navigate = useNavigate();
+  const { locale, t } = useLanguage();
   const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const isAdminUser = isAdmin(userData?.role_id);
   const adminCommunityIds = useMemo(() => {
@@ -481,18 +548,18 @@ export default function RightRail({
     [visibleItems]
   );
   const communityKind = community?.parent_community_id
-    ? 'Sub-Group'
+    ? t('rail.subGroup')
     : communityContext?.type === 'university'
-      ? 'University'
+      ? t('rail.university')
       : communityContext?.type === 'group'
-        ? 'Group'
-        : 'Community';
-  const displayEvents = communityContext
+        ? t('rail.group')
+        : t('rail.community');
+  const displayEvents = (communityContext
     ? sortedEvents
     : sortedEvents.length
       ? sortedEvents
-      : SAMPLE_RAIL_EVENTS;
-  const displayPolls = communityContext
+      : SAMPLE_RAIL_EVENTS).map((item) => localizeSampleItem(item, t));
+  const displayPolls = (communityContext
     ? (
         polls.length
           ? polls
@@ -502,14 +569,35 @@ export default function RightRail({
       )
     : polls.length
       ? polls
-      : SAMPLE_RAIL_POLLS;
+      : SAMPLE_RAIL_POLLS).map((item) => localizeSampleItem(item, t));
+  const shouldPaginateCommunityEvents = Boolean(
+    communityContext && displayEvents.length >= 5
+  );
+  const eventPageCount = communityContext
+    ? shouldPaginateCommunityEvents
+      ? Math.ceil(displayEvents.length / COMMUNITY_EVENT_PAGE_SIZE)
+      : 1
+    : Math.max(displayEvents.length, 1);
+  const visibleEventItems = communityContext
+    ? shouldPaginateCommunityEvents
+      ? displayEvents.slice(
+          eventIndex * COMMUNITY_EVENT_PAGE_SIZE,
+          (eventIndex + 1) * COMMUNITY_EVENT_PAGE_SIZE
+        )
+      : displayEvents
+    : displayEvents[eventIndex]
+      ? [displayEvents[eventIndex]]
+      : [];
+  const shouldShowEventPagination = communityContext
+    ? shouldPaginateCommunityEvents
+    : displayEvents.length > 1;
 
   useEffect(() => {
     setEventIndex((idx) => {
-      if (displayEvents.length === 0) return 0;
-      return Math.min(idx, displayEvents.length - 1);
+      if (eventPageCount <= 1) return 0;
+      return Math.min(idx, eventPageCount - 1);
     });
-  }, [displayEvents.length]);
+  }, [eventPageCount]);
 
   useEffect(() => {
     setPollIndex((idx) => {
@@ -544,38 +632,37 @@ export default function RightRail({
 
   const scopeLabel = (item: ManagedItem) =>
     item.scope === 'global'
-      ? 'Global'
+      ? t('rail.global')
       : [
-          `Community: ${item.communityName || (item.communityId ? `Community ${item.communityId}` : 'Community item')}`,
-          item.subCommunityName ? `Sub-community: ${item.subCommunityName}` : '',
+          `${t('rail.community')}: ${item.communityName || (item.communityId ? `${t('rail.community')} ${item.communityId}` : t('rail.communityItem'))}`,
+          item.subCommunityName ? `${t('rail.subCommunity')}: ${item.subCommunityName}` : '',
         ].filter(Boolean).join(' · ');
 
   const renderItemMeta = (item: ManagedItem) => {
-    const formattedDate = formatRailDateTime(item.date);
-    const dateText = formattedDate ? `${datePrefix(item.type)} ${formattedDate}` : '';
-    const baseType = item.type === 'announcement' ? 'Announcement' : 'Event';
+    const formattedDate = formatRailDateTime(item.date, locale);
+    const dateText = formattedDate ? `${datePrefix(item.type, t)} ${formattedDate}` : '';
+    const baseType = item.type === 'announcement' ? t('rail.announcement') : t('rail.event');
     return `${baseType} · ${scopeLabel(item)}${dateText ? ` · ${dateText}` : ''}`;
   };
 
   const renderPollMeta = (item: ManagedItem) => {
-    const formattedDate = formatRailDateTime(item.date);
-    const dateText = formattedDate ? `${datePrefix(item.type)} ${formattedDate}` : '';
-    return `Poll · ${scopeLabel(item)}${dateText ? ` · ${dateText}` : ''}`;
+    const formattedDate = formatRailDateTime(item.date, locale);
+    const dateText = formattedDate ? `${datePrefix(item.type, t)} ${formattedDate}` : '';
+    return `${t('rail.poll')} · ${scopeLabel(item)}${dateText ? ` · ${dateText}` : ''}`;
   };
 
   const currentPoll = displayPolls[pollIndex];
-  const currentEvent = displayEvents[eventIndex];
 
   const handleVote = (option: string) => {
     if (!currentPoll) return;
     if (!userData?.user_id) {
-      setPollMessage('Log in or sign up to vote in polls.');
+      setPollMessage(t('rail.logInToVote'));
       return;
     }
 
     const prevChoice = pollResponses[currentPoll.id];
     if (prevChoice) {
-      setPollMessage('Your response is final for this poll.');
+      setPollMessage(t('rail.responseFinal'));
       return;
     }
 
@@ -587,7 +674,7 @@ export default function RightRail({
       next[currentPoll.id] = pollTotals;
       return next;
     });
-    setPollMessage('Thanks for voting!');
+    setPollMessage(t('rail.thanksVoting'));
   };
 
   const goNextPoll = () => {
@@ -604,23 +691,27 @@ export default function RightRail({
 
   useEffect(() => {
     setPollMessage('');
-  }, [pollIndex]);
+  }, [pollIndex, locale]);
+
+  useEffect(() => {
+    setRsvpMessages({});
+  }, [locale]);
 
   const goNextEvent = () => {
-    if (!displayEvents.length) return;
-    setEventIndex((prev) => (prev + 1) % displayEvents.length);
+    if (eventPageCount <= 1) return;
+    setEventIndex((prev) => (prev + 1) % eventPageCount);
   };
 
   const goPrevEvent = () => {
-    if (!displayEvents.length) return;
-    setEventIndex((prev) => (prev - 1 + displayEvents.length) % displayEvents.length);
+    if (eventPageCount <= 1) return;
+    setEventIndex((prev) => (prev - 1 + eventPageCount) % eventPageCount);
   };
 
   const userId = userData?.user_id ? String(userData.user_id) : '';
   const toggleRsvp = async (item: ManagedItem) => {
     const eventId = item.id;
     if (!userId) {
-      setRsvpMessages((prev) => ({ ...prev, [eventId]: 'Log in or sign up to RSVP.' }));
+      setRsvpMessages((prev) => ({ ...prev, [eventId]: t('rail.logInToRsvp') }));
       return;
     }
     const currentList = rsvps[eventId] || [];
@@ -651,7 +742,7 @@ export default function RightRail({
         }
       } catch (err) {
         console.error('Unable to update RSVP', err);
-        setRsvpMessages((prev) => ({ ...prev, [eventId]: 'Unable to update RSVP right now.' }));
+        setRsvpMessages((prev) => ({ ...prev, [eventId]: t('rail.unableRsvp') }));
         return;
       }
     }
@@ -665,7 +756,7 @@ export default function RightRail({
     });
     setRsvpMessages((prev) => ({
       ...prev,
-      [eventId]: hasRsvped ? 'RSVP removed.' : 'RSVP confirmed!',
+      [eventId]: hasRsvped ? t('rail.rsvpRemoved') : t('rail.rsvpConfirmed'),
     }));
   };
 
@@ -681,7 +772,7 @@ export default function RightRail({
       {communityContext && showSection('ambassadors') && (
         <section className="widget-card community-ambassadors-widget" aria-labelledby={`${idPrefix}-ambassadors-header`}>
           <div id={`${idPrefix}-ambassadors-header`} className="widget-header compact-widget-header">
-            <h3 className="widget-title">Ambassadors</h3>
+            <h3 className="widget-title">{t('rail.ambassadors')}</h3>
             <span>{communityAmbassadors.length}</span>
           </div>
           <div className="widget-body">
@@ -700,14 +791,14 @@ export default function RightRail({
                       />
                       <span>
                         <strong>{ambassador.first_name} {ambassador.last_name}</strong>
-                        <small>{ambassador.headline || ambassador.community_role || 'Community ambassador'}</small>
+                        <small>{ambassador.headline || ambassador.community_role || t('rail.communityAmbassador')}</small>
                       </span>
                     </button>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="community-rail-empty">No current ambassadors.</p>
+              <p className="community-rail-empty">{t('rail.noAmbassadors')}</p>
             )}
             {userData?.user_id && (
               <button
@@ -719,7 +810,7 @@ export default function RightRail({
                   }));
                 }}
               >
-                View all
+                {t('rail.viewAll')}
               </button>
             )}
           </div>
@@ -729,32 +820,34 @@ export default function RightRail({
       {communityContext && showSection('contact') && (
         <section className="widget-card community-contact-widget" aria-labelledby={`${idPrefix}-contact-header`}>
           <div id={`${idPrefix}-contact-header`} className="widget-header compact-widget-header">
-            <h3 className="widget-title">Contact</h3>
+            <h3 className="widget-title">{t('rail.contact')}</h3>
           </div>
           <div className="widget-body community-contact-list">
             {community?.website && (
               <a href={community.website} target="_blank" rel="noopener noreferrer">
-                Visit website
+                {t('rail.visitWebsite')}
               </a>
             )}
             {communityPhone && (
-              <a href={`tel:${communityPhone}`} aria-label={`Call ${communityPhone}`}>
-                <span>Phone</span>
+              <a href={`tel:${communityPhone}`} aria-label={t('rail.call', { phone: communityPhone })}>
+                <span>{t('rail.phone')}</span>
                 <strong>{communityPhone}</strong>
               </a>
             )}
             {communityEmail && (
               <a href={`mailto:${communityEmail}`}>
-                <span>Email</span>
+                <span>{t('rail.email')}</span>
                 <strong>{communityEmail}</strong>
               </a>
             )}
             {!community?.website && !communityPhone && !communityEmail && (
-              <p className="community-rail-empty">No contact information provided.</p>
+              <p className="community-rail-empty">{t('rail.noContact')}</p>
             )}
           </div>
         </section>
       )}
+
+      {section === 'all' && !communityContext && !hideGenericWidgets && <NewsRailPane />}
 
       {showSection('events') && !(hideGenericWidgets && !communityContext) && (
       <section className="widget-card compact-agenda-widget" aria-labelledby={`${idPrefix}-events-header`}>
@@ -763,19 +856,26 @@ export default function RightRail({
           className="widget-header compact-widget-header"
         >
           <h3 className="widget-title">
-            {communityContext ? `${communityKind} Events` : 'Upcoming Events'}
+            {communityContext
+              ? t('rail.communityEvents', { community: communityKind })
+              : t('rail.upcomingEvents')}
           </h3>
           <span>{displayEvents.length}</span>
         </div>
         <div className="widget-body">
-          <ul className="widget-list" aria-label={communityContext ? `${communityKind} events` : 'Upcoming events'}>
-            {currentEvent && [currentEvent].map((item) => {
+          <ul
+            className="widget-list"
+            aria-label={communityContext
+              ? t('rail.communityEvents', { community: communityKind })
+              : t('rail.upcomingEvents')}
+          >
+            {visibleEventItems.map((item) => {
               const rsvpList = rsvps[item.id] || [];
               const rsvpCount = Math.max(Number(item.rsvpCount) || 0, rsvpList.length);
               const hasRsvped = Boolean(item.viewerRsvped || (userId && rsvpList.includes(userId)));
               const rsvpMessage = rsvpMessages[item.id];
               const isEvent = item.type !== 'announcement' && item.type !== 'poll';
-              const calendarDate = formatCalendarDate(item.date, item.timezone);
+              const calendarDate = formatCalendarDate(item.date, item.timezone, locale);
               const eventParams = new URLSearchParams({
                 event: String(item.id),
                 from: communityContext ? 'community' : 'rail',
@@ -823,21 +923,16 @@ export default function RightRail({
                               toggleRsvp(item);
                             }}
                           >
-                            {hasRsvped ? 'Going' : 'RSVP'}
+                            {hasRsvped ? t('rail.going') : 'RSVP'}
                           </button>
-                          {item.zoomJoinUrl && (
-                            <a
-                              href={item.zoomJoinUrl}
-                              className="widget-cta secondary"
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              Join Zoom
-                            </a>
-                          )}
+                          <EventJoinButton
+                            event={item}
+                            now={now}
+                            className="widget-cta secondary"
+                            label={t('rail.joinZoom')}
+                          />
                           {rsvpCount > 0 && (
-                            <span className="community-event-rsvp-count">{rsvpCount} going</span>
+                            <span className="community-event-rsvp-count">{t('rail.goingCount', { count: rsvpCount })}</span>
                           )}
                         </div>
                       )}
@@ -850,20 +945,22 @@ export default function RightRail({
               );
             })}
           </ul>
-          {!currentEvent && (
-            <p className="community-rail-empty">No viewable events for this {communityKind.toLowerCase()}.</p>
+          {visibleEventItems.length === 0 && (
+            <p className="community-rail-empty">
+              {t('rail.noEvents', { community: communityKind.toLowerCase() })}
+            </p>
           )}
-          {displayEvents.length > 0 && (
+          {shouldShowEventPagination && (
           <div className="poll-nav rail-event-nav">
-            <button type="button" onClick={goPrevEvent} disabled={displayEvents.length <= 1} aria-label="Previous event">
+            <button type="button" onClick={goPrevEvent} disabled={eventPageCount <= 1} aria-label={t('rail.previousEventPage')}>
               ‹
             </button>
-            <div className="poll-dots" aria-label="Event pagination">
-              {displayEvents.map((_, idx) => (
+            <div className="poll-dots" aria-label={t('rail.eventPagination')}>
+              {Array.from({ length: eventPageCount }, (_, idx) => (
                 <span key={idx} className={`poll-dot${idx === eventIndex ? ' active' : ''}`} aria-hidden="true" />
               ))}
             </div>
-            <button type="button" onClick={goNextEvent} disabled={displayEvents.length <= 1} aria-label="Next event">
+            <button type="button" onClick={goNextEvent} disabled={eventPageCount <= 1} aria-label={t('rail.nextEventPage')}>
               ›
             </button>
           </div>
@@ -879,7 +976,9 @@ export default function RightRail({
           className="widget-header compact-widget-header"
         >
           <h3 className="widget-title">
-            {communityContext ? `${communityKind} Polls` : 'Polls'}
+            {communityContext
+              ? t('rail.communityPolls', { community: communityKind })
+              : t('rail.polls')}
           </h3>
           <span>{displayPolls.length}</span>
         </div>
@@ -887,7 +986,7 @@ export default function RightRail({
           {displayPolls.length > 0 && currentPoll && (
             <div
               className="widget-list poll-slide"
-              aria-label="Community polls"
+              aria-label={t('rail.communityPolls', { community: communityKind })}
               style={{ gap: '10px' }}
               key={currentPoll.id}
             >
@@ -899,11 +998,11 @@ export default function RightRail({
                 <div className="widget-item-meta">{renderPollMeta(currentPoll)}</div>
                 {!userData?.user_id && (
                   <div className="widget-item-meta" style={{ color: '#b91c1c' }}>
-                    Log in or sign up to vote in polls.
+                    {t('rail.logInToVote')}
                   </div>
                 )}
                 {!pollResponses[currentPoll.id] && currentPoll.pollOptions && currentPoll.pollOptions.length > 0 ? (
-                  <div className="widget-poll-options" role="group" aria-label="Poll options">
+                  <div className="widget-poll-options" role="group" aria-label={t('rail.pollOptions')}>
                     {currentPoll.pollOptions.map((opt, idx) => {
                       return (
                         <button
@@ -914,13 +1013,13 @@ export default function RightRail({
                           disabled={!userData?.user_id}
                           style={{ width: '100%', textAlign: 'left', justifyContent: 'space-between' }}
                         >
-                          <span>{opt}</span>
+                          <span>{localizePollOption(currentPoll.id, opt, t)}</span>
                         </button>
                       );
                     })}
                   </div>
                 ) : !pollResponses[currentPoll.id] ? (
-                  <div className="widget-item-meta">This poll has no options configured.</div>
+                  <div className="widget-item-meta">{t('rail.noPollOptions')}</div>
                 ) : null}
                 {pollMessage && <div className="widget-item-meta">{pollMessage}</div>}
                 {pollResponses[currentPoll.id] && (
@@ -932,24 +1031,26 @@ export default function RightRail({
                       const percent = totalVotes ? Math.round((votes / totalVotes) * 100) : 0;
                       return (
                         <div key={idx} className="poll-result-row">
-                          <div className="poll-result-label">{opt}</div>
+                          <div className="poll-result-label">{localizePollOption(currentPoll.id, opt, t)}</div>
                           <div className="poll-result-bar">
                             <div className="poll-result-fill" style={{ width: `${percent}%` }} />
                           </div>
-                          <div className="poll-result-meta">{votes} vote{votes === 1 ? '' : 's'} • {percent}%</div>
+                          <div className="poll-result-meta">
+                            {votes === 1 ? t('rail.vote', { count: votes }) : t('rail.votes', { count: votes })} • {percent}%
+                          </div>
                         </div>
                       );
                     })}
                     {!Object.values(pollTallies[currentPoll.id] || {}).length && (
-                      <div className="widget-item-meta">No votes recorded yet.</div>
+                      <div className="widget-item-meta">{t('rail.noVotes')}</div>
                     )}
                   </div>
                 )}
                 <div className="poll-nav" style={{ alignSelf: 'center' }}>
-                  <button type="button" onClick={goPrevPoll} disabled={displayPolls.length <= 1} aria-label="Previous poll">
+                  <button type="button" onClick={goPrevPoll} disabled={displayPolls.length <= 1} aria-label={t('rail.previousPoll')}>
                     ‹
                   </button>
-                  <div className="poll-dots" aria-label="Poll pagination">
+                  <div className="poll-dots" aria-label={t('rail.pollPagination')}>
                     {displayPolls.map((_, idx) => (
                       <span
                         key={idx}
@@ -958,7 +1059,7 @@ export default function RightRail({
                       />
                     ))}
                   </div>
-                  <button type="button" onClick={goNextPoll} disabled={displayPolls.length <= 1} aria-label="Next poll">
+                  <button type="button" onClick={goNextPoll} disabled={displayPolls.length <= 1} aria-label={t('rail.nextPoll')}>
                     ›
                   </button>
                 </div>
@@ -966,7 +1067,9 @@ export default function RightRail({
             </div>
           )}
           {!currentPoll && (
-            <p className="community-rail-empty">No viewable polls for this {communityKind.toLowerCase()}.</p>
+            <p className="community-rail-empty">
+              {t('rail.noPolls', { community: communityKind.toLowerCase() })}
+            </p>
           )}
         </div>
       </section>

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../tag_helpers.php';
+require_once __DIR__ . '/../includes/info_board_translations.php';
 
 header('Content-Type: application/json');
 
@@ -23,7 +24,8 @@ try {
             f.name, 
             f.description, 
             f.banner_path,
-            f.created_at, 
+            f.image_layout,
+            f.created_at,
             f.created_by,
             u.first_name AS created_by_first_name,
             u.last_name AS created_by_last_name,
@@ -42,6 +44,7 @@ try {
             f.name,
             f.description,
             f.banner_path,
+            f.image_layout,
             f.created_at,
             f.created_by,
             u.first_name,
@@ -61,6 +64,16 @@ try {
     unset($forum);
 
     $forums = srp_attach_tags_to_forums($db, $forums);
+
+    if (srp_is_info_board_community($community_id)) {
+        $forums = srp_translate_info_board_rows(
+            $db,
+            $forums,
+            'forum',
+            'forum_id',
+            ['name', 'description']
+        );
+    }
 
     echo json_encode($forums ?: ["message" => "No forums found."]);
 } catch (PDOException $e) {

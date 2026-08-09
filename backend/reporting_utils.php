@@ -13,7 +13,10 @@ function ensureReportsTable(PDO $db): void
     $db->exec("
         CREATE TABLE IF NOT EXISTS reports (
             report_id VARCHAR(32) NOT NULL,
-            item_type ENUM('forum','thread','post','comment','announcement','event','user') NOT NULL,
+            item_type ENUM(
+                'forum','thread','post','comment','announcement','event','user',
+                'reel','reel_comment'
+            ) NOT NULL,
             item_id VARCHAR(32) NOT NULL,
             forum_id VARCHAR(32) DEFAULT NULL,
             thread_id VARCHAR(32) DEFAULT NULL,
@@ -205,6 +208,62 @@ function getReportContext(PDO $db, string $itemType, string $itemId): array
                 'item_title' => $name ?: 'User profile',
                 'reported_user_id' => $row['user_id'],
             ];
+        case 'reel':
+            $stmt = $db->prepare("
+                SELECT
+                    r.reel_id,
+                    r.caption,
+                    r.creator_user_id,
+                    r.community_id,
+                    c.name AS community_name
+                FROM reels r
+                LEFT JOIN communities c ON c.id = r.community_id
+                WHERE r.reel_id = :id
+                  AND r.deleted_at IS NULL
+            ");
+            $stmt->execute([':id' => $itemId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                throw new InvalidArgumentException('Reel not found');
+            }
+            return [
+                'forum_id' => null,
+                'thread_id' => null,
+                'community_id' => $row['community_id'],
+                'community_name' => $row['community_name'] ?? '',
+                'item_context' => summarizeText($row['caption'] ?: 'Video Reel'),
+                'item_title' => 'Reel',
+                'reported_user_id' => $row['creator_user_id'] ?? null,
+            ];
+        case 'reel_comment':
+            $stmt = $db->prepare("
+                SELECT
+                    rc.reel_comment_id,
+                    rc.body,
+                    rc.user_id,
+                    r.reel_id,
+                    r.community_id,
+                    c.name AS community_name
+                FROM reel_comments rc
+                JOIN reels r ON r.reel_id = rc.reel_id
+                LEFT JOIN communities c ON c.id = r.community_id
+                WHERE rc.reel_comment_id = :id
+                  AND rc.deleted_at IS NULL
+            ");
+            $stmt->execute([':id' => $itemId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                throw new InvalidArgumentException('Reel comment not found');
+            }
+            return [
+                'forum_id' => null,
+                'thread_id' => null,
+                'community_id' => $row['community_id'],
+                'community_name' => $row['community_name'] ?? '',
+                'item_context' => summarizeText($row['body']),
+                'item_title' => 'Reel comment',
+                'reported_user_id' => $row['user_id'] ?? null,
+            ];
         default:
             throw new InvalidArgumentException('Unsupported item type');
     }
@@ -286,6 +345,12 @@ function setItemHidden(PDO $db, string $itemType, string $itemId, bool $hidden):
             break;
         case 'event':
             $stmt = $db->prepare("UPDATE events SET is_hidden = :val WHERE event_id = :id");
+            break;
+        case 'reel':
+            $stmt = $db->prepare("UPDATE reels SET is_hidden = :val WHERE reel_id = :id");
+            break;
+        case 'reel_comment':
+            $stmt = $db->prepare("UPDATE reel_comments SET is_hidden = :val WHERE reel_comment_id = :id");
             break;
         case 'user':
         default:

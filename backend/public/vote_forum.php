@@ -1,12 +1,22 @@
 <?php
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'You must be logged in.']);
+    exit;
+}
+
 $data = json_decode(file_get_contents("php://input"), true);
 
 $forum_id = isset($data['forum_id']) ? normalizeId($data['forum_id']) : '';
-$user_id = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
+// The voter is always the authenticated session's own user, never a
+// client-supplied user_id.
+$user_id = normalizeId($_SESSION['user_id']);
 $vote_type = $data['vote_type'] ?? '';
 
 if ($forum_id === '' || $user_id === '' || !in_array($vote_type, ['up', 'down'], true)) {

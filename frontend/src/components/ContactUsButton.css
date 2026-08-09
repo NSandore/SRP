@@ -2,32 +2,98 @@
   position: fixed;
   bottom: 28px;
   right: 28px;
-  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  background: linear-gradient(135deg, #2F80ED, #1D6FD7);
   color: #fff;
   border: none;
-  padding: 0.9rem 1.35rem;
+  /* Icon-only launcher: a fixed square plus a pill radius gives a true circle,
+     and grid centring keeps the glyph optically centred at any icon size. */
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
+  line-height: 1;
   border-radius: 999px;
   cursor: pointer;
   z-index: 1500;
   font-weight: 700;
   letter-spacing: 0.2px;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  /* Dimension comes from stacking a bevel on a graded shadow: an inset
+     highlight along the lit top edge, an inset shade on the grounded bottom
+     edge, then a tight contact shadow, a mid shadow, and a wide brand-tinted
+     ambient one. A single diffuse shadow reads as a flat sticker. */
+  border: 1px solid rgba(11, 31, 66, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(8, 21, 43, 0.18),
+    0 1px 2px rgba(15, 23, 42, 0.24),
+    0 8px 16px rgba(15, 23, 42, 0.18),
+    0 18px 40px rgba(47, 128, 237, 0.22);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
 }
 
 .contact-us-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -1px 0 rgba(8, 21, 43, 0.18),
+    0 1px 2px rgba(15, 23, 42, 0.26),
+    0 12px 22px rgba(15, 23, 42, 0.2),
+    0 26px 52px rgba(47, 128, 237, 0.28);
   filter: brightness(1.03);
 }
 
+/* Pressing collapses the lift and flips the bevel inward, so the button reads
+   as pushed rather than merely recoloured. */
+.contact-us-button:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 0 2px 4px rgba(8, 21, 43, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 2px rgba(15, 23, 42, 0.22);
+  filter: brightness(0.99);
+}
+
 .contact-us-button:focus-visible {
-  outline: 3px solid rgba(14, 165, 233, 0.35);
+  outline: 3px solid rgba(47, 128, 237, 0.35);
   outline-offset: 3px;
 }
 
+/* A dark page absorbs black shadows, so darkness alone cannot lift this button
+   off the content behind it. Elevation here is carried by a bright rim along
+   the lit top edge, a crisp dark ring that separates the silhouette from
+   whatever it overlaps, and a brand-tinted glow the backdrop cannot swallow. */
 [data-theme="dark"] .contact-us-button {
   color: #f8fafc;
+  border-color: rgba(150, 198, 255, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -2px 6px rgba(8, 21, 43, 0.4),
+    0 0 0 1px rgba(4, 12, 28, 0.75),
+    0 3px 8px rgba(0, 0, 0, 0.55),
+    0 14px 30px rgba(0, 0, 0, 0.45),
+    0 18px 46px rgba(47, 128, 237, 0.42);
+}
+
+[data-theme="dark"] .contact-us-button:hover {
+  border-color: rgba(178, 216, 255, 0.65);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 6px rgba(8, 21, 43, 0.4),
+    0 0 0 1px rgba(4, 12, 28, 0.75),
+    0 4px 10px rgba(0, 0, 0, 0.58),
+    0 18px 38px rgba(0, 0, 0, 0.5),
+    0 26px 62px rgba(47, 128, 237, 0.55);
+}
+
+[data-theme="dark"] .contact-us-button:active {
+  box-shadow:
+    inset 0 2px 6px rgba(4, 12, 28, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 0 1px rgba(4, 12, 28, 0.75),
+    0 2px 6px rgba(0, 0, 0, 0.5),
+    0 6px 18px rgba(47, 128, 237, 0.3);
 }
 
 .feedback-modal {
@@ -95,8 +161,8 @@
 .feedback-content input:focus,
 .feedback-content textarea:focus {
   outline: none;
-  border-color: rgba(14, 165, 233, 0.8);
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  border-color: rgba(47, 128, 237, 0.8);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.15);
 }
 
 [data-theme="dark"] .feedback-content input,
@@ -110,7 +176,7 @@
 }
 
 .feedback-content button[type="submit"] {
-  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  background: linear-gradient(135deg, #2F80ED, #1D6FD7);
   color: #fff;
   border: none;
   padding: 0.7rem 1.2rem;
@@ -119,12 +185,12 @@
   font-weight: 600;
   letter-spacing: 0.2px;
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 12px 24px rgba(47, 128, 237, 0.3);
 }
 
 .feedback-content button[type="submit"]:hover {
   transform: translateY(-1px);
-  box-shadow: 0 16px 32px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 16px 32px rgba(47, 128, 237, 0.35);
   filter: brightness(1.02);
 }
 
@@ -186,7 +252,9 @@
   .contact-us-button {
     right: 16px;
     bottom: 16px;
-    padding: 0.75rem 1.1rem;
+    width: 50px;
+    height: 50px;
+    font-size: 1.45rem;
   }
 
   .feedback-content {
@@ -196,19 +264,19 @@
 
 /* Scholarly contact form */
 .feedback-modal {
-  --feedback-kraft: #eee4d1;
-  --feedback-paper: #fbf7ef;
-  --feedback-paper-strong: #fffdf8;
-  --feedback-ink: #20332d;
-  --feedback-ink-soft: #5f6e67;
-  --feedback-forest: #183e35;
-  --feedback-forest-light: #2f6657;
-  --feedback-rust: #a6533e;
-  --feedback-line: #d5c7ae;
+  --feedback-kraft: #EEF4FC;
+  --feedback-paper: #FCFDFF;
+  --feedback-paper-strong: #FFFFFF;
+  --feedback-ink: #11244D;
+  --feedback-ink-soft: #667895;
+  --feedback-forest: #2F80ED;
+  --feedback-forest-light: #69A8F7;
+  --feedback-rust: #7656D9;
+  --feedback-line: #DCE7F5;
   --feedback-serif: Georgia, 'Times New Roman', Times, serif;
   --feedback-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   padding: 20px;
-  background: rgba(31, 38, 34, 0.62);
+  background: rgba(8, 21, 43, 0.62);
   animation: feedback-backdrop-in 160ms var(--feedback-ease-out);
   backdrop-filter: blur(7px);
 }
@@ -219,7 +287,7 @@
   border: 1px solid var(--feedback-line);
   border-radius: 18px;
   background: var(--feedback-paper);
-  box-shadow: 0 28px 72px rgba(52, 42, 26, 0.24);
+  box-shadow: 0 28px 72px rgba(38, 82, 132, 0.24);
   color: var(--feedback-ink);
   animation: feedback-dialog-in 200ms var(--feedback-ease-out);
   transform-origin: center;
@@ -304,7 +372,7 @@
 .feedback-content .feedback-field textarea:focus {
   outline: none;
   border-color: var(--feedback-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 .feedback-content button[type='submit'] {
@@ -315,7 +383,7 @@
   border-radius: 9px;
   background: var(--feedback-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   transition: background-color 150ms ease, border-color 150ms ease, transform 140ms var(--feedback-ease-out);
 }
 
@@ -340,7 +408,7 @@
   padding: 9px 11px;
   border: 1px solid var(--feedback-line);
   border-radius: 8px;
-  background: rgba(47, 102, 87, 0.07);
+  background: rgba(47, 128, 237, 0.07);
   color: var(--feedback-ink);
 }
 
@@ -354,23 +422,23 @@
   }
 
   .feedback-content .close-button:hover {
-    background: rgba(24, 62, 53, 0.07);
+    background: rgba(47, 128, 237, 0.07);
     color: var(--feedback-forest);
     transform: none;
   }
 }
 
 [data-theme='dark'] .feedback-modal {
-  --feedback-kraft: #181a17;
-  --feedback-paper: #22251f;
-  --feedback-paper-strong: #292c25;
-  --feedback-ink: #ece5d7;
-  --feedback-ink-soft: #b8b3a8;
-  --feedback-forest: #315d50;
-  --feedback-forest-light: #477d6d;
-  --feedback-rust: #d58a70;
-  --feedback-line: #47483e;
-  background: rgba(9, 11, 9, 0.72);
+  --feedback-kraft: #08152B;
+  --feedback-paper: #0E203B;
+  --feedback-paper-strong: #102642;
+  --feedback-ink: #EAF2FF;
+  --feedback-ink-soft: #A8B9D3;
+  --feedback-forest: #4B91EC;
+  --feedback-forest-light: #72AEFA;
+  --feedback-rust: #E8B77F;
+  --feedback-line: #2A4163;
+  background: rgba(3, 10, 24, 0.72);
 }
 
 [data-theme='dark'] .feedback-content {
@@ -437,5 +505,13 @@
   .feedback-modal,
   .feedback-content {
     animation: none;
+  }
+
+  /* Keep the depth, drop the movement. */
+  .contact-us-button,
+  .contact-us-button:hover,
+  .contact-us-button:active {
+    transform: none;
+    transition: box-shadow 0.18s ease, filter 0.18s ease;
   }
 }

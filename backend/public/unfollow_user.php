@@ -2,32 +2,42 @@
 // unfollow_user.php
 
 require_once __DIR__ . '/cors.php';
-
-// Enable error reporting for development (disable in production)
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 
 header('Content-Type: application/json');
 
 // Include your database connection function
 require_once __DIR__ . '/../db_connection.php';
 
-// Decode JSON input from the request body
-$data = json_decode(file_get_contents("php://input"), true);
+if (srp_is_dev_mode()) {
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+}
 
-// Check that both follower_id and followed_user_id are provided
-if (!isset($data['follower_id']) || !isset($data['followed_user_id'])) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'follower_id and followed_user_id are required']);
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'You must be logged in.']);
     exit;
 }
 
-$follower_id = normalizeId($data['follower_id']);
+// Decode JSON input from the request body
+$data = json_decode(file_get_contents("php://input"), true);
+
+if (!isset($data['followed_user_id'])) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'followed_user_id is required']);
+    exit;
+}
+
+// The follower is always the authenticated session's own user, never a
+// client-supplied follower_id.
+$follower_id = normalizeId($_SESSION['user_id']);
 $followed_user_id = normalizeId($data['followed_user_id']);
 
-if ($follower_id === '' || $followed_user_id === '') {
+if ($followed_user_id === '') {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Invalid follower_id or followed_user_id']);
+    echo json_encode(['success' => false, 'error' => 'Invalid followed_user_id']);
     exit;
 }
 

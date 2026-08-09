@@ -16,18 +16,24 @@ import {
   Flag,
   CalendarRange,
   Calendar,
-  BarChart3
+  BarChart3,
+  Megaphone,
+  Newspaper,
+  Clapperboard,
+  Database
 } from 'lucide-react';
 import { isAdmin, isSuperAdmin } from '../constants/roles';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const baseItems = [
-  { to: '/home', label: 'Home', Icon: Home, color: '#2563EB', key: 'home', section: 'Explore' },
-  { to: '/info', label: 'Info Board', Icon: Info, color: '#0EA5E9', key: 'info', section: 'Explore' },
-  { to: '/funding', label: 'Funding', Icon: Medal, color: '#F59E0B', key: 'funding', section: 'Explore' },
-  { to: '/communities', label: 'Communities', Icon: Users, color: '#10B981', key: 'communities', section: 'Explore' },
-  { to: '/saved', label: 'Saved', Icon: Bookmark, color: '#6366F1', key: 'saved', section: 'Your commons' },
-  { to: '/connections', label: 'Connections', Icon: UserCheck, color: '#EC4899', key: 'connections', section: 'Your commons' },
-  { to: '/profile', label: 'My Profile', Icon: UserCircle, color: '#64748B', key: 'profile', section: 'Your commons' },
+  { to: '/home', labelKey: 'nav.home', Icon: Home, color: '#2F80ED', key: 'home', sectionKey: 'nav.explore' },
+  { to: '/reels', labelKey: 'nav.reels', Icon: Clapperboard, color: '#7656D9', key: 'reels', sectionKey: 'nav.explore' },
+  { to: '/info', labelKey: 'nav.infoBoard', Icon: Info, color: '#69A8F7', key: 'info', sectionKey: 'nav.explore' },
+  { to: '/funding', labelKey: 'nav.funding', Icon: Medal, color: '#F59E0B', key: 'funding', sectionKey: 'nav.explore' },
+  { to: '/communities', labelKey: 'nav.communities', Icon: Users, color: '#10B981', key: 'communities', sectionKey: 'nav.explore' },
+  { to: '/saved', labelKey: 'nav.saved', Icon: Bookmark, color: '#6366F1', key: 'saved', sectionKey: 'nav.yourCommons' },
+  { to: '/connections', labelKey: 'nav.connections', Icon: UserCheck, color: '#EC4899', key: 'connections', sectionKey: 'nav.yourCommons' },
+  { to: '/profile', labelKey: 'nav.myProfile', Icon: UserCircle, color: '#64748B', key: 'profile', sectionKey: 'nav.yourCommons' },
 ];
 
 function LeftSidebar({
@@ -41,6 +47,7 @@ function LeftSidebar({
   onNavigate = undefined,
   isDrawer = false,
 }) {
+  const { t } = useLanguage();
   const roleId = userData?.role_id;
   const isSuperAdminUser = isSuperAdmin(roleId);
   const isAdminRole = isAdmin(roleId);
@@ -50,8 +57,8 @@ function LeftSidebar({
   const isModerator = userData && (isSuperAdminUser || isAmbassador);
 
   const mobileExtras = isDrawer ? [
-    { to: '/events-feed', label: 'Events', Icon: Calendar, color: '#14B8A6', key: 'events_feed', section: 'Explore' },
-    { to: '/polls', label: 'Polls', Icon: BarChart3, color: '#F97316', key: 'polls_feed', section: 'Explore' },
+    { to: '/events-feed', labelKey: 'nav.events', Icon: Calendar, color: '#14B8A6', key: 'events_feed', sectionKey: 'nav.explore' },
+    { to: '/polls', labelKey: 'nav.polls', Icon: BarChart3, color: '#F97316', key: 'polls_feed', sectionKey: 'nav.explore' },
   ] : [];
   const baseWithMobile = [...baseItems];
   if (mobileExtras.length) {
@@ -63,28 +70,34 @@ function LeftSidebar({
   const items = [
     ...baseWithMobile,
     ...(isSuperAdminUser || isAdminRole || isCommunityAdmin || isAmbassador
-      ? [{ to: '/events', label: 'Event Management', Icon: CalendarRange, color: '#22C55E', key: 'events', section: 'Manage' }]
+      ? [{ to: '/events', labelKey: 'nav.eventManagement', Icon: CalendarRange, color: '#22C55E', key: 'events', sectionKey: 'nav.manage' }]
       : []),
     ...(isSuperAdminUser
-      ? [{ to: '/admin/verifications', label: 'Verifications', Icon: ShieldCheck, color: '#0EA5E9', key: 'verifications', section: 'Manage' }]
+      ? [
+          { to: '/admin/verifications', labelKey: 'nav.verifications', Icon: ShieldCheck, color: '#69A8F7', key: 'verifications', sectionKey: 'nav.manage' },
+          { to: '/admin/institutions', labelKey: 'nav.institutionData', Icon: Database, color: '#4AA67B', key: 'institution_data', sectionKey: 'nav.manage' },
+          { to: '/admin/newsroom', labelKey: 'nav.newsroom', Icon: Newspaper, color: '#2F80ED', key: 'newsroom', sectionKey: 'nav.manage' },
+          { to: '/admin/changelog', labelKey: 'nav.changelog', Icon: Megaphone, color: '#A855F7', key: 'changelog', sectionKey: 'nav.manage' },
+        ]
       : []),
     ...(isModerator
-      ? [{ to: '/reports', label: 'Reported Items', Icon: Flag, color: '#F43F5E', key: 'reports', section: 'Manage' }]
+      ? [{ to: '/reports', labelKey: 'nav.reportedItems', Icon: Flag, color: '#F43F5E', key: 'reports', sectionKey: 'nav.manage' }]
       : []),
   ];
 
   const sections = items.reduce((groups, item) => {
-    const sectionName = item.section || 'Explore';
-    const existingGroup = groups.find((group) => group.name === sectionName);
+    const sectionKey = item.sectionKey || 'nav.explore';
+    const existingGroup = groups.find((group) => group.key === sectionKey);
     if (existingGroup) {
       existingGroup.items.push(item);
     } else {
-      groups.push({ name: sectionName, items: [item] });
+      groups.push({ key: sectionKey, items: [item] });
     }
     return groups;
   }, []);
 
-  const renderItem = ({ to, label, Icon, color, key }) => {
+  const renderItem = ({ to, labelKey, Icon, color, key }) => {
+    const label = t(labelKey);
     const isLocked = !userData && lockedKeys.includes(key);
     const isComingSoon = key === 'funding';
     const pendingCounts = {
@@ -95,7 +108,7 @@ function LeftSidebar({
     const pendingCount = pendingCounts[key] || 0;
 
     return (
-      <li key={key}>
+      <li key={key} data-tour={key === 'communities' ? 'communities' : undefined}>
         <NavLink
           to={to}
           className={({ isActive }) => {
@@ -122,17 +135,17 @@ function LeftSidebar({
             {isLocked && (
               <span className="lock-badge">
                 <Lock size={12} />
-                Locked
+                {t('nav.locked')}
               </span>
             )}
             {isComingSoon && (
               <span className="lock-badge coming-soon-badge">
-                Coming soon
+                {t('nav.comingSoon')}
               </span>
             )}
           </div>
           {pendingCount > 0 && (
-            <span className="sidebar-count" aria-label={`${pendingCount} pending ${label.toLowerCase()}`}>
+            <span className="sidebar-count" aria-label={t('nav.pendingItems', { count: pendingCount, label: label.toLowerCase() })}>
               {pendingCount > 99 ? '99+' : pendingCount}
             </span>
           )}
@@ -142,11 +155,11 @@ function LeftSidebar({
   };
 
   return (
-    <nav className={`left-sidebar${collapsed ? ' collapsed' : ''}`} aria-label="Primary">
+    <nav className={`left-sidebar${collapsed ? ' collapsed' : ''}`} aria-label={t('nav.primary')}>
       <div className="sidebar-heading">
         <div className="sidebar-heading-copy" aria-hidden={collapsed}>
-          <span className="sidebar-heading-kicker">Academic commons</span>
-          <span className="sidebar-heading-title">Campus index</span>
+          <span className="sidebar-heading-kicker">{t('nav.academicCommons')}</span>
+          <span className="sidebar-heading-title">{t('nav.campusIndex')}</span>
         </div>
         {onToggle && (
           <div className="sidebar-toggle-container">
@@ -154,9 +167,9 @@ function LeftSidebar({
             type="button"
             className="sidebar-toggle-button"
             onClick={onToggle}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
             aria-pressed={collapsed}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
           >
             {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
@@ -165,8 +178,8 @@ function LeftSidebar({
       </div>
       <div className="sidebar-sections">
         {sections.map((section) => (
-          <section className="sidebar-section" key={section.name} aria-label={section.name}>
-            <div className="sidebar-section-label">{section.name}</div>
+          <section className="sidebar-section" key={section.key} aria-label={t(section.key)}>
+            <div className="sidebar-section-label">{t(section.key)}</div>
             <ul className="sidebar-list">
               {section.items.map(renderItem)}
             </ul>

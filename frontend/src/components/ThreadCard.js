@@ -17,6 +17,7 @@ import IconBubble from './IconBubble';
 import { isSuperAdmin } from '../constants/roles';
 import { buildUploadSrc } from '../utils/uploads';
 import { getTagStyle } from '../utils/tagStyle';
+import { IMAGE_LAYOUTS, normalizeImageLayout } from '../utils/imageLayout';
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return '';
@@ -152,6 +153,23 @@ export default function ThreadCard({
   const initials = `${(thread.first_name || 'U')[0] || 'U'}${(thread.last_name || '')[0] || ''}`.toUpperCase();
   const comments = thread.post_count || thread.comment_count || 0;
 
+  // Optional thread image
+  const imageLayout = normalizeImageLayout(thread.image_layout);
+  const imageSrc = thread.image_path ? buildUploadSrc(thread.image_path) : null;
+  const hasRightMedia = Boolean(imageSrc && imageLayout === IMAGE_LAYOUTS.RIGHT);
+  const menuButton = (
+    <button
+      type="button"
+      className="kebab-button"
+      aria-haspopup="menu"
+      aria-expanded={menuOpen}
+      onClick={() => setMenuOpen((v) => !v)}
+      style={{ cursor: 'pointer' }}
+    >
+      <FaEllipsisV className="menu-icon" />
+    </button>
+  );
+
   const handlePinThread = async (communityId) => {
     try {
       const response = await axios.post(
@@ -179,7 +197,7 @@ export default function ThreadCard({
   };
 
   return (
-    <div className="thread-card card-lift" style={{ position: 'relative' }}>
+    <div className={`thread-card card-lift${hasRightMedia ? ' card--media-right' : ''}`} style={{ position: 'relative' }}>
       {menuOpen && (
         <div ref={menuRef} className="dropdown-menu" style={{ position: 'absolute', top: 30, right: 8, zIndex: 10 }}>
           {canPinToCommunity && (
@@ -241,6 +259,17 @@ export default function ThreadCard({
         </div>
       )}
 
+      {imageSrc && imageLayout === IMAGE_LAYOUTS.BANNER && (
+        <Link to={threadUrl} className="card-media-banner-link">
+          <img
+            src={imageSrc}
+            alt={`${thread.title} banner`}
+            className="card-media-banner"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        </Link>
+      )}
+
       <div className="thread-card-content">
         {/* Title */}
         <div className="card-top-row">
@@ -248,16 +277,7 @@ export default function ThreadCard({
             <Link to={threadUrl} className="thread-link">
               <h3 className="thread-title">{thread.title}</h3>
             </Link>
-            <button
-              type="button"
-              className="kebab-button"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((v) => !v)}
-              style={{ cursor: 'pointer' }}
-            >
-              <FaEllipsisV className="menu-icon" />
-            </button>
+            {!hasRightMedia && menuButton}
           </div>
         </div>
 
@@ -296,6 +316,17 @@ export default function ThreadCard({
           <span className="meta-time">{timeAgo(thread.created_at)}</span>
         </div>
 
+        {imageSrc && imageLayout === IMAGE_LAYOUTS.FULL && (
+          <Link to={threadUrl} className="card-media-full-link">
+            <img
+              src={imageSrc}
+              alt={thread.title}
+              className="card-media-full"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </Link>
+        )}
+
         {/* Actions Row */}
         <div className="actions-row">
           <button
@@ -321,6 +352,17 @@ export default function ThreadCard({
           <span className="meta-quiet">{comments} comments</span>
         </div>
       </div>
+      {hasRightMedia && (
+        <Link to={threadUrl} className="card-media-right-link">
+          <img
+            src={imageSrc}
+            alt={thread.title}
+            className="card-media-right"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        </Link>
+      )}
+      {hasRightMedia && menuButton}
     </div>
   );
 }

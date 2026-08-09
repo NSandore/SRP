@@ -11,6 +11,11 @@ export type SessionUser = {
   education_status?: string;
   recent_university_id?: string | null;
   admin_community_ids?: string[];
+  ambassador_communities?: {
+    community_id: string;
+    name?: string;
+    community_role?: string;
+  }[];
 };
 
 export type ApiResponse<T> = {

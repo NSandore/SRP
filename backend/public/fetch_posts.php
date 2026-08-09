@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/info_board_translations.php';
 header('Content-Type: application/json');
 
 // Validate that thread_id is provided
@@ -22,6 +23,7 @@ try {
         SELECT 
             p.post_id,
             p.thread_id,
+            f.community_id AS forum_community_id,
             p.user_id,
             p.content,
             p.created_at,
@@ -36,6 +38,7 @@ try {
             u.first_name,
             u.last_name,
             u.avatar_path,
+            u.headline,
             u.verified AS author_verified,
             ac.logo_path AS ambassador_logo_path,
             ub.first_name AS updated_by_first_name,
@@ -78,6 +81,17 @@ try {
     foreach ($posts as &$p) {
         $p['avatar_path'] = appendAvatarPath($p['avatar_path'] ?? null);
         $p['updated_by_avatar_path'] = appendAvatarPath($p['updated_by_avatar_path'] ?? null);
+    }
+    unset($p);
+
+    if ($posts && srp_is_info_board_community($posts[0]['forum_community_id'] ?? '')) {
+        $posts = srp_translate_info_board_rows(
+            $db,
+            $posts,
+            'post',
+            'post_id',
+            ['content']
+        );
     }
 
     echo json_encode($posts);

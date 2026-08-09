@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../tag_helpers.php';
+require_once __DIR__ . '/../includes/info_board_translations.php';
 
 header('Content-Type: application/json');
 
@@ -19,12 +20,15 @@ try {
         SELECT 
             t.thread_id,
             t.forum_id,
+            f.community_id,
             t.user_id,
             u.first_name,
             u.last_name,
             u.verified AS author_verified,
             ac.logo_path AS ambassador_logo_path,
             t.title,
+            t.image_path,
+            t.image_layout,
             t.created_at,
             t.updated_at,
             t.updated_by,
@@ -49,7 +53,7 @@ try {
         LEFT JOIN posts p ON t.thread_id = p.thread_id
         WHERE t.forum_id = :forum_id
           AND t.is_hidden = 0
-        GROUP BY t.thread_id, t.forum_id, t.user_id, u.first_name, u.last_name, u.verified, ac.logo_path, t.title, t.created_at, t.updated_at, t.updated_by, ub.first_name, ub.last_name, ub.avatar_path
+        GROUP BY t.thread_id, t.forum_id, f.community_id, t.user_id, u.first_name, u.last_name, u.verified, ac.logo_path, t.title, t.image_path, t.image_layout, t.created_at, t.updated_at, t.updated_by, ub.first_name, ub.last_name, ub.avatar_path
         ORDER BY t.created_at DESC
     ");
     $stmt->execute([
@@ -62,6 +66,16 @@ try {
         $t['updated_by_avatar_path'] = appendAvatarPath($t['updated_by_avatar_path'] ?? null);
     }
     unset($t);
+
+    if ($threads && srp_is_info_board_community($threads[0]['community_id'] ?? '')) {
+        $threads = srp_translate_info_board_rows(
+            $db,
+            $threads,
+            'thread',
+            'thread_id',
+            ['title']
+        );
+    }
 
     echo json_encode($threads);
 } catch (PDOException $e) {

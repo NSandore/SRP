@@ -1,0 +1,21 @@
+# Install with deployment-specific absolute paths and a private log directory.
+# The command also takes a MySQL advisory lock and a filesystem lock, so a
+# delayed run safely fails instead of overlapping the next one.
+
+# Canonical directory plus free federal/Wikimedia enrichment: monthly.
+17 2 3 * * cd /srv/studentsphere && /usr/bin/php backend/scripts/institution_data.php refresh >> /var/log/studentsphere/institution-data.log 2>&1
+
+# Recheck Commons metadata and selected remote logo URLs: weekly.
+41 3 * * 1 cd /srv/studentsphere && /usr/bin/php backend/scripts/institution_data.php refresh --source wikimedia >> /var/log/studentsphere/institution-data.log 2>&1
+
+# College colours from the English Wikipedia module: quarterly. Brand palettes
+# change rarely, and each run costs ~16 Wikidata SPARQL batches, so this is
+# deliberately less frequent than the directory refresh.
+52 4 12 1,4,7,10 * cd /srv/studentsphere && /usr/bin/php backend/scripts/institution_data.php refresh --source college-color >> /var/log/studentsphere/institution-data.log 2>&1
+
+# Revisit missing/low-confidence branding sources: quarterly. The official-site
+# crawler remains excluded unless explicitly enabled in the environment.
+23 4 7 1,4,7,10 * cd /srv/studentsphere && /usr/bin/php backend/scripts/institution_data.php refresh --branding-only >> /var/log/studentsphere/institution-data.log 2>&1
+
+# Process row-level failures and refresh requests from the admin screen: daily.
+8 5 * * * cd /srv/studentsphere && /usr/bin/php backend/scripts/institution_data.php retry-failures --limit 500 >> /var/log/studentsphere/institution-data.log 2>&1

@@ -17,7 +17,7 @@ try {
     $like = '%' . $term . '%';
 
     if ($excludeCommunity > 0) {
-        $query = "SELECT u.user_id, u.first_name, u.last_name, u.email, u.avatar_path, u.is_public, COALESCE(s.discoverable, 2) AS discoverable, u.verified, u.verified_community_id, c.name AS verified_community_name
+        $query = "SELECT u.user_id, u.first_name, u.last_name, u.email, u.avatar_path, u.is_public, COALESCE(s.discoverable, 2) AS discoverable, COALESCE(s.show_email, 0) AS show_email, u.verified, u.verified_community_id, c.name AS verified_community_name
                   FROM users u
                   LEFT JOIN account_settings s ON s.user_id = u.user_id
                   LEFT JOIN communities c ON c.id = u.verified_community_id
@@ -34,7 +34,7 @@ try {
         $stmt->bindValue(':community_id', $excludeCommunity, PDO::PARAM_INT);
     } else {
         $stmt = $db->prepare(
-            "SELECT u.user_id, u.first_name, u.last_name, u.email, u.avatar_path, u.is_public, COALESCE(s.discoverable, 2) AS discoverable, u.verified, u.verified_community_id, c.name AS verified_community_name
+            "SELECT u.user_id, u.first_name, u.last_name, u.email, u.avatar_path, u.is_public, COALESCE(s.discoverable, 2) AS discoverable, COALESCE(s.show_email, 0) AS show_email, u.verified, u.verified_community_id, c.name AS verified_community_name
              FROM users u
              LEFT JOIN account_settings s ON s.user_id = u.user_id
              LEFT JOIN communities c ON c.id = u.verified_community_id
@@ -72,7 +72,15 @@ try {
         if ((int)$u['is_public'] === 0 && !$isViewer) {
             $u['last_name'] = substr($u['last_name'], 0, 1) . '.';
         }
-        unset($u['is_public'], $u['discoverable']);
+        // Email visibility: 0 hidden, 1 connections only, 2 everyone —
+        // search results previously always included the raw email address
+        // regardless of this setting.
+        $showEmail = (int)($u['show_email'] ?? 0);
+        $canViewEmail = $isViewer || $showEmail === 2 || ($showEmail === 1 && $isConnection);
+        if (!$canViewEmail) {
+            $u['email'] = null;
+        }
+        unset($u['is_public'], $u['discoverable'], $u['show_email']);
         $filtered[] = $u;
     }
     echo json_encode(['success' => true, 'users' => $filtered]);

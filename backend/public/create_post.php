@@ -4,6 +4,7 @@ startSession();
 require_once __DIR__ . '/../db_connection.php'; // Adjust if needed
 require_once __DIR__ . '/../includes/onboarding.php';
 require_once __DIR__ . '/../includes/sanitize.php';
+require_once __DIR__ . '/../includes/content_limits.php';
 
 header('Content-Type: application/json');
 
@@ -25,6 +26,11 @@ $content   = srp_sanitize_html(trim($data['content'] ?? ''));
 if (empty($thread_id) || empty($user_id) || empty($content)) {
     http_response_code(400); // Bad Request
     echo json_encode(['error' => 'Invalid data for creating a post.']);
+    exit;
+}
+if (srp_post_exceeds_limit($content)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Posts must be 10,000 characters or fewer.']);
     exit;
 }
 

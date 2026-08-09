@@ -12,16 +12,16 @@ import {
   List,
   MapPin,
   Users,
-  Video,
 } from 'lucide-react';
 import { isAdmin, isSuperAdmin } from '../constants/roles';
+import EventJoinButton from './EventJoinButton';
 
 const STORAGE_KEY = 'managedEvents';
 const RSVP_KEY = 'managedEventRsvps';
 const ALL_COMMUNITIES = 'all';
 const EVENT_COMMUNITY_COLORS = [
-  '#2f6657',
-  '#a6533e',
+  '#69A8F7',
+  '#7656D9',
   '#456b8c',
   '#8a6a2f',
   '#6e5a88',
@@ -655,15 +655,13 @@ function EventsFeed({ userData }) {
                     >
                       {hasRsvped ? 'Going' : 'RSVP'}
                     </button>
-                    {item.zoomJoinUrl && hasRsvped && (
-                      <a
-                        href={item.zoomJoinUrl}
+                    {hasRsvped && (
+                      <EventJoinButton
+                        event={item}
+                        now={now}
                         className="event-agenda-card__join"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <Video size={15} /> Join
-                      </a>
+                        label="Join"
+                      />
                     )}
                   </div>
                 </article>

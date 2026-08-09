@@ -4,14 +4,16 @@
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../session_bootstrap.php';
 
-startSession(); // Enable error reporting for debugging (disable in production)
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
+startSession();
 header('Content-Type: application/json');
 
 // Include your database connection function
 require_once __DIR__ . '/../db_connection.php';
+
+if (srp_is_dev_mode()) {
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+}
 
 // Check that a user_id is provided
 if (!isset($_GET['user_id'])) {
@@ -172,15 +174,29 @@ try {
         if (isset($user['email'])) {
             $canViewEmail = false;
         }
-        if (isset($user['phone'])) {
-            $user['phone'] = null;
-        }
     }
 
     if (!$canViewEmail) {
         $user['email'] = null;
     }
     $user['email_visible'] = $canViewEmail ? 1 : 0;
+
+    // Phone has no independent visibility preference of its own (unlike
+    // email's show_email setting), so it defaults to owner-only.
+    $user['phone'] = $isOwnProfile ? ($user['phone'] ?? null) : null;
+
+    // These are account-security/settings metadata, not public profile
+    // data — only the profile owner should see them. (allow_messages_from
+    // stays public: the profile view uses it to decide whether to show a
+    // "Message" button for other users.)
+    if (!$isOwnProfile) {
+        unset(
+            $user['role_id'],
+            $user['login_count'],
+            $user['two_factor_enabled'],
+            $user['session_timeout_minutes']
+        );
+    }
 
     // Normalize media paths
     $user['avatar_path'] = appendAvatarPath($user['avatar_path'] ?? null);
@@ -193,17 +209,19 @@ try {
     ]);
 
 } catch (PDOException $e) {
+    error_log('[SRP] fetch_user db error: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error'   => 'Database error: ' . $e->getMessage()
+        'error'   => 'Database error.'
     ]);
     exit;
 } catch (Exception $e) {
+    error_log('[SRP] fetch_user error: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error'   => 'Server error: ' . $e->getMessage()
+        'error'   => 'Server error.'
     ]);
     exit;
 }

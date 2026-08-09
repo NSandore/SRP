@@ -25,6 +25,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -37,8 +38,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow StudentSphere to access your photos so you can upload verification documents.",
-          "cameraPermission": "Allow StudentSphere to access your camera so you can take verification photos."
+          "photosPermission": "Allow StudentSphere to access your photos and videos so you can upload profile media, verification documents, and reels.",
+          "cameraPermission": "Allow StudentSphere to access your camera so you can take verification photos and record reels.",
+          "microphonePermission": "Allow StudentSphere to access your microphone so recorded reels include audio."
         }
       ],
       [
@@ -52,7 +54,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

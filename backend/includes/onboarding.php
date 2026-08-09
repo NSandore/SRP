@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/roles.php';
 
 const SRP_UNVERIFIED_DAILY_POST_LIMIT = 1;
 
@@ -298,7 +299,45 @@ function srp_get_posting_window(PDO $db, string $userId): array {
     ];
 }
 
+function srp_user_is_super_admin(PDO $db, string $userId): bool {
+    $stmt = $db->prepare("SELECT role_id FROM users WHERE user_id = :uid LIMIT 1");
+    $stmt->execute([':uid' => $userId]);
+    return (int)$stmt->fetchColumn() === ROLE_SUPER_ADMIN;
+}
+
+function srp_user_is_verified_staff(PDO $db, string $userId, ?string $communityId = null): bool {
+    $sql = "
+        SELECT 1
+        FROM user_verification_requests
+        WHERE user_id = :uid
+          AND verification_type = 'staff_representative'
+          AND status = 'approved'
+    ";
+    $params = [':uid' => $userId];
+    if ($communityId !== null && $communityId !== '') {
+        $sql .= " AND (community_id = :cid OR community_id IS NULL)";
+        $params[':cid'] = $communityId;
+    }
+    $sql .= " LIMIT 1";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    return (bool)$stmt->fetchColumn();
+}
+
+function srp_can_be_ambassador(PDO $db, string $userId, ?string $communityId = null): bool {
+    return srp_user_is_super_admin($db, $userId)
+        || srp_user_is_verified_staff($db, $userId, $communityId);
+}
+
 function srp_can_apply_for_ambassador(PDO $db, string $userId, string $communityId): bool {
+    if (srp_user_is_super_admin($db, $userId)) {
+        return true;
+    }
+
+    if (!srp_user_is_verified_staff($db, $userId, $communityId)) {
+        return false;
+    }
+
     $followStmt = $db->prepare("
         SELECT 1
         FROM followed_communities

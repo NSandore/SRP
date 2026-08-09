@@ -3,6 +3,7 @@ import './AppShell.css';
 import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
 import ContactUsButton from '../components/ContactUsButton';
+import AppFooterLinks from './AppFooterLinks';
 import { ProfileContactProvider } from '../context/ProfileContactContext';
 import NavBar from '../components/NavBar';
 import { useLocation } from 'react-router-dom';
@@ -41,11 +42,38 @@ export default function AppShell({
   const isSearchRoute = pathname.startsWith('/search');
   const isSettingsRoute = pathname.startsWith('/settings');
   const isDonateRoute = pathname.startsWith('/donate');
+  const isReelsRoute = pathname === '/reels' || pathname.startsWith('/reels/');
   const isHomeRoute = pathname === '/home';
   const isCommunityProfileRoute = /^\/(university|group)\/[^/]+/.test(pathname);
-  // Saved, Connections, Event Management, Verifications, and Reported Items have no
+  const isInfoRoute = pathname === '/info' || pathname.startsWith('/info/');
+  const isFundingRoute = pathname === '/funding' || pathname.startsWith('/funding/');
+  const areaClass = isHomeRoute
+    ? 'area-home'
+    : isInfoRoute
+      ? 'area-info'
+      : isFundingRoute
+        ? 'area-funding'
+        : isCommunityProfileRoute
+          ? 'area-community'
+          : '';
+  // Saved, Connections, Events, management workspaces, and Reported Items have no
   // content for the right rail, so let the center rail claim that column's width.
-  const NO_RIGHT_RAIL_PATHS = ['/saved', '/connections', '/events', '/admin/verifications', '/reports'];
+  const NO_RIGHT_RAIL_PATHS = [
+    '/saved',
+    '/connections',
+    '/events-feed',
+    '/events',
+    '/admin/verifications',
+    '/admin/newsroom',
+    '/reports',
+    // Documents and admin workspaces read as full-width pages: the rail's
+    // feed-oriented widgets are noise beside them.
+    '/changelog',
+    '/privacy',
+    '/terms',
+    '/admin/changelog',
+    '/admin/institutions',
+  ];
   const isNoRightRailRoute = NO_RIGHT_RAIL_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   );
@@ -115,7 +143,7 @@ export default function AppShell({
   }, []);
 
   return (
-    <div className="app-shell home-shell scholarly-shell">
+    <div className={`app-shell home-shell scholarly-shell${areaClass ? ` ${areaClass}` : ''}`}>
       {/* TopBar */}
       <NavBar
         {...navBarProps}
@@ -155,9 +183,9 @@ export default function AppShell({
             isMessagesRoute ? 'messages-layout' : ''
           } ${isSearchRoute ? 'search-layout' : ''} ${isSettingsRoute ? 'settings-layout' : ''} ${isDonateRoute ? 'donate-layout' : ''} ${
             isNoRightRailRoute ? 'no-right-rail-layout' : ''
-          }`}
+          } ${isReelsRoute ? 'reels-layout' : ''}`}
         >
-          <div className="left-rail">
+          <div className="left-rail" data-tour="primary-nav">
             <LeftSidebar
               userData={userData}
               lockedKeys={effectiveLockedKeys}
@@ -169,8 +197,12 @@ export default function AppShell({
             />
           </div>
           <ProfileContactProvider>
-            <div className="center-rail">
-              {children}
+            <div className="center-rail" data-tour="feed">
+              {/* Wrapper grows to fill any spare height so the footer links sit
+                  on the bottom edge of a short page instead of floating
+                  mid-screen, and are pushed below the content on a long one. */}
+              <div className="center-rail__content">{children}</div>
+              <AppFooterLinks />
             </div>
             <div className="right-rail">
               <RightSidebar userData={userData} />

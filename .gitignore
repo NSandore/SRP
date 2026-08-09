@@ -14,6 +14,15 @@ frontend/srp_app_backup.sql
 
 # Uploaded user content, including sensitive verification documents (PII)
 uploads/verification/
+uploads/reels/
+
+# Unvalidated chunked reel uploads and assembled processing sources. These are
+# runtime-only and deliberately live outside the public uploads tree.
+backend/runtime/reel_uploads/
+
+# Download cache, raw federal/source files, locks, and generated institution
+# pipeline reports are private runtime state, not repository assets.
+backend/runtime/institution_pipeline/
 
 # Dependencies / build output
 vendor/

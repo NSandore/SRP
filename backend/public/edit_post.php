@@ -15,6 +15,7 @@ require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../includes/sanitize.php';
+require_once __DIR__ . '/../includes/content_limits.php';
 
 header('Content-Type: application/json');
 
@@ -35,6 +36,13 @@ $new_content = isset($data['content']) ? trim($data['content']) : '';
 if ($post_id === '' || $new_content === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid post_id or content.']);
+    exit;
+}
+
+$clean_html = srp_sanitize_html($new_content);
+if (srp_post_exceeds_limit($clean_html)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Posts must be 10,000 characters or fewer.']);
     exit;
 }
 
@@ -67,8 +75,6 @@ try {
         echo json_encode(['error' => 'You do not have permission to edit this post.']);
         exit;
     }
-
-    $clean_html = srp_sanitize_html($new_content);
 
     $update = $db->prepare("
         UPDATE posts

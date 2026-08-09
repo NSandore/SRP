@@ -28,13 +28,37 @@ function srp_json($data, int $status = 200): void {
 
 /**
  * Require an authenticated session; returns the normalized user id.
- * Emits 401 and exits when not logged in.
+ * Emits 401 and exits when not logged in, or when the session has been
+ * explicitly revoked (logout elsewhere, password reset, admin action).
+ *
+ * This is a centralized revocation check: any endpoint that calls this
+ * helper (via srp_bootstrap or directly) gets it automatically, even before
+ * every legacy endpoint is migrated onto the shared bootstrap.
  */
 function srp_require_login(): string {
     if (!isset($_SESSION['user_id'])) {
         srp_json(['success' => false, 'error' => 'You must be logged in.'], 401);
     }
-    return normalizeId($_SESSION['user_id']);
+    $userId = normalizeId($_SESSION['user_id']);
+
+    try {
+        $db = getDB();
+        $stmt = $db->prepare('SELECT revoked_at FROM user_sessions WHERE session_id = :sid AND user_id = :uid LIMIT 1');
+        $stmt->execute([':sid' => session_id(), ':uid' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && $row['revoked_at'] !== null) {
+            session_unset();
+            session_destroy();
+            srp_json(['success' => false, 'error' => 'Your session has been revoked. Please log in again.'], 401);
+        }
+    } catch (Throwable $e) {
+        // No user_sessions row yet (normal right after login, before
+        // check_session.php first runs) or a transient DB error — fail
+        // open here rather than lock out every request; a real DB outage
+        // will surface clearly from the endpoint's own getDB() call.
+    }
+
+    return $userId;
 }
 
 /**

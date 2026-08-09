@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import ModalOverlay from './ModalOverlay';
 import { isSuperAdmin } from '../constants/roles';
+import {
+  FORUM_TITLE_MAX_LENGTH,
+  POST_MAX_LENGTH,
+  THREAD_TITLE_MAX_LENGTH,
+} from '../utils/contentLimits';
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -383,6 +388,7 @@ function ReportedItems({ userData }) {
                               openEditModal(report);
                             }
                           }}
+                          maxLength={FORUM_TITLE_MAX_LENGTH}
                         />
                         <label className="report-details-label">Description</label>
                         <textarea
@@ -516,6 +522,7 @@ function ReportedItems({ userData }) {
                   type="text"
                   value={editFields.title}
                   onChange={(e) => setEditFields((prev) => ({ ...prev, title: e.target.value }))}
+                  maxLength={THREAD_TITLE_MAX_LENGTH}
                   required
                 />
               </>
@@ -527,6 +534,7 @@ function ReportedItems({ userData }) {
                   value={editFields.content}
                   onChange={(e) => setEditFields((prev) => ({ ...prev, content: e.target.value }))}
                   rows={4}
+                  maxLength={POST_MAX_LENGTH}
                   required
                 />
               </>

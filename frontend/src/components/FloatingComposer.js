@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { FaPlus, FaRegStickyNote, FaPoll, FaQuestionCircle } from 'react-icons/fa';
 import TextEditor from './TextEditor';
+import { POST_MAX_LENGTH, THREAD_TITLE_MAX_LENGTH } from '../utils/contentLimits';
 
 function FloatingComposer({ communities = [], defaultCommunityId = '' }) {
   const [open, setOpen] = useState(false);
@@ -117,13 +118,17 @@ function FloatingComposer({ communities = [], defaultCommunityId = '' }) {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Add a clear, descriptive title"
+                  maxLength={THREAD_TITLE_MAX_LENGTH}
                   required
                 />
+                <span className="field-character-count">
+                  {title.length} / {THREAD_TITLE_MAX_LENGTH}
+                </span>
               </div>
 
               <div className="form-group">
                 <label>Content</label>
-                <TextEditor value={content} onChange={setContent} />
+                <TextEditor value={content} onChange={setContent} maxLength={POST_MAX_LENGTH} />
               </div>
 
               <div className="form-group">

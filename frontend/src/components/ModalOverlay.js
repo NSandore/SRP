@@ -47,6 +47,10 @@ function ModalOverlay({
     }
   };
 
+  // Portal into the app shell when it exists so dialogs inherit the active
+  // area/community palette (--home-* variables); fall back to body otherwise.
+  const portalTarget = document.querySelector('.app-shell') || document.body;
+
   return createPortal(
     <div className="feature-overlay" onClick={handleOverlayClick} role="dialog" aria-modal="true">
       <div
@@ -66,7 +70,7 @@ function ModalOverlay({
         <div className="feature-overlay-body">{children}</div>
       </div>
     </div>,
-    document.body
+    portalTarget
   );
 }
 

@@ -1,13 +1,16 @@
 .feature-overlay {
-  --dialog-kraft: #eee4d1;
-  --dialog-paper: #fbf7ef;
-  --dialog-paper-strong: #fffdf8;
-  --dialog-ink: #20332d;
-  --dialog-ink-soft: #5f6e67;
-  --dialog-forest: #183e35;
-  --dialog-forest-light: #2f6657;
-  --dialog-rust: #a6533e;
-  --dialog-line: #d5c7ae;
+  /* Dialogs inherit the parent page's palette (area tints, community accent
+     colors, dark mode) via the shell's --home-* variables; the literals are
+     fallbacks for dialogs opened outside the shell. */
+  --dialog-kraft: var(--home-kraft, #EEF4FC);
+  --dialog-paper: var(--home-paper, #FCFDFF);
+  --dialog-paper-strong: var(--home-paper-strong, #FFFFFF);
+  --dialog-ink: var(--home-ink, #11244D);
+  --dialog-ink-soft: var(--home-ink-soft, #667895);
+  --dialog-forest: var(--home-forest, #2F80ED);
+  --dialog-forest-light: var(--home-forest-light, #69A8F7);
+  --dialog-rust: var(--home-rust, #7656D9);
+  --dialog-line: var(--home-line, #DCE7F5);
   --dialog-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   position: fixed;
   inset: 0;
@@ -16,7 +19,7 @@
   align-items: center;
   justify-content: center;
   padding: clamp(16px, 4vw, 40px);
-  background: rgba(24, 31, 27, 0.68);
+  background: rgba(8, 21, 43, 0.68);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -31,7 +34,7 @@
   background: var(--dialog-paper);
   box-shadow:
     0 1px 1px rgba(34, 29, 21, 0.08),
-    0 28px 80px rgba(24, 31, 27, 0.3);
+    0 28px 80px rgba(8, 21, 43, 0.3);
   color: var(--dialog-ink);
 }
 
@@ -174,7 +177,7 @@
 
 .community-form-dialog .qa-form :is(input, select, textarea):focus {
   border-color: var(--dialog-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 .community-form-dialog .qa-form ::placeholder {
@@ -200,7 +203,7 @@
   border-radius: 9px;
   background: var(--dialog-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   font-weight: 700;
   cursor: pointer;
   transition:
@@ -232,7 +235,7 @@
 @media (hover: hover) and (pointer: fine) {
   .feature-overlay-close:hover,
   .community-form-dialog .pill-button.secondary:hover {
-    border-color: rgba(47, 102, 87, 0.5);
+    border-color: rgba(47, 128, 237, 0.5);
     background: var(--dialog-paper);
     color: var(--dialog-forest);
   }
@@ -244,16 +247,16 @@
 }
 
 [data-theme='dark'] .feature-overlay {
-  --dialog-kraft: #151713;
-  --dialog-paper: #1c1f1a;
-  --dialog-paper-strong: #22251f;
-  --dialog-ink: #e8e1d5;
-  --dialog-ink-soft: #adb5ad;
-  --dialog-forest: #315f52;
-  --dialog-forest-light: #477a6c;
-  --dialog-rust: #ca7a62;
-  --dialog-line: #45483d;
-  background: rgba(7, 9, 7, 0.78);
+  --dialog-kraft: var(--home-kraft, #08152B);
+  --dialog-paper: var(--home-paper, #0E203B);
+  --dialog-paper-strong: var(--home-paper-strong, #102642);
+  --dialog-ink: var(--home-ink, #EAF2FF);
+  --dialog-ink-soft: var(--home-ink-soft, #A8B9D3);
+  --dialog-forest: var(--home-forest, #4B91EC);
+  --dialog-forest-light: var(--home-forest-light, #72AEFA);
+  --dialog-rust: var(--home-rust, #A58AF0);
+  --dialog-line: var(--home-line, #2A4163);
+  background: rgba(3, 10, 24, 0.78);
   color-scheme: dark;
 }
 
@@ -460,7 +463,7 @@
 .profile-editor-dialog :is(textarea, input):focus,
 .report-dialog-overlay .report-modal :is(input:not([type='radio']), textarea):focus {
   border-color: var(--dialog-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 .event-editor-dialog textarea,
@@ -518,7 +521,7 @@
   border-radius: 9px;
   background: var(--dialog-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   font-weight: 700;
   cursor: pointer;
 }

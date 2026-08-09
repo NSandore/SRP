@@ -2,7 +2,9 @@
 require_once __DIR__ . '/public/cors.php';
 // Master dev-mode switch. Set to true ONLY in local development.
 // When true, email 2FA and some safeguards are bypassed. Keep false in production.
-const SRP_DEV_MODE = true;
+// This is a fail-closed default: an explicit SRP_DEV_MODE=true in .env is the
+// only supported way to enable dev mode. Never flip this literal to true.
+const SRP_DEV_MODE = false;
 function loadEnvFile(string $path): void {
     if (!is_readable($path)) {
         return;
@@ -142,11 +144,19 @@ function getIdConfig(): array {
         'user_interests' => ['prefix' => 'ui', 'column' => 'id'],
         'reports' => ['prefix' => 'rp', 'column' => 'report_id'],
         'announcements' => ['prefix' => 'an', 'column' => 'announcement_id'],
+        'newsroom_items' => ['prefix' => 'nw', 'column' => 'newsroom_item_id'],
+        'changelog_entries' => ['prefix' => 'cl', 'column' => 'changelog_entry_id'],
         'user_verification_requests' => ['prefix' => 'vr', 'column' => 'request_id'],
         'ambassador_applications' => ['prefix' => 'aa', 'column' => 'application_id'],
         'polls' => ['prefix' => 'pl', 'column' => 'poll_id'],
         'poll_options' => ['prefix' => 'po', 'column' => 'option_id'],
-        'poll_votes' => ['prefix' => 'pv', 'column' => 'vote_id']
+        'poll_votes' => ['prefix' => 'pv', 'column' => 'vote_id'],
+        'reels' => ['prefix' => 'rl', 'column' => 'reel_id'],
+        'reel_likes' => ['prefix' => 'rli', 'column' => 'reel_like_id'],
+        'reel_saves' => ['prefix' => 'rsv', 'column' => 'reel_save_id'],
+        'reel_comments' => ['prefix' => 'rc', 'column' => 'reel_comment_id'],
+        'reel_community_pins' => ['prefix' => 'rpi', 'column' => 'reel_pin_id'],
+        'reel_upload_sessions' => ['prefix' => 'rup', 'column' => 'upload_id']
     ];
 }
 

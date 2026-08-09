@@ -28,23 +28,37 @@ if ($universityId === '') {
     exit(1);
 }
 
-$userStmt = $db->query("
-    SELECT user_id
-    FROM users
-    ORDER BY CASE WHEN role_id = 5 THEN 0 ELSE 1 END, created_at ASC
-    LIMIT 1
-");
-$adminUserId = normalizeId($userStmt->fetchColumn());
+$preferredAmbassadorEmail = getenv('SRP_DEMO_AMBASSADOR_EMAIL') ?: 'demo.ambassador@studentsphere.example.com';
+$preferredMemberEmail = getenv('SRP_DEMO_MEMBER_EMAIL') ?: 'demo.member@studentsphere.example.com';
 
-$studentStmt = $db->prepare("
-    SELECT user_id
-    FROM users
-    WHERE user_id <> :admin_id
-    ORDER BY CASE WHEN role_id = 1 THEN 0 ELSE 1 END, created_at ASC
-    LIMIT 1
-");
-$studentStmt->execute([':admin_id' => $adminUserId]);
-$studentUserId = normalizeId($studentStmt->fetchColumn());
+$preferredUserStmt = $db->prepare("SELECT user_id FROM users WHERE email = :email LIMIT 1");
+$preferredUserStmt->execute([':email' => $preferredAmbassadorEmail]);
+$adminUserId = normalizeId($preferredUserStmt->fetchColumn());
+
+if ($adminUserId === '') {
+    $userStmt = $db->query("
+        SELECT user_id
+        FROM users
+        ORDER BY CASE WHEN role_id = 5 THEN 0 ELSE 1 END, created_at ASC
+        LIMIT 1
+    ");
+    $adminUserId = normalizeId($userStmt->fetchColumn());
+}
+
+$preferredUserStmt->execute([':email' => $preferredMemberEmail]);
+$studentUserId = normalizeId($preferredUserStmt->fetchColumn());
+
+if ($studentUserId === '') {
+    $studentStmt = $db->prepare("
+        SELECT user_id
+        FROM users
+        WHERE user_id <> :admin_id
+        ORDER BY CASE WHEN role_id = 1 THEN 0 ELSE 1 END, created_at ASC
+        LIMIT 1
+    ");
+    $studentStmt->execute([':admin_id' => $adminUserId]);
+    $studentUserId = normalizeId($studentStmt->fetchColumn());
+}
 
 if ($adminUserId === '' || $studentUserId === '') {
     fwrite(STDERR, "Two existing users are required to seed realistic conversations.\n");

@@ -99,6 +99,15 @@ try {
         exit;
     }
 
+    if (!srp_can_be_ambassador($db, $userId, $communityId)) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Only verified staff members (or super admins) can become ambassadors. Complete staff verification for this university first.'
+        ]);
+        exit;
+    }
+
     if (!srp_can_apply_for_ambassador($db, $userId, $communityId)) {
         http_response_code(403);
         echo json_encode([

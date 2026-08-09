@@ -5,12 +5,14 @@ import axios from "axios";
 import { useParams, Link as RouterLink } from "react-router-dom";
 import "./ProfileView.css";
 import DOMPurify from "dompurify";
-import { FaCheckCircle, FaEllipsisV } from "react-icons/fa";
+import { FaEllipsisV } from "react-icons/fa";
+import { BadgeCheck } from "lucide-react";
 import useOnClickOutside from "../hooks/useOnClickOutside";
 import ThreadCard from "./ThreadCard";
 import { buildAvatarSrc } from "../utils/avatar";
 import buildUploadSrc from "../utils/uploads";
 import { usePublishProfileContact } from "../context/ProfileContactContext";
+import ReelGrid, { IntroReelCard } from "./ReelGrid";
 
 const getAmbassadorCommunityId = (community) =>
   String(community?.community_id ?? community?.id ?? community ?? "").trim();
@@ -541,9 +543,11 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const shouldBlurDetails = !userData || isRestrictedForPrivacy || isNetworkRestricted;
   const profileTabs = [
     { id: "about", label: "About" },
+    { id: "reels", label: "Reels" },
     { id: "posts", label: "Posts" },
     { id: "replies", label: "Replies" },
   ];
+  const shouldRestrictActiveTab = shouldBlurDetails && activeTab !== "reels";
   // Presence temporarily disabled
   const showOnline = false;
   const isOnline = false;
@@ -598,14 +602,22 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
             <div className="hero-text">
               <h1 className="hero-title">
                 {fullName}
-                {verified && (
-                  <FaCheckCircle
-                    className="verified-badge"
-                    style={{ pointerEvents: "auto" }}
-                    title={`Verified from ${verifiedCommunityName}`}
-                  />
+                {verified ? (
+                  <span
+                    className="profile-verification-status profile-verification-status--verified"
+                    title={`Verified from ${verifiedCommunityName || "this community"}`}
+                    aria-label={`Verified from ${verifiedCommunityName || "this community"}`}
+                  >
+                    <BadgeCheck size={19} strokeWidth={2.2} aria-hidden="true" />
+                  </span>
+                ) : (
+                  <span
+                    className="profile-verification-status profile-verification-status--unverified"
+                    title="Not verified"
+                  >
+                    Unverified
+                  </span>
                 )}
-                {/* Unverified shown under headline */}
                 {onlineLabel && (
                   <span className={`online-status-text ${isOnline ? "online" : "offline"}`}>
                     {onlineLabel}
@@ -615,11 +627,6 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
               </h1>
               <p className="hero-sub">
                 {displayHeadline}
-                {!verified && (
-                  <span className="status-pill unverified" title="Not verified">
-                    Unverified
-                  </span>
-                )}
               </p>
               <p className="hero-sub hero-sub-row">
                 <span>{followerCount} Followers</span>
@@ -716,7 +723,9 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
               type="button"
               className={`tab-link ${activeTab === tab.id ? "active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
-              disabled={shouldBlurDetails}
+              disabled={
+                shouldBlurDetails && !["about", "reels"].includes(tab.id)
+              }
             >
               {tab.label}
             </button>
@@ -724,8 +733,8 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
         </div>
       </div>
 
-      <div className="profile-detail-wrapper">
-        {shouldBlurDetails && (
+      <div className="profile-detail-wrapper community-profile">
+        {shouldRestrictActiveTab && (
           <div className="profile-detail-cta">
             <p>
               {isRestrictedForPrivacy
@@ -763,25 +772,41 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
           </div>
         )}
 
-        <div className={`profile-detail-sections ${shouldBlurDetails ? "restricted" : ""}`}>
-          {shouldBlurDetails && (
+        <div className="community-profile-content">
+        <div className={`profile-detail-sections split-main ${shouldRestrictActiveTab ? "restricted" : ""}`}>
+          {shouldRestrictActiveTab && (
             <div className="profile-detail-overlay" aria-hidden="true"></div>
           )}
 
           {activeTab === "about" && (
-            <div className="profile-grid">
-              <div className="profile-main">
-                <div className={`profile-section about-section ${shouldBlurDetails ? "restricted" : ""}`}>
-                  <h3>About</h3>
-                  <p>{DOMPurify.sanitize(displayAbout)}</p>
+            <>
+                <div className={`content-card about-section ${shouldBlurDetails ? "restricted" : ""}`}>
+                  <div className="qa-header">
+                    <div>
+                      <h3>About</h3>
+                      <p className="muted">Introduction and background.</p>
+                    </div>
+                  </div>
+                  {profile.about ? (
+                    <p className="community-overview__lead">{DOMPurify.sanitize(displayAbout)}</p>
+                  ) : (
+                    <p className="muted">No about information provided yet.</p>
+                  )}
                 </div>
 
-                <div className="profile-section">
-                  <h3>Experience</h3>
+                <IntroReelCard profile={profile} isOwner={isOwnProfile} />
+
+                <div className="content-card">
+                  <div className="qa-header">
+                    <div>
+                      <h3>Experience</h3>
+                      <p className="muted">Roles, work, and appointments.</p>
+                    </div>
+                  </div>
                   {loadingExp ? (
-                    <p>Loading experience...</p>
+                    <p className="muted">Loading experience...</p>
                   ) : errorExp ? (
-                    <p>{errorExp}</p>
+                    <p className="muted">{errorExp}</p>
                   ) : experience.length > 0 ? (
                     experience.map((exp, index) => (
                       <div key={index} className="experience-item">
@@ -811,16 +836,21 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                       </div>
                     ))
                   ) : (
-                    <p>No experience added yet.</p>
+                    <p className="muted">No experience added yet.</p>
                   )}
                 </div>
 
-                <div className="profile-section">
-                  <h3>Education</h3>
+                <div className="content-card">
+                  <div className="qa-header">
+                    <div>
+                      <h3>Education</h3>
+                      <p className="muted">Schools, programs, and achievements.</p>
+                    </div>
+                  </div>
                   {loadingEdu ? (
-                    <p>Loading education...</p>
+                    <p className="muted">Loading education...</p>
                   ) : errorEdu ? (
-                    <p>{errorEdu}</p>
+                    <p className="muted">{errorEdu}</p>
                   ) : education.length > 0 ? (
                     education.map((edu, index) => (
                       <div key={index} className="education-item">
@@ -850,12 +880,17 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                       </div>
                     ))
                   ) : (
-                    <p>No education details added yet.</p>
+                    <p className="muted">No education details added yet.</p>
                   )}
                 </div>
 
-                <div className="profile-section">
-                  <h3>Skills</h3>
+                <div className="content-card">
+                  <div className="qa-header">
+                    <div>
+                      <h3>Skills</h3>
+                      <p className="muted">Strengths and focus areas.</p>
+                    </div>
+                  </div>
                   {displaySkills ? (
                     <ul className="skills-list">
                       {displaySkills.split(",").map((skill, index) => (
@@ -865,20 +900,34 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                       ))}
                     </ul>
                   ) : (
-                    <p>No skills listed yet.</p>
+                    <p className="muted">No skills listed yet.</p>
                   )}
                 </div>
-              </div>
-            </div>
+            </>
+          )}
+
+          {activeTab === "reels" && (
+            <ReelGrid
+              userId={user_id}
+              isOwner={isOwnProfile}
+              showCreate={isOwnProfile}
+              title={`${profile.first_name || "Creator"}’s Reels`}
+              description="Short videos shared across StudentSphere."
+            />
           )}
 
           {activeTab === "posts" && (
-            <div className="profile-section">
-              <h3>Posts</h3>
+            <div className="content-card">
+              <div className="qa-header">
+                <div>
+                  <h3>Posts</h3>
+                  <p className="muted">Threads started across StudentSphere.</p>
+                </div>
+              </div>
               {threadsLoading ? (
-                <p>Loading posts...</p>
+                <p className="muted">Loading posts...</p>
               ) : threadsError ? (
-                <p>{threadsError}</p>
+                <p className="muted">{threadsError}</p>
               ) : userThreads.length > 0 ? (
                 <div className="profile-thread-list">
                   {userThreads.map((thread) => (
@@ -886,18 +935,23 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                   ))}
                 </div>
               ) : (
-                <p>No posts yet.</p>
+                <p className="muted">No posts yet.</p>
               )}
             </div>
           )}
 
           {activeTab === "replies" && (
-            <div className="profile-section">
-              <h3>Replies</h3>
+            <div className="content-card">
+              <div className="qa-header">
+                <div>
+                  <h3>Replies</h3>
+                  <p className="muted">Comments shared in community threads.</p>
+                </div>
+              </div>
               {repliesLoading ? (
-                <p>Loading replies...</p>
+                <p className="muted">Loading replies...</p>
               ) : repliesError ? (
-                <p>{repliesError}</p>
+                <p className="muted">{repliesError}</p>
               ) : userReplies.length > 0 ? (
                 <div className="profile-replies-list">
                   {userReplies.map((reply) => (
@@ -939,10 +993,11 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                   ))}
                 </div>
               ) : (
-                <p>No replies yet.</p>
+                <p className="muted">No replies yet.</p>
               )}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>

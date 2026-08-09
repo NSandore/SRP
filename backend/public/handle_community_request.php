@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/onboarding.php';
 require __DIR__ . '/../vendor/autoload.php';
 use Mailgun\Mailgun;
 
@@ -41,6 +42,21 @@ try {
     }
 
     if ($action === 'approve') {
+        // Ambassadors are restricted to verified staff (and super admins);
+        // approving a request makes the requester an admin ambassador.
+        srp_ensure_onboarding_tables($db);
+        $requesterStmt = $db->prepare("SELECT user_id FROM users WHERE email = :email LIMIT 1");
+        $requesterStmt->execute([':email' => $request['email']]);
+        $requesterUserId = $requesterStmt->fetchColumn();
+        if (!$requesterUserId || !srp_can_be_ambassador($db, normalizeId($requesterUserId))) {
+            http_response_code(409);
+            echo json_encode([
+                'success' => false,
+                'error' => 'The requester must be a verified staff member (or super admin) before this request can be approved, because approval makes them an ambassador.'
+            ]);
+            exit;
+        }
+
         $parentName = null;
         if (!empty($request['parent_community_id'])) {
             $pstmt = $db->prepare("SELECT name FROM communities WHERE id = :pid LIMIT 1");

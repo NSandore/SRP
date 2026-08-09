@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/institution_data/PublicProjection.php';
 
 header('Content-Type: application/json');
 
@@ -27,43 +28,43 @@ $offset = ($page - 1) * $limit;
 $db = getDB();
 
 try {
-    // Create or replace the view to include community_type
-    $db->exec("
-        CREATE OR REPLACE VIEW all_community_data AS
-        SELECT 
-            c.id AS community_id, 
-            c.community_type,  -- Include community_type
-            c.parent_community_id,
-            c.name, 
-            c.location, 
-            c.tagline, 
-            c.aliases,
-            c.logo_path, 
-            COUNT(fc.user_id) AS followers_count
-        FROM communities c
-        LEFT JOIN followed_communities fc ON fc.community_id = c.id
-        GROUP BY c.id, c.community_type, c.parent_community_id, c.name, c.location, c.tagline, c.aliases, c.logo_path
-    ");
+    $publicProjection = SrpInstitutionPublicProjection::selectList(
+        $db,
+        'c',
+        ['id' => 'community_id']
+    );
+    $activePredicate = SrpInstitutionPublicProjection::activeUniversityPredicate($db, 'c');
 
-    // Prepare the main query with search, filtering by community_type = 'university', and pagination
     if ($isGuest) {
         $query = "
-            SELECT 
-                aud.*, 
+            SELECT
+                {$publicProjection},
+                (
+                    SELECT COUNT(*)
+                    FROM followed_communities follower_count
+                    WHERE follower_count.community_id = c.id
+                ) AS followers_count,
                 0 AS is_followed
-            FROM all_community_data aud
-            WHERE aud.community_type = :community_type
+            FROM communities c
+            WHERE c.community_type = :community_type
+              AND {$activePredicate}
         ";
         $params = [':community_type' => $communityType];
     } else {
         $query = "
-            SELECT 
-                aud.*, 
+            SELECT
+                {$publicProjection},
+                (
+                    SELECT COUNT(*)
+                    FROM followed_communities follower_count
+                    WHERE follower_count.community_id = c.id
+                ) AS followers_count,
                 CASE WHEN fc.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_followed
-            FROM all_community_data aud
+            FROM communities c
             LEFT JOIN followed_communities fc 
-                ON aud.community_id = fc.community_id AND fc.user_id = :user_id
-            WHERE aud.community_type = :community_type
+                ON c.id = fc.community_id AND fc.user_id = :user_id
+            WHERE c.community_type = :community_type
+              AND {$activePredicate}
         ";
         $params = [':user_id' => $user_id, ':community_type' => $communityType];
 
@@ -74,24 +75,31 @@ try {
         }
     }
 
-    // Add search condition if a search term is provided
     if ($search !== '') {
-        $query .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search";
-        $query .= " OR (aud.aliases IS NOT NULL AND JSON_SEARCH(aud.aliases, 'one', :search_exact) IS NOT NULL)";
-        $query .= ")";
+        $searchConditions = [
+            'c.name LIKE :search',
+            'c.location LIKE :search',
+            'c.tagline LIKE :search',
+            "(c.aliases IS NOT NULL AND JSON_SEARCH(c.aliases, 'one', :search_exact) IS NOT NULL)",
+        ];
+        foreach (['official_name', 'city', 'state', 'normalized_domain'] as $optionalSearchColumn) {
+            if (SrpInstitutionPublicProjection::hasColumn($db, $optionalSearchColumn)) {
+                $searchConditions[] = "c.`{$optionalSearchColumn}` LIKE :search";
+            }
+        }
+        $query .= ' AND (' . implode(' OR ', $searchConditions) . ')';
         $params[':search'] = '%' . $search . '%';
         $params[':search_exact'] = $search;
     }
 
     $orderBy = $sort === 'alpha'
-        ? " ORDER BY aud.name ASC"
-        : " ORDER BY aud.followers_count DESC, aud.name ASC";
+        ? " ORDER BY c.name ASC"
+        : " ORDER BY followers_count DESC, c.name ASC";
 
     $query .= $orderBy . " LIMIT :limit OFFSET :offset";
 
     $stmt = $db->prepare($query);
 
-    // Bind the parameters (note: :limit and :offset are bound separately below)
     foreach ($params as $key => &$val) {
         $stmt->bindParam($key, $val, PDO::PARAM_STR);
     }
@@ -101,17 +109,16 @@ try {
     $stmt->execute();
     $communities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Ensure $communities is an array
     if (!is_array($communities)) {
         $communities = [];
     }
 
-    // Get total count for pagination (only universities)
     $countQuery = "
         SELECT COUNT(*) as total
-        FROM all_community_data aud
-        " . ($isGuest ? "" : "LEFT JOIN followed_communities fc ON aud.community_id = fc.community_id AND fc.user_id = :user_id") . "
-        WHERE aud.community_type = :community_type
+        FROM communities c
+        " . ($isGuest ? "" : "LEFT JOIN followed_communities fc ON c.id = fc.community_id AND fc.user_id = :user_id") . "
+        WHERE c.community_type = :community_type
+          AND {$activePredicate}
     ";
     if (!$isGuest) {
         if ($scope === 'followed') {
@@ -121,9 +128,7 @@ try {
         }
     }
     if ($search !== '') {
-        $countQuery .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search";
-        $countQuery .= " OR (aud.aliases IS NOT NULL AND JSON_SEARCH(aud.aliases, 'one', :search_exact) IS NOT NULL)";
-        $countQuery .= ")";
+        $countQuery .= ' AND (' . implode(' OR ', $searchConditions) . ')';
     }
 
     $countStmt = $db->prepare($countQuery);

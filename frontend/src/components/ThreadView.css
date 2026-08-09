@@ -30,6 +30,128 @@
   margin: 0.5rem 0 0 0;
 }
 
+/* The original post is the sole focal reading surface on this page —
+   unlike list rows (which stay flat/index-style on purpose), it gets a
+   real card so it doesn't read as unstyled text on the page background. */
+.thread-view .post-card.original-post {
+  padding: 1.5rem 1.5rem 1.25rem;
+  border: 1px solid var(--home-line, #DCE7F5);
+  border-radius: 14px;
+  background: var(--home-paper-strong, #fff);
+  box-shadow: var(--home-shadow, 0 1px 2px rgba(38, 82, 132, 0.04), 0 12px 30px rgba(38, 82, 132, 0.08));
+}
+
+[data-theme="dark"] .thread-view .post-card.original-post {
+  background: var(--home-paper, #0f1729);
+  border-color: var(--home-line, #2a3550);
+}
+
+.thread-view .post-card.original-post .avatar-wrapper {
+  width: 44px;
+  height: 44px;
+  box-shadow: 0 0 0 2px var(--home-paper-strong, #fff),
+    0 0 0 3px var(--home-forest-light, #69A8F7);
+}
+
+[data-theme="dark"] .thread-view .post-card.original-post .avatar-wrapper {
+  box-shadow: 0 0 0 2px var(--home-paper, #0f1729),
+    0 0 0 3px var(--home-forest-light, #69A8F7);
+}
+
+.thread-view .post-card.original-post .vote-row {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--home-line, #DCE7F5);
+}
+
+/* Author headline blurb, sitting between the name and the timestamp. */
+.thread-view .original-post-headline {
+  max-width: 46ch;
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-view .original-post-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.thread-view .follow-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.thread-view .follow-button-icon {
+  font-size: 0.75em;
+}
+
+.thread-view .kebab-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thread-view .kebab-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--home-line, #DCE7F5);
+  border-radius: 9px;
+  background: var(--home-paper-strong, #fff);
+  color: var(--home-ink-soft, #667895);
+  cursor: pointer;
+  appearance: none;
+  line-height: 0;
+  transition: border-color 150ms ease, color 150ms ease,
+    transform 140ms var(--home-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.thread-view .kebab-trigger:active {
+  transform: scale(0.96);
+}
+
+.thread-view .kebab-menu .menu-icon {
+  position: static;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  font-size: 16px;
+  background: transparent;
+  color: currentColor;
+  pointer-events: none;
+}
+
+.thread-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 1.1vh;
+  padding-bottom: 1.7rem;
+}
+
+.thread-view .thread-hero__heading > .h1 {
+  margin: 0;
+  color: var(--home-ink, var(--text-color));
+  font-family: var(--home-serif, Georgia, 'Times New Roman', Times, serif);
+  font-size: clamp(1.8rem, 3vw, 2.35rem);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
 /* Tags under thread title reuse .chips-row .chip from App.css */
   
   /* Similar to your forum list, but used for displaying root posts */
@@ -45,11 +167,11 @@
 
   @keyframes post-target-pulse {
     0% {
-      box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4);
-      border-color: rgba(14, 165, 233, 0.55);
+      box-shadow: 0 0 0 0 rgba(47, 128, 237, 0.4);
+      border-color: rgba(47, 128, 237, 0.55);
     }
     100% {
-      box-shadow: 0 0 0 0 rgba(14, 165, 233, 0);
+      box-shadow: 0 0 0 0 rgba(47, 128, 237, 0);
       border-color: transparent;
     }
   }
@@ -134,7 +256,98 @@
   /* The post content itself */
   .post-content {
     margin-bottom: 0.5rem;
-    color: #555;
+    color: var(--home-ink-soft, #44546a);
+    font-size: 1rem;
+    line-height: 1.72;
+  }
+
+  .original-post .post-content {
+    margin-top: 1rem !important;
+    font-size: 1.04rem;
+  }
+
+  .post-content > :first-child {
+    margin-top: 0;
+  }
+
+  .post-content > :last-child {
+    margin-bottom: 0;
+  }
+
+  .post-content p {
+    margin: 0 0 0.9em;
+  }
+
+  .post-content h1,
+  .post-content h2,
+  .post-content h3 {
+    margin: 1.35em 0 0.5em;
+    color: var(--home-ink, var(--text-color));
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+  }
+
+  .post-content h1 { font-size: 1.65rem; }
+  .post-content h2 { font-size: 1.4rem; }
+  .post-content h3 { font-size: 1.18rem; }
+
+  .post-content ul,
+  .post-content ol {
+    margin: 0.75rem 0 1rem;
+    padding-left: 1.55rem;
+  }
+
+  .post-content li + li {
+    margin-top: 0.35rem;
+  }
+
+  .post-content blockquote {
+    margin: 1rem 0;
+    padding: 0.8rem 1rem;
+    border-left: 4px solid var(--home-forest-light, #69A8F7);
+    border-radius: 0 10px 10px 0;
+    background: color-mix(in srgb, var(--home-forest-light, #69A8F7) 9%, transparent);
+    color: var(--home-ink, var(--text-color));
+  }
+
+  .post-content code {
+    padding: 0.14em 0.38em;
+    border: 1px solid var(--home-line, var(--card-border));
+    border-radius: 5px;
+    background: var(--home-paper-soft, var(--light-background));
+    color: var(--home-ink, var(--text-color));
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+  }
+
+  .post-content pre {
+    margin: 1rem 0;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    border: 1px solid var(--home-line, var(--card-border));
+    border-radius: 10px;
+    background: var(--home-paper-soft, var(--light-background));
+  }
+
+  .post-content pre code {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .post-content a {
+    color: var(--home-forest-light, var(--link-color));
+    font-weight: 650;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  .post-content hr {
+    margin: 1.35rem 0;
+    border: 0;
+    border-top: 1px solid var(--home-line, var(--card-border));
   }
   
   /* Post meta info (posted by, date, etc.) */
@@ -198,24 +411,21 @@
   margin-bottom: 0.5rem;
 }
   
-  .vote-button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #555;
-    font-size: 1.2rem;
-  transition: color 0.3s ease;
+.vote-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #555;
+  font-size: 1.2rem;
+  transition: color 140ms ease, background-color 140ms ease,
+    transform 140ms var(--home-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-top: 0.24rem;
-  padding-bottom: 0.24rem;
-  padding-left: 0.24rem;
+  padding: 0.24rem;
+  border-radius: 999px;
+  line-height: 1;
 }
-  
-  .vote-button:hover {
-    color: #000;
-  }
   
   .vote-button.upvote-button.active {
     color: #28a745; /* Green for upvoted */
@@ -238,26 +448,74 @@
 }
   
   /* Reply & Collapse buttons in the same row */
-  .reply-button,
-  .collapse-button {
+.reply-button,
+.collapse-button {
     background: none;
     border: none;
     cursor: pointer;
     color: #555;
     font-size: 1.1rem;
-    transition: color 0.3s ease;
+    transition: color 140ms ease, background-color 140ms ease,
+      transform 140ms var(--home-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-left:0.4rem;
-    padding-top:0.4rem;
-    padding-bottom:0.4rem;
+    padding: 0.4rem;
+    border-radius: 999px;
+    line-height: 1;
   }
-  
-  .reply-button:hover,
-  .collapse-button:hover {
-    color: #000;
+
+.thread-view .vote-row > :is(.vote-button, .reply-button, .collapse-button) > svg {
+  transform-origin: center;
+  transition: transform 160ms var(--home-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.thread-view .vote-row > :is(.vote-button, .reply-button, .collapse-button):focus-visible {
+  outline: 2px solid var(--home-forest-light, #72AEFA);
+  outline-offset: 2px;
+}
+
+.thread-view .vote-row > :is(.vote-button, .reply-button, .collapse-button):active {
+  transform: scale(0.92);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .thread-view .vote-row > .upvote-button:hover {
+    background: color-mix(in srgb, var(--home-forest, #69A8F7) 12%, transparent);
+    color: var(--home-forest, #69A8F7);
   }
+
+  .thread-view .vote-row > .upvote-button:hover > svg {
+    transform: translateY(-2px);
+  }
+
+  .thread-view .vote-row > .downvote-button:hover {
+    background: color-mix(in srgb, var(--home-rust, #7656D9) 12%, transparent);
+    color: var(--home-rust, #7656D9);
+  }
+
+  .thread-view .vote-row > .downvote-button:hover > svg {
+    transform: translateY(2px);
+  }
+
+  .thread-view .vote-row > .reply-button:hover,
+  .thread-view .vote-row > .collapse-button:hover {
+    background: color-mix(in srgb, var(--home-forest, #69A8F7) 10%, transparent);
+    color: var(--home-forest, #69A8F7);
+  }
+
+  .thread-view .vote-row > .reply-button:hover > svg {
+    transform: translateY(-1px) scale(1.08);
+  }
+
+  .thread-view .vote-row > .collapse-button[aria-expanded='false']:hover > svg {
+    transform: translateX(2px);
+  }
+
+  .thread-view .vote-row > .collapse-button[aria-expanded='true']:hover > svg {
+    transform: translateY(2px);
+  }
+}
   
   /* Show/hide replies toggle text */
   .collapse-text {
@@ -274,7 +532,7 @@
   
   /* Reuse your .create-button, .delete-button, .cancel-button classes for consistency */
   .create-button {
-    background: linear-gradient(135deg, #2563eb, #0ea5e9);
+    background: linear-gradient(135deg, #2F80ED, #69A8F7);
     color: #fff;
     border: none;
     padding: 0.6rem 1.2rem;
@@ -283,13 +541,13 @@
     font-weight: 700;
     letter-spacing: 0.2px;
     min-width: 120px;
-    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.25);
+    box-shadow: 0 10px 22px rgba(47, 128, 237, 0.25);
     transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
   }
   
   .create-button:hover {
     transform: translateY(-1px);
-    box-shadow: 0 14px 30px rgba(37, 99, 235, 0.32);
+    box-shadow: 0 14px 30px rgba(47, 128, 237, 0.32);
     filter: brightness(1.03);
   }
   
@@ -352,6 +610,58 @@
   overflow: visible;
 }
 
+.thread-view .reply-post-surface {
+  position: relative;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: background-color 180ms ease;
+}
+
+.thread-view .reply-post-surface::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--home-rust, #7656D9);
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleY(0.65);
+  transform-origin: center;
+  transition: opacity 160ms ease,
+    transform 180ms var(--home-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .scholarly-shell .thread-view .reply-post-surface:hover {
+    background: rgba(47, 128, 237, 0.22);
+  }
+
+  .scholarly-shell .thread-view .reply-post-surface:hover::before {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-view .vote-row > :is(.vote-button, .reply-button, .collapse-button),
+  .thread-view .vote-row > :is(.vote-button, .reply-button, .collapse-button) > svg,
+  .thread-view .reply-post-surface,
+  .thread-view .reply-post-surface::before {
+    transition: none;
+  }
+
+  .thread-view .vote-row > :is(.vote-button, .reply-button, .collapse-button):active,
+  .thread-view .vote-row > :is(.vote-button, .reply-button, .collapse-button):hover > svg,
+  .thread-view .reply-post-surface:hover::before {
+    transform: none;
+  }
+}
+
 .post-content,
 .post-content * {
   max-width: 100%;
@@ -410,7 +720,7 @@
   }
   
   .thread-view .post-header-menu-panel .dropdown-item:hover {
-    background-color: rgba(14, 165, 233, 0.12);
+    background-color: rgba(47, 128, 237, 0.12);
   }
   
   /* Reply form, consistent with other forms */
@@ -442,8 +752,8 @@
 
   .reply-textarea:focus {
     outline: none;
-    border-color: var(--home-forest-light, rgba(14, 165, 233, 0.8));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--home-forest-light, #0ea5e9) 16%, transparent);
+    border-color: var(--home-forest-light, rgba(47, 128, 237, 0.8));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--home-forest-light, #69A8F7) 16%, transparent);
   }
 
   [data-theme="dark"] .reply-textarea {
@@ -456,27 +766,30 @@
     gap: 0.6rem;
   }
   
-  /* Edit form with Tiptap editor */
+  /* Edit form with Tiptap editor — matches the creation-dialog field chrome */
   .edit-form {
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    border: 1px solid var(--home-line, #ddd);
+    border-radius: 10px;
     padding: 0.75rem;
-    background: #fff;
+    background: var(--home-paper, #fff);
     margin-bottom: 1rem;
   }
-  
+
   .edit-form-actions {
     display: flex;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
   }
-  
+
   /* Tiptap editor consistent with your .tiptap-editor usage */
   .tiptap-editor {
     min-height: 150px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    border: 1px solid var(--home-line, #ccc);
+    border-radius: 8px;
     padding: 0.5rem;
+    background: var(--home-paper-strong, #fff);
+    color: var(--home-ink, inherit);
     outline: none;
     margin-top: 0.5rem;
   }
@@ -500,10 +813,10 @@
     color: #555;
   }
   .toolbar-button.active {
-    color: #0077B5;
+    color: #2F80ED;
   }
   .toolbar-button:hover {
-    color: #005f8d;
+    color: #1D5FC4;
   }
   
   .toolbar-select {
@@ -526,7 +839,7 @@
   
   .arrow-link {
     text-decoration: none;
-    color: #0077b5;
+    color: #2F80ED;
     font-size: 1.2rem;  /* same as ForumView */
     cursor: pointer;
     transition: color 0.2s ease;
@@ -534,6 +847,6 @@
   }
   
   .arrow-link:hover {
-    color: #005f8d;
+    color: #1D5FC4;
   }
   

@@ -84,6 +84,15 @@ try {
         exit;
     }
 
+    if (!srp_can_be_ambassador($db, $userId, $communityId)) {
+        echo json_encode([
+            'success' => true,
+            'can_apply' => false,
+            'reason' => 'staff_verification_required',
+        ]);
+        exit;
+    }
+
     $canApply = srp_can_apply_for_ambassador($db, $userId, $communityId);
     echo json_encode([
         'success' => true,

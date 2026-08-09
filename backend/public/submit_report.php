@@ -25,7 +25,10 @@ $reasonCode = isset($input['reason_code']) ? strtolower(trim($input['reason_code
 $reasonText = isset($input['reason_text']) ? trim($input['reason_text']) : '';
 $details = sanitizeDetails($input['details'] ?? '');
 
-$allowedTypes = ['forum', 'thread', 'post', 'comment', 'announcement', 'event', 'user'];
+$allowedTypes = [
+    'forum', 'thread', 'post', 'comment', 'announcement', 'event', 'user',
+    'reel', 'reel_comment',
+];
 if (!in_array($itemType, $allowedTypes, true) || $itemId === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid item type or missing item id.']);
@@ -135,7 +138,7 @@ try {
 
     if (!empty($recipients)) {
         $communityName = htmlspecialchars($context['community_name'] ?? 'this community', ENT_QUOTES, 'UTF-8');
-        $isComment = $rawType === 'comment';
+        $isComment = in_array($rawType, ['comment', 'reel_comment'], true);
         $itemLabel = $isComment ? 'comment' : $itemType;
         $message = "A {$itemLabel} was reported in {$communityName}. <a href=\"/reports\">Review in Reported Items</a>";
         sendReportNotifications($db, $recipients, $reporterId, $message);

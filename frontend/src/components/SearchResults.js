@@ -7,6 +7,7 @@ import {
 } from 'react-icons/fa';
 import { FiMessageCircle } from 'react-icons/fi';
 import buildUploadSrc from '../utils/uploads';
+import { buildAvatarSrc } from '../utils/avatar';
 import { getTagStyle } from '../utils/tagStyle';
 
 function useQuery() {
@@ -17,6 +18,28 @@ function EmptyState({ query }) {
   return (
     <div className="search-empty">
       <p>No results for “{query}”. Try different keywords or a tag like <code>#events</code> or a user handle like <code>@alex</code>.</p>
+    </div>
+  );
+}
+
+const BREADCRUMB_MAX_LENGTH = 25;
+
+const truncateBreadcrumb = (part) =>
+  part.length > BREADCRUMB_MAX_LENGTH ? `${part.slice(0, BREADCRUMB_MAX_LENGTH)}…` : part;
+
+function SearchBreadcrumb({ parts }) {
+  const items = (parts || []).filter(Boolean);
+  if (items.length === 0) return null;
+  return (
+    <div className="breadcrumbs search-card-breadcrumb">
+      {items.map((part, idx) => (
+        <React.Fragment key={idx}>
+          {idx > 0 && <span className="breadcrumb-sep">&gt;</span>}
+          <span title={part.length > BREADCRUMB_MAX_LENGTH ? part : undefined}>
+            {truncateBreadcrumb(part)}
+          </span>
+        </React.Fragment>
+      ))}
     </div>
   );
 }
@@ -215,66 +238,92 @@ function SearchResults() {
 
   const activeItems = sorted?.[activeTab] || [];
   const hasAny = activeItems.length > 0;
+  const activeTabLabel = tabs.find((tab) => tab.id === activeTab)?.label || 'Results';
 
-  if (!query) return <div className="search-results"><p>Please enter a search term.</p></div>;
-  if (loading) return <div className="search-results"><p>Searching…</p></div>;
-  if (error) return <div className="search-results"><p className="error-text">{error}</p></div>;
+  const renderShell = (body) => (
+    <main className="search-results scholarly-page scholarly-search-page">
+      <div className="feed-container scholarly-page-panel search-page-panel">
+        <header className="scholarly-page-header">
+          <div>
+            <p className="scholarly-page-kicker">Campus-wide search</p>
+            <h1>Search</h1>
+            <p>
+              {query
+                ? <>Results for “{query}” across people, communities, forums, and discussions.</>
+                : 'Find people, communities, forums, threads, posts, and tags.'}
+            </p>
+          </div>
+          <div className="scholarly-page-count" aria-live="polite">
+            <strong>{getCount(activeTab)}</strong>
+            <span>{activeTabLabel.toLowerCase()} in view</span>
+          </div>
+        </header>
+        {body}
+      </div>
+    </main>
+  );
+
+  if (!query) return renderShell(<p className="search-status muted">Please enter a search term.</p>);
+  if (loading) return renderShell(<p className="search-status muted">Searching…</p>);
+  if (error) return renderShell(<p className="search-status error-text">{error}</p>);
   if (!results) return null;
 
-  return (
-    <div className="search-results">
-        <div className="feed-container">
-        <div className="feed-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-          <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Results for “{query}”</h2>
-        </div>
-        <div className="section-controls" style={{ marginBottom: 0 }}>
-          <div className="search-tabs filter-toolbar filter-toolbar--filter-first">
-            <div className="search-tab-buttons">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`search-tab ${activeTab === tab.id ? 'active' : ''} ${getCount(tab.id) === 0 ? 'disabled' : ''}`}
-                  onClick={() => getCount(tab.id) > 0 && setActiveTab(tab.id)}
-                  disabled={getCount(tab.id) === 0}
-                >
-                  {tab.label}
-                  {getCount(tab.id) > 0 && (
-                    <span className="search-tab-badge">{getCount(tab.id)}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-            <div className="search-sort">
-              <label htmlFor="search-sort" className="sr-only">Sort</label>
-              <span className="sort-pill" style={{ margin: 0 }}>Sort</span>
-              <select
-                id="search-sort"
-                className="sort-select"
-                value={sortKey}
-                onChange={(e) => setSortKey(e.target.value)}
+  return renderShell(
+    <>
+        <div className="search-tabs section-controls scholarly-controls filter-toolbar filter-toolbar--filter-first">
+          <div className="search-tab-buttons">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`search-tab ${activeTab === tab.id ? 'active' : ''} ${getCount(tab.id) === 0 ? 'disabled' : ''}`}
+                onClick={() => getCount(tab.id) > 0 && setActiveTab(tab.id)}
+                disabled={getCount(tab.id) === 0}
               >
-                {getSortOptions(activeTab).map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
+                {tab.label}
+                {getCount(tab.id) > 0 && (
+                  <span className="search-tab-badge">{getCount(tab.id)}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="search-sort">
+            <label htmlFor="search-sort" className="sr-only">Sort</label>
+            <span className="sort-pill" style={{ margin: 0 }}>Sort</span>
+            <select
+              id="search-sort"
+              className="sort-select"
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value)}
+            >
+              {getSortOptions(activeTab).map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
           </div>
         </div>
-        <div className="search-content">
+        <div className="search-content search-page-body">
           {!hasAny && <EmptyState query={query} />}
 
           {activeTab === 'users' && sorted?.users?.length > 0 && (
             <section className="search-section">
-              <div className="search-section-header">
-                <h3>Users</h3>
-                <span className="search-count">{sorted.users.length}</span>
-              </div>
-              <div className="search-grid">
+              <div className="search-list">
                 {sorted.users.map((u) => (
-                  <Link key={u.user_id} to={`/user/${u.user_id}`} className="search-card search-result-item">
-                    <div className="search-card-title">{u.first_name} {u.last_name}</div>
-                    <div className="search-card-meta">Profile</div>
+                  <Link
+                    key={u.user_id}
+                    to={`/user/${u.user_id}`}
+                    className="search-card search-result-item search-result-item--user"
+                  >
+                    <img
+                      src={buildAvatarSrc(u.avatar_path)}
+                      alt=""
+                      className="search-user-avatar"
+                      loading="lazy"
+                    />
+                    <div>
+                      <div className="search-card-title">{u.first_name} {u.last_name}</div>
+                      <div className="search-card-meta">Profile</div>
+                    </div>
                   </Link>
                 ))}
               </div>
@@ -283,10 +332,6 @@ function SearchResults() {
 
           {activeTab === 'communities' && sorted?.communities?.length > 0 && (
             <section className="search-section">
-              <div className="search-section-header">
-                <h3>Communities</h3>
-                <span className="search-count">{sorted.communities.length}</span>
-              </div>
               <div className="search-list">
                 {sorted.communities.map((c) => (
                   (() => {
@@ -344,13 +389,10 @@ function SearchResults() {
 
           {activeTab === 'forums' && sorted?.forums?.length > 0 && (
             <section className="search-section">
-              <div className="search-section-header">
-                <h3>Forums</h3>
-                <span className="search-count">{sorted.forums.length}</span>
-              </div>
               <div className="search-list">
                 {sorted.forums.map((f) => (
                   <Link key={f.forum_id} to={`/info/forum/${f.forum_id}`} className="search-card search-result-item search-result-item--forum">
+                    <SearchBreadcrumb parts={[f.community_name]} />
                     <div className="search-card-title">{f.name}</div>
                     <div className="search-card-meta">{f.description || 'Forum'}</div>
                     <div className="search-card-meta search-card-metrics">
@@ -366,10 +408,6 @@ function SearchResults() {
 
           {activeTab === 'threads' && sorted?.threads?.length > 0 && (
             <section className="search-section">
-              <div className="search-section-header">
-                <h3>Threads</h3>
-                <span className="search-count">{sorted.threads.length}</span>
-              </div>
               <div className="search-list">
                 {sorted.threads.map((t) => (
                   <Link
@@ -377,6 +415,7 @@ function SearchResults() {
                     to={`/info/forum/${t.forum_id}/thread/${t.thread_id}`}
                     className="search-card search-result-item search-result-item--thread"
                   >
+                    <SearchBreadcrumb parts={[t.community_name, t.forum_name]} />
                     <div className="card-top-row">
                       <div className="search-card-title">{t.title}</div>
                     </div>
@@ -393,10 +432,6 @@ function SearchResults() {
 
           {activeTab === 'posts' && sorted?.posts?.length > 0 && (
             <section className="search-section">
-              <div className="search-section-header">
-                <h3>Posts</h3>
-                <span className="search-count">{sorted.posts.length}</span>
-              </div>
               <div className="search-list">
                 {sorted.posts.map((p) => (
                   <Link
@@ -404,6 +439,7 @@ function SearchResults() {
                     to={`/info/forum/${p.forum_id}/thread/${p.thread_id}`}
                     className="search-card search-result-item search-result-item--post"
                   >
+                    <SearchBreadcrumb parts={[p.community_name, p.forum_name, p.thread_title]} />
                     <div className="search-card-title">
                       {stripHtml(p.content || '').slice(0, 160)}
                       {stripHtml(p.content || '').length > 160 ? '…' : ''}
@@ -421,23 +457,22 @@ function SearchResults() {
 
           {activeTab === 'tags' && sorted?.tags?.length > 0 && (
             <section className="search-section">
-              <div className="search-section-header">
-                <h3>Tags</h3>
-                <span className="search-count">{sorted.tags.length}</span>
-              </div>
-              <div className="search-grid search-grid--tags">
+              <div className="chips-row search-tags-row">
                 {sorted.tags.map((tag) => (
-                  <Link key={tag} to={`/search?q=%23${tag}`} className="search-card search-result-item search-result-item--tag">
-                    <div className="search-card-title" style={getTagStyle(tag)}>#{tag}</div>
-                    <div className="search-card-meta">Tag</div>
+                  <Link
+                    key={tag}
+                    to={`/search?q=%23${tag}`}
+                    className="chip tag-chip"
+                    style={{ ...getTagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '6px 14px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    #{tag}
                   </Link>
                 ))}
               </div>
             </section>
           )}
         </div>
-      </div>
-    </div>
+    </>
   );
 }
 

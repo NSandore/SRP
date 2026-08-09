@@ -3,12 +3,13 @@ import axios from 'axios';
 import { Link as RouterLink } from 'react-router-dom';
 import './ProfileView.css';
 import DOMPurify from 'dompurify';
-import { FaCheckCircle } from 'react-icons/fa';
+import { BadgeCheck } from 'lucide-react';
 import ThreadCard from './ThreadCard';
 import ModalOverlay from './ModalOverlay';
 import { buildAvatarSrc } from '../utils/avatar';
 import buildUploadSrc from '../utils/uploads';
 import { usePublishProfileContact } from '../context/ProfileContactContext';
+import ReelGrid, { IntroReelCard } from './ReelGrid';
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return '';
@@ -68,8 +69,8 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const [bannerFile, setBannerFile] = useState(null);
 
   // 4) Primary & Secondary color states
-  const [primaryColor, setPrimaryColor] = useState('#0077B5');
-  const [secondaryColor, setSecondaryColor] = useState('#005f8d');
+  const [primaryColor, setPrimaryColor] = useState('#2F80ED');
+  const [secondaryColor, setSecondaryColor] = useState('#1D5FC4');
 
   // 5) Verification-related states
   const [verified, setVerified] = useState(false);
@@ -92,6 +93,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const userId = userData?.user_id;
   const profileTabs = [
     { id: 'about', label: 'About' },
+    { id: 'reels', label: 'Reels' },
     { id: 'posts', label: 'Posts' },
     { id: 'replies', label: 'Replies' },
   ];
@@ -131,8 +133,8 @@ function SelfProfileView({ userData, onProfileUpdate }) {
       setSkills(profile.skills || '');
       setAvatarPath(profile.avatar_path || '/uploads/avatars/DefaultAvatar.png');
       setBannerPath(profile.banner_path || '/uploads/banners/DefaultBanner.jpeg');
-      setPrimaryColor(profile.primary_color || '#0077B5');
-      setSecondaryColor(profile.secondary_color || '#005f8d');
+      setPrimaryColor(profile.primary_color || '#2F80ED');
+      setSecondaryColor(profile.secondary_color || '#1D5FC4');
       setVerified(profile.verified === '1' || profile.verified === 1);
     }
   }, [profile]);
@@ -330,8 +332,8 @@ function SelfProfileView({ userData, onProfileUpdate }) {
     setSkills(profile.skills || '');
     setAvatarPath(profile.avatar_path || '/uploads/avatars/DefaultAvatar.png');
     setBannerPath(profile.banner_path || '/uploads/banners/DefaultBanner.jpeg');
-    setPrimaryColor(profile.primary_color || '#0077B5');
-    setSecondaryColor(profile.secondary_color || '#005f8d');
+    setPrimaryColor(profile.primary_color || '#2F80ED');
+    setSecondaryColor(profile.secondary_color || '#1D5FC4');
     setAvatarFile(null);
     setBannerFile(null);
   };
@@ -528,12 +530,21 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                 <div className="hero-text">
                   <h1 className="hero-title">
                     {fullName}
-                    {verified && (
-                      <FaCheckCircle
-                        className="verified-badge"
-                        style={{ pointerEvents: 'auto' }}
-                        title={`Verified from ${verifiedCommunityName}`}
-                      />
+                    {verified ? (
+                      <span
+                        className="profile-verification-status profile-verification-status--verified"
+                        title={`Verified from ${verifiedCommunityName || 'this community'}`}
+                        aria-label={`Verified from ${verifiedCommunityName || 'this community'}`}
+                      >
+                        <BadgeCheck size={19} strokeWidth={2.2} aria-hidden="true" />
+                      </span>
+                    ) : (
+                      <span
+                        className="profile-verification-status profile-verification-status--unverified"
+                        title="Not verified"
+                      >
+                        Unverified
+                      </span>
                     )}
                     {ambassadorLogo && (
                       <img
@@ -546,11 +557,6 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                   </h1>
                   <p className="hero-sub">
                     {displayHeadline}
-                    {!verified && (
-                      <span className="status-pill unverified" title="Not verified">
-                        Unverified
-                      </span>
-                    )}
                   </p>
                   <p className="hero-sub hero-sub-row">
                     <span>{followerCount} Followers</span>
@@ -580,22 +586,38 @@ function SelfProfileView({ userData, onProfileUpdate }) {
             </div>
           </div>
 
-          <div className="profile-detail-wrapper">
-            <div className="profile-detail-sections">
+          <div className="profile-detail-wrapper community-profile">
+            <div className="community-profile-content">
+            <div className="profile-detail-sections split-main">
               {activeTab === 'about' && (
-                <div className="profile-grid">
-                  <div className="profile-main">
-                    <div className="profile-section about-section">
-                      <h3>About</h3>
-                      <p>{DOMPurify.sanitize(displayAbout)}</p>
+                <>
+                    <div className="content-card about-section self-profile-about-card">
+                      <div className="qa-header">
+                        <div>
+                          <h3>About</h3>
+                          <p className="muted">How you introduce yourself.</p>
+                        </div>
+                      </div>
+                      {profile?.about ? (
+                        <p className="community-overview__lead">{DOMPurify.sanitize(displayAbout)}</p>
+                      ) : (
+                        <p className="muted">No about information provided yet.</p>
+                      )}
                     </div>
 
-                    <div className="profile-section">
-                      <h3>Experience</h3>
+                    <IntroReelCard profile={profile} isOwner />
+
+                    <div className="content-card self-profile-about-card">
+                      <div className="qa-header">
+                        <div>
+                          <h3>Experience</h3>
+                          <p className="muted">Roles, work, and appointments.</p>
+                        </div>
+                      </div>
                       {loadingExp ? (
-                        <p>Loading experience...</p>
+                        <p className="muted">Loading experience...</p>
                       ) : errorExp ? (
-                        <p>{errorExp}</p>
+                        <p className="muted">{errorExp}</p>
                       ) : experience.length > 0 ? (
                         experience.map((exp, index) => (
                           <div key={index} className="experience-item">
@@ -623,16 +645,21 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                           </div>
                         ))
                       ) : (
-                        <p>No experience added yet.</p>
+                        <p className="muted">No experience added yet.</p>
                       )}
                     </div>
 
-                    <div className="profile-section">
-                      <h3>Education</h3>
+                    <div className="content-card self-profile-about-card">
+                      <div className="qa-header">
+                        <div>
+                          <h3>Education</h3>
+                          <p className="muted">Schools, programs, and achievements.</p>
+                        </div>
+                      </div>
                       {loadingEdu ? (
-                        <p>Loading education...</p>
+                        <p className="muted">Loading education...</p>
                       ) : errorEdu ? (
-                        <p>{errorEdu}</p>
+                        <p className="muted">{errorEdu}</p>
                       ) : education.length > 0 ? (
                         education.map((edu, index) => (
                           <div key={index} className="education-item">
@@ -660,12 +687,17 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                           </div>
                         ))
                       ) : (
-                        <p>No education details added yet.</p>
+                        <p className="muted">No education details added yet.</p>
                       )}
                     </div>
 
-                    <div className="profile-section">
-                      <h3>Skills</h3>
+                    <div className="content-card self-profile-about-card">
+                      <div className="qa-header">
+                        <div>
+                          <h3>Skills</h3>
+                          <p className="muted">Strengths and focus areas.</p>
+                        </div>
+                      </div>
                       {displaySkills ? (
                         <ul className="skills-list">
                           {displaySkills.split(',').map((skill, index) => (
@@ -675,20 +707,35 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                           ))}
                         </ul>
                       ) : (
-                        <p>No skills listed yet.</p>
+                        <p className="muted">No skills listed yet.</p>
                       )}
                     </div>
-                  </div>
-                </div>
+                </>
+              )}
+
+              {activeTab === 'reels' && (
+                <ReelGrid
+                  userId={userId}
+                  isOwner
+                  showCreate
+                  title="Your Reels"
+                  description="Short videos you’ve shared across StudentSphere."
+                  emptyLabel="You haven’t shared a reel yet."
+                />
               )}
 
               {activeTab === 'posts' && (
-                <div className="profile-section">
-                  <h3>Posts</h3>
+                <div className="content-card">
+                  <div className="qa-header">
+                    <div>
+                      <h3>Posts</h3>
+                      <p className="muted">Threads you&apos;ve started across StudentSphere.</p>
+                    </div>
+                  </div>
                   {threadsLoading ? (
-                    <p>Loading posts...</p>
+                    <p className="muted">Loading posts...</p>
                   ) : threadsError ? (
-                    <p>{threadsError}</p>
+                    <p className="muted">{threadsError}</p>
                   ) : userThreads.length > 0 ? (
                     <div className="profile-thread-list">
                       {userThreads.map((thread) => (
@@ -696,18 +743,23 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                       ))}
                     </div>
                   ) : (
-                    <p>No posts yet.</p>
+                    <p className="muted">No posts yet.</p>
                   )}
                 </div>
               )}
 
               {activeTab === 'replies' && (
-                <div className="profile-section">
-                  <h3>Replies</h3>
+                <div className="content-card">
+                  <div className="qa-header">
+                    <div>
+                      <h3>Replies</h3>
+                      <p className="muted">Comments you&apos;ve shared in community threads.</p>
+                    </div>
+                  </div>
                   {repliesLoading ? (
-                    <p>Loading replies...</p>
+                    <p className="muted">Loading replies...</p>
                   ) : repliesError ? (
-                    <p>{repliesError}</p>
+                    <p className="muted">{repliesError}</p>
                   ) : userReplies.length > 0 ? (
                     <div className="profile-replies-list">
                       {userReplies.map((reply) => (
@@ -749,10 +801,11 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                       ))}
                     </div>
                   ) : (
-                    <p>No replies yet.</p>
+                    <p className="muted">No replies yet.</p>
                   )}
                 </div>
               )}
+            </div>
             </div>
           </div>
 

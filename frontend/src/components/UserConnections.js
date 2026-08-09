@@ -197,7 +197,7 @@ function UserConnections({ userData }) {
         </header>
 
         <div className="connections-directory">
-          <div className="connections-directory__tools filter-toolbar filter-toolbar--filter-first">
+          <div className="connections-directory__tools section-controls scholarly-controls filter-toolbar filter-toolbar--filter-first">
             <div
               ref={filterSegmentRef}
               className="connections-directory__tabs admin-review__filters chips-row segmented-control"

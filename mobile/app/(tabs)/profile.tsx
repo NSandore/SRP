@@ -19,6 +19,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useSession } from '@/hooks/use-session';
 import { useLockedFeature } from '@/providers/LockedFeatureProvider';
 import AppShell from '@/components/navigation/AppShell';
+import ReelGrid from '@/components/reels/ReelGrid';
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
 import { useBrandStyles } from '@/hooks/use-brand-styles';
@@ -159,7 +160,7 @@ export default function ProfileScreen() {
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
 
-  const [activeTab, setActiveTab] = useState<'about' | 'posts' | 'replies'>('about');
+  const [activeTab, setActiveTab] = useState<'about' | 'reels' | 'posts' | 'replies'>('about');
   const [userThreads, setUserThreads] = useState<ThreadItem[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
   const [threadsError, setThreadsError] = useState<string | null>(null);
@@ -653,6 +654,7 @@ export default function ProfileScreen() {
           <View style={styles.tabsRow}>
             {[
               { id: 'about', label: 'About' },
+              { id: 'reels', label: 'Reels' },
               { id: 'posts', label: 'Posts' },
               { id: 'replies', label: 'Replies' },
             ].map((tab) => {
@@ -820,6 +822,12 @@ export default function ProfileScreen() {
                   <ThemedText style={styles.mutedText}>No email provided.</ThemedText>
                 )}
               </View>
+            </View>
+          ) : null}
+
+          {activeTab === 'reels' ? (
+            <View style={styles.sectionCard}>
+              <ReelGrid userId={userId} isOwnProfile />
             </View>
           ) : null}
 

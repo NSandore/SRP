@@ -82,8 +82,8 @@
 .form-group textarea:focus,
 .form-group select:focus {
   outline: none;
-  border-color: rgba(14, 165, 233, 0.8);
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  border-color: rgba(47, 128, 237, 0.8);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.15);
 }
 
 [data-theme="dark"] .form-group input,
@@ -110,9 +110,9 @@
 }
 
 .form-actions button[type="submit"] {
-  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  background: linear-gradient(135deg, #2F80ED, #69A8F7);
   color: #fff;
-  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 12px 26px rgba(47, 128, 237, 0.28);
 }
 
 .form-actions button[type="submit"]:disabled {
@@ -134,17 +134,17 @@
 
 /* Scholarly group request / creation dialog */
 .modal-overlay.community-request-modal {
-  --request-paper: var(--home-paper, #fbf7ef);
-  --request-paper-strong: var(--home-paper-strong, #fffdf8);
-  --request-ink: var(--home-ink, #20332d);
-  --request-ink-soft: var(--home-ink-soft, #5f6e67);
-  --request-forest: var(--home-forest, #183e35);
-  --request-forest-light: var(--home-forest-light, #2f6657);
-  --request-line: var(--home-line, #d5c7ae);
+  --request-paper: var(--home-paper, #FCFDFF);
+  --request-paper-strong: var(--home-paper-strong, #FFFFFF);
+  --request-ink: var(--home-ink, #11244D);
+  --request-ink-soft: var(--home-ink-soft, #667895);
+  --request-forest: var(--home-forest, #2F80ED);
+  --request-forest-light: var(--home-forest-light, #69A8F7);
+  --request-line: var(--home-line, #DCE7F5);
   --request-serif: var(--home-serif, Georgia, 'Times New Roman', Times, serif);
   --request-ease-out: var(--home-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   padding: 20px;
-  background: rgba(31, 38, 34, 0.62);
+  background: rgba(8, 21, 43, 0.62);
   backdrop-filter: blur(7px);
 }
 
@@ -156,7 +156,7 @@
   border: 1px solid var(--request-line);
   border-radius: 18px;
   background: var(--request-paper);
-  box-shadow: 0 28px 72px rgba(52, 42, 26, 0.24);
+  box-shadow: 0 28px 72px rgba(38, 82, 132, 0.24);
   color: var(--request-ink);
   transform-origin: center;
 }
@@ -205,7 +205,7 @@
 .community-request-content .color-hex-input:focus {
   outline: none;
   border-color: var(--request-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 .community-request-content .form-actions {
@@ -230,7 +230,7 @@
   border: 1px solid var(--request-forest);
   background: var(--request-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .community-request-content .form-actions button[type='button'] {
@@ -252,14 +252,14 @@
 
   .community-request-content .form-actions button[type='button']:hover {
     border-color: var(--request-forest-light);
-    background: rgba(24, 62, 53, 0.06);
+    background: rgba(47, 128, 237, 0.06);
     color: var(--request-forest);
     filter: none;
   }
 }
 
 [data-theme='dark'] .modal-overlay.community-request-modal {
-  background: rgba(9, 11, 9, 0.72);
+  background: rgba(3, 10, 24, 0.72);
 }
 
 [data-theme='dark'] .community-request-modal .community-request-content {

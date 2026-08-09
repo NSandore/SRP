@@ -1,18 +1,29 @@
 <?php
 require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'You must be logged in.']);
+    exit;
+}
+
 try {
-    if (!isset($_GET['user_id']) || !isset($_GET['item_type']) || !isset($_GET['item_id'])) {
+    if (!isset($_GET['item_type']) || !isset($_GET['item_id'])) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Missing parameters']);
         exit;
     }
 
     $db = getDB();
-    $user_id = normalizeId($_GET['user_id']);
+    // The actor is always the authenticated session's own user, never a
+    // client-supplied user_id — otherwise anyone could probe what another
+    // user has bookmarked.
+    $user_id = normalizeId($_SESSION['user_id']);
     $item_type = strtolower(trim((string)$_GET['item_type']));
     $item_id = normalizeId($_GET['item_id']);
 

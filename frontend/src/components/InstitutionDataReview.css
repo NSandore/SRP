@@ -1,0 +1,919 @@
+.institution-review {
+  width: 100%;
+  margin: 0 0 24px;
+  padding: 22px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 16px;
+  background: var(--home-paper, var(--bg-card, #fff));
+  color: var(--home-ink, var(--ink-strong, #11244d));
+  box-shadow: var(--home-shadow, 0 14px 34px rgba(17, 36, 77, 0.08));
+}
+
+.institution-review__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+}
+
+.institution-review__header h1,
+.institution-review__field h2,
+.institution-review__manual h2,
+.institution-review__duplicate h2,
+.institution-review__reason-box h2 {
+  margin: 0;
+  color: inherit;
+}
+
+.institution-review__header h1 {
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  line-height: 1.15;
+}
+
+.institution-review__eyebrow {
+  margin: 0 0 7px;
+  color: var(--home-forest, #2f6f63);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.institution-review__subtitle {
+  max-width: 680px;
+  margin: 7px 0 0;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  line-height: 1.5;
+}
+
+.institution-review__summary {
+  display: flex;
+  min-width: 92px;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.82rem;
+}
+
+.institution-review__summary strong {
+  color: var(--home-ink, var(--ink-strong, #11244d));
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.institution-review__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.institution-review__filters {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.institution-review button {
+  font: inherit;
+}
+
+.institution-review__filters button,
+.institution-review__pagination button {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 9px;
+  background: transparent;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.institution-review__filters button.is-active {
+  border-color: color-mix(in srgb, var(--home-forest, #2f6f63) 38%, transparent);
+  background: color-mix(in srgb, var(--home-forest, #2f6f63) 10%, transparent);
+  color: var(--home-forest, #2f6f63);
+}
+
+.institution-review__search {
+  display: flex;
+  width: min(310px, 100%);
+  flex: 0 1 310px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 10px;
+  background: var(--home-paper-strong, var(--bg-card, #fff));
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+}
+
+.institution-review__search:focus-within {
+  border-color: color-mix(in srgb, var(--home-forest, #2f6f63) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--home-forest, #2f6f63) 12%, transparent);
+}
+
+.institution-review__search input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--home-ink, var(--ink-strong, #11244d));
+}
+
+.institution-review__alert,
+.institution-review__empty,
+.institution-review__gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 92px;
+  padding: 18px;
+  border: 1px dashed var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--home-paper-strong, #fff) 70%, transparent);
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  text-align: center;
+}
+
+.institution-review__alert {
+  min-height: 0;
+  margin-bottom: 12px;
+  border-style: solid;
+  border-color: rgba(185, 66, 55, 0.25);
+  background: rgba(185, 66, 55, 0.08);
+  color: #9d392f;
+}
+
+.institution-review__gate {
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.institution-review__spinner {
+  animation: institution-review-spin 850ms linear infinite;
+}
+
+@keyframes institution-review-spin {
+  to { transform: rotate(360deg); }
+}
+
+.institution-review__list {
+  display: grid;
+  gap: 10px;
+}
+
+.institution-review__card {
+  overflow: hidden;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 13px;
+  background: var(--home-paper-strong, var(--bg-card, #fff));
+}
+
+.institution-review__card-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 17px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .institution-review__card-toggle:hover {
+    background: color-mix(in srgb, var(--home-forest, #2f6f63) 4%, transparent);
+  }
+}
+
+.institution-review__identity {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.institution-review__name {
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.institution-review__meta {
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.83rem;
+}
+
+.institution-review__signals {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.institution-review__pill {
+  padding: 5px 8px;
+  border: 1px solid rgba(47, 128, 237, 0.2);
+  border-radius: 999px;
+  background: rgba(47, 128, 237, 0.08);
+  color: #2769bd;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.institution-review__pill--error {
+  border-color: rgba(185, 66, 55, 0.24);
+  background: rgba(185, 66, 55, 0.08);
+  color: #9d392f;
+}
+
+.institution-review__pill--quiet {
+  border-color: var(--home-line, var(--line-soft, #dce7f5));
+  background: transparent;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+}
+
+.institution-review__details {
+  display: grid;
+  gap: 16px;
+  padding: 0 17px 17px;
+  border-top: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+}
+
+.institution-review__overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-top: 16px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 10px;
+  background: var(--home-line, var(--line-soft, #dce7f5));
+}
+
+.institution-review__overview > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: var(--home-paper, var(--bg-card, #fff));
+}
+
+.institution-review__overview span {
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.institution-review__overview strong {
+  overflow-wrap: anywhere;
+  font-size: 0.86rem;
+}
+
+.institution-review__reason-box,
+.institution-review__manual,
+.institution-review__duplicate {
+  padding: 14px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--home-paper, #fff) 76%, var(--bg-subtle, #f1f6fd));
+}
+
+.institution-review__reason-box h2,
+.institution-review__manual h2,
+.institution-review__duplicate h2 {
+  font-size: 0.9rem;
+}
+
+.institution-review__reason-box ul {
+  display: grid;
+  gap: 5px;
+  margin: 9px 0 0;
+  padding-left: 18px;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.84rem;
+}
+
+.institution-review__missing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+
+.institution-review__missing > span:first-child {
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-weight: 700;
+}
+
+.institution-review__missing > span:not(:first-child) {
+  padding: 4px 7px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-poll, #e6a768) 18%, transparent);
+  color: #795b2d;
+  font-weight: 700;
+}
+
+/* Missing data is entered in place rather than through the generic override
+   form, so an administrator does not have to reselect the field they are
+   already looking at. */
+.institution-review__fill {
+  padding: 14px;
+  border: 1px solid var(--home-line, #DCE7F5);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-poll, #e6a768) 8%, transparent);
+}
+
+.institution-review__fill-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 12px;
+}
+
+.institution-review__fill-head strong {
+  color: var(--home-ink, var(--text-color, #11244D));
+  font-size: 0.86rem;
+}
+
+.institution-review__fill-head span {
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.78rem;
+}
+
+.institution-review__fill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px 14px;
+}
+
+.institution-review__fill-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  color: var(--home-ink, var(--text-color, #11244D));
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.institution-review__fill-input {
+  display: flex;
+  gap: 6px;
+}
+
+.institution-review__fill-input input {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 8px 10px;
+  border: 1px solid var(--home-line, #DCE7F5);
+  border-radius: 8px;
+  background: var(--home-paper-strong, #FFFFFF);
+  color: var(--home-ink, var(--text-color, #11244D));
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 400;
+}
+
+.institution-review__fill-input input:focus {
+  outline: none;
+  border-color: var(--home-forest, #2F80ED);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.14);
+}
+
+.institution-review__fill-input button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--home-forest, #2F80ED);
+  border-radius: 8px;
+  background: var(--home-forest, #2F80ED);
+  color: #FFFFFF;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.institution-review__fill-input button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* A logo is a file, so this slot takes an upload instead of a text value. */
+.institution-review__fill-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.institution-review__fill-upload input[type='file'] {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.institution-review__fill-upload input[type='file']::file-selector-button {
+  margin-right: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--home-forest, #2F80ED);
+  border-radius: 8px;
+  background: var(--home-forest, #2F80ED);
+  color: #FFFFFF;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.institution-review__fill-upload em {
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.institution-review__card-links {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 4px 10px;
+}
+
+.institution-review__community-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--home-forest, #2F80ED);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.institution-review__community-link:hover {
+  text-decoration: underline;
+}
+
+[data-theme='dark'] .institution-review__fill,
+[data-theme='dark'] .institution-review__fill-input input {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+[data-theme='dark'] .institution-review__fill-upload input[type='file'] {
+  color: #A8B9D3;
+}
+
+[data-theme='dark'] .institution-review__fill-upload input[type='file']::file-selector-button {
+  border-color: #4B91EC;
+  background: #4B91EC;
+  color: #08152B;
+}
+
+[data-theme='dark'] .institution-review__community-link {
+  color: #72AEFA;
+}
+
+[data-theme='dark'] .institution-review__fill-input input {
+  background: #0E203B;
+  color: #EAF2FF;
+}
+
+[data-theme='dark'] .institution-review__fill-input button {
+  border-color: #4B91EC;
+  background: #4B91EC;
+  color: #08152B;
+}
+
+.institution-review__field-list {
+  display: grid;
+  gap: 12px;
+}
+
+.institution-review__field {
+  padding: 14px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 11px;
+}
+
+.institution-review__field-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.institution-review__field h2 {
+  font-size: 0.92rem;
+}
+
+.institution-review__field-header p {
+  margin: 5px 0 0;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.8rem;
+}
+
+.institution-review__field-status > span,
+.institution-review__field-status button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 1px solid rgba(74, 166, 123, 0.25);
+  border-radius: 8px;
+  background: rgba(74, 166, 123, 0.08);
+  color: #347958;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.institution-review__field-status button {
+  cursor: pointer;
+}
+
+.institution-review__candidate-list {
+  display: grid;
+  gap: 7px;
+}
+
+.institution-review__candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 9px;
+  background: var(--home-paper, var(--bg-card, #fff));
+}
+
+.institution-review__candidate--rejected {
+  opacity: 0.64;
+}
+
+.institution-review__candidate-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.institution-review__candidate-copy strong {
+  overflow-wrap: anywhere;
+  font-size: 0.84rem;
+}
+
+.institution-review__candidate-copy span,
+.institution-review__candidate-copy a {
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.74rem;
+}
+
+.institution-review__candidate-copy a {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 4px;
+  color: var(--home-forest, #2f6f63);
+  font-weight: 700;
+}
+
+.institution-review__candidate-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.institution-review__candidate-actions button,
+.institution-review__override button,
+.institution-review__primary,
+.institution-review__duplicate button,
+.institution-review__refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 9px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 8px;
+  background: transparent;
+  color: var(--home-ink, var(--ink-strong, #11244d));
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 800;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.institution-review__candidate-actions .institution-review__approve,
+.institution-review__primary {
+  border-color: var(--home-forest, #2f6f63);
+  background: var(--home-forest, #2f6f63);
+  color: #fff;
+}
+
+.institution-review__candidate-actions .institution-review__reject {
+  border-color: rgba(185, 66, 55, 0.26);
+  color: #9d392f;
+}
+
+.institution-review__candidate-state {
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.institution-review__override {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 9px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: rgba(74, 166, 123, 0.08);
+}
+
+.institution-review__override > div {
+  display: grid;
+  gap: 2px;
+  font-size: 0.78rem;
+}
+
+.institution-review__override span {
+  color: #347958;
+  font-weight: 800;
+}
+
+.institution-review__subtle-empty {
+  padding: 16px;
+  border: 1px dashed var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 10px;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.84rem;
+  text-align: center;
+}
+
+.institution-review__manual {
+  display: grid;
+  gap: 12px;
+}
+
+.institution-review__manual p,
+.institution-review__duplicate p {
+  margin: 4px 0 0;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.79rem;
+}
+
+.institution-review__manual-grid {
+  display: grid;
+  grid-template-columns: 0.7fr 1fr 1.25fr;
+  align-items: end;
+  gap: 9px;
+}
+
+.institution-review__manual-grid label {
+  display: grid;
+  gap: 5px;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.institution-review__manual-grid input,
+.institution-review__manual-grid select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 8px;
+  outline: 0;
+  background: var(--home-paper-strong, var(--bg-card, #fff));
+  color: var(--home-ink, var(--ink-strong, #11244d));
+  font: inherit;
+  font-weight: 500;
+}
+
+.institution-review__manual-grid input:focus,
+.institution-review__manual-grid select:focus {
+  border-color: color-mix(in srgb, var(--home-forest, #2f6f63) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--home-forest, #2f6f63) 10%, transparent);
+}
+
+.institution-review__manual-notes {
+  grid-column: 1 / 3;
+}
+
+.institution-review__primary {
+  min-height: 38px;
+}
+
+.institution-review__duplicate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.institution-review__duplicate > div:last-child {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.institution-review__duplicate input {
+  width: 180px;
+  padding: 7px 9px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 8px;
+  outline: 0;
+  background: var(--home-paper-strong, var(--bg-card, #fff));
+  color: var(--home-ink, var(--ink-strong, #11244d));
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.institution-review__duplicate input:focus {
+  border-color: color-mix(in srgb, var(--home-forest, #2f6f63) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--home-forest, #2f6f63) 10%, transparent);
+}
+
+.institution-review__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.77rem;
+}
+
+.institution-review__last-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #9d392f;
+}
+
+.institution-review__refresh {
+  border-color: color-mix(in srgb, var(--home-forest, #2f6f63) 32%, transparent);
+  color: var(--home-forest, #2f6f63);
+}
+
+.institution-review button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.institution-review button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.institution-review__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.8rem;
+}
+
+[data-theme='dark'] .institution-review__alert {
+  color: #f1aaa2;
+}
+
+[data-theme='dark'] .institution-review__pill--error,
+[data-theme='dark'] .institution-review__last-error,
+[data-theme='dark'] .institution-review__candidate-actions .institution-review__reject {
+  color: #f1aaa2;
+}
+
+@media (max-width: 860px) {
+  .institution-review__controls,
+  .institution-review__duplicate,
+  .institution-review__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .institution-review__search {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .institution-review__overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .institution-review__manual-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .institution-review__manual-notes {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .institution-review {
+    padding: 15px;
+    border-radius: 13px;
+  }
+
+  .institution-review__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .institution-review__summary {
+    align-items: flex-start;
+  }
+
+  .institution-review__card-toggle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .institution-review__signals {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .institution-review__signals > svg {
+    margin-left: auto;
+  }
+
+  .institution-review__overview,
+  .institution-review__manual-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .institution-review__manual-notes {
+    grid-column: auto;
+  }
+
+  .institution-review__field-header,
+  .institution-review__candidate,
+  .institution-review__override {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .institution-review__candidate-actions button {
+    flex: 1;
+  }
+
+  .institution-review__duplicate > div:last-child {
+    flex-wrap: wrap;
+  }
+
+  .institution-review__duplicate label,
+  .institution-review__duplicate input {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .institution-review button {
+    transition: background-color 100ms ease, border-color 100ms ease, color 100ms ease;
+  }
+
+  .institution-review button:not(:disabled):active {
+    transform: none;
+  }
+
+  .institution-review__spinner {
+    animation-duration: 1400ms;
+  }
+}

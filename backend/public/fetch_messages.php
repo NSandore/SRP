@@ -5,19 +5,43 @@ startSession();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
-if (!isset($_GET['conversation_id']) || !isset($_GET['user_id'])) {
+if (!isset($_GET['conversation_id'])) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'conversation_id and user_id are required']);
+    echo json_encode(['success' => false, 'error' => 'conversation_id is required']);
     exit;
 }
 
+// The actor is always the authenticated session's own user, never a
+// client-supplied user_id.
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'You must be logged in.']);
+    exit;
+}
+$user_id = normalizeId($_SESSION['user_id']);
+
 $conversation_id = normalizeId($_GET['conversation_id']);
-$user_id = normalizeId($_GET['user_id']);
 $before_id = isset($_GET['before_id']) ? normalizeId($_GET['before_id']) : null;
 $pageSize = 20;
 
 try {
     $db = getDB();
+
+    // A conversation's messages may only be read by one of its two
+    // participants — otherwise any authenticated user could pass an
+    // arbitrary conversation_id and read (and mark read) someone else's
+    // private messages.
+    $memberCheck = $db->prepare("
+        SELECT 1 FROM messages
+        WHERE conversation_id = :cid AND (sender_id = :uid OR recipient_id = :uid)
+        LIMIT 1
+    ");
+    $memberCheck->execute([':cid' => $conversation_id, ':uid' => $user_id]);
+    if (!$memberCheck->fetchColumn()) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Forbidden']);
+        exit;
+    }
 
     $params = [':cid' => $conversation_id];
     $cutWhere = '';

@@ -3,11 +3,23 @@ require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession(); // Start the session
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 header('Content-Type: application/json');
 require_once '../db_connection.php';
+if (srp_is_dev_mode()) {
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+}
 $db = getDB();
+
+// The actor is always the authenticated session's own user, never a
+// client-supplied id — this endpoint only ever edits the caller's own
+// profile.
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'You must be logged in.']);
+    exit;
+}
+$user_id = normalizeId($_SESSION['user_id']);
 
 // Get the raw POST data and decode the JSON payload.
 $input = json_decode(file_get_contents('php://input'), true);
@@ -19,14 +31,7 @@ if (!$input) {
     exit;
 }
 
-if (!isset($input['user_id'])) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Missing user_id']);
-    exit;
-}
-
 // Retrieve and sanitize the data.
-$user_id       = normalizeId($input['user_id']);
 $first_name    = isset($input['first_name']) ? trim($input['first_name']) : null;
 $last_name     = isset($input['last_name']) ? trim($input['last_name']) : null;
 $headline      = isset($input['headline']) ? trim($input['headline']) : null;

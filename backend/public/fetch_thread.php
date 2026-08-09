@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../tag_helpers.php';
+require_once __DIR__ . '/../includes/info_board_translations.php';
 
 header('Content-Type: application/json');
 
@@ -25,8 +26,10 @@ try {
             u.avatar_path AS creator_avatar_path,
             u.verified AS author_verified,
             ac.logo_path AS ambassador_logo_path,
-            t.title, 
-            t.created_at, 
+            t.title,
+            t.image_path,
+            t.image_layout,
+            t.created_at,
             t.updated_at,
             t.updated_by,
             ub.first_name AS updated_by_first_name,
@@ -56,6 +59,33 @@ try {
 
     if ($thread) {
         $thread['creator_avatar_path'] = appendAvatarPath($thread['creator_avatar_path'] ?? null);
+        if (srp_is_info_board_community($thread['community_id'] ?? '')) {
+            $translatedThread = srp_translate_info_board_rows(
+                $db,
+                [$thread],
+                'thread',
+                'thread_id',
+                ['title']
+            );
+            $thread = $translatedThread[0] ?? $thread;
+
+            $translatedForum = srp_translate_info_board_rows(
+                $db,
+                [[
+                    'forum_id' => $thread['forum_id'],
+                    'name' => $thread['forum_name'],
+                ]],
+                'forum',
+                'forum_id',
+                ['name']
+            );
+            if (isset($translatedForum[0])) {
+                $thread['original_forum_name'] = $translatedForum[0]['original_name'] ?? $thread['forum_name'];
+                $thread['forum_name'] = $translatedForum[0]['name'] ?? $thread['forum_name'];
+                $thread['is_translated'] = (bool)($thread['is_translated'] ?? false)
+                    || (bool)($translatedForum[0]['is_translated'] ?? false);
+            }
+        }
         $withTags = srp_attach_tags_to_threads($db, [$thread]);
         echo json_encode($withTags[0]);
     } else {

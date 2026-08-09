@@ -35,7 +35,7 @@ function srp_sanitize_html(?string $html): string {
         }
 
         $config->set('HTML.Allowed',
-            'p,br,b,strong,i,em,u,s,ul,ol,li,'
+            'p,br,hr,b,strong,i,em,u,s,ul,ol,li,'
             . 'a[href|title|target|rel],'
             . 'h1,h2,h3,h4,h5,h6,blockquote,code,pre,span,'
             . 'img[src|alt|title|width|height]');

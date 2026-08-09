@@ -119,6 +119,12 @@ try {
     $update = $db->prepare('UPDATE users SET password_hash = :password_hash WHERE user_id = :user_id');
     $update->execute([':password_hash' => $hashed, ':user_id' => $user['user_id']]);
 
+    // A password reset should invalidate every existing session for the
+    // account — otherwise a session an attacker already holds (the reason
+    // for the reset) survives the reset untouched.
+    $revokeSessions = $db->prepare('UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = :user_id AND revoked_at IS NULL');
+    $revokeSessions->execute([':user_id' => $user['user_id']]);
+
     // Invalidate the used code.
     unset($extras['reset_code'], $extras['reset_expires_at']);
     srp_save_account_settings_extras($db, $user['user_id'], $extras);

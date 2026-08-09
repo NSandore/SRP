@@ -1,0 +1,171 @@
+.product-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  pointer-events: none;
+}
+
+/*
+ * Transparent by default: the spotlight's spread shadow paints the dimming so
+ * the two never stack into a double-darkened overlay. The scrim stays present
+ * purely to catch clicks outside the highlight.
+ */
+.product-tour__scrim {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  pointer-events: auto;
+  animation: product-tour-fade 160ms ease;
+}
+
+/* No measurable target this frame, so the scrim does the dimming instead. */
+.product-tour__scrim--solid {
+  background: rgba(8, 21, 43, 0.55);
+}
+
+/*
+ * The highlight is cut out of the scrim with an oversized box-shadow rather
+ * than a second overlay, so the spotlight stays perfectly aligned with the
+ * target while it scrolls.
+ */
+.product-tour__spotlight {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 9999px rgba(8, 21, 43, 0.55),
+    0 0 0 2px rgba(120, 178, 255, 0.9),
+    0 0 22px 4px rgba(47, 128, 237, 0.55);
+  transition: top 180ms ease, left 180ms ease, width 180ms ease, height 180ms ease;
+  pointer-events: none;
+}
+
+.product-tour__card {
+  position: absolute;
+  width: min(92vw, 340px);
+  padding: 18px;
+  border: 1px solid var(--card-border, #DCE7F5);
+  border-radius: 14px;
+  background: var(--card-background, #FFFFFF);
+  box-shadow: 0 24px 60px rgba(8, 21, 43, 0.35);
+  color: var(--text-color);
+  pointer-events: auto;
+  animation: product-tour-rise 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.product-tour__count {
+  margin: 0 0 6px;
+  color: var(--muted-text, #667895);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.product-tour__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.product-tour__body {
+  margin: 8px 0 0;
+  color: var(--muted-text, #667895);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.product-tour__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.product-tour__nav {
+  display: flex;
+  gap: 8px;
+}
+
+.product-tour__skip,
+.product-tour__back {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-text, #667895);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.product-tour__skip:hover,
+.product-tour__back:hover {
+  color: var(--text-color);
+}
+
+.product-tour__next {
+  min-height: 36px;
+  padding: 8px 16px;
+  border: 1px solid #2F80ED;
+  border-radius: 8px;
+  background: #2F80ED;
+  color: #FFFFFF;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 140ms ease;
+}
+
+.product-tour__next:hover {
+  background: #1D6FD7;
+}
+
+.product-tour__next:active {
+  transform: scale(0.97);
+}
+
+[data-theme='dark'] .product-tour__card {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: #102642;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme='dark'] .product-tour__next {
+  border-color: #4B91EC;
+  background: #4B91EC;
+  /* Matches the auth buttons: dark ink on the lightened dark-mode accent. */
+  color: #08152B;
+}
+
+[data-theme='dark'] .product-tour__next:hover {
+  background: #72AEFA;
+}
+
+@keyframes product-tour-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes product-tour-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-tour__scrim,
+  .product-tour__card {
+    animation: none;
+  }
+
+  .product-tour__spotlight {
+    transition: none;
+  }
+}

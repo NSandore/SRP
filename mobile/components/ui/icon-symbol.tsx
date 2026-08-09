@@ -21,6 +21,7 @@ const MAPPING = {
   'person.fill': 'person',
   'person.2.fill': 'groups',
   'message.fill': 'forum',
+  'play.rectangle.fill': 'smart-display',
 } as IconMapping;
 
 /**

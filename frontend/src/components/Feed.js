@@ -32,7 +32,10 @@ import ReportModal from './ReportModal';
 import TagPicker from './TagPicker';
 import useTagOptions from '../hooks/useTagOptions';
 import { mapTagNamesToSlugs } from '../utils/tagUtils';
+import { IMAGE_LAYOUTS, normalizeImageLayout } from '../utils/imageLayout';
+import { FORUM_TITLE_MAX_LENGTH } from '../utils/contentLimits';
 import { isSuperAdmin } from '../constants/roles';
+import { useLanguage } from '../i18n/LanguageContext';
 import './LockedFeature.css';
 import './CreationModal.css';
 import './HomeDashboard.css';
@@ -121,6 +124,7 @@ const normalizeDisplayId = (value) =>
 function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterests = [], onRequireAuth }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { language, locale, t } = useLanguage();
   const { tags: tagOptions } = useTagOptions();
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted", "mostRecent"
   const [selectedTopics, setSelectedTopics] = useState([ALL_TOPICS_VALUE]);
@@ -131,7 +135,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [showCommunityFilters, setShowCommunityFilters] = useState(false);
   const [feedSort, setFeedSort] = useState('recent'); // 'recent' | 'trending'
   const [showHomeFilters, setShowHomeFilters] = useState(false);
-  const [showInfoFilters, setShowInfoFilters] = useState(false);
 
   const [followedCommunities, setFollowedCommunities] = useState([]);
   const [allCommunities, setAllCommunities] = useState([]);
@@ -150,6 +153,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [newForumTags, setNewForumTags] = useState([]);
   const [newForumBannerFile, setNewForumBannerFile] = useState(null);
   const [newForumBannerPreview, setNewForumBannerPreview] = useState('');
+  const [newForumImageLayout, setNewForumImageLayout] = useState('banner');
   const [isCreatingForum, setIsCreatingForum] = useState(false);
 
   const [editForumId, setEditForumId] = useState(null);
@@ -158,6 +162,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [editForumTags, setEditForumTags] = useState([]);
   const [editForumBannerFile, setEditForumBannerFile] = useState(null);
   const [editForumBannerPreview, setEditForumBannerPreview] = useState('');
+  const [editForumImageLayout, setEditForumImageLayout] = useState('banner');
   const [isEditingForum, setIsEditingForum] = useState(false);
 
   const [notification, setNotification] = useState(null);
@@ -247,7 +252,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [exploreThreads, setExploreThreads] = useState([]);
   const [isLoadingExplore, setIsLoadingExplore] = useState(false);
   const [isExploreDropdownOpen, setIsExploreDropdownOpen] = useState(false);
-  const [exploreLabelText, setExploreLabelText] = useState('All tags');
+  const [exploreLabelText, setExploreLabelText] = useState(() => t('home.allTags'));
   const topicDropdownRef = useRef(null);
   const exploreDropdownRef = useRef(null);
   const exploreLabelRef = useRef(null);
@@ -782,6 +787,9 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     try {
       const params = new URLSearchParams();
       params.append('community_id', String(communityId));
+      if (String(communityId) === INFO_COMMUNITY_ID) {
+        params.append('lang', language);
+      }
       if (userData?.user_id) {
         params.append('user_id', String(userData.user_id));
       }
@@ -910,12 +918,12 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   );
 
   const exploreSelectedLabels = useMemo(() => {
-    if (!exploreTags.length) return 'All tags';
+    if (!exploreTags.length) return t('home.allTags');
     const labels = exploreTags.map(
       (slug) => exploreTagOptions.find((opt) => opt.value === slug)?.label || slug
     );
     return labels.join(', ');
-  }, [exploreTags, exploreTagOptions]);
+  }, [exploreTags, exploreTagOptions, t]);
 
   useEffect(() => {
     setExploreLabelText(exploreSelectedLabels);
@@ -928,7 +936,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       const isOverflowing =
         el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
       if (isOverflowing && exploreTags.length > 0) {
-        setExploreLabelText(`${exploreTags.length} Filters Selected`);
+        setExploreLabelText(t('home.filtersSelected', { count: exploreTags.length }));
       } else {
         setExploreLabelText(exploreSelectedLabels);
       }
@@ -940,7 +948,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', measure);
     };
-  }, [exploreSelectedLabels, exploreTags.length, isExploreDropdownOpen]);
+  }, [exploreSelectedLabels, exploreTags.length, isExploreDropdownOpen, t]);
 
   // Forum upvote/downvote
   const handleVoteClick = async (forumId, voteType) => {
@@ -995,7 +1003,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       fetchSavedPosts();
       setSavedTab('forums');
     }
-  }, [activeSection, userData, selectedCommunityTab]);
+  }, [activeSection, userData, selectedCommunityTab, language]);
 
   // Searching communities (debounce approach).
   // Keep this tied to the search input only so tab/section changes
@@ -1194,6 +1202,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       payload.append('name', newForumName);
       payload.append('description', newForumDescription);
       payload.append('tags', JSON.stringify(newForumTags));
+      payload.append('image_layout', newForumImageLayout);
       if (newForumBannerFile) {
         payload.append('banner', newForumBannerFile);
       }
@@ -1204,6 +1213,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         setNewForumTags([]);
         setNewForumBannerFile(null);
         setNewForumBannerPreview('');
+        setNewForumImageLayout('banner');
         setShowCreateForumModal(false);
         fetchForums(infoCommunityId);
         setNotification({ type: 'success', message: 'Forum created successfully!' });
@@ -1225,17 +1235,19 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     setNewForumTags([]);
     setNewForumBannerFile(null);
     setNewForumBannerPreview('');
+    setNewForumImageLayout('banner');
     setIsCreatingForum(false);
   };
 
   // ------------- EDIT FORUM -------------
   const startEditingForum = (forum) => {
     setEditForumId(forum.forum_id);
-    setEditForumName(forum.name || '');
-    setEditForumDescription(forum.description || '');
+    setEditForumName(forum.original_name ?? forum.name ?? '');
+    setEditForumDescription(forum.original_description ?? forum.description ?? '');
     setEditForumTags(mapTagNamesToSlugs(forum.tags || [], tagOptions));
     setEditForumBannerFile(null);
     setEditForumBannerPreview(buildUploadSrc(forum.banner_path || '/uploads/banners/DefaultBanner.jpeg'));
+    setEditForumImageLayout(normalizeImageLayout(forum.image_layout));
     setIsEditingForum(true);
   };
 
@@ -1246,6 +1258,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     setEditForumTags([]);
     setEditForumBannerFile(null);
     setEditForumBannerPreview('');
+    setEditForumImageLayout('banner');
     setIsEditingForum(false);
   };
 
@@ -1257,6 +1270,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       payload.append('name', editForumName);
       payload.append('description', editForumDescription);
       payload.append('tags', JSON.stringify(editForumTags));
+      payload.append('image_layout', editForumImageLayout);
       if (editForumBannerFile) {
         payload.append('banner', editForumBannerFile);
       }
@@ -1442,7 +1456,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // ------------- RENDER LOGIC -------------
   // HOME SECTION
   if (activeSection === 'home') {
-    const homeDateLabel = new Intl.DateTimeFormat(undefined, {
+    const homeDateLabel = new Intl.DateTimeFormat(locale, {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
@@ -1453,48 +1467,57 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         : (exploreView === 'forums' ? exploreForums.length : exploreThreads.length);
     const homeVisibleLabel =
       (activeFeed === 'yourFeed' ? yourFeedView : exploreView) === 'forums'
-        ? 'forums'
-        : 'threads';
+        ? t('home.forums')
+        : t('home.threads');
     const homeViewDescription =
       activeFeed === 'yourFeed'
-        ? 'A focused reading list shaped by the communities and topics you follow.'
-        : 'A broader index of conversations from across the StudentSphere commons.';
+        ? t('home.feedDescription')
+        : t('home.exploreDescription');
+    const homeResultsMotionKey =
+      activeFeed === 'yourFeed'
+        ? `feed-${yourFeedView}-${feedSort}`
+        : `explore-${exploreView}-${exploreTags.join('-') || 'all'}`;
     const homePathways = [
       {
         to: '/info',
-        eyebrow: 'Research & answers',
-        title: 'Info Board',
-        description: 'Find questions, guides, and ambassador-verified answers.',
+        eyebrow: t('home.researchAnswers'),
+        title: t('nav.infoBoard'),
+        description: t('home.infoDescription'),
         Icon: BookOpenText,
+        tone: 'info',
       },
       {
         to: '/communities',
-        eyebrow: 'Find your circle',
-        title: 'Communities',
-        description: 'Browse university and group spaces built around shared interests.',
+        eyebrow: t('home.findCircle'),
+        title: t('nav.communities'),
+        description: t('home.communitiesDescription'),
         Icon: Users,
+        tone: 'communities',
       },
       {
         to: '/events-feed',
-        eyebrow: 'Community agenda',
-        title: 'Events',
-        description: 'Review upcoming events and RSVP to the sessions that matter.',
+        eyebrow: t('home.communityAgenda'),
+        title: t('nav.events'),
+        description: t('home.eventsDescription'),
         Icon: CalendarDays,
+        tone: 'events',
       },
       userData
         ? {
             to: '/saved',
-            eyebrow: 'Your collection',
-            title: 'Saved reading',
-            description: 'Return to the forums, threads, and comments you kept.',
+            eyebrow: t('home.yourCollection'),
+            title: t('home.savedReading'),
+            description: t('home.savedDescription'),
             Icon: Bookmark,
+            tone: 'saved',
           }
         : {
             to: '/signup',
-            eyebrow: 'Join the commons',
-            title: 'Create a profile',
-            description: 'Follow communities and build a personalized reading list.',
+            eyebrow: t('home.joinCommons'),
+            title: t('home.createProfile'),
+            description: t('home.profileDescription'),
             Icon: LibraryBig,
+            tone: 'profile',
           },
     ];
     const setHomeTab = (nextTab) => {
@@ -1515,17 +1538,17 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         <section className="home-hero" aria-labelledby="home-dashboard-title">
           <div className="home-hero-copy">
             <p className="home-kicker">
-              <span>Academic commons</span>
+              <span>{t('nav.academicCommons')}</span>
               <span aria-hidden="true">•</span>
               {homeDateLabel}
             </p>
             <h1 id="home-dashboard-title">
               {userData?.first_name
-                ? <>Welcome back, <em>{userData.first_name}</em>.</>
-                : <>A thoughtful place to <em>learn together</em>.</>}
+                ? <>{t('home.welcomeBack')} <em>{userData.first_name}</em>.</>
+                : <>{t('home.thoughtfulPlaceStart')} <em>{t('home.thoughtfulPlaceEmphasis')}</em>.</>}
             </h1>
             <p className="home-hero-description">
-              Useful questions, people, and communities—gathered in one considered place.
+              {t('home.heroDescription')}
             </p>
           </div>
           <button
@@ -1533,18 +1556,22 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             className="home-button home-button-primary home-hero-cta"
             onClick={() => {
               setHomeTab('explore');
-              homeReadingRoomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+              homeReadingRoomRef.current?.scrollIntoView({
+                behavior: prefersReducedMotion ? 'auto' : 'smooth',
+                block: 'start',
+              });
             }}
           >
             <Compass size={17} aria-hidden="true" />
-            Explore
-            <ArrowUpRight size={16} aria-hidden="true" />
+            {t('home.explore')}
+            <ArrowUpRight className="home-hero-cta-arrow" size={16} aria-hidden="true" />
           </button>
         </section>
 
-        <nav className="home-pathways" aria-label="Dashboard shortcuts">
-          {homePathways.map(({ to, eyebrow, title, description, Icon }) => (
-            <Link key={to} to={to} className="home-pathway-card">
+        <nav className="home-pathways" aria-label={t('home.dashboardShortcuts')}>
+          {homePathways.map(({ to, eyebrow, title, description, Icon, tone }) => (
+            <Link key={to} to={to} className={`home-pathway-card home-pathway-card--${tone}`}>
               <span className="home-pathway-icon" aria-hidden="true">
                 <Icon size={19} />
               </span>
@@ -1561,15 +1588,20 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         <section className="home-reading-room" aria-labelledby="home-reading-room-title" ref={homeReadingRoomRef}>
           <header className="home-reading-room-header">
             <div>
-              <p className="home-section-kicker">Discussion index</p>
+              <p className="home-section-kicker">{t('home.discussionIndex')}</p>
               <h2 id="home-reading-room-title">
-                {activeFeed === 'yourFeed' ? 'Your reading room' : 'Explore the commons'}
+                {activeFeed === 'yourFeed' ? t('home.yourReadingRoom') : t('home.exploreCommons')}
               </h2>
               <p>{homeViewDescription}</p>
             </div>
             <div className="home-entry-count" aria-live="polite">
-              <strong>{homeVisibleCount}</strong>
-              <span>{homeVisibleLabel} in view</span>
+              <strong
+                key={`${homeVisibleLabel}-${homeVisibleCount}`}
+                className="home-entry-count-value"
+              >
+                {homeVisibleCount}
+              </strong>
+              <span>{t('home.inView', { label: homeVisibleLabel })}</span>
             </div>
           </header>
 
@@ -1585,11 +1617,11 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                   className={`chip your-feed-chip ${activeFeed === 'yourFeed' ? 'active' : ''} ${!userData ? 'chip-locked' : ''}`}
                   onClick={() => setHomeTab('feed')}
                   aria-disabled={!userData}
-                  title={!userData ? 'Log in to access Your Feed' : 'View Your Feed'}
+                  title={!userData ? t('home.logInForFeed') : t('home.viewFeed')}
                 >
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     {!userData && <FaLock size={12} />}
-                    Your Feed
+                    {t('home.yourFeed')}
                   </span>
                 </button>
                 <button
@@ -1597,7 +1629,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                   className={`chip ${activeFeed === 'explore' ? 'active' : ''}`}
                   onClick={() => setHomeTab('explore')}
                 >
-                  Explore
+                  {t('home.explore')}
                 </button>
               </div>
             </div>
@@ -1607,7 +1639,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               onClick={() => setShowHomeFilters((prev) => !prev)}
               aria-expanded={showHomeFilters}
               aria-controls="home-filter-panel"
-              aria-label="Open filters"
+              aria-label={showHomeFilters ? t('home.closeFilters') : t('home.openFilters')}
             >
               <FaFilter aria-hidden="true" />
             </button>
@@ -1615,8 +1647,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               id="home-filter-panel"
               className={`home-filter-panel ${showHomeFilters ? 'open' : ''}`}
             >
-              <div className="control-group">
-                <span className="sort-pill">Content</span>
+              <div className="control-group home-content-control">
+                <span className="sort-pill">{t('home.content')}</span>
                 {activeFeed === 'yourFeed' ? (
                   <div
                     ref={feedContentRef}
@@ -1628,14 +1660,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       className={`chip ${yourFeedView === 'forums' ? 'active' : ''}`}
                       onClick={() => setYourFeedView('forums')}
                     >
-                      Forums
+                      {t('home.forumsTitle')}
                     </button>
                     <button
                       type="button"
                       className={`chip ${yourFeedView === 'threads' ? 'active' : ''}`}
                       onClick={() => setYourFeedView('threads')}
                     >
-                      Threads
+                      {t('home.threadsTitle')}
                     </button>
                   </div>
                 ) : (
@@ -1649,21 +1681,21 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       className={`chip ${exploreView === 'forums' ? 'active' : ''}`}
                       onClick={() => setExploreView('forums')}
                     >
-                      Forums
+                      {t('home.forumsTitle')}
                     </button>
                     <button
                       type="button"
                       className={`chip ${exploreView === 'threads' ? 'active' : ''}`}
                       onClick={() => setExploreView('threads')}
                     >
-                      Threads
+                      {t('home.threadsTitle')}
                     </button>
                   </div>
                 )}
               </div>
               {activeFeed === 'explore' && (
                 <div className="control-group topic-multi-select-wrapper">
-                  <span className="sort-pill">Tags</span>
+                  <span className="sort-pill">{t('home.tags')}</span>
                   <div className="topic-dropdown" ref={exploreDropdownRef}>
                     <button
                       type="button"
@@ -1705,15 +1737,15 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       onClick={clearExploreTags}
                       disabled={exploreTags.length === 0}
                     >
-                      Clear
+                      {t('home.clear')}
                     </button>
                   </div>
                 </div>
               )}
               {activeFeed === 'yourFeed' && (
-                <div className="control-group">
+                <div className="control-group home-sort-control">
                   <label htmlFor="feed-sort" className="sort-pill">
-                    Sort
+                    {t('home.sort')}
                   </label>
                   <select
                     id="feed-sort"
@@ -1721,18 +1753,19 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     value={feedSort}
                     onChange={(e) => setFeedSort(e.target.value)}
                   >
-                    <option value="recent">Most Recent</option>
-                    <option value="trending">Trending</option>
+                    <option value="recent">{t('home.mostRecent')}</option>
+                    <option value="trending">{t('home.trending')}</option>
                   </select>
                 </div>
               )}
             </div>
           </div>
 
+          <div key={homeResultsMotionKey} className="home-results-stage">
           {activeFeed === 'yourFeed' && userData ? (
             <>
               {isLoadingFeed ? (
-                <div className="home-loading-state" aria-label="Loading your feed">
+                <div className="home-loading-state" aria-label={t('home.loadingFeed')}>
                   <span />
                   <span />
                   <span />
@@ -1740,11 +1773,11 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               ) : isFeedEmpty ? (
                 <div className="empty-feed-card">
                   <LibraryBig size={24} aria-hidden="true" />
-                  <h3>Your reading room is ready to be shaped.</h3>
+                  <h3>{t('home.readingRoomReady')}</h3>
                   <p className="muted">
                     {hasInterests
-                      ? 'Follow communities or check back soon to see personalized forums and threads here.'
-                      : 'Follow communities or choose interest tags to see personalized forums and threads here.'}
+                      ? t('home.followOrReturn')
+                      : t('home.followOrInterests')}
                   </p>
                   {!hasInterests && (
                     <button
@@ -1754,7 +1787,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                         navigate('/interest-selection');
                       }}
                     >
-                      Choose interests
+                      {t('home.chooseInterests')}
                     </button>
                   )}
                 </div>
@@ -1762,10 +1795,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 <div className="empty-feed-card">
                   <BookOpenText size={24} aria-hidden="true" />
                   <h3>
-                    No {yourFeedView === 'forums' ? 'forums' : 'threads'} to show yet.
+                    {t('home.noItemsYet', {
+                      label: yourFeedView === 'forums' ? t('home.forums') : t('home.threads'),
+                    })}
                   </h3>
                   <p className="muted">
-                    Try switching to {yourFeedView === 'forums' ? 'Threads' : 'Forums'} to see more.
+                    {t('home.switchToSeeMore', {
+                      label: yourFeedView === 'forums' ? t('home.threadsTitle') : t('home.forumsTitle'),
+                    })}
                   </p>
                 </div>
               ) : (
@@ -1784,8 +1821,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                               handleOpenReport({
                                 id: f.forum_id,
                                 type: 'forum',
-                                label: f.name || 'forum',
-                                context: stripHtml(f.description || f.name || '').slice(0, 200),
+                                label: f.original_name ?? f.name ?? 'forum',
+                                context: stripHtml(f.original_description ?? f.description ?? f.original_name ?? f.name ?? '').slice(0, 200),
                               })
                             }
                             handleSaveForum={handleSaveForum}
@@ -1799,7 +1836,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     </div>
                   )}
                   {yourFeedView === 'threads' && hasFeedThreads && (
-                    <div>
+                    <div className="home-discussion-list home-thread-list">
                       {feedThreads.map((thread) => (
                         <ThreadCard
                           key={thread.thread_id}
@@ -1811,8 +1848,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                             handleOpenReport({
                               id: thread.thread_id,
                               type: 'thread',
-                              label: thread.title || 'thread',
-                              context: stripHtml(thread.title || ''),
+                              label: thread.original_title ?? thread.title ?? 'thread',
+                              context: stripHtml(thread.original_title ?? thread.title ?? ''),
                             })
                           }
                         />
@@ -1825,7 +1862,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
           ) : activeFeed === 'explore' ? (
             <div className="explore-panel">
               {isLoadingExplore ? (
-                <div className="home-loading-state" aria-label="Loading explore content">
+                <div className="home-loading-state" aria-label={t('home.loadingExplore')}>
                   <span />
                   <span />
                   <span />
@@ -1833,22 +1870,26 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               ) : isExploreEmpty ? (
                 <div className="empty-feed-card">
                   <Compass size={24} aria-hidden="true" />
-                  <h3>No discussions match this index.</h3>
+                  <h3>{t('home.noDiscussionMatch')}</h3>
                   <p className="muted">
-                    Try clearing filters or selecting different tags.
+                    {t('home.clearOrTags')}
                   </p>
                   <button type="button" className="pill-button" onClick={clearExploreTags}>
-                    Reset filters
+                    {t('home.resetFilters')}
                   </button>
                 </div>
               ) : isExploreSelectionEmpty ? (
                 <div className="empty-feed-card">
                   <BookOpenText size={24} aria-hidden="true" />
                   <h3>
-                    No {exploreView === 'forums' ? 'forums' : 'threads'} found.
+                    {t('home.noItemsFound', {
+                      label: exploreView === 'forums' ? t('home.forums') : t('home.threads'),
+                    })}
                   </h3>
                   <p className="muted">
-                    Try switching to {exploreView === 'forums' ? 'Threads' : 'Forums'} or adjust your tags.
+                    {t('home.switchOrAdjust', {
+                      label: exploreView === 'forums' ? t('home.threadsTitle') : t('home.forumsTitle'),
+                    })}
                   </p>
                 </div>
               ) : (
@@ -1867,8 +1908,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                               handleOpenReport({
                                 id: f.forum_id,
                                 type: 'forum',
-                                label: f.name || 'forum',
-                                context: stripHtml(f.description || f.name || '').slice(0, 200),
+                                label: f.original_name ?? f.name ?? 'forum',
+                                context: stripHtml(f.original_description ?? f.description ?? f.original_name ?? f.name ?? '').slice(0, 200),
                               })
                             }
                             handleSaveForum={handleSaveForum}
@@ -1882,7 +1923,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     </div>
                   )}
                   {exploreView === 'threads' && hasExploreThreads && (
-                    <div>
+                    <div className="home-discussion-list home-thread-list">
                       {exploreThreads.map((thread) => (
                         <ThreadCard
                           key={thread.thread_id}
@@ -1894,8 +1935,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                             handleOpenReport({
                               id: thread.thread_id,
                               type: 'thread',
-                              label: thread.title || 'thread',
-                              context: stripHtml(thread.title || ''),
+                              label: thread.original_title ?? thread.title ?? 'thread',
+                              context: stripHtml(thread.original_title ?? thread.title ?? ''),
                             })
                           }
                         />
@@ -1908,13 +1949,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
           ) : (
             <div className="empty-feed-card">
               <LibraryBig size={24} aria-hidden="true" />
-              <h3>Your Feed is available after you join.</h3>
-              <p>Sign in to follow communities and create a personalized reading room.</p>
+              <h3>{t('home.feedAfterJoin')}</h3>
+              <p>{t('home.signInPersonalized')}</p>
               <button className="pill-button" type="button" onClick={() => navigate('/signup')}>
-                Create Account
+                {t('home.createAccount')}
               </button>
             </div>
           )}
+          </div>
         </section>
       </main>
     );
@@ -2080,11 +2122,23 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     selectedCommunityTab === 'university'
                       ? universityFallbackLogo
                       : defaultCommunityLogo;
+                  // The API resolves the best available logo into
+                  // selected_logo_url: a verified local upload first, then a
+                  // licensed remote logo. Prefer it, and treat the seeded
+                  // default-logo.png as no logo rather than a real image.
+                  const selectedLogo =
+                    typeof community.selected_logo_url === 'string'
+                      ? community.selected_logo_url.trim()
+                      : '';
                   const normalizedLogoPath =
                     typeof community.logo_path === 'string' ? community.logo_path.trim() : '';
-                  const logoSrc = normalizedLogoPath
-                    ? buildUploadSrc(normalizedLogoPath)
-                    : fallbackLogo;
+                  const isPlaceholderLogoPath =
+                    /(^|\/)default-logo\.png$/i.test(normalizedLogoPath);
+                  const logoSrc = selectedLogo
+                    ? buildUploadSrc(selectedLogo)
+                    : normalizedLogoPath && !isPlaceholderLogoPath
+                      ? buildUploadSrc(normalizedLogoPath)
+                      : fallbackLogo;
                   return (
                     <div
                       key={community.community_id}
@@ -2258,19 +2312,9 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
           {/* Controls: Sort pill + topic chips */}
           <div className="section-controls info-controls section-controls-sticky scholarly-controls filter-toolbar filter-toolbar--filter-first">
-            <button
-              type="button"
-              className="info-filter-trigger mobile-only"
-              onClick={() => setShowInfoFilters((prev) => !prev)}
-              aria-expanded={showInfoFilters}
-              aria-controls="info-filter-panel"
-              aria-label="Open tag filters"
-            >
-              <FaFilter aria-hidden="true" />
-            </button>
             <div
               id="info-filter-panel"
-              className={`info-filter-panel control-group ${showInfoFilters ? 'open' : ''}`}
+              className="info-filter-panel control-group"
             >
               <span className="sort-pill">Tags</span>
               <div className="topic-multi-select-wrapper">
@@ -2349,109 +2393,155 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             <ModalOverlay
               isOpen={showCreateForumModal}
               onClose={handleDismissCreateForumModal}
+              contentClassName="community-form-overlay"
             >
               <div className="creation-modal">
-                <div className="creation-modal__form">
-                  <div className="creation-modal__header">
-                    <div>
-                      <p className="creation-modal__meta">Info Board</p>
-                      <h3 className="creation-modal__title">Create a new forum</h3>
-                      <p className="creation-modal__sub">
-                        Titles and descriptions should help members instantly know if they&apos;re in the right place.
-                      </p>
-                      <ul className="creation-points">
-                        <li>Give it a concise, action-oriented name</li>
-                        <li>Share what belongs here and what does not</li>
-                        <li>Invite members to add context in every thread</li>
-                      </ul>
-                    </div>
+                <header className="creation-modal__header">
+                  <p className="creation-modal__meta">Info Board</p>
+                  <h3 className="creation-modal__title">New forum</h3>
+                  <p className="creation-modal__sub">
+                    A clear name and description help members instantly know if they&apos;re in the right place.
+                  </p>
+                </header>
+                <form className="creation-fields" onSubmit={handleCreateForumSubmit}>
+                  <div className="creation-field">
+                    <label htmlFor="forum-name">
+                      Name
+                      <span className="creation-optional">
+                        {newForumName.length} / {FORUM_TITLE_MAX_LENGTH}
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      id="forum-name"
+                      value={newForumName}
+                      placeholder="e.g. Financial aid questions"
+                      onChange={(e) => setNewForumName(e.target.value)}
+                      maxLength={FORUM_TITLE_MAX_LENGTH}
+                      required
+                    />
                   </div>
-                  <form className="creation-fields" onSubmit={handleCreateForumSubmit}>
-                    <div className="creation-field">
-                      <label htmlFor="forum-name">Forum name</label>
-                      <input
-                        type="text"
-                        id="forum-name"
-                        value={newForumName}
-                        onChange={(e) => setNewForumName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="creation-field">
-                      <label htmlFor="forum-description">Description</label>
-                      <textarea
-                        id="forum-description"
-                        value={newForumDescription}
-                        onChange={(e) => setNewForumDescription(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="creation-field">
-                      <TagPicker
-                        label="Tags"
-                        options={tagOptions}
-                        value={newForumTags}
-                        onChange={setNewForumTags}
-                        max={5}
-                        helperText="Choose up to 5 tags that describe this forum."
-                      />
-                    </div>
-                    <div className="creation-field">
-                      <label htmlFor="forum-banner">Forum banner</label>
+                  <div className="creation-field">
+                    <label htmlFor="forum-description">Description</label>
+                    <textarea
+                      id="forum-description"
+                      value={newForumDescription}
+                      placeholder="What belongs here, and what doesn't?"
+                      onChange={(e) => setNewForumDescription(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="creation-field">
+                    <TagPicker
+                      label="Tags"
+                      options={tagOptions}
+                      value={newForumTags}
+                      onChange={setNewForumTags}
+                      max={5}
+                      helperText="Choose up to 5 tags that describe this forum."
+                    />
+                  </div>
+                  <div className="creation-field creation-media">
+                    <label htmlFor="forum-banner">
+                      Forum image <span className="creation-optional">optional</span>
+                    </label>
+                    <div className="creation-media__row">
                       <input
                         type="file"
                         id="forum-banner"
                         accept="image/png, image/jpeg"
                         onChange={(e) => setNewForumBannerFile(e.target.files?.[0] || null)}
                       />
-                      {newForumBannerPreview && (
-                        <img
-                          src={newForumBannerPreview}
-                          alt="Forum banner preview"
-                          style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 10, marginTop: 8 }}
-                        />
-                      )}
+                      <div className="creation-layout-toggle" role="radiogroup" aria-label="Image display">
+                        <button
+                          type="button"
+                          className={newForumImageLayout === IMAGE_LAYOUTS.BANNER ? 'active' : ''}
+                          aria-pressed={newForumImageLayout === IMAGE_LAYOUTS.BANNER}
+                          onClick={() => setNewForumImageLayout(IMAGE_LAYOUTS.BANNER)}
+                        >
+                          Banner
+                        </button>
+                        <button
+                          type="button"
+                          className={newForumImageLayout === IMAGE_LAYOUTS.RIGHT ? 'active' : ''}
+                          aria-pressed={newForumImageLayout === IMAGE_LAYOUTS.RIGHT}
+                          onClick={() => setNewForumImageLayout(IMAGE_LAYOUTS.RIGHT)}
+                        >
+                          Right aligned
+                        </button>
+                        <button
+                          type="button"
+                          className={newForumImageLayout === IMAGE_LAYOUTS.FULL ? 'active' : ''}
+                          aria-pressed={newForumImageLayout === IMAGE_LAYOUTS.FULL}
+                          onClick={() => setNewForumImageLayout(IMAGE_LAYOUTS.FULL)}
+                        >
+                          Full size
+                        </button>
+                      </div>
                     </div>
-                    <div className="creation-actions">
-                      <button
-                        type="button"
-                        className="creation-ghost"
-                        onClick={handleDismissCreateForumModal}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="creation-primary"
-                        disabled={isCreatingForum}
-                      >
-                        {isCreatingForum ? 'Creating...' : 'Create forum'}
-                      </button>
-                    </div>
-                  </form>
-                </div>
+                    {newForumBannerPreview && (
+                      <img
+                        src={newForumBannerPreview}
+                        alt="Preview"
+                        className={`creation-media__preview creation-media__preview--${normalizeImageLayout(newForumImageLayout)}`}
+                      />
+                    )}
+                  </div>
+                  <div className="creation-actions">
+                    <button
+                      type="button"
+                      className="creation-ghost"
+                      onClick={handleDismissCreateForumModal}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="creation-primary"
+                      disabled={isCreatingForum}
+                    >
+                      {isCreatingForum ? 'Creating…' : 'Create forum'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </ModalOverlay>
           )}
 
           {/* EDIT FORUM MODAL */}
           {isEditingForum && (
-            <div className="modal-overlay edit-forum-overlay">
-              <div className="modal-content edit-forum-modal">
-                <h3>Edit Forum</h3>
-                <form onSubmit={handleEditForumSubmit}>
-                  <div className="form-group">
-                    <label htmlFor="edit-forum-name">Forum Name:</label>
+            <ModalOverlay
+              isOpen={isEditingForum}
+              onClose={cancelEditingForum}
+              contentClassName="community-form-overlay"
+            >
+              <div className="creation-modal">
+                <header className="creation-modal__header">
+                  <p className="creation-modal__meta">Info Board</p>
+                  <h3 className="creation-modal__title">Edit forum</h3>
+                  <p className="creation-modal__sub">
+                    Update the name, description, tags, or image for this forum.
+                  </p>
+                </header>
+                <form className="creation-fields" onSubmit={handleEditForumSubmit}>
+                  <div className="creation-field">
+                    <label htmlFor="edit-forum-name">
+                      Name
+                      <span className="creation-optional">
+                        {editForumName.length} / {FORUM_TITLE_MAX_LENGTH}
+                      </span>
+                    </label>
                     <input
                       type="text"
                       id="edit-forum-name"
                       value={editForumName}
                       onChange={(e) => setEditForumName(e.target.value)}
+                      maxLength={FORUM_TITLE_MAX_LENGTH}
                       required
                     />
                   </div>
-                  <div className="form-group">
-                    <label htmlFor="edit-forum-description">Description:</label>
+                  <div className="creation-field">
+                    <label htmlFor="edit-forum-description">Description</label>
                     <textarea
                       id="edit-forum-description"
                       value={editForumDescription}
@@ -2459,7 +2549,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       required
                     />
                   </div>
-                  <div className="form-group">
+                  <div className="creation-field">
                     <TagPicker
                       label="Tags"
                       options={tagOptions}
@@ -2469,31 +2559,63 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       helperText="Update the tags for this forum."
                     />
                   </div>
-                  <div className="form-group">
-                    <label htmlFor="edit-forum-banner">Forum Banner:</label>
-                    <input
-                      type="file"
-                      id="edit-forum-banner"
-                      accept="image/png, image/jpeg"
-                      onChange={(e) => setEditForumBannerFile(e.target.files?.[0] || null)}
-                    />
+                  <div className="creation-field creation-media">
+                    <label htmlFor="edit-forum-banner">
+                      Forum image <span className="creation-optional">optional</span>
+                    </label>
+                    <div className="creation-media__row">
+                      <input
+                        type="file"
+                        id="edit-forum-banner"
+                        accept="image/png, image/jpeg"
+                        onChange={(e) => setEditForumBannerFile(e.target.files?.[0] || null)}
+                      />
+                      <div className="creation-layout-toggle" role="radiogroup" aria-label="Image display">
+                        <button
+                          type="button"
+                          className={editForumImageLayout === IMAGE_LAYOUTS.BANNER ? 'active' : ''}
+                          aria-pressed={editForumImageLayout === IMAGE_LAYOUTS.BANNER}
+                          onClick={() => setEditForumImageLayout(IMAGE_LAYOUTS.BANNER)}
+                        >
+                          Banner
+                        </button>
+                        <button
+                          type="button"
+                          className={editForumImageLayout === IMAGE_LAYOUTS.RIGHT ? 'active' : ''}
+                          aria-pressed={editForumImageLayout === IMAGE_LAYOUTS.RIGHT}
+                          onClick={() => setEditForumImageLayout(IMAGE_LAYOUTS.RIGHT)}
+                        >
+                          Right aligned
+                        </button>
+                        <button
+                          type="button"
+                          className={editForumImageLayout === IMAGE_LAYOUTS.FULL ? 'active' : ''}
+                          aria-pressed={editForumImageLayout === IMAGE_LAYOUTS.FULL}
+                          onClick={() => setEditForumImageLayout(IMAGE_LAYOUTS.FULL)}
+                        >
+                          Full size
+                        </button>
+                      </div>
+                    </div>
                     {editForumBannerPreview && (
                       <img
                         src={editForumBannerPreview}
-                        alt="Forum banner preview"
-                        style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 10, marginTop: 8 }}
+                        alt="Preview"
+                        className={`creation-media__preview creation-media__preview--${normalizeImageLayout(editForumImageLayout)}`}
                       />
                     )}
                   </div>
-                  <div className="form-actions">
-                    <button type="submit">Save</button>
-                    <button type="button" onClick={cancelEditingForum}>
+                  <div className="creation-actions">
+                    <button type="button" className="creation-ghost" onClick={cancelEditingForum}>
                       Cancel
+                    </button>
+                    <button type="submit" className="creation-primary">
+                      Save changes
                     </button>
                   </div>
                 </form>
               </div>
-            </div>
+            </ModalOverlay>
           )}
 
           {isLoadingForums ? (
@@ -2516,8 +2638,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                     handleOpenReport({
                       id: f.forum_id,
                       type: 'forum',
-                      label: f.name || 'forum',
-                      context: stripHtml(f.description || f.name || '').slice(0, 200),
+                      label: f.original_name ?? f.name ?? 'forum',
+                      context: stripHtml(f.original_description ?? f.description ?? f.original_name ?? f.name ?? '').slice(0, 200),
                     })
                   }
                   handleSaveForum={handleSaveForum}
@@ -2677,7 +2799,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
           </header>
 
           <div className="saved-section saved-page-body">
-            <div className="saved-library-controls filter-toolbar filter-toolbar--filter-first">
+            <div className="saved-library-controls section-controls scholarly-controls filter-toolbar filter-toolbar--filter-first">
               <div
                 ref={savedSegmentRef}
                 className="saved-metrics admin-review__filters chips-row segmented-control"

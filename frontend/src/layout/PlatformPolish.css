@@ -35,7 +35,18 @@
 }
 
 .scholarly-shell .center-rail .home-hero h1 {
-  color: #fffaf0;
+  color: var(--home-ink);
+}
+
+/* Community and university profile hero. The title is an h1, so without this it
+   takes the full page-heading size above and crowds the logo, tagline, and
+   action buttons sharing the hero card. */
+.scholarly-shell .center-rail .hero-card.community-hero .hero-title {
+  font-size: clamp(1.5rem, 2.4vw, 1.95rem);
+}
+
+.scholarly-shell .center-rail .hero-card.community-hero .hero-sub {
+  font-size: 0.9375rem;
 }
 
 .scholarly-shell .muted,
@@ -73,7 +84,7 @@
 
 .scholarly-shell .sidebar-heading-kicker,
 .scholarly-shell .sidebar-section-label {
-  color: var(--home-rust);
+  color: var(--home-forest);
   font-size: 0.61rem;
   font-weight: 750;
   letter-spacing: 0.11em;
@@ -140,9 +151,9 @@
 }
 
 .scholarly-shell .sidebar-link.active {
-  background: rgba(24, 62, 53, 0.1);
+  background: color-mix(in srgb, var(--home-forest) 10%, transparent);
   color: var(--home-forest);
-  box-shadow: inset 0 0 0 1px rgba(24, 62, 53, 0.08);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--home-forest) 8%, transparent);
 }
 
 .scholarly-shell .sidebar-link.active::before {
@@ -152,7 +163,7 @@
 
 .scholarly-shell .sidebar-link.active .sidebar-icon {
   background: var(--home-forest) !important;
-  color: #fffaf0 !important;
+  color: #FFFFFF !important;
 }
 
 .scholarly-shell .sidebar-link.active .sidebar-text-group,
@@ -161,8 +172,8 @@
 }
 
 .scholarly-shell .sidebar-link.active .coming-soon-badge {
-  background: rgba(166, 83, 62, 0.1);
-  color: var(--home-rust);
+  background: color-mix(in srgb, var(--home-forest-light) 14%, transparent);
+  color: var(--home-forest);
 }
 
 .scholarly-shell .sidebar-toggle-container {
@@ -216,7 +227,7 @@
 
 /* Shared paper surfaces. */
 .scholarly-shell .center-rail > .feed-container:not(.scholarly-page-panel),
-.scholarly-shell .search-results > .feed-container,
+.scholarly-shell .search-results > .feed-container:not(.scholarly-page-panel),
 .scholarly-shell .admin-review,
 .scholarly-shell .requests-container {
   width: 100%;
@@ -224,7 +235,7 @@
   padding: 20px;
   border: 1px solid var(--home-line);
   border-radius: 16px;
-  background: rgba(251, 247, 239, 0.9);
+  background: color-mix(in srgb, var(--home-paper) 90%, transparent);
   box-shadow: var(--home-shadow);
   color: var(--home-ink);
 }
@@ -238,7 +249,7 @@
 
 .scholarly-shell .section-controls-sticky {
   border-bottom: 1px solid var(--home-line);
-  background: rgba(251, 247, 239, 0.94);
+  background: color-mix(in srgb, var(--home-paper) 94%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -262,7 +273,7 @@
   border-radius: 9px;
   background: var(--home-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   filter: none;
   font-weight: 700;
   transition:
@@ -309,6 +320,82 @@
   outline-offset: 2px;
 }
 
+/* The global search is one control: focus belongs to the outer field, not the
+   text input alone. This keeps the search action visually attached. */
+.scholarly-shell .nav-center .search-container {
+  min-height: 44px;
+  padding: 4px 5px 4px 14px;
+  border: 1px solid var(--home-line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--home-paper-strong) 94%, transparent);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.66);
+  box-sizing: border-box;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.scholarly-shell .nav-center .search-container:focus-within {
+  border-color: var(--home-forest-light);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--home-forest-light) 14%, transparent),
+    inset 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.scholarly-shell .nav-center .search-input {
+  height: 34px;
+  padding: 0 8px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--home-ink);
+  line-height: 34px;
+}
+
+.scholarly-shell .nav-center .search-input:focus,
+.scholarly-shell .nav-center .search-input:focus-visible {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.scholarly-shell .nav-center .search-input::placeholder {
+  color: var(--home-ink-soft);
+  opacity: 0.82;
+}
+
+.scholarly-shell .nav-center .search-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 9px;
+  color: var(--home-ink-soft);
+  transition: background-color 140ms ease, color 140ms ease, transform 130ms var(--home-ease-out);
+}
+
+.scholarly-shell .nav-center .search-button:active {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .scholarly-shell .nav-center .search-button:hover {
+    background: color-mix(in srgb, var(--home-forest-light) 9%, transparent);
+    color: var(--home-forest-light);
+  }
+}
+
+[data-theme='dark'] .scholarly-shell .nav-center .search-container {
+  border-color: var(--home-line);
+  background: var(--home-paper-strong);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+}
+
+[data-theme='dark'] .scholarly-shell .nav-center .search-container:focus-within {
+  border-color: #72AEFA;
+  box-shadow:
+    0 0 0 3px rgba(114, 174, 250, 0.17),
+    inset 0 1px rgba(255, 255, 255, 0.04);
+}
+
 /* Inputs and compact controls. */
 .scholarly-shell .settings-page select,
 .scholarly-shell .settings-page input:not([type='checkbox']),
@@ -327,7 +414,7 @@
 .scholarly-shell .sort-select {
   border: 1px solid var(--home-line);
   border-radius: 9px;
-  background: var(--home-paper-strong);
+  background-color: var(--home-paper-strong);
   color: var(--home-ink);
   box-shadow: none;
   transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -350,7 +437,7 @@
 .scholarly-shell .sort-select:focus {
   outline: none;
   border-color: var(--home-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 /* Native selects and anchored menus share one paper/ink treatment. */
@@ -359,6 +446,17 @@
   background-color: var(--home-paper-strong);
   color: var(--home-ink);
   color-scheme: light;
+}
+
+.scholarly-shell select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 34px;
+  background-image: var(--dropdown-arrow-icon);
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
 }
 
 .scholarly-shell select option,
@@ -374,7 +472,7 @@
   border: 1px solid var(--home-line);
   border-radius: 10px;
   background: var(--home-paper-strong);
-  box-shadow: 0 16px 36px rgba(70, 54, 29, 0.16);
+  box-shadow: 0 16px 36px rgba(38, 82, 132, 0.16);
   color: var(--home-ink);
   transform-origin: top right;
 }
@@ -422,7 +520,7 @@
   width: 100%;
   border: 1px solid var(--home-line);
   border-radius: 9px;
-  background: var(--home-paper-strong);
+  background-color: var(--home-paper-strong);
   box-shadow: none;
   color: var(--home-ink);
   transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -431,7 +529,7 @@
 .scholarly-shell .community-profile :is(.qa-form input, .qa-form select, .qa-form textarea, .qa-answer-form textarea):focus {
   outline: none;
   border-color: var(--home-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 .scholarly-shell .community-profile :is(.qa-form input, .qa-form textarea, .qa-answer-form textarea)::placeholder {
@@ -538,8 +636,8 @@
 
 .scholarly-shell .saved-metric.active {
   border-color: var(--home-forest-light);
-  background: rgba(24, 62, 53, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(24, 62, 53, 0.08);
+  background: color-mix(in srgb, var(--home-forest) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--home-forest) 8%, transparent);
 }
 
 .scholarly-shell .saved-metric__value {
@@ -552,7 +650,7 @@
 .scholarly-shell .search-empty {
   padding: 28px 20px;
   border-color: var(--home-line);
-  background: rgba(255, 253, 248, 0.6);
+  background: color-mix(in srgb, var(--home-paper-strong) 60%, transparent);
 }
 
 .scholarly-shell .connections-container {
@@ -590,7 +688,7 @@
 .scholarly-shell .connection-avatar-wrap {
   border: 1px solid var(--home-line);
   border-radius: 12px;
-  background: rgba(24, 62, 53, 0.06);
+  background: color-mix(in srgb, var(--home-forest) 6%, transparent);
 }
 
 .scholarly-shell .connection-name {
@@ -610,7 +708,7 @@
   padding: 5px;
   border: 1px solid var(--home-line);
   border-radius: 11px;
-  background: rgba(238, 228, 209, 0.58);
+  background: rgba(228, 238, 251, 0.58);
 }
 
 .scholarly-shell .search-tab,
@@ -633,13 +731,13 @@
   border-color: var(--home-line);
   background: var(--home-paper-strong);
   color: var(--home-forest);
-  box-shadow: 0 2px 7px rgba(70, 54, 29, 0.07);
+  box-shadow: 0 2px 7px rgba(38, 82, 132, 0.07);
 }
 
 .scholarly-shell .search-tab-badge,
 .scholarly-shell .search-count {
   border-color: var(--home-line);
-  background: rgba(24, 62, 53, 0.07);
+  background: color-mix(in srgb, var(--home-forest) 7%, transparent);
   color: var(--home-forest);
 }
 
@@ -694,7 +792,7 @@
   padding: 13px 14px;
   border-color: var(--home-line);
   border-radius: 9px;
-  background: rgba(251, 247, 239, 0.72);
+  background: color-mix(in srgb, var(--home-paper) 72%, transparent);
   box-shadow: none;
   box-sizing: border-box;
   color: var(--home-ink);
@@ -834,22 +932,22 @@
   padding: 20px;
   border: 1px solid var(--home-line);
   border-radius: 16px;
-  background: rgba(251, 247, 239, 0.9);
+  background: color-mix(in srgb, var(--home-paper) 90%, transparent);
   box-shadow: var(--home-shadow);
 }
 
 .scholarly-shell .settings-badge {
   border-color: var(--home-line);
   border-radius: 7px;
-  background: rgba(255, 253, 248, 0.7);
+  background: color-mix(in srgb, var(--home-paper-strong) 70%, transparent);
   color: var(--home-ink-soft);
 }
 
 .scholarly-shell .settings-card {
   border-color: var(--home-line);
   border-radius: 12px;
-  background: rgba(251, 247, 239, 0.9);
-  box-shadow: 0 8px 22px rgba(70, 54, 29, 0.05);
+  background: color-mix(in srgb, var(--home-paper) 90%, transparent);
+  box-shadow: 0 8px 22px rgba(38, 82, 132, 0.05);
 }
 
 .scholarly-shell .settings-card-eyebrow,
@@ -862,8 +960,8 @@
 }
 
 .scholarly-shell .settings-status {
-  border-color: rgba(47, 102, 87, 0.28);
-  background: rgba(47, 102, 87, 0.09);
+  border-color: rgba(47, 128, 237, 0.28);
+  background: rgba(47, 128, 237, 0.09);
   color: var(--home-forest);
 }
 
@@ -896,12 +994,12 @@
 .scholarly-shell .university-profile {
   border: 1px solid var(--home-line);
   border-radius: 16px;
-  background: rgba(251, 247, 239, 0.9);
+  background: color-mix(in srgb, var(--home-paper) 90%, transparent);
   box-shadow: var(--home-shadow);
 }
 
 .scholarly-shell .hero-card {
-  box-shadow: 0 10px 28px rgba(70, 54, 29, 0.07);
+  box-shadow: 0 10px 28px rgba(38, 82, 132, 0.07);
 }
 
 .scholarly-shell .hero-banner {
@@ -959,6 +1057,19 @@
   font-weight: 500;
 }
 
+/* List titles remain fully readable instead of collapsing to one-line ellipses. */
+.scholarly-shell .forum-list :is(.forum-title-row, .thread-title-row) {
+  align-items: flex-start;
+}
+
+.scholarly-shell .forum-list :is(.forum-title, .thread-title) {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  text-overflow: clip;
+}
+
 .scholarly-shell .thread-link,
 .scholarly-shell .thread-description,
 .scholarly-shell .thread-post-count,
@@ -968,10 +1079,10 @@
 
 .scholarly-shell .forum-view select {
   min-height: 36px;
-  padding: 7px 11px;
+  padding: 7px 34px 7px 11px;
   border: 1px solid var(--home-line);
   border-radius: 8px;
-  background: var(--home-paper-strong);
+  background-color: var(--home-paper-strong);
   color: var(--home-ink);
   box-shadow: none;
 }
@@ -995,7 +1106,7 @@
 .scholarly-shell .donation-table-card {
   border-color: var(--home-line);
   border-radius: 16px;
-  background: rgba(251, 247, 239, 0.9);
+  background: color-mix(in srgb, var(--home-paper) 90%, transparent);
   box-shadow: var(--home-shadow);
 }
 
@@ -1017,7 +1128,7 @@
 
 .scholarly-shell .donation-amount-button.active {
   border-color: var(--home-forest-light);
-  background: rgba(24, 62, 53, 0.09);
+  background: color-mix(in srgb, var(--home-forest) 9%, transparent);
   color: var(--home-forest);
 }
 
@@ -1072,7 +1183,7 @@
   border: 1px solid var(--home-line);
   border-radius: 10px;
   border-color: var(--home-line);
-  background: rgba(238, 228, 209, 0.38);
+  background: rgba(228, 238, 251, 0.38);
 }
 
 .scholarly-shell .event-management__header {
@@ -1083,9 +1194,9 @@
 .scholarly-shell .event-card__pill,
 .scholarly-shell .admin-review__status,
 .scholarly-shell .report-chip {
-  border: 1px solid rgba(47, 102, 87, 0.18);
+  border: 1px solid rgba(47, 128, 237, 0.18);
   border-radius: 7px;
-  background: rgba(47, 102, 87, 0.09);
+  background: rgba(47, 128, 237, 0.09);
   color: var(--home-forest);
 }
 
@@ -1100,25 +1211,25 @@
 
 .scholarly-shell .event-card__pill.type-poll,
 .scholarly-shell .event-card__pill.global {
-  border: 1px solid rgba(47, 102, 87, 0.2);
-  background: rgba(47, 102, 87, 0.08);
+  border: 1px solid rgba(47, 128, 237, 0.2);
+  background: rgba(47, 128, 237, 0.08);
   color: var(--home-forest);
 }
 
 .scholarly-shell .status-chip.retained,
 .scholarly-shell .event-card__pill.community,
 .scholarly-shell .event-card__pill.type-event {
-  border: 1px solid rgba(47, 102, 87, 0.24);
+  border: 1px solid rgba(47, 128, 237, 0.24);
   border-radius: 7px;
-  background: rgba(47, 102, 87, 0.1);
+  background: rgba(47, 128, 237, 0.1);
   color: var(--home-forest);
 }
 
 .scholarly-shell .status-chip:is(.removed, .dismissed),
 .scholarly-shell .status-chip.hidden-chip {
-  border: 1px solid rgba(166, 83, 62, 0.24);
+  border: 1px solid rgba(118, 86, 217, 0.24);
   border-radius: 7px;
-  background: rgba(166, 83, 62, 0.09);
+  background: rgba(118, 86, 217, 0.09);
   color: #8b3f30;
 }
 
@@ -1140,15 +1251,15 @@
 .scholarly-shell :is(.report-empty-card, .event-management__empty, .admin-review__empty) {
   border: 1px dashed var(--home-line);
   border-radius: 11px;
-  background: rgba(255, 253, 248, 0.55);
+  background: color-mix(in srgb, var(--home-paper-strong) 55%, transparent);
   color: var(--home-ink-soft);
   box-shadow: none;
 }
 
 .scholarly-shell .event-management__badge {
-  border: 1px solid rgba(47, 102, 87, 0.22);
+  border: 1px solid rgba(47, 128, 237, 0.22);
   border-radius: 7px;
-  background: rgba(47, 102, 87, 0.09);
+  background: rgba(47, 128, 237, 0.09);
   color: var(--home-forest);
 }
 
@@ -1162,12 +1273,12 @@
 
 .scholarly-shell .admin-review__file {
   border-color: var(--home-line);
-  background: rgba(251, 247, 239, 0.72);
+  background: color-mix(in srgb, var(--home-paper) 72%, transparent);
   color: var(--home-ink);
 }
 
 .scholarly-shell .admin-review__doc {
-  background: rgba(47, 102, 87, 0.08);
+  background: rgba(47, 128, 237, 0.08);
   color: var(--home-forest);
 }
 
@@ -1184,14 +1295,14 @@
 .scholarly-shell .admin-review__approve,
 .scholarly-shell .request-actions button:first-child {
   background: var(--home-forest);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .admin-review__reject,
 .scholarly-shell .request-actions button:last-child,
 .scholarly-shell .danger-button {
-  border-color: rgba(166, 83, 62, 0.34);
-  background: rgba(166, 83, 62, 0.1);
+  border-color: rgba(118, 86, 217, 0.34);
+  background: rgba(118, 86, 217, 0.1);
   color: #8b3f30;
 }
 
@@ -1385,7 +1496,7 @@
 
 .scholarly-shell .conversations-panel {
   border-right-color: var(--home-line);
-  background: rgba(238, 228, 209, 0.44);
+  background: rgba(228, 238, 251, 0.44);
 }
 
 .scholarly-shell .thread-panel {
@@ -1414,7 +1525,7 @@
 
 .scholarly-shell .conversation-item.active {
   border-color: var(--home-forest-light);
-  background: rgba(24, 62, 53, 0.08);
+  background: color-mix(in srgb, var(--home-forest) 8%, transparent);
   box-shadow: inset 3px 0 0 var(--home-forest);
 }
 
@@ -1437,7 +1548,7 @@
   padding: 8px;
   border: 1px solid var(--home-line);
   border-radius: 12px;
-  background: rgba(238, 228, 209, 0.52);
+  background: rgba(228, 238, 251, 0.52);
   backdrop-filter: none;
 }
 
@@ -1488,7 +1599,7 @@
 .scholarly-shell .connections-controls .chip.active,
 .scholarly-shell .admin-review__filters .chip.active {
   background: transparent;
-  color: #fffaf0;
+  color: #FFFFFF;
   box-shadow: none;
 }
 
@@ -1515,21 +1626,21 @@
 }
 
 .scholarly-shell .saved-card__type {
-  border: 1px solid rgba(47, 102, 87, 0.22);
+  border: 1px solid rgba(47, 128, 237, 0.22);
   border-radius: 7px;
-  background: rgba(47, 102, 87, 0.08);
+  background: rgba(47, 128, 237, 0.08);
   color: var(--home-forest);
 }
 
 .scholarly-shell .saved-card__verified {
-  border-color: rgba(47, 102, 87, 0.3);
+  border-color: rgba(47, 128, 237, 0.3);
   border-radius: 7px;
-  background: rgba(47, 102, 87, 0.09);
+  background: rgba(47, 128, 237, 0.09);
   color: var(--home-forest);
 }
 
 .scholarly-shell .saved-card--verified {
-  border-color: rgba(47, 102, 87, 0.48);
+  border-color: rgba(47, 128, 237, 0.48);
   box-shadow: inset 3px 0 0 var(--home-forest-light);
 }
 
@@ -1594,7 +1705,7 @@
   padding: 28px 20px;
   border: 1px dashed var(--home-line);
   border-radius: 11px;
-  background: rgba(255, 253, 248, 0.55);
+  background: color-mix(in srgb, var(--home-paper-strong) 55%, transparent);
   color: var(--home-ink-soft);
   text-align: center;
 }
@@ -1648,12 +1759,34 @@
   transform: scale(0.97);
 }
 
-.scholarly-shell .profile-view .profile-detail-wrapper,
 .scholarly-shell .profile-view .profile-reply-card {
   border: 1px solid var(--home-line);
   border-radius: 12px;
   background: var(--home-paper);
   box-shadow: none;
+}
+
+/* Profile tab panes adopt the community-profile card system; the old wrapper
+   chrome would otherwise nest a card inside a card. */
+.scholarly-shell .profile-view .profile-detail-wrapper.community-profile,
+.scholarly-shell .profile-view .profile-detail-wrapper.community-profile .profile-detail-sections {
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+  padding: 0;
+}
+
+.scholarly-shell .profile-view .profile-detail-wrapper.community-profile {
+  margin-top: 0;
+}
+
+.scholarly-shell .profile-view .profile-detail-wrapper.community-profile .profile-detail-sections {
+  overflow: visible;
+}
+
+.scholarly-shell .profile-view .profile-detail-wrapper.community-profile .profile-detail-sections.restricted {
+  overflow: hidden;
 }
 
 .scholarly-shell .profile-view .profile-section h3 {
@@ -1672,7 +1805,7 @@
   border-radius: 14px;
   background: var(--home-paper);
   color: var(--home-ink);
-  box-shadow: 0 18px 48px rgba(70, 54, 29, 0.18);
+  box-shadow: 0 18px 48px rgba(38, 82, 132, 0.18);
   transform-origin: top right;
   backdrop-filter: blur(14px);
 }
@@ -1680,7 +1813,7 @@
 .scholarly-shell .notification-badge {
   border-color: var(--home-paper);
   background: var(--home-rust);
-  box-shadow: 0 5px 12px rgba(166, 83, 62, 0.24);
+  box-shadow: 0 5px 12px rgba(118, 86, 217, 0.24);
 }
 
 .scholarly-shell .notifications-dropdown::before {
@@ -1691,7 +1824,7 @@
 .scholarly-shell .notifications-header {
   padding: 15px 16px 12px;
   border-bottom: 1px solid var(--home-line);
-  background: rgba(238, 228, 209, 0.52);
+  background: rgba(228, 238, 251, 0.52);
 }
 
 .scholarly-shell .notifications-title {
@@ -1723,8 +1856,8 @@
 }
 
 .scholarly-shell .notification-item.unread {
-  border-color: rgba(47, 102, 87, 0.42);
-  background: rgba(47, 102, 87, 0.07);
+  border-color: rgba(47, 128, 237, 0.42);
+  background: rgba(47, 128, 237, 0.07);
   box-shadow: inset 3px 0 0 var(--home-forest-light);
 }
 
@@ -1740,7 +1873,7 @@
 .scholarly-shell .notification-dismiss {
   border: 1px solid transparent;
   border-radius: 7px;
-  background: rgba(24, 62, 53, 0.06);
+  background: color-mix(in srgb, var(--home-forest) 6%, transparent);
   color: var(--home-ink-soft);
   transition: background-color 150ms ease, color 150ms ease, transform 140ms var(--home-ease-out);
 }
@@ -1779,8 +1912,8 @@
 
 .scholarly-shell .settings-badge.live-badge,
 .scholarly-shell .settings-badge.positive {
-  border-color: rgba(47, 102, 87, 0.32);
-  background: rgba(47, 102, 87, 0.09);
+  border-color: rgba(47, 128, 237, 0.32);
+  background: rgba(47, 128, 237, 0.09);
   color: var(--home-forest);
 }
 
@@ -1794,8 +1927,8 @@
 }
 
 .scholarly-shell .settings-badge.hold-badge {
-  border-color: rgba(166, 83, 62, 0.3);
-  background: rgba(166, 83, 62, 0.08);
+  border-color: rgba(118, 86, 217, 0.3);
+  background: rgba(118, 86, 217, 0.08);
   color: var(--home-rust);
 }
 
@@ -1813,7 +1946,7 @@
   border-radius: 9px;
   background: var(--home-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   font-weight: 700;
   transition: background-color 150ms ease, border-color 150ms ease, transform 140ms var(--home-ease-out);
 }
@@ -1837,7 +1970,7 @@
   border: 1px solid var(--home-line);
   border-radius: 10px;
   background: var(--home-paper-strong);
-  box-shadow: 0 16px 36px rgba(70, 54, 29, 0.16);
+  box-shadow: 0 16px 36px rgba(38, 82, 132, 0.16);
   scrollbar-color: var(--home-line) transparent;
   transform-origin: top right;
 }
@@ -1863,9 +1996,9 @@
   accent-color: var(--home-forest);
 }
 
-.scholarly-shell .thread-view > .chips-row .tag-chip {
+.scholarly-shell .thread-view .thread-hero__heading > .chips-row .tag-chip {
   border-color: var(--home-line) !important;
-  background: rgba(47, 102, 87, 0.07) !important;
+  background: rgba(47, 128, 237, 0.07) !important;
   color: var(--home-forest) !important;
 }
 
@@ -1914,7 +2047,7 @@
   border-radius: 9px;
   background: var(--home-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   filter: none;
   transition:
     background-color 150ms ease,
@@ -1960,12 +2093,12 @@
 .scholarly-shell .profile-view .color-hex-input:focus {
   outline: none;
   border-color: var(--home-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 .scholarly-shell .profile-view .profile-detail-overlay,
 .scholarly-shell .profile-view .about-section.restricted::after {
-  background: rgba(251, 247, 239, 0.88);
+  background: color-mix(in srgb, var(--home-paper) 88%, transparent);
   backdrop-filter: blur(7px);
 }
 
@@ -1999,7 +2132,7 @@
   padding: 12px;
   border: 1px solid var(--home-line);
   border-radius: 10px;
-  background: rgba(238, 228, 209, 0.36);
+  background: rgba(228, 238, 251, 0.36);
 }
 
 .scholarly-shell .settings-page .tag-picker__label {
@@ -2028,7 +2161,7 @@
 .scholarly-shell .settings-page .tag-picker__chips .chip.active {
   border-color: var(--home-forest);
   background: var(--home-forest);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .settings-page .tag-picker__chips .chip:active {
@@ -2044,8 +2177,8 @@
 }
 
 .scholarly-shell .settings-page .session-item.current {
-  border-color: rgba(47, 102, 87, 0.48);
-  background: rgba(47, 102, 87, 0.07);
+  border-color: rgba(47, 128, 237, 0.48);
+  background: rgba(47, 128, 237, 0.07);
   box-shadow: inset 3px 0 0 var(--home-forest-light);
 }
 
@@ -2055,7 +2188,7 @@
 }
 
 .scholarly-shell .conversations-panel {
-  background: rgba(238, 228, 209, 0.44);
+  background: rgba(228, 238, 251, 0.44);
 }
 
 .scholarly-shell .thread-panel {
@@ -2078,8 +2211,8 @@
 }
 
 .scholarly-shell .conversation-item.active {
-  border-color: rgba(47, 102, 87, 0.48);
-  background: rgba(47, 102, 87, 0.08);
+  border-color: rgba(47, 128, 237, 0.48);
+  background: rgba(47, 128, 237, 0.08);
   box-shadow: inset 3px 0 0 var(--home-forest);
 }
 
@@ -2107,11 +2240,11 @@
   border-color: var(--home-forest);
   border-radius: 14px 14px 5px 14px;
   background: var(--home-forest);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .messages-card .message-out p {
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .message-bubble span {
@@ -2119,7 +2252,7 @@
 }
 
 .scholarly-shell .messages-card .message-out span {
-  color: rgba(255, 250, 240, 0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .scholarly-shell .composer textarea {
@@ -2132,7 +2265,7 @@
   border-radius: 8px;
   background: var(--home-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   transition: background-color 150ms ease, border-color 150ms ease, transform 140ms var(--home-ease-out);
 }
 
@@ -2143,12 +2276,12 @@
 @media (hover: hover) and (pointer: fine) {
   .scholarly-shell .sidebar-toggle-button:hover,
   .scholarly-shell .sidebar-link:hover {
-    background: rgba(24, 62, 53, 0.07);
+    background: color-mix(in srgb, var(--home-forest) 7%, transparent);
     box-shadow: none;
   }
 
   .scholarly-shell .sidebar-link.active:hover {
-    background: rgba(24, 62, 53, 0.13);
+    background: color-mix(in srgb, var(--home-forest) 13%, transparent);
   }
 
   .scholarly-shell .pill-button:hover,
@@ -2177,7 +2310,7 @@
   .scholarly-shell .search-tab:hover,
   .scholarly-shell .settings-tab:hover {
     border-color: var(--home-forest-light);
-    background: rgba(24, 62, 53, 0.06);
+    background: color-mix(in srgb, var(--home-forest) 6%, transparent);
     color: var(--home-forest);
     box-shadow: none;
     transform: none;
@@ -2189,7 +2322,7 @@
   .scholarly-shell .search-section .community-row-card:hover,
   .scholarly-shell .saved-metric:hover,
   .scholarly-shell .conversation-item:hover {
-    border-color: rgba(47, 102, 87, 0.52);
+    border-color: rgba(47, 128, 237, 0.52);
     background: var(--home-paper-strong);
     box-shadow: none;
     transform: translateY(-1px);
@@ -2197,7 +2330,7 @@
 
   .scholarly-shell .search-result-item:hover,
   .scholarly-shell .search-section .community-row-card.search-result-item:hover {
-    border-color: rgba(47, 102, 87, 0.52);
+    border-color: rgba(47, 128, 237, 0.52);
     background: color-mix(in srgb, var(--home-paper-strong) 88%, var(--home-forest-light) 12%);
     box-shadow: inset 4px 0 0 var(--home-forest-light);
     transform: translateY(-1px);
@@ -2228,12 +2361,12 @@
     .account-menu-item,
     .topic-dropdown-option
   ):hover {
-    background: rgba(24, 62, 53, 0.07);
+    background: color-mix(in srgb, var(--home-forest) 7%, transparent);
     color: var(--home-forest);
   }
 
   .scholarly-shell .scholarly-communities-page .empty-state-card .secondary-button:hover {
-    border-color: rgba(47, 102, 87, 0.52);
+    border-color: rgba(47, 128, 237, 0.52);
     background: var(--home-paper-strong);
     color: var(--home-forest);
   }
@@ -2244,7 +2377,7 @@
   .scholarly-shell .event-management__toggle:hover,
   .scholarly-shell .settings-page .tag-picker__chips .chip:not(.active):hover {
     border-color: var(--home-forest-light);
-    background: rgba(24, 62, 53, 0.06);
+    background: color-mix(in srgb, var(--home-forest) 6%, transparent);
     color: var(--home-forest);
     box-shadow: none;
     filter: none;
@@ -2253,7 +2386,7 @@
 
   .scholarly-shell .connections-list > ul > li:hover,
   .scholarly-shell .notification-item:hover {
-    border-color: rgba(47, 102, 87, 0.52);
+    border-color: rgba(47, 128, 237, 0.52);
     background: var(--home-paper-strong);
     transform: translateY(-1px);
   }
@@ -2262,12 +2395,12 @@
   .scholarly-shell .connections-list .menu-icon:hover,
   .scholarly-shell .community-profile .overlay-content > button:hover {
     border-color: var(--home-line);
-    background: rgba(24, 62, 53, 0.07);
+    background: color-mix(in srgb, var(--home-forest) 7%, transparent);
     color: var(--home-forest);
   }
 
   .scholarly-shell .notification-dismiss:hover {
-    background: rgba(24, 62, 53, 0.11);
+    background: color-mix(in srgb, var(--home-forest) 11%, transparent);
     color: var(--home-forest);
   }
 
@@ -2278,14 +2411,14 @@
 }
 
 [data-theme='dark'] .scholarly-shell .sidebar-link.active {
-  background: rgba(152, 196, 183, 0.12);
-  color: #c5ded6;
-  box-shadow: inset 0 0 0 1px rgba(152, 196, 183, 0.08);
+  background: rgba(114, 174, 250, 0.12);
+  color: #BEDAFF;
+  box-shadow: inset 0 0 0 1px rgba(114, 174, 250, 0.08);
 }
 
 [data-theme='dark'] .scholarly-shell .sidebar-link.active .sidebar-text-group,
 [data-theme='dark'] .scholarly-shell .sidebar-link.active .sidebar-text-group .sidebar-text {
-  color: #c5ded6;
+  color: #BEDAFF;
 }
 
 [data-theme='dark'] .scholarly-shell select {
@@ -2315,7 +2448,7 @@
 }
 
 [data-theme='dark'] .scholarly-shell .center-rail > .feed-container:not(.scholarly-page-panel),
-[data-theme='dark'] .scholarly-shell .search-results > .feed-container,
+[data-theme='dark'] .scholarly-shell .search-results > .feed-container:not(.scholarly-page-panel),
 [data-theme='dark'] .scholarly-shell .admin-review,
 [data-theme='dark'] .scholarly-shell .requests-container,
 [data-theme='dark'] .scholarly-shell .settings-header,
@@ -2329,7 +2462,7 @@
 [data-theme='dark'] .scholarly-shell .donation-card,
 [data-theme='dark'] .scholarly-shell .donation-table-card {
   border-color: var(--home-line);
-  background: rgba(34, 37, 31, 0.9) !important;
+  background: rgba(14, 32, 59, 0.9) !important;
 }
 
 [data-theme='dark'] .scholarly-shell .section-controls-sticky,
@@ -2339,7 +2472,7 @@
 [data-theme='dark'] .scholarly-shell .university-logo-container,
 [data-theme='dark'] .scholarly-shell .thread-panel,
 [data-theme='dark'] .scholarly-shell .thread-header {
-  background: rgba(34, 37, 31, 0.95);
+  background: rgba(14, 32, 59, 0.95);
 }
 
 [data-theme='dark'] .scholarly-shell .saved-metric,
@@ -2364,10 +2497,10 @@
 
 [data-theme='dark'] .scholarly-shell .search-tab-badge,
 [data-theme='dark'] .scholarly-shell .search-count {
-  border-color: rgba(152, 196, 183, 0.32);
-  background: rgba(56, 105, 91, 0.24);
-  color: #b8d7ce;
-  box-shadow: 0 0 0 2px rgba(184, 215, 206, 0.08);
+  border-color: rgba(114, 174, 250, 0.32);
+  background: rgba(75, 145, 236, 0.24);
+  color: #BEDAFF;
+  box-shadow: 0 0 0 2px rgba(114, 174, 250, 0.08);
 }
 
 [data-theme='dark'] .scholarly-shell .search-card-title {
@@ -2385,12 +2518,12 @@
 
 [data-theme='dark'] .scholarly-shell .search-result-item--community .community-row-logo {
   border-color: var(--home-line);
-  background: rgba(24, 26, 23, 0.72);
+  background: rgba(8, 21, 43, 0.72);
 }
 
 [data-theme='dark'] .scholarly-shell .conversations-panel {
   border-right-color: var(--home-line);
-  background: rgba(24, 26, 23, 0.72);
+  background: rgba(8, 21, 43, 0.72);
 }
 
 [data-theme='dark'] .scholarly-shell .search-tabs,
@@ -2400,14 +2533,14 @@
 [data-theme='dark'] .scholarly-shell .event-management__zoom,
 [data-theme='dark'] .scholarly-shell .event-management__list,
 [data-theme='dark'] .scholarly-shell .request-details {
-  background: rgba(24, 26, 23, 0.72);
+  background: rgba(8, 21, 43, 0.72);
 }
 
 [data-theme='dark'] .scholarly-shell :is(.report-empty-card, .event-management__empty, .admin-review__empty),
 [data-theme='dark'] .scholarly-shell .event-management__alert,
 [data-theme='dark'] .scholarly-shell .connections-list > p {
   border-color: var(--home-line);
-  background: rgba(24, 26, 23, 0.72);
+  background: rgba(8, 21, 43, 0.72);
   color: var(--home-ink-soft);
 }
 
@@ -2419,9 +2552,9 @@
   .report-chip,
   .status-chip.retained
 ) {
-  border-color: rgba(152, 196, 183, 0.28);
-  background: rgba(56, 105, 91, 0.17);
-  color: #b8d7ce;
+  border-color: rgba(114, 174, 250, 0.28);
+  background: rgba(75, 145, 236, 0.17);
+  color: #BEDAFF;
 }
 
 [data-theme='dark'] .scholarly-shell :is(
@@ -2440,7 +2573,7 @@
   .status-chip.hidden-chip
 ) {
   border-color: rgba(213, 138, 112, 0.3);
-  background: rgba(166, 83, 62, 0.14);
+  background: rgba(118, 86, 217, 0.14);
   color: #e5aa96;
 }
 
@@ -2451,8 +2584,8 @@
 }
 
 [data-theme='dark'] .scholarly-shell .admin-review__doc {
-  background: rgba(56, 105, 91, 0.17);
-  color: #b8d7ce;
+  background: rgba(75, 145, 236, 0.17);
+  color: #BEDAFF;
 }
 
 [data-theme='dark'] .scholarly-shell :is(
@@ -2461,13 +2594,13 @@
   .danger-button
 ) {
   border-color: rgba(213, 138, 112, 0.3);
-  background: rgba(166, 83, 62, 0.14);
+  background: rgba(118, 86, 217, 0.14);
   color: #e5aa96;
 }
 
 [data-theme='dark'] .scholarly-shell .community-profile :is(.qa-form input, .qa-form select, .qa-form textarea, .qa-answer-form textarea) {
   border-color: var(--home-line);
-  background: var(--home-paper-strong);
+  background-color: var(--home-paper-strong);
   color: var(--home-ink);
 }
 
@@ -2514,7 +2647,7 @@
 [data-theme='dark'] .scholarly-shell .scholarly-communities-page .community-controls,
 [data-theme='dark'] .scholarly-shell .scholarly-communities-page .pagination-controls {
   border-color: var(--home-line);
-  background: rgba(27, 30, 25, 0.94);
+  background: rgba(9, 25, 48, 0.94);
 }
 
 [data-theme='dark'] .scholarly-shell .scholarly-communities-page .community-list,
@@ -2525,7 +2658,7 @@
 }
 
 [data-theme='dark'] .scholarly-shell .scholarly-communities-page .community-row-card.followed {
-  background: rgba(56, 105, 91, 0.12);
+  background: rgba(75, 145, 236, 0.12);
   box-shadow: inset 3px 0 0 var(--home-forest-light);
 }
 
@@ -2545,7 +2678,6 @@
   color: var(--home-ink);
 }
 
-[data-theme='dark'] .scholarly-shell .profile-view .profile-detail-wrapper,
 [data-theme='dark'] .scholarly-shell .profile-view .profile-reply-card,
 [data-theme='dark'] .scholarly-shell .profile-view .info-card {
   border-color: var(--home-line);
@@ -2562,7 +2694,7 @@
 [data-theme='dark'] .scholarly-shell .saved-controls,
 [data-theme='dark'] .scholarly-shell .connections-controls {
   border-color: var(--home-line);
-  background: rgba(27, 30, 25, 0.92);
+  background: rgba(9, 25, 48, 0.92);
 }
 
 [data-theme='dark'] .scholarly-shell :is(.profile-view, .community-profile) .tabs-underline {
@@ -2587,7 +2719,7 @@
 [data-theme='dark'] .scholarly-shell .connections-controls .chip.active,
 [data-theme='dark'] .scholarly-shell .admin-review__filters .chip.active {
   background: transparent;
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 [data-theme='dark'] .scholarly-shell .saved-metric,
@@ -2600,7 +2732,7 @@
 
 [data-theme='dark'] .scholarly-shell .saved-metric.active {
   border-color: var(--home-forest-light);
-  background: rgba(56, 105, 91, 0.15);
+  background: rgba(75, 145, 236, 0.15);
 }
 
 [data-theme='dark'] .scholarly-shell .saved-metric__label,
@@ -2624,11 +2756,11 @@
 [data-theme='dark'] .scholarly-shell :is(.profile-view, .community-profile) .tab-link.active {
   border: 0;
   background: transparent;
-  color: #b8d7ce;
+  color: #BEDAFF;
 }
 
 [data-theme='dark'] .scholarly-shell :is(.profile-view, .community-profile) .tab-link.active::after {
-  background: #8eb9ad;
+  background: #72AEFA;
 }
 
 [data-theme='dark'] .scholarly-shell .notifications-dropdown {
@@ -2645,7 +2777,7 @@
 
 [data-theme='dark'] .scholarly-shell .notifications-header {
   border-bottom-color: var(--home-line);
-  background: rgba(24, 26, 23, 0.76);
+  background: rgba(8, 21, 43, 0.76);
 }
 
 [data-theme='dark'] .scholarly-shell .notifications-title,
@@ -2666,13 +2798,13 @@
 }
 
 [data-theme='dark'] .scholarly-shell .notification-item.unread {
-  border-color: rgba(152, 196, 183, 0.36);
-  background: rgba(56, 105, 91, 0.16);
-  box-shadow: inset 3px 0 0 #6f9d90;
+  border-color: rgba(114, 174, 250, 0.36);
+  background: rgba(75, 145, 236, 0.16);
+  box-shadow: inset 3px 0 0 #72AEFA;
 }
 
 [data-theme='dark'] .scholarly-shell .notification-dismiss {
-  background: rgba(152, 196, 183, 0.08);
+  background: rgba(114, 174, 250, 0.08);
   color: var(--home-ink-soft);
 }
 
@@ -2685,19 +2817,19 @@
 
 [data-theme='dark'] .scholarly-shell .settings-badge.live-badge,
 [data-theme='dark'] .scholarly-shell .settings-badge.positive {
-  border-color: rgba(152, 196, 183, 0.3);
-  background: rgba(56, 105, 91, 0.18);
-  color: #b8d7ce;
+  border-color: rgba(114, 174, 250, 0.3);
+  background: rgba(75, 145, 236, 0.18);
+  color: #BEDAFF;
 }
 
 [data-theme='dark'] .scholarly-shell .settings-badge.live-badge::before,
 [data-theme='dark'] .scholarly-shell .settings-badge.positive::before {
-  background: #8eb9ad;
+  background: #72AEFA;
 }
 
 [data-theme='dark'] .scholarly-shell .settings-badge.hold-badge {
   border-color: rgba(213, 138, 112, 0.32);
-  background: rgba(166, 83, 62, 0.14);
+  background: rgba(118, 86, 217, 0.14);
   color: #e5aa96;
 }
 
@@ -2711,7 +2843,7 @@
 [data-theme='dark'] .scholarly-shell .forum-tag-filter .topic-dropdown-menu,
 [data-theme='dark'] .scholarly-shell .forum-view select {
   border-color: var(--home-line);
-  background: var(--home-paper-strong);
+  background-color: var(--home-paper-strong);
   color: var(--home-ink);
   box-shadow: none;
 }
@@ -2720,10 +2852,10 @@
   color: var(--home-ink);
 }
 
-[data-theme='dark'] .scholarly-shell .thread-view > .chips-row .tag-chip {
+[data-theme='dark'] .scholarly-shell .thread-view .thread-hero__heading > .chips-row .tag-chip {
   border-color: var(--home-line) !important;
-  background: rgba(56, 105, 91, 0.15) !important;
-  color: #b8d7ce !important;
+  background: rgba(75, 145, 236, 0.15) !important;
+  color: #BEDAFF !important;
 }
 
 [data-theme='dark'] .scholarly-shell .saved-page-panel {
@@ -2766,7 +2898,7 @@
 
 [data-theme='dark'] .scholarly-shell .profile-view .profile-detail-overlay,
 [data-theme='dark'] .scholarly-shell .profile-view .about-section.restricted::after {
-  background: rgba(24, 26, 23, 0.9);
+  background: rgba(8, 21, 43, 0.9);
   backdrop-filter: blur(7px);
 }
 
@@ -2789,7 +2921,7 @@
 
 [data-theme='dark'] .scholarly-shell .settings-page .tag-picker {
   border-color: var(--home-line);
-  background: rgba(24, 26, 23, 0.72);
+  background: rgba(8, 21, 43, 0.72);
 }
 
 [data-theme='dark'] .scholarly-shell .settings-page .tag-picker__chips .chip,
@@ -2803,13 +2935,13 @@
 [data-theme='dark'] .scholarly-shell .settings-page .tag-picker__chips .chip.active {
   border-color: var(--home-forest-light);
   background: var(--home-forest-light);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 [data-theme='dark'] .scholarly-shell .settings-page .session-item.current {
-  border-color: rgba(152, 196, 183, 0.36);
-  background: rgba(56, 105, 91, 0.15);
-  box-shadow: inset 3px 0 0 #6f9d90;
+  border-color: rgba(114, 174, 250, 0.36);
+  background: rgba(75, 145, 236, 0.15);
+  box-shadow: inset 3px 0 0 #72AEFA;
 }
 
 [data-theme='dark'] .scholarly-shell .messages-card,
@@ -2822,7 +2954,7 @@
 
 [data-theme='dark'] .scholarly-shell .conversations-panel {
   border-color: var(--home-line);
-  background: rgba(24, 26, 23, 0.76);
+  background: rgba(8, 21, 43, 0.76);
 }
 
 [data-theme='dark'] .scholarly-shell .conversation-search,
@@ -2837,15 +2969,15 @@
 }
 
 [data-theme='dark'] .scholarly-shell .conversation-item.active {
-  border-color: rgba(152, 196, 183, 0.36);
-  background: rgba(56, 105, 91, 0.15);
-  box-shadow: inset 3px 0 0 #6f9d90;
+  border-color: rgba(114, 174, 250, 0.36);
+  background: rgba(75, 145, 236, 0.15);
+  box-shadow: inset 3px 0 0 #72AEFA;
 }
 
 [data-theme='dark'] .scholarly-shell .message-out {
   border-color: var(--home-forest-light);
   background: var(--home-forest-light);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 [data-theme='dark'] .scholarly-shell .composer textarea,
@@ -2856,7 +2988,7 @@
 [data-theme='dark'] .scholarly-shell .profile-link {
   border-color: var(--home-line);
   background: var(--home-paper-strong);
-  color: #b8d7ce;
+  color: #BEDAFF;
 }
 
 @media (max-width: 900px) {
@@ -2884,7 +3016,7 @@
   }
 
   .scholarly-shell .center-rail > .feed-container:not(.scholarly-page-panel),
-  .scholarly-shell .search-results > .feed-container,
+  .scholarly-shell .search-results > .feed-container:not(.scholarly-page-panel),
   .scholarly-shell .admin-review,
   .scholarly-shell .requests-container {
     padding: 18px;
@@ -2970,7 +3102,7 @@
   }
 
   .scholarly-shell .center-rail > .feed-container:not(.scholarly-page-panel),
-  .scholarly-shell .search-results > .feed-container,
+  .scholarly-shell .search-results > .feed-container:not(.scholarly-page-panel),
   .scholarly-shell .admin-review,
   .scholarly-shell .requests-container {
     margin-bottom: 16px;
@@ -2993,6 +3125,147 @@
 
   .scholarly-shell .messages-card {
     border-radius: 12px;
+  }
+}
+
+/* Profile trust marks and time-gated event calls. */
+.scholarly-shell .profile-view .profile-verification-status {
+  flex: 0 0 auto;
+  vertical-align: middle;
+}
+
+.scholarly-shell .profile-view .profile-verification-status--verified {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--home-forest-light) 42%, var(--home-line));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--home-forest-light) 11%, var(--home-paper-strong));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--home-paper-strong) 72%, transparent);
+  color: var(--home-forest-light) !important;
+}
+
+.scholarly-shell .profile-view .profile-verification-status--verified svg {
+  display: block;
+  color: inherit;
+}
+
+.scholarly-shell .profile-view .profile-verification-status--unverified {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--home-rust) 36%, var(--home-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--home-rust) 7%, var(--home-paper-strong));
+  color: var(--home-rust) !important;
+  font-family: var(--home-sans);
+  font-size: 0.57rem;
+  font-weight: 800;
+  letter-spacing: 0.075em;
+  line-height: 1;
+  text-transform: uppercase;
+  box-sizing: border-box;
+}
+
+[data-theme='dark'] .scholarly-shell .profile-view .profile-verification-status--verified {
+  border-color: rgba(168, 203, 187, 0.4);
+  background: rgba(123, 173, 154, 0.15);
+  color: #BEDAFF !important;
+}
+
+[data-theme='dark'] .scholarly-shell .profile-view .profile-verification-status--unverified {
+  border-color: rgba(213, 138, 112, 0.42);
+  background: rgba(213, 138, 112, 0.12);
+  color: #e4a38c !important;
+}
+
+.scholarly-shell .compact-agenda-widget {
+  overflow: visible;
+}
+
+.scholarly-shell .event-join-gate {
+  position: relative;
+  display: inline-flex;
+  border-radius: 8px;
+  outline: none;
+}
+
+.scholarly-shell .event-join-button--disabled,
+.scholarly-shell .compact-agenda-widget .event-join-button--disabled {
+  border-color: #C9D4E2 !important;
+  background: #E7EDF5 !important;
+  box-shadow: none !important;
+  color: #78879B !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.scholarly-shell .event-join-tooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 9px);
+  z-index: 30;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 40px));
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--home-paper-strong) 16%, transparent);
+  border-radius: 8px;
+  background: var(--home-ink);
+  box-shadow: 0 10px 28px rgba(17, 36, 77, 0.2);
+  color: var(--home-paper-strong) !important;
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px) scale(0.98);
+  transform-origin: bottom right;
+  transition: opacity 140ms ease-out, transform 170ms var(--home-ease-out);
+}
+
+.scholarly-shell .event-join-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 14px;
+  border: 5px solid transparent;
+  border-top-color: var(--home-ink);
+}
+
+.scholarly-shell .event-join-gate:is(:hover, :focus, :focus-within) .event-join-tooltip {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+[data-theme='dark'] .scholarly-shell .event-join-button--disabled,
+[data-theme='dark'] .scholarly-shell .compact-agenda-widget .event-join-button--disabled {
+  border-color: #355071 !important;
+  background: #162B4B !important;
+  color: #A8B9D3 !important;
+}
+
+[data-theme='dark'] .scholarly-shell .event-join-tooltip {
+  border-color: rgba(17, 36, 77, 0.2);
+  background: var(--home-ink);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.38);
+  color: var(--home-paper-strong) !important;
+}
+
+@media (max-width: 640px) {
+  .scholarly-shell .profile-view .profile-verification-status {
+    margin-left: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scholarly-shell .event-join-tooltip {
+    transition: opacity 100ms ease-out;
+    transform: none;
   }
 }
 
@@ -3188,7 +3461,7 @@
 
 .scholarly-shell .events-calendar__day.is-today > time {
   background: var(--home-forest);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .events-calendar__day.is-outside {
@@ -3206,7 +3479,7 @@
   padding: 4px 5px;
   border: 0;
   border-radius: 5px;
-  background: rgba(47, 102, 87, 0.08);
+  background: rgba(47, 128, 237, 0.08);
   color: var(--home-forest);
   font: inherit;
   font-size: 0.65rem;
@@ -3268,9 +3541,9 @@
 
 .scholarly-shell .event-invite-selected button {
   padding: 5px 8px;
-  border: 1px solid rgba(47, 102, 87, 0.24);
+  border: 1px solid rgba(47, 128, 237, 0.24);
   border-radius: 999px;
-  background: rgba(47, 102, 87, 0.08);
+  background: rgba(47, 128, 237, 0.08);
   color: var(--home-forest);
   font: inherit;
   font-size: 0.72rem;
@@ -3573,7 +3846,7 @@
 [data-theme='dark'] .scholarly-shell :is(.event-agenda-card__eyebrow, .poll-card__eyebrow) span {
   border-color: rgba(157, 201, 184, 0.34);
   background: rgba(123, 173, 154, 0.18);
-  color: #c4e2d6;
+  color: #BEDAFF;
 }
 
 [data-theme='dark'] .home-shell .poll-nav button {
@@ -3587,7 +3860,7 @@
 }
 
 [data-theme='dark'] .home-shell .poll-dot.active {
-  background: #a8cbbb;
+  background: #8EC0FF;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -3598,7 +3871,7 @@
   }
 
   .scholarly-shell .events-calendar__day button:hover {
-    background: rgba(47, 102, 87, 0.14);
+    background: rgba(47, 128, 237, 0.14);
   }
 }
 
@@ -3705,7 +3978,7 @@
   padding: 6px 10px;
   border-color: var(--home-forest);
   background: var(--home-forest);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .compact-poll-widget .poll-results {
@@ -3886,7 +4159,7 @@
 
 [data-theme='dark'] .scholarly-shell .connections-tabs .chip.active {
   background: transparent;
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 /* Event management action alignment and status. */
@@ -3913,8 +4186,8 @@
 
 /* Verification states. */
 .scholarly-shell .admin-review__status--rejected {
-  border-color: rgba(166, 83, 62, 0.34);
-  background: rgba(166, 83, 62, 0.12);
+  border-color: rgba(118, 86, 217, 0.34);
+  background: rgba(118, 86, 217, 0.12);
   color: #8b3f30;
 }
 
@@ -4046,9 +4319,9 @@
 
 .scholarly-shell :is(.event-agenda-card__eyebrow, .poll-card__eyebrow) span {
   padding: 2px 6px;
-  border: 1px solid rgba(47, 102, 87, 0.2);
+  border: 1px solid rgba(47, 128, 237, 0.2);
   border-radius: 5px;
-  background: rgba(47, 102, 87, 0.07);
+  background: rgba(47, 128, 237, 0.07);
   color: var(--home-forest);
   font-size: 0.62rem;
   font-weight: 800;
@@ -4123,7 +4396,7 @@
   border-radius: 8px;
   background: var(--home-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   font: inherit;
   font-size: 0.78rem;
   font-weight: 750;
@@ -4177,7 +4450,7 @@
 
 .scholarly-shell .poll-card__option.selected {
   border-color: var(--home-forest-light);
-  background: rgba(47, 102, 87, 0.09);
+  background: rgba(47, 128, 237, 0.09);
   color: var(--home-forest);
 }
 
@@ -4245,12 +4518,12 @@
   .scholarly-shell :is(.event-agenda-card__rsvp, .event-agenda-card__join):hover {
     border-color: var(--home-forest-light);
     background: var(--home-forest-light);
-    color: #fffaf0;
+    color: #FFFFFF;
   }
 
   .scholarly-shell .poll-card__option:not(:disabled):hover {
     border-color: color-mix(in srgb, var(--home-forest-light) 55%, var(--home-line));
-    background: rgba(47, 102, 87, 0.05);
+    background: rgba(47, 128, 237, 0.05);
   }
 }
 
@@ -4299,7 +4572,7 @@
 .scholarly-shell .saved-section {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 0;
 }
 
 .scholarly-shell .saved-page-header {
@@ -4397,7 +4670,7 @@
 
 .scholarly-shell .connections-tabs .chip.active {
   background: transparent;
-  color: #fffaf0;
+  color: #FFFFFF;
   box-shadow: none;
 }
 
@@ -4454,7 +4727,7 @@
   border: 1px solid var(--home-line);
   border-radius: 10px;
   background: var(--home-paper-strong);
-  box-shadow: 0 18px 48px rgba(24, 31, 27, 0.2);
+  box-shadow: 0 18px 48px rgba(8, 21, 43, 0.2);
   color: var(--home-ink);
   font-size: 0.88rem;
   font-weight: 700;
@@ -4501,7 +4774,7 @@
 
 .scholarly-shell :is(.admin-review__search, .reported-items__search) input:focus {
   border-color: var(--home-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 .scholarly-shell .reported-actions {
@@ -4544,7 +4817,7 @@
   border-radius: 9px;
   background: var(--home-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   font-weight: 700;
 }
 
@@ -4609,7 +4882,7 @@
 
 .scholarly-shell .event-view-switcher button.active {
   background: var(--home-forest);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .event-management__calendar {
@@ -4816,16 +5089,18 @@
   .scholarly-page-count.saved-active-count,
   .scholarly-page-count.connections-directory__count
 ) strong {
-  color: #a8d1c4;
+  color: #8EC0FF;
 }
 
+/* Lists run edge-to-edge inside the page panel, like the Home and Communities
+   feeds; the controls bar and rows carry their own 28px inset. */
 .scholarly-shell .saved-page-body,
 .scholarly-shell .connections-directory {
-  padding: 0px 28px 28px 28px;
+  padding: 0;
 }
 
 .scholarly-shell .connections-directory {
-  gap: 14px;
+  gap: 0;
 }
 
 /* Compact, readable activity badges in the primary index. */
@@ -4840,7 +5115,7 @@
   border: 1px solid color-mix(in srgb, var(--home-forest) 78%, var(--home-kraft));
   border-radius: 999px;
   background: var(--home-forest);
-  color: #f3ead8;
+  color: #FFFFFF;
   font-size: 0.64rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -4849,7 +5124,7 @@
 
 .scholarly-shell .sidebar-link.active .sidebar-count {
   border-color: color-mix(in srgb, var(--home-forest) 35%, var(--home-kraft));
-  background: #eee3cf;
+  background: #E7F1FF;
   color: var(--home-forest);
 }
 
@@ -4865,15 +5140,15 @@
 }
 
 [data-theme='dark'] .scholarly-shell .sidebar-count {
-  border-color: #abc9bc;
-  background: #9fbeaf;
-  color: #1d352d;
+  border-color: #8EC0FF;
+  background: #72AEFA;
+  color: #11244D;
 }
 
 [data-theme='dark'] .scholarly-shell .sidebar-link.active .sidebar-count {
-  border-color: #d6c8ae;
-  background: #d6c8ae;
-  color: #24483e;
+  border-color: #9BC5F6;
+  background: #9BC5F6;
+  color: #11244D;
 }
 
 /* A deep-linked event must read as the destination, not merely an open card. */
@@ -4893,21 +5168,21 @@
 .scholarly-shell .event-agenda-card__eyebrow span.event-agenda-card__focus-pill {
   border-color: var(--home-forest);
   background: var(--home-forest);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 [data-theme='dark'] .scholarly-shell .event-agenda-card.is-focused {
-  border-color: #84aa9a;
-  background: color-mix(in srgb, var(--home-paper-strong) 88%, #456f60 12%);
+  border-color: #72AEFA;
+  background: color-mix(in srgb, var(--home-paper-strong) 88%, #4B91EC 12%);
   box-shadow:
-    inset 4px 0 0 #9fc4b4,
-    0 0 0 2px rgba(159, 196, 180, 0.18);
+    inset 4px 0 0 #8EC0FF,
+    0 0 0 2px rgba(114, 174, 250, 0.18);
 }
 
 [data-theme='dark'] .scholarly-shell .event-agenda-card__eyebrow span.event-agenda-card__focus-pill {
-  border-color: #a9cabb;
-  background: #a9cabb;
-  color: #1d352d;
+  border-color: #8EC0FF;
+  background: #8EC0FF;
+  color: #11244D;
 }
 
 @media (max-width: 720px) {
@@ -4927,7 +5202,7 @@
 
   .scholarly-shell .saved-page-body,
   .scholarly-shell .connections-directory {
-    padding: 16px;
+    padding: 0;
   }
 }
 
@@ -4977,7 +5252,7 @@
   min-height: 40px;
   border: 1px solid var(--home-line);
   border-radius: 9px;
-  background: var(--home-paper-strong);
+  background-color: var(--home-paper-strong);
   color: var(--home-ink);
   box-shadow: none;
 }
@@ -5077,7 +5352,7 @@
 }
 
 .scholarly-shell .saved-library-controls .saved-metric.active :is(.saved-metric__label, .saved-metric__value) {
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .saved-library-controls .saved-metric__label,
@@ -5108,7 +5383,7 @@
 .scholarly-shell .connections-directory__tabs button.active {
   border-color: var(--home-forest);
   background: var(--home-forest);
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .connections-directory__search {
@@ -5126,7 +5401,7 @@
 }
 
 .scholarly-shell .reply-sort-controls {
-  justify-content: flex-end;
+  justify-content: flex-start;
   margin: 0 0 12px;
 }
 
@@ -5192,9 +5467,9 @@
   .forum-tag-filter .topic-dropdown-toggle,
   .topic-dropdown-menu
 ) {
-  border-color: #5a5c50;
-  background: #2d3029;
-  color: #f0e9dc;
+  border-color: #355071;
+  background-color: #102642;
+  color: #EAF2FF;
 }
 
 [data-theme='dark'] .scholarly-shell :is(
@@ -5205,7 +5480,7 @@
   .conversation-search input,
   .pill-search
 )::placeholder {
-  color: #aaa79d;
+  color: #A8B9D3;
   opacity: 1;
 }
 
@@ -5217,9 +5492,9 @@
   .events-view-toggle button,
   .saved-metric
 ) {
-  border-color: #5a5c50;
-  background: #2d3029;
-  color: #eee7da;
+  border-color: #355071;
+  background: #102642;
+  color: #EAF2FF;
 }
 
 [data-theme='dark'] .scholarly-shell :is(
@@ -5230,16 +5505,16 @@
   .events-view-toggle button.active,
   .saved-metric.active
 ) {
-  border-color: #82aa99;
-  background: #456f60;
-  color: #fffaf0 !important;
+  border-color: #72AEFA;
+  background: #4B91EC;
+  color: #FFFFFF !important;
   box-shadow: none;
 }
 
 [data-theme='dark'] .scholarly-shell .chip.tag-chip {
-  border-color: color-mix(in srgb, var(--tag-color, #8fbbaa) 58%, #eee7da 42%) !important;
-  background: color-mix(in srgb, var(--tag-color, #8fbbaa) 18%, #2d3029 82%) !important;
-  color: color-mix(in srgb, var(--tag-color, #8fbbaa) 45%, #ffffff 55%) !important;
+  border-color: color-mix(in srgb, var(--tag-color, #8EC0FF) 58%, #EAF2FF 42%) !important;
+  background: color-mix(in srgb, var(--tag-color, #8EC0FF) 18%, #102642 82%) !important;
+  color: color-mix(in srgb, var(--tag-color, #8EC0FF) 45%, #ffffff 55%) !important;
 }
 
 [data-theme='dark'] .scholarly-shell :is(
@@ -5254,7 +5529,7 @@
 [data-theme='dark'] .scholarly-shell .scholarly-info-page .info-board-state {
   border-color: var(--home-line);
   background: var(--home-paper-strong);
-  color: #c9c4b9;
+  color: #A8B9D3;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -5276,9 +5551,9 @@
     .event-view-switcher button,
     .events-view-toggle button
   ):hover {
-    border-color: #82aa99;
-    background: #353a32;
-    color: #dcebe4;
+    border-color: #72AEFA;
+    background: #162B4B;
+    color: #BEDAFF;
   }
 }
 
@@ -5403,7 +5678,7 @@
   border-radius: 9px;
   background: var(--home-forest);
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
   font-weight: 750;
   transition:
     background-color 150ms ease,
@@ -5452,9 +5727,35 @@
   color: var(--home-ink-soft);
 }
 
+/* Search-result breadcrumbs sit inside a card that is itself a link, so they
+   render as inert spans rather than <a> — style them like the real
+   breadcrumb "links" anyway, and set them apart from the card's own
+   title/body copy with their own margin instead of just another meta line. */
+.scholarly-shell .search-card-breadcrumb {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+
+.scholarly-shell .search-card-breadcrumb span:not(.breadcrumb-sep) {
+  color: var(--home-forest-light);
+  font-weight: 700;
+}
+
+.scholarly-shell .search-card-breadcrumb .breadcrumb-sep {
+  margin: 0 5px;
+  color: var(--home-ink-soft);
+  font-weight: 400;
+}
+
+[data-theme='dark'] .scholarly-shell .search-card-breadcrumb span:not(.breadcrumb-sep) {
+  color: #BEDAFF;
+}
+
 [data-theme='dark'] .scholarly-shell .filter-toolbar {
   border-color: var(--home-line);
-  background: rgba(27, 30, 25, 0.9);
+  background: rgba(9, 25, 48, 0.9);
   color: var(--home-ink);
 }
 
@@ -5469,11 +5770,11 @@
 }
 
 [data-theme='dark'] .scholarly-shell .breadcrumbs a {
-  color: #b8d7ce;
+  color: #BEDAFF;
 }
 
 [data-theme='dark'] .scholarly-shell :is(.breadcrumb-sep, .breadcrumb-current) {
-  color: #aaa79d;
+  color: #A8B9D3;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -5487,7 +5788,7 @@
   }
 
   [data-theme='dark'] .scholarly-shell .breadcrumbs a:hover {
-    color: #dcebe4;
+    color: #BEDAFF;
   }
 }
 
@@ -5508,6 +5809,10 @@
 }
 
 @media (max-width: 1023px) {
+  .scholarly-shell .info-controls .info-filter-panel {
+    display: flex;
+  }
+
   .scholarly-shell :is(
     .forum-browse-controls,
     .reply-sort-controls,
@@ -5596,7 +5901,7 @@
   border: 0;
   background: transparent;
   box-shadow: none;
-  color: #fffaf0;
+  color: #FFFFFF;
 }
 
 .scholarly-shell .saved-library-controls .saved-metric__label,
@@ -5647,7 +5952,7 @@
 
 .scholarly-shell .community-search-field:focus-within {
   border-color: var(--home-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 .scholarly-shell .community-search-field input {
@@ -5722,7 +6027,7 @@
 [data-theme='dark'] .scholarly-shell .saved-library-controls .saved-metrics .saved-metric.active,
 [data-theme='dark'] .scholarly-shell .connections-directory__tabs.admin-review__filters .chip.active {
   background: transparent;
-  color: #fffaf0 !important;
+  color: #FFFFFF !important;
 }
 
 [data-theme='dark'] .scholarly-shell .community-search-field input {
@@ -5748,7 +6053,7 @@
     .saved-library-controls .saved-metrics .saved-metric.active,
     .connections-directory__tabs.admin-review__filters .chip.active
   ):hover {
-    color: #fffaf0;
+    color: #FFFFFF;
   }
 
   .scholarly-shell .community-filter-trigger:hover {
@@ -6009,7 +6314,7 @@
 }
 
 .scholarly-shell .community-profile .qa-header {
-  margin-bottom: 14px;
+  margin-bottom: 0;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--home-line);
 }
@@ -6116,11 +6421,209 @@
   z-index: 10;
   border: 1px solid var(--dialog-line);
   background: var(--dialog-paper-strong);
-  box-shadow: 0 16px 38px rgba(24, 31, 27, 0.2);
+  box-shadow: 0 16px 38px rgba(8, 21, 43, 0.2);
 }
 
 .ambassador-directory-dialog .ambassador-menu .menu-item {
   color: var(--dialog-ink);
+}
+
+.ambassador-directory-dialog .ambassador-application-trigger {
+  width: auto;
+  max-width: 220px;
+  flex: 0 0 auto;
+  white-space: normal;
+  text-align: center;
+}
+
+.ambassador-directory-dialog .ambassador-application-pending {
+  display: inline-flex;
+  margin: 6px 0 0;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--dialog-forest) 24%, var(--dialog-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dialog-forest) 8%, var(--dialog-paper));
+  color: var(--dialog-ink);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+/* Staff-only ambassador application. */
+.feature-overlay-content.ambassador-application-overlay {
+  width: min(680px, 100%);
+  background: var(--dialog-paper);
+}
+
+.ambassador-application-dialog {
+  width: 100%;
+  padding: 30px;
+  color: var(--dialog-ink);
+}
+
+.ambassador-application-header {
+  padding: 0 48px 20px 0;
+  border-bottom: 1px solid var(--dialog-line);
+}
+
+.ambassador-application-kicker {
+  margin: 0 0 8px;
+  color: var(--dialog-forest);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.ambassador-application-header h2 {
+  margin: 0;
+  color: var(--dialog-ink);
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  font-size: clamp(1.55rem, 4vw, 2rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.ambassador-application-header > p:last-child {
+  max-width: 560px;
+  margin: 8px 0 0;
+  color: var(--dialog-ink-soft);
+  line-height: 1.55;
+}
+
+.ambassador-application-eligibility {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 18px 0;
+}
+
+.ambassador-application-eligibility span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--dialog-forest) 24%, var(--dialog-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dialog-forest) 8%, var(--dialog-paper));
+  color: var(--dialog-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.ambassador-application-eligibility span::before {
+  content: '✓';
+  color: var(--dialog-forest);
+  font-weight: 900;
+}
+
+.ambassador-application-form {
+  display: grid;
+  gap: 18px;
+}
+
+.ambassador-application-field {
+  display: grid;
+  gap: 7px;
+}
+
+.ambassador-application-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ambassador-application-label-row label {
+  color: var(--dialog-ink);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.ambassador-application-label-row span,
+.ambassador-application-field > p {
+  color: var(--dialog-ink-soft);
+  font-size: 0.75rem;
+}
+
+.ambassador-application-field > p {
+  margin: 0;
+}
+
+.ambassador-application-field textarea {
+  width: 100%;
+  min-height: 150px;
+  padding: 12px 13px;
+  border: 1px solid var(--dialog-line);
+  border-radius: 10px;
+  outline: none;
+  background: var(--dialog-paper-strong);
+  color: var(--dialog-ink);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.ambassador-application-field textarea:focus {
+  border-color: var(--dialog-forest-light);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dialog-forest) 13%, transparent);
+}
+
+.ambassador-application-confirmation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 13px;
+  border: 1px solid var(--dialog-line);
+  border-radius: 10px;
+  background: var(--dialog-kraft);
+  color: var(--dialog-ink);
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.ambassador-application-confirmation input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--dialog-forest);
+}
+
+.ambassador-application-error {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, #B42318 28%, var(--dialog-line));
+  border-radius: 9px;
+  background: color-mix(in srgb, #B42318 7%, var(--dialog-paper));
+  color: #9B1C1C;
+  font-size: 0.8rem;
+}
+
+.ambassador-application-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding-top: 2px;
+}
+
+@media (max-width: 620px) {
+  .ambassador-application-dialog {
+    padding: 24px 20px;
+  }
+
+  .ambassador-application-header {
+    padding-right: 38px;
+  }
+
+  .ambassador-application-actions {
+    flex-direction: column-reverse;
+  }
+
+  .ambassador-application-actions .pill-button {
+    width: 100%;
+  }
 }
 
 /* Community-specific rail panes. */
@@ -6186,8 +6689,11 @@
 }
 
 .scholarly-shell .community-rail-view-all {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+  justify-self: start;
   margin-top: 9px;
+  padding-inline: 10px;
 }
 
 .scholarly-shell .community-contact-list {
@@ -6196,7 +6702,7 @@
 }
 
 .scholarly-shell .community-contact-list a {
-  color: var(--home-forest-light);
+  color: var(--home-forest);
   font-size: 0.76rem;
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -6216,7 +6722,6 @@
   .profile-reply-card
 ) {
   border-color: var(--home-line);
-  background: var(--home-paper) !important;
   color: var(--home-ink);
 }
 
@@ -6277,51 +6782,51 @@
 
 /* Legacy global ambassador directory follows the same palette until it is retired. */
 .ambassador-overlay {
-  background: rgba(24, 31, 27, 0.68);
+  background: rgba(8, 21, 43, 0.68);
   backdrop-filter: blur(10px);
 }
 
 .ambassador-overlay .overlay-content {
-  border: 1px solid var(--home-line, #d5c7ae);
+  border: 1px solid var(--home-line, #DCE7F5);
   border-radius: 16px;
-  background: var(--home-paper, #fbf7ef);
-  box-shadow: 0 28px 80px rgba(24, 31, 27, 0.3);
-  color: var(--home-ink, #20332d);
+  background: var(--home-paper, #FCFDFF);
+  box-shadow: 0 28px 80px rgba(8, 21, 43, 0.3);
+  color: var(--home-ink, #11244D);
 }
 
 .ambassador-overlay :is(.ambassador-overlay__header, .ambassador-item) {
-  border-color: var(--home-line, #d5c7ae);
-  background: var(--home-kraft, #eee4d1);
-  color: var(--home-ink, #20332d);
+  border-color: var(--home-line, #DCE7F5);
+  background: var(--home-kraft, #EEF4FC);
+  color: var(--home-ink, #11244D);
 }
 
 .ambassador-overlay :is(.ambassador-overlay__subtitle, .ambassador-headline) {
-  color: var(--home-ink-soft, #5f6e67);
+  color: var(--home-ink-soft, #667895);
 }
 
 [data-theme='dark'] .ambassador-overlay .overlay-content {
-  border-color: #45483d;
-  background: #1c1f1a;
-  color: #e8e1d5;
+  border-color: #2A4163;
+  background: #0E203B;
+  color: #EAF2FF;
 }
 
 [data-theme='dark'] .ambassador-overlay :is(.ambassador-overlay__header, .ambassador-item) {
-  border-color: #45483d;
-  background: #22251f;
-  color: #e8e1d5;
+  border-color: #2A4163;
+  background: #0E203B;
+  color: #EAF2FF;
 }
 
 [data-theme='dark'] .ambassador-overlay :is(.ambassador-overlay__subtitle, .ambassador-headline) {
-  color: #adb5ad;
+  color: #A8B9D3;
 }
 
 /* Profile and community records use the exact translucent surface of the left index. */
 .scholarly-shell {
-  --scholarly-sidebar-surface: rgba(251, 247, 239, 0.66);
+  --scholarly-sidebar-surface: color-mix(in srgb, var(--home-paper) 66%, transparent);
 }
 
 [data-theme='dark'] .scholarly-shell {
-  --scholarly-sidebar-surface: rgba(34, 37, 31, 0.84);
+  --scholarly-sidebar-surface: rgba(14, 32, 59, 0.84);
 }
 
 .scholarly-shell .profile-view :is(
@@ -6554,7 +7059,7 @@
 }
 
 .scholarly-shell .community-contact-list a strong {
-  color: var(--home-forest-light);
+  color: var(--home-forest);
   font-size: 0.75rem;
   overflow-wrap: anywhere;
 }
@@ -6579,7 +7084,7 @@
   .scholarly-shell .university-profile {
     border: 1px solid var(--home-line);
     border-radius: 0 0 16px 16px;
-    background: rgba(251, 247, 239, 0.9);
+    background: color-mix(in srgb, var(--home-paper) 90%, transparent);
     box-shadow: var(--home-shadow);
   }
 }
@@ -6928,7 +7433,7 @@
     min-height: 56px;
     align-items: center;
     flex-direction: row;
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-wrap: nowrap;
     gap: 8px;
     padding: 10px 14px;
@@ -6947,9 +7452,9 @@
   }
 
   [data-theme='dark'] .scholarly-shell .reply-sort-controls .sort-select {
-    border-color: #5a5c50;
-    background-color: #2d3029;
-    color: #f0e9dc;
+    border-color: #355071;
+    background-color: #102642;
+    color: #EAF2FF;
   }
 
   /* Info controls keep utility actions content-sized as well. */
@@ -7087,79 +7592,70 @@
     font-size: 0.78rem;
   }
 
-  /* Info controls stay in one compact command row; expanded tags occupy one second row. */
+  /* Info Board uses the same two-column mobile layout as forum browsing. */
   .scholarly-shell .info-controls {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    align-items: end;
+    gap: 8px 10px;
+    padding: 10px 12px;
   }
 
-  .scholarly-shell .info-controls .info-filter-trigger {
-    grid-column: 1;
-    grid-row: 1;
-    width: 36px;
-    height: 36px;
-    min-height: 36px;
-    order: initial;
-  }
-
-  .scholarly-shell .info-controls .info-sort-group {
-    grid-column: 2;
-    grid-row: 1;
+  .scholarly-shell .info-controls > .control-group {
+    width: 100%;
     min-width: 0;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 4px;
     order: initial;
-    justify-self: end;
-    margin-left: 0;
-  }
-
-  .scholarly-shell .info-controls .info-sort-group .sort-select {
-    width: min(150px, 100%);
-    min-width: 0;
-  }
-
-  .scholarly-shell .info-controls > .control-action {
-    grid-column: 3;
-    grid-row: 1;
-    order: initial;
-    align-self: center;
-  }
-
-  .scholarly-shell .info-controls > .control-action .community-request-button {
-    width: 36px;
-    min-width: 36px;
-    padding-inline: 0;
   }
 
   .scholarly-shell .info-controls .info-filter-panel {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    width: 100%;
-    min-width: 0;
-    order: initial;
-    align-items: center;
-    gap: 7px;
+    display: flex;
     margin: 0;
   }
 
-  .scholarly-shell .info-controls .info-filter-panel.open {
-    display: flex;
-  }
-
   .scholarly-shell .info-controls .topic-multi-select-wrapper {
-    min-width: 0;
-    flex: 1 1 auto;
-  }
-
-  .scholarly-shell .info-controls .topic-multi-select-wrapper .topic-dropdown {
+    display: block;
     width: 100%;
     min-width: 0;
+    height: auto;
+    margin: 0;
   }
 
-  .scholarly-shell .info-controls .topic-multi-select-wrapper .topic-dropdown-toggle {
+  .scholarly-shell .info-controls :is(
+    .topic-dropdown,
+    .topic-dropdown-toggle,
+    .sort-select
+  ) {
     width: 100%;
-    max-width: none;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .scholarly-shell .info-controls :is(.topic-dropdown-toggle, .sort-select) {
     min-height: 36px;
+    padding-block: 7px;
+    font-size: 0.78rem;
+  }
+
+  .scholarly-shell .info-controls .sort-pill {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    line-height: 1.2;
+  }
+
+  .scholarly-shell .info-controls .topic-selection-meta {
+    display: none;
+  }
+
+  .scholarly-shell .info-controls > .control-action {
+    grid-column: 2;
+    width: auto;
+    justify-self: end;
+    align-self: center;
+    margin: 0;
   }
 
   /* Forum details no longer bleed outside the center rail. */
@@ -7242,7 +7738,7 @@
     display: flex;
     min-height: 54px;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 7px;
@@ -7631,7 +8127,7 @@
 ) {
   border: 1px solid var(--primary-color);
   background: var(--primary-color);
-  color: var(--pill-text-color, #fffaf0) !important;
+  color: var(--pill-text-color, #FFFFFF) !important;
   opacity: 1;
   box-shadow: none;
   cursor: pointer;
@@ -7650,7 +8146,7 @@
 ) {
   border-color: var(--primary-color);
   background: var(--primary-color);
-  color: var(--pill-text-color, #fffaf0) !important;
+  color: var(--pill-text-color, #FFFFFF) !important;
 }
 
 /* Community tab sections share the same compact editorial heading treatment. */
@@ -7658,7 +8154,7 @@
   min-height: 50px;
   align-items: center;
   gap: 12px;
-  margin: -20px -20px 18px;
+  margin: -20px -20px 0;
   padding: 12px 16px;
   border-bottom: 1px solid var(--home-line);
   background: transparent;
@@ -7683,7 +8179,7 @@
 
 .scholarly-shell .community-overview__lead {
   max-width: 68ch;
-  margin: 0 0 18px;
+  margin: 14px 0 18px;
   color: var(--home-ink);
   font-family: var(--home-serif);
   font-size: clamp(1.05rem, 2vw, 1.25rem);
@@ -7712,7 +8208,7 @@
 
 .scholarly-shell .community-overview__facts dt {
   margin-bottom: 4px;
-  color: var(--home-ink-soft);
+  color: var(--home-forest);
   font-size: 0.64rem;
   font-weight: 750;
   letter-spacing: 0.08em;
@@ -7728,8 +8224,10 @@
 }
 
 .scholarly-shell .community-overview__facts a {
-  color: var(--home-forest-light);
+  color: var(--home-forest);
   font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--home-forest) 42%, transparent);
   text-underline-offset: 3px;
 }
 
@@ -7813,7 +8311,7 @@
   }
 
   .scholarly-shell .community-profile-content .content-card > .qa-header {
-    margin: -16px -16px 16px;
+    margin: -16px -16px 0;
     padding: 11px 14px;
   }
 
@@ -8031,7 +8529,7 @@
   border: 0;
   border-bottom: 1px solid var(--home-line);
   border-radius: 0;
-  background: transparent !important;
+  background: transparent;
 }
 
 .scholarly-shell .community-profile .community-qa-item:last-child {
@@ -8057,7 +8555,7 @@
 }
 
 .scholarly-shell .community-qa-item__eyebrow > span {
-  color: var(--home-rust);
+  color: var(--home-forest);
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.09em;
@@ -8066,9 +8564,9 @@
 
 .scholarly-shell .community-qa-item__eyebrow .community-qa-status {
   padding: 3px 6px;
-  border: 1px solid color-mix(in srgb, var(--home-rust) 35%, var(--home-line));
+  border: 1px solid color-mix(in srgb, var(--home-forest-light) 42%, var(--home-line));
   border-radius: 5px;
-  background: color-mix(in srgb, var(--home-rust) 9%, transparent);
+  background: color-mix(in srgb, var(--home-forest-light) 10%, transparent);
   letter-spacing: 0.05em;
 }
 
@@ -8091,7 +8589,7 @@
 
 .scholarly-shell .community-qa-item__question {
   max-width: 76ch;
-  margin: 15px 0 0;
+  margin: 10px 0 0;
   color: var(--home-ink);
   font-size: 0.88rem;
   line-height: 1.65;
@@ -8100,15 +8598,15 @@
 .scholarly-shell .community-qa-item .qa-answers {
   display: grid;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .scholarly-shell .community-profile .community-qa-answer {
   padding: 13px 15px;
   border: 0;
-  border-left: 3px solid var(--home-forest-light);
+  border-left: 3px solid var(--home-forest);
   border-radius: 0 9px 9px 0;
-  background: color-mix(in srgb, var(--home-paper-strong) 74%, transparent) !important;
+  background: color-mix(in srgb, var(--home-ink) 5%, transparent) !important;
 }
 
 .scholarly-shell .community-qa-answer__meta {
@@ -8119,7 +8617,7 @@
 }
 
 .scholarly-shell .community-qa-answer__meta span {
-  color: var(--home-forest-light);
+  color: var(--home-forest);
   font-size: 0.59rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -8383,7 +8881,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
-  margin: 0 0 16px;
+  margin: 14px 0 16px;
   padding: 0 11px;
   border: 1px solid var(--home-line);
   border-radius: 9px;
@@ -8524,6 +9022,10 @@
   background: transparent !important;
 }
 
+.scholarly-shell .community-profile-content .content-card > .qa-header {
+  margin-bottom: 0;
+}
+
 .scholarly-shell .community-profile-content .content-card > .qa-header h3,
 .scholarly-shell .community-profile .community-context-rail--embedded .widget-title,
 .scholarly-shell .profile-view .profile-section h3 {
@@ -8558,6 +9060,107 @@
   line-height: 1.55;
 }
 
+.scholarly-shell .profile-view .profile-detail-sections.split-main
+  > .content-card
+  > .qa-header
+  + :is(p, .community-overview__lead, .experience-item, .education-item, .skills-list) {
+  padding-top: 16px;
+}
+
+.scholarly-shell .profile-view .about-section > .community-overview__lead {
+  max-width: none;
+  margin: 0;
+  color: var(--home-ink-soft);
+  font-family: inherit;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+.scholarly-shell .profile-view .self-profile-about-card {
+  color: var(--home-ink);
+  font-family: inherit;
+}
+
+.scholarly-shell .profile-view .self-profile-about-card > p {
+  margin: 0;
+  color: var(--home-ink-soft);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.scholarly-shell .profile-view .self-profile-about-card > .qa-header h3 {
+  color: var(--home-ink);
+  font-family: var(--home-serif);
+}
+
+.scholarly-shell .profile-view .self-profile-about-card > .qa-header p,
+.scholarly-shell .profile-view .self-profile-about-card :is(
+  .experience-dates,
+  .education-dates,
+  .experience-meta,
+  .education-institution,
+  .education-gpa,
+  .education-honors,
+  .education-activities
+) {
+  color: var(--home-ink-soft);
+}
+
+.scholarly-shell .profile-view .self-profile-about-card :is(.experience-item, .education-item) {
+  border-color: var(--home-line);
+}
+
+.scholarly-shell .profile-view .self-profile-about-card .responsibilities-list {
+  margin: 8px 0 0;
+  padding: 0 0 0 18px;
+  color: var(--home-ink-soft);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.scholarly-shell .profile-view .self-profile-about-card .responsibilities-list li {
+  margin: 4px 0 0;
+  padding-left: 2px;
+}
+
+.scholarly-shell .profile-view .self-profile-about-card .responsibilities-list li:first-child {
+  margin-top: 0;
+}
+
+.scholarly-shell .profile-view .self-profile-about-card .responsibilities-list li::marker {
+  color: var(--home-rust);
+}
+
+.scholarly-shell .profile-view .self-profile-about-card .skills-list {
+  gap: 8px;
+  margin: 0;
+  padding-left: 0;
+}
+
+.scholarly-shell .profile-view .self-profile-about-card .skill-item {
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--home-line);
+  border-radius: 9px;
+  background: var(--home-paper-strong);
+  color: var(--home-ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.2;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.scholarly-shell .profile-view .self-profile-about-card .skill-item:hover {
+  border-color: color-mix(in srgb, var(--home-ink-soft) 26%, var(--home-line));
+  background: color-mix(in srgb, var(--home-kraft) 62%, transparent);
+  color: var(--home-ink);
+}
+
 .scholarly-shell .community-profile :is(
   .community-subgroup-list,
   .community-qa-card .qa-list,
@@ -8576,6 +9179,16 @@
   border: 0;
   background: transparent !important;
   box-sizing: border-box;
+}
+
+/* Match the breathing room the Polls/Contact/Events tabs have between the
+   header's rule line and the content. */
+.scholarly-shell .community-profile :is(
+  .community-subgroup-list,
+  .community-qa-card .qa-list,
+  .community-pinned-card .pinned-topic-list
+) {
+  margin-top: 14px;
 }
 
 .scholarly-shell .community-profile :is(
@@ -8615,6 +9228,17 @@
 ):last-child {
   padding-bottom: 15px !important;
   border-bottom: 1px solid var(--home-line);
+}
+
+/* Alternate neutral tints per question so each Q&A pair reads as one block and
+   it's obvious which answers belong to which question. (After the card-grid
+   rule above so the stripes win over its paper-strong background.) */
+.scholarly-shell .community-profile .qa-list .community-qa-item:nth-of-type(odd) {
+  background: var(--home-paper-strong) !important;
+}
+
+.scholarly-shell .community-profile .qa-list .community-qa-item:nth-of-type(even) {
+  background: color-mix(in srgb, var(--home-ink) 4%, var(--home-paper-strong)) !important;
 }
 
 .scholarly-shell .community-profile .community-context-rail--embedded :is(
@@ -8692,6 +9316,10 @@
     padding: 11px 14px;
   }
 
+  .scholarly-shell .community-profile-content .content-card > .qa-header {
+    margin-bottom: 0;
+  }
+
   .scholarly-shell .community-profile :is(
     .community-subgroup-card,
     .community-qa-item,
@@ -8721,194 +9349,17 @@
   box-shadow: none;
 }
 
-.scholarly-shell .profile-view .profile-detail-sections {
-  position: relative;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  padding: 20px !important;
-  overflow: hidden;
-  border: 1px solid var(--home-line);
-  border-radius: 14px;
-  background: var(--scholarly-sidebar-surface) !important;
-  box-shadow: none;
-  box-sizing: border-box;
-  color: var(--home-ink);
-}
-
-.scholarly-shell .profile-view .profile-detail-sections > :is(.profile-grid, .profile-section) {
-  margin: -20px;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections .profile-grid,
-.scholarly-shell .profile-view .profile-detail-sections .profile-main {
-  display: grid;
-  gap: 0;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections .profile-section {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  margin: 0 !important;
-  padding: 0 20px 20px !important;
-  border: 0;
-  border-bottom: 1px solid var(--home-line);
-  border-radius: 0;
-  background: transparent !important;
-  box-shadow: none;
-  box-sizing: border-box;
-  color: var(--home-ink);
-}
-
-.scholarly-shell .profile-view .profile-detail-sections .profile-section:last-child,
-.scholarly-shell .profile-view .profile-detail-sections > .profile-section {
-  border-bottom: 0;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections .profile-section h3 {
-  display: flex;
-  min-height: 50px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 -20px 18px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--home-line);
-  background: transparent !important;
-  color: var(--home-ink);
-  font-family: var(--home-serif);
-  font-size: 1.04rem;
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: 0;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections :is(.experience-item, .education-item) {
-  margin: 0;
-  padding: 15px 0;
-  border-bottom: 1px solid var(--home-line);
-}
-
-.scholarly-shell .profile-view .profile-detail-sections :is(.experience-item, .education-item):first-of-type {
-  padding-top: 0;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections :is(.experience-item, .education-item):last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections .skills-list {
-  gap: 8px;
-  margin: 0;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections .skill-item {
-  margin: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--home-line);
-  border-radius: 9px;
-  background: var(--home-paper-strong);
-  color: var(--home-ink-soft);
-  font-size: 0.8rem;
-  line-height: 1.2;
-}
-
-@media (max-width: 720px) {
-  .scholarly-shell .profile-view .profile-detail-sections {
-    padding: 16px !important;
-    border-radius: 12px;
-  }
-
-  .scholarly-shell .profile-view .profile-detail-sections > :is(.profile-grid, .profile-section) {
-    margin: -16px;
-  }
-
-  .scholarly-shell .profile-view .profile-detail-sections .profile-section {
-    padding: 0 16px 16px !important;
-  }
-
-  .scholarly-shell .profile-view .profile-detail-sections .profile-section h3 {
-    min-height: 46px;
-    margin: 0 -16px 16px;
-    padding: 11px 16px;
-  }
-
-  .scholarly-shell .profile-view .profile-detail-sections :is(.experience-item, .education-item) {
-    padding: 14px 0;
-  }
-
-  .scholarly-shell .profile-view .profile-detail-sections :is(.experience-item, .education-item):first-of-type {
-    padding-top: 0;
-  }
-
-  .scholarly-shell .profile-view .profile-detail-sections :is(.experience-item, .education-item):last-child {
-    padding-bottom: 0;
-  }
-}
-
-/* Profile posts and replies use the same continuous section card as About. */
-.scholarly-shell .profile-view .profile-detail-sections :is(.profile-thread-list, .profile-replies-list) {
-  display: grid;
-  gap: 0;
-  margin: 0 -20px -20px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  background: transparent !important;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections :is(
-  .profile-thread-list .thread-card,
-  .profile-reply-card
-) {
-  width: 100%;
-  min-width: 0;
-  margin: 0 !important;
-  padding: 16px 20px !important;
-  border: 0;
-  border-bottom: 1px solid var(--home-line);
-  border-radius: 0;
-  background: transparent !important;
-  box-shadow: none;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections :is(
-  .profile-thread-list .thread-card,
-  .profile-reply-card
-):last-child {
-  border-bottom: 0;
-}
-
-.scholarly-shell .profile-view .profile-detail-sections .profile-thread-list .thread-card-content {
-  padding: 0;
-}
-
-@media (max-width: 720px) {
-  .scholarly-shell .profile-view .profile-detail-sections :is(.profile-thread-list, .profile-replies-list) {
-    margin: 0 -16px -16px;
-  }
-
-  .scholarly-shell .profile-view .profile-detail-sections :is(
-    .profile-thread-list .thread-card,
-    .profile-reply-card
-  ) {
-    padding: 14px 16px !important;
-  }
-}
-
-/* Saved and Connections inherit the Info Board row-card treatment. */
+/* Saved and Connections inherit the Info Board row-card treatment; the rows
+   span the full page panel, so the list itself carries no frame of its own. */
 .scholarly-shell .saved-grid,
 .scholarly-shell .connections-directory__list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
   overflow: visible;
-  border: 1px solid var(--home-line);
-  border-radius: 14px;
-  background: var(--scholarly-sidebar-surface);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .scholarly-shell .saved-card,
@@ -8933,16 +9384,10 @@
   border-bottom: 0;
 }
 
-.scholarly-shell .saved-card:first-child,
-.scholarly-shell .connections-directory__row:first-child {
-  border-top-left-radius: 13px;
-  border-top-right-radius: 13px;
-}
-
-.scholarly-shell .saved-card:last-child,
-.scholarly-shell .connections-directory__row:last-child {
-  border-bottom-right-radius: 13px;
-  border-bottom-left-radius: 13px;
+/* Empty and loading states keep the old inset now that the body is flush. */
+.scholarly-shell .saved-empty,
+.scholarly-shell .connections-directory__empty {
+  margin: 24px 28px;
 }
 
 .scholarly-shell .saved-card::before,
@@ -8984,7 +9429,7 @@
 @media (hover: hover) and (pointer: fine) {
   .scholarly-shell :is(.saved-card, .connections-directory__row):hover {
     border-color: var(--home-line);
-    background: rgba(232, 217, 191, 0.22) !important;
+    background: rgba(47, 128, 237, 0.22) !important;
     box-shadow: none;
     transform: none;
   }
@@ -9005,7 +9450,7 @@
 @media (max-width: 720px) {
   .scholarly-shell .saved-grid,
   .scholarly-shell .connections-directory__list {
-    border-radius: 12px;
+    border-radius: 0;
   }
 
   .scholarly-shell .saved-card,
@@ -9077,7 +9522,7 @@
   min-width: 24px;
   height: 24px;
   border-color: var(--home-line);
-  background: rgba(24, 62, 53, 0.07) !important;
+  background: color-mix(in srgb, var(--home-forest) 7%, transparent) !important;
   color: var(--home-forest);
   font-size: 0.7rem;
 }
@@ -9379,7 +9824,7 @@
   border-top: 3px solid var(--event-community-color);
   border-radius: 9px;
   background: var(--home-paper-strong);
-  box-shadow: 0 18px 46px rgba(24, 31, 27, 0.2);
+  box-shadow: 0 18px 46px rgba(8, 21, 43, 0.2);
   color: var(--home-ink);
   opacity: 0;
   pointer-events: none;
@@ -9472,5 +9917,450 @@
   .scholarly-shell .events-calendar__preview {
     transform: none;
     transition: opacity 120ms ease;
+  }
+}
+
+/* Search shares the Saved/Connections page shell and the Info Board row-card
+   treatment: a scholarly page panel with full-bleed rows and divider lines. */
+.scholarly-shell .scholarly-search-page .search-tabs {
+  margin: 0;
+  padding: 13px 28px;
+  border: 0;
+  border-bottom: 1px solid var(--home-line);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--home-kraft) 44%, var(--home-paper-strong));
+}
+
+.scholarly-shell .scholarly-search-page .search-content {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.scholarly-shell .scholarly-search-page .search-status {
+  margin: 0;
+  padding: 24px 28px;
+}
+
+.scholarly-shell .scholarly-search-page .search-empty {
+  margin: 24px 28px;
+}
+
+.scholarly-shell .scholarly-search-page .search-section {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.scholarly-shell .scholarly-search-page .search-list {
+  gap: 0;
+}
+
+.scholarly-shell .scholarly-search-page .search-list .search-result-item {
+  position: relative;
+  min-height: 0;
+  margin: 0;
+  padding: 22px 28px;
+  border: 0;
+  border-bottom: 1px solid var(--home-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: background-color 180ms ease;
+}
+
+.scholarly-shell .scholarly-search-page .search-list .search-result-item:last-child {
+  border-bottom: 0;
+}
+
+.scholarly-shell .scholarly-search-page .search-list .search-result-item::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--home-rust);
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleY(0.65);
+  transform-origin: center;
+  transition: opacity 160ms ease, transform 180ms var(--home-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .scholarly-shell .scholarly-search-page .search-list .search-result-item:hover {
+    border-color: var(--home-line);
+    background: rgba(47, 128, 237, 0.22);
+    box-shadow: none;
+    transform: none;
+  }
+
+  .scholarly-shell .scholarly-search-page .search-list .search-result-item:hover::before {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scholarly-shell .scholarly-search-page .search-list .search-result-item::before {
+    transform: scaleY(1);
+    transition: opacity 120ms ease;
+  }
+}
+
+.scholarly-shell .scholarly-search-page .search-result-item--user {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 13px;
+}
+
+.scholarly-shell .scholarly-search-page .search-user-avatar {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border: 1px solid var(--home-line);
+  border-radius: 50%;
+  background: var(--home-paper);
+  object-fit: cover;
+}
+
+.scholarly-shell .scholarly-search-page .search-tags-row {
+  gap: 10px;
+  padding: 22px 28px;
+}
+
+@media (max-width: 720px) {
+  .scholarly-shell .scholarly-search-page .search-tabs {
+    padding: 12px 16px;
+  }
+
+  .scholarly-shell .scholarly-search-page .search-list .search-result-item {
+    padding: 18px 16px;
+  }
+
+  .scholarly-shell .scholarly-search-page .search-list .search-result-item::before {
+    top: 16px;
+    bottom: 16px;
+  }
+
+  .scholarly-shell .scholarly-search-page .search-grid--tags {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 16px;
+  }
+
+  .scholarly-shell .scholarly-search-page .search-status,
+  .scholarly-shell .scholarly-search-page .search-empty {
+    padding: 18px 16px;
+  }
+
+  .scholarly-shell .scholarly-search-page .search-empty {
+    margin: 16px;
+  }
+}
+
+/* Profile pane cards span the full pane width, hover like the Home feed, and
+   their Posts/Replies lists use the Home forums/threads row language:
+   full-bleed rows, divider lines, hover tint, and the rust accent bar. */
+.scholarly-shell .profile-view .profile-detail-sections.split-main > .content-card {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Posts and Replies lists bleed to the card edges so each row runs the full
+   width of the pane, exactly like the Home forum/thread list. */
+.scholarly-shell .profile-view :is(.profile-thread-list, .profile-replies-list) {
+  width: auto;
+  max-width: none;
+  gap: 0;
+  margin: 0 -20px -20px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+}
+
+.scholarly-shell .profile-view .profile-thread-list .thread-card,
+.scholarly-shell .profile-view .profile-reply-card {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 !important;
+  padding: 22px 28px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--home-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none;
+  box-sizing: border-box;
+  transition: background-color 180ms ease;
+}
+
+.scholarly-shell .profile-view .profile-thread-list .thread-card {
+  overflow: visible;
+}
+
+.scholarly-shell .profile-view .profile-thread-list .thread-card:has(> .dropdown-menu) {
+  z-index: 1200;
+}
+
+.scholarly-shell .profile-view .profile-thread-list .thread-card > .dropdown-menu {
+  overflow: visible;
+  z-index: 1200 !important;
+}
+
+.scholarly-shell .profile-view .profile-thread-list .thread-card > .dropdown-menu .submenu-right {
+  left: calc(100% + 4px);
+  margin-left: 0;
+  z-index: 1201;
+}
+
+.scholarly-shell .profile-view .profile-reply-card {
+  overflow: hidden;
+}
+
+.scholarly-shell .profile-view .profile-thread-list .thread-card:first-child,
+.scholarly-shell .profile-view .profile-reply-card:first-child {
+  padding-top: 22px !important;
+}
+
+.scholarly-shell .profile-view .profile-thread-list .thread-card:last-child,
+.scholarly-shell .profile-view .profile-reply-card:last-child {
+  padding-bottom: 22px !important;
+  border-bottom: 0 !important;
+  border-radius: 0 0 13px 13px !important;
+}
+
+.scholarly-shell .profile-view .profile-thread-list .thread-card::before,
+.scholarly-shell .profile-view .profile-reply-card::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--home-rust);
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleY(0.65);
+  transform-origin: center;
+  transition: opacity 160ms ease, transform 180ms var(--home-ease-out);
+}
+
+/* Type scale and colors match the Home forum/thread rows. */
+.scholarly-shell .profile-view .profile-thread-list .thread-title {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--home-ink);
+  font-family: var(--home-serif);
+  font-size: 1.18rem;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.scholarly-shell .profile-view :is(.profile-thread-list, .profile-replies-list) :is(
+  .meta-row,
+  .meta-quiet,
+  .meta-author,
+  .meta-community,
+  .meta-time,
+  .middot
+),
+.scholarly-shell .profile-view .profile-reply-meta,
+.scholarly-shell .profile-view .profile-reply-meta .breadcrumb-sep {
+  color: #667895;
+  font-size: 0.73rem;
+}
+
+[data-theme='dark'] .scholarly-shell .profile-view :is(.profile-thread-list, .profile-replies-list) :is(
+  .meta-row,
+  .meta-quiet,
+  .meta-author,
+  .meta-community,
+  .meta-time,
+  .middot
+),
+[data-theme='dark'] .scholarly-shell .profile-view .profile-reply-meta,
+[data-theme='dark'] .scholarly-shell .profile-view .profile-reply-meta .breadcrumb-sep {
+  color: #A8B9D3;
+}
+
+.scholarly-shell .profile-view .profile-reply-thread {
+  color: var(--home-ink);
+  font-family: var(--home-serif);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+
+.scholarly-shell .profile-view .profile-reply-content {
+  color: var(--home-ink-soft);
+  font-size: 0.87rem;
+  line-height: 1.6;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .scholarly-shell .profile-view .profile-thread-list .thread-card:hover,
+  .scholarly-shell .profile-view .profile-reply-card:hover {
+    background: rgba(47, 128, 237, 0.22) !important;
+  }
+
+  .scholarly-shell .profile-view .profile-thread-list .thread-card:hover::before,
+  .scholarly-shell .profile-view .profile-reply-card:hover::before {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scholarly-shell .profile-view .profile-thread-list .thread-card::before,
+  .scholarly-shell .profile-view .profile-reply-card::before {
+    transform: scaleY(1);
+    transition: opacity 120ms ease;
+  }
+}
+
+@media (max-width: 720px) {
+  .scholarly-shell .profile-view :is(.profile-thread-list, .profile-replies-list) {
+    margin: 0 -16px -16px;
+  }
+
+  .scholarly-shell .profile-view .profile-thread-list .thread-card,
+  .scholarly-shell .profile-view .profile-reply-card {
+    padding: 18px 16px !important;
+  }
+
+  .scholarly-shell .profile-view .profile-thread-list .thread-card:first-child,
+  .scholarly-shell .profile-view .profile-reply-card:first-child {
+    padding-top: 18px !important;
+  }
+
+  .scholarly-shell .profile-view .profile-thread-list .thread-card:last-child,
+  .scholarly-shell .profile-view .profile-reply-card:last-child {
+    padding-bottom: 18px !important;
+    border-radius: 0 0 11px 11px !important;
+  }
+
+  .scholarly-shell .profile-view .profile-thread-list .thread-card::before,
+  .scholarly-shell .profile-view .profile-reply-card::before {
+    top: 16px;
+    bottom: 16px;
+  }
+}
+
+/* Saved and Connections keep their toolbar rails full bleed. Their desktop
+   controls use 56px margins: 28px cancels the rail bleed and the remaining
+   28px becomes the visible pane inset. */
+.scholarly-shell :is(.connections-directory__tools, .saved-library-controls) {
+  padding-right: 0;
+  padding-left: 0;
+  box-sizing: border-box;
+}
+
+.scholarly-shell :is(
+  .connections-directory__tabs.admin-review__filters.chips-row.segmented-control,
+  .saved-metrics.admin-review__filters.chips-row.segmented-control
+) {
+  margin-left: 56px;
+}
+
+.scholarly-shell :is(.connections-directory__search, .saved-library-controls .saved-search) {
+  margin-right: 56px;
+}
+
+@media (max-width: 900px) {
+  .scholarly-shell :is(
+    .connections-directory__tabs.admin-review__filters.chips-row.segmented-control,
+    .saved-metrics.admin-review__filters.chips-row.segmented-control,
+    .connections-directory__search,
+    .saved-library-controls .saved-search
+  ) {
+    width: calc(100% - 56px);
+    margin-right: 28px;
+    margin-left: 28px;
+  }
+}
+
+@media (max-width: 720px) {
+  .scholarly-shell :is(
+    .connections-directory__tabs.admin-review__filters.chips-row.segmented-control,
+    .saved-metrics.admin-review__filters.chips-row.segmented-control,
+    .connections-directory__search,
+    .saved-library-controls .saved-search
+  ) {
+    width: calc(100% - 32px);
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+}
+
+/* Preserve compact/full image variants against the generic mobile banner rules. */
+.scholarly-shell .forum-view .forum-hero--right .forum-banner--right {
+  position: static;
+  left: auto;
+  width: 160px;
+  max-width: 160px;
+  margin: 0;
+  border: 1px solid var(--home-line);
+  border-radius: 12px;
+}
+
+.scholarly-shell .forum-view .forum-hero--right .forum-banner--right img {
+  width: 160px;
+  height: 120px;
+}
+
+.scholarly-shell .forum-view .forum-hero--full .forum-banner--full {
+  position: static;
+  left: auto;
+  width: min(100%, 760px);
+  max-width: 760px;
+  max-height: min(640px, 72vh);
+  margin-inline: auto;
+  border: 1px solid var(--home-line);
+  border-radius: 14px;
+}
+
+.scholarly-shell .forum-view .forum-hero--full .forum-banner--full img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(640px, 72vh);
+  object-fit: contain;
+}
+
+@media (max-width: 640px) {
+  .scholarly-shell .forum-view .forum-hero--right .forum-banner--right {
+    width: 96px;
+    max-width: 96px;
+    border-radius: 10px;
+  }
+
+  .scholarly-shell .forum-view .forum-hero--right .forum-banner--right img {
+    width: 96px;
+    height: 80px;
+  }
+
+  .scholarly-shell .forum-view .forum-hero--full .forum-banner--full,
+  .scholarly-shell .forum-view .forum-hero--full .forum-banner--full img {
+    max-height: min(520px, 68vh);
   }
 }

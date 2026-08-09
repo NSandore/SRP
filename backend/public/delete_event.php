@@ -45,17 +45,23 @@ try {
         exit;
     }
     $roleId = (int)($user['role_id'] ?? 0);
-    $isAmbassador = (int)($user['is_ambassador'] ?? 0) === 1;
     $isAdmin = isAdmin($roleId);
 
-    $checkStmt = $db->prepare("SELECT created_by FROM events WHERE event_id = :eid LIMIT 1");
+    $checkStmt = $db->prepare("SELECT created_by, community_id FROM events WHERE event_id = :eid LIMIT 1");
     $checkStmt->execute([':eid' => $eventId]);
     $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
     if (!$existing) {
         echo json_encode(['success' => true, 'warning' => 'Event not found']);
         exit;
     }
-    if (!$isAdmin && !$isAmbassador && $existing['created_by'] !== $userId) {
+
+    // Ambassador status is scoped to the event's own community, never
+    // treated as a platform-wide boolean — otherwise an ambassador of any
+    // one community could delete any event anywhere.
+    $isOwner = $existing['created_by'] === $userId;
+    $communityId = $existing['community_id'] ?? null;
+    $canModerate = $communityId !== null && canModerateCommunityContent($userId, $roleId, $communityId, $db);
+    if (!$isAdmin && !$isOwner && !$canModerate) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Access denied']);
         exit;

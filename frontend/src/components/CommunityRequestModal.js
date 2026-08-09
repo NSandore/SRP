@@ -115,13 +115,13 @@ function CommunityRequestModal({
                 value={primaryColorInput}
                 onChange={(e) => handleHexInputChange(e.target.value, 'primary_color', setPrimaryColorInput)}
                 onBlur={() => setPrimaryColorInput(formData.primary_color || '')}
-                placeholder="#0077B5"
+                placeholder="#2F80ED"
                 spellCheck="false"
               />
               <input
                 type="color"
                 aria-label="Primary color"
-                value={formData.primary_color || '#0077B5'}
+                value={formData.primary_color || '#2F80ED'}
                 onChange={(e) => setFormData(prev => ({ ...prev, primary_color: e.target.value }))}
               />
             </div>
@@ -137,13 +137,13 @@ function CommunityRequestModal({
                 value={secondaryColorInput}
                 onChange={(e) => handleHexInputChange(e.target.value, 'secondary_color', setSecondaryColorInput)}
                 onBlur={() => setSecondaryColorInput(formData.secondary_color || '')}
-                placeholder="#005f8d"
+                placeholder="#1D5FC4"
                 spellCheck="false"
               />
               <input
                 type="color"
                 aria-label="Secondary color"
-                value={formData.secondary_color || '#005f8d'}
+                value={formData.secondary_color || '#1D5FC4'}
                 onChange={(e) => setFormData(prev => ({ ...prev, secondary_color: e.target.value }))}
               />
             </div>

@@ -18,6 +18,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
 import AppShell from '@/components/navigation/AppShell';
+import ReelGrid from '@/components/reels/ReelGrid';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
@@ -97,6 +98,7 @@ type UploadAsset = {
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'subgroups', label: 'Sub-Groups' },
+  { key: 'reels', label: 'Reels' },
   { key: 'posts', label: 'Pinned Topics' },
   { key: 'qa', label: 'Q+A' },
 ] as const;
@@ -132,8 +134,8 @@ export default function GroupProfileScreen() {
   const [editTagline, setEditTagline] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editWebsite, setEditWebsite] = useState('');
-  const [editPrimaryColor, setEditPrimaryColor] = useState('#0077B5');
-  const [editSecondaryColor, setEditSecondaryColor] = useState('#005f8d');
+  const [editPrimaryColor, setEditPrimaryColor] = useState('#2F80ED');
+  const [editSecondaryColor, setEditSecondaryColor] = useState('#1D5FC4');
   const [editLogoAsset, setEditLogoAsset] = useState<UploadAsset | null>(null);
   const [editBannerAsset, setEditBannerAsset] = useState<UploadAsset | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -323,8 +325,8 @@ export default function GroupProfileScreen() {
     setEditTagline(group.tagline || '');
     setEditLocation(group.location || '');
     setEditWebsite(group.website || '');
-    setEditPrimaryColor(group.primary_color || '#0077B5');
-    setEditSecondaryColor(group.secondary_color || '#005f8d');
+    setEditPrimaryColor(group.primary_color || '#2F80ED');
+    setEditSecondaryColor(group.secondary_color || '#1D5FC4');
     setEditLogoAsset(null);
     setEditBannerAsset(null);
     setEditStatus('');
@@ -390,8 +392,8 @@ export default function GroupProfileScreen() {
     formData.append('tagline', editTagline.trim());
     formData.append('location', editLocation.trim());
     formData.append('website', editWebsite.trim());
-    formData.append('primary_color', editPrimaryColor || '#0077B5');
-    formData.append('secondary_color', editSecondaryColor || '#005f8d');
+    formData.append('primary_color', editPrimaryColor || '#2F80ED');
+    formData.append('secondary_color', editSecondaryColor || '#1D5FC4');
     const logoPayload = buildFormFile(editLogoAsset, 'logo.jpg');
     const bannerPayload = buildFormFile(editBannerAsset, 'banner.jpg');
     if (logoPayload) formData.append('logo', logoPayload as any);
@@ -654,6 +656,12 @@ export default function GroupProfileScreen() {
           </View>
         ) : null}
 
+        {activeTab === 'reels' ? (
+          <View style={styles.contentCard}>
+            <ReelGrid communityId={communityId} title={`${group?.name || 'Community'} reels`} />
+          </View>
+        ) : null}
+
         {activeTab === 'posts' ? (
           <View style={styles.contentCard}>
             <View style={styles.sectionHeader}>
@@ -813,13 +821,13 @@ export default function GroupProfileScreen() {
                     onChangeText={setEditPrimaryColor}
                     style={[styles.input, styles.colorInput]}
                     autoCapitalize="none"
-                    placeholder="#0077B5"
+                    placeholder="#2F80ED"
                     placeholderTextColor={colors.subtext}
                   />
                   <View
                     style={[
                       styles.colorSwatch,
-                      { backgroundColor: editPrimaryColor || '#0077B5' },
+                      { backgroundColor: editPrimaryColor || '#2F80ED' },
                     ]}
                   />
                 </View>
@@ -832,13 +840,13 @@ export default function GroupProfileScreen() {
                     onChangeText={setEditSecondaryColor}
                     style={[styles.input, styles.colorInput]}
                     autoCapitalize="none"
-                    placeholder="#005f8d"
+                    placeholder="#1D5FC4"
                     placeholderTextColor={colors.subtext}
                   />
                   <View
                     style={[
                       styles.colorSwatch,
-                      { backgroundColor: editSecondaryColor || '#005f8d' },
+                      { backgroundColor: editSecondaryColor || '#1D5FC4' },
                     ]}
                   />
                 </View>

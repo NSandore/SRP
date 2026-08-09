@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { IoChatbubbleEllipses } from 'react-icons/io5';
 import './ContactUsButton.css';
 
 function ContactUsButton() {
@@ -100,8 +101,13 @@ function ContactUsButton() {
 
   return (
     <>
-      <button className="contact-us-button" onClick={() => setOpen(true)}>
-        Contact
+      <button
+        className="contact-us-button"
+        onClick={() => setOpen(true)}
+        aria-label="Contact us"
+        title="Contact us"
+      >
+        <IoChatbubbleEllipses aria-hidden="true" focusable="false" />
       </button>
       {open && portalTarget && createPortal(modalContent, portalTarget)}
     </>

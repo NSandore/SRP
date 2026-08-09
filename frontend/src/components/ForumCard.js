@@ -6,7 +6,9 @@ import axios from 'axios';
 import { FaEllipsisV } from 'react-icons/fa';
 import { isSuperAdmin } from '../constants/roles';
 import { buildAvatarSrc } from '../utils/avatar';
+import buildUploadSrc from '../utils/uploads';
 import { getTagStyle } from '../utils/tagStyle';
+import { IMAGE_LAYOUTS, normalizeImageLayout } from '../utils/imageLayout';
 
 const ForumCard = ({
   forum,
@@ -136,10 +138,29 @@ const ForumCard = ({
   const threadCount = forum.thread_count || 0;
   const lastUpdated = forum.updated_at || forum.created_at;
 
+  // Optional forum image (skip the shared default banner in list cards)
+  const rawImagePath = forum.banner_path || '';
+  const hasCustomImage = Boolean(rawImagePath) && !rawImagePath.includes('DefaultBanner');
+  const imageLayout = normalizeImageLayout(forum.image_layout);
+  const imageSrc = hasCustomImage ? buildUploadSrc(rawImagePath) : null;
+  const hasRightMedia = Boolean(imageSrc && imageLayout === IMAGE_LAYOUTS.RIGHT);
+  const menuButton = (
+    <button
+      type="button"
+      className="kebab-button"
+      aria-haspopup="menu"
+      aria-expanded={openMenuId === forum.forum_id}
+      onClick={() => toggleMenu(forum.forum_id)}
+      style={{ cursor: 'pointer' }}
+    >
+      <FaEllipsisV className="menu-icon" />
+    </button>
+  );
+
   return (
     <div
       key={forum.forum_id}
-      className="forum-card card-lift"
+      className={`forum-card card-lift${hasRightMedia ? ' card--media-right' : ''}`}
       style={{ position: 'relative' }}
     >
       {openMenuId === forum.forum_id && (
@@ -219,22 +240,24 @@ const ForumCard = ({
         </div>
       )}
 
-      {/* Left block: title, description, meta */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', lineHeight: 1.5 }}>
+      {imageSrc && imageLayout === IMAGE_LAYOUTS.BANNER && (
+        <Link to={`/info/forum/${forum.forum_id}`} className="card-media-banner-link">
+          <img
+            src={imageSrc}
+            alt={`${forum.name} banner`}
+            className="card-media-banner"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        </Link>
+      )}
+
+      {/* Main block: title, description, media, and meta */}
+      <div className="forum-card-main" style={{ display: 'flex', flexDirection: 'column', gap: '8px', lineHeight: 1.5 }}>
         <div className="forum-title-row">
           <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
             <h3 className="forum-title" style={{ margin: 0 }}>{forum.name}</h3>
           </Link>
-          <button
-            type="button"
-            className="kebab-button"
-            aria-haspopup="menu"
-            aria-expanded={openMenuId === forum.forum_id}
-            onClick={() => toggleMenu(forum.forum_id)}
-            style={{ cursor: 'pointer' }}
-          >
-            <FaEllipsisV className="menu-icon" />
-          </button>
+          {!hasRightMedia && menuButton}
         </div>
         {Array.isArray(forum.tags) && forum.tags.length > 0 && (
           <div className="chips-row" style={{ marginTop: 0 }}>
@@ -248,6 +271,16 @@ const ForumCard = ({
         <Link to={`/info/forum/${forum.forum_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
           <p className="forum-description" style={{ margin: 0 }}>{forum.description}</p>
         </Link>
+        {imageSrc && imageLayout === IMAGE_LAYOUTS.FULL && (
+          <Link to={`/info/forum/${forum.forum_id}`} className="card-media-full-link">
+            <img
+              src={imageSrc}
+              alt={forum.name}
+              className="card-media-full"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </Link>
+        )}
         {forum.created_by && (
           <div className="meta-quiet" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span>Created by</span>
@@ -271,6 +304,17 @@ const ForumCard = ({
           <span className="meta-quiet">Last updated {lastUpdated ? timeAgo(lastUpdated) : '—'}</span>
         </div>
       </div>
+      {hasRightMedia && (
+        <Link to={`/info/forum/${forum.forum_id}`} className="card-media-right-link">
+          <img
+            src={imageSrc}
+            alt={forum.name}
+            className="card-media-right"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        </Link>
+      )}
+      {hasRightMedia && menuButton}
     </div>
   );
 };

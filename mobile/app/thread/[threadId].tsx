@@ -28,6 +28,8 @@ import { buildAvatarSrc, normalizeHtml } from '@/lib/uploads';
 import { timeAgo, hasMeaningfulUpdate } from '@/lib/utils/time';
 import { getTagStyle } from '@/lib/utils/tags';
 
+const POST_MAX_LENGTH = 10000;
+
 const REPLY_SORT_OPTIONS = [
   { key: 'mostRecent', label: 'Sort by Newest' },
   { key: 'mostUpvoted', label: 'Most Upvoted' },
@@ -413,6 +415,7 @@ export default function ThreadDetailScreen() {
               style={styles.replyInput}
               placeholder="Write a reply..."
               value={replyDrafts[draftKey] || ''}
+              maxLength={POST_MAX_LENGTH}
               onChangeText={(text) => setReplyDrafts((prev) => ({ ...prev, [draftKey]: text }))}
               multiline
             />
@@ -599,6 +602,7 @@ export default function ThreadDetailScreen() {
                   style={styles.replyInput}
                   placeholder="Share your thoughts..."
                   value={replyDrafts.root || ''}
+                  maxLength={POST_MAX_LENGTH}
                   onChangeText={(text) => setReplyDrafts((prev) => ({ ...prev, root: text }))}
                   multiline
                 />

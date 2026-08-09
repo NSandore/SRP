@@ -2,8 +2,16 @@
 // approve_group_question.php
 // Ambassadors mark a group question as approved (visible to all).
 
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
+
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'You must be logged in.']);
+    exit;
+}
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input || !is_array($input)) {
@@ -11,11 +19,14 @@ if (!$input || !is_array($input)) {
 }
 
 $question_id = isset($input['question_id']) ? normalizeId($input['question_id']) : '';
-$user_id     = isset($input['user_id']) ? normalizeId($input['user_id']) : ''; // approver
+// The approver is always the authenticated session's own user, never a
+// client-supplied user_id — otherwise anyone could impersonate an
+// ambassador by simply passing that ambassador's user_id.
+$user_id = normalizeId($_SESSION['user_id']);
 
-if ($question_id === '' || $user_id === '') {
+if ($question_id === '') {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Missing question_id or user_id']);
+    echo json_encode(['success' => false, 'error' => 'Missing question_id']);
     exit;
 }
 

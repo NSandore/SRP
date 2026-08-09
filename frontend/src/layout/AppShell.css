@@ -24,7 +24,14 @@
   height: auto;
   max-height: calc(100vh - 120px);
   min-height: 0;
-  overflow-x: visible;
+  /* The rail stays pinned because it is navigation, so a long menu has to
+     scroll within its own height rather than being silently clipped by the
+     max-height above. Note that a non-visible overflow on one axis forces the
+     other to compute as auto, so overflow-x cannot stay visible here. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   transition: width 180ms cubic-bezier(0.23, 1, 0.32, 1);
   will-change: width;
 }
@@ -32,17 +39,37 @@
 .app-shell-grid.nav-collapsed .left-rail {
   width: 76px;
 }
-.center-rail { min-width: 0; justify-self: center; width: 100%; max-width: 940px; }
+.center-rail {
+  min-width: 0;
+  justify-self: center;
+  width: 100%;
+  max-width: 940px;
+  /* Reserve a full screen of height so a short page still reaches the bottom
+     of the viewport. A taller page simply grows past it. */
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--nav-height, 64px) - 72px);
+}
+
+.center-rail__content {
+  /* Grows into the spare space, which is what pushes the footer links down.
+     `0 auto` on shrink/basis keeps long content at its natural height. */
+  flex: 1 0 auto;
+  min-width: 0;
+}
+/* The rail flows with the grid rather than sticking to the viewport. Pinning it
+   with a 100vh cap meant its content was clipped and needed a second, nested
+   scrollbar; letting the row grow to the tallest column shows all of it and
+   leaves scrolling to the page. */
 .right-rail {
-  position: sticky;
-  top: calc(var(--nav-height, 64px) + 16px); /* below fixed navbar */
-  align-self: start;
+  position: static;
+  align-self: stretch;
   justify-self: center;
   width: 300px;
   height: auto;
-  max-height: calc(100vh - 120px);
+  max-height: none;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: visible;
   overflow-x: hidden;
 }
 
@@ -148,6 +175,16 @@
   padding-right: 24px;
 }
 
+/* Reels use the full content canvas while preserving the desktop navigation rail. */
+.app-shell-grid.reels-layout .right-rail {
+  display: none;
+}
+.app-shell-grid.reels-layout .center-rail {
+  grid-column: 2 / 4;
+  max-width: none;
+  padding-right: 0;
+}
+
 /* Hide right rail below xl (1280px) */
 @media (max-width: 1279px) {
   .app-shell-grid {
@@ -164,6 +201,9 @@
     grid-template-columns: 220px minmax(0, 1fr);
   }
   .app-shell-grid.messages-layout .center-rail {
+    grid-column: 2;
+  }
+  .app-shell-grid.reels-layout .center-rail {
     grid-column: 2;
   }
 
@@ -208,6 +248,9 @@
     width: 100%;
   }
   .app-shell-grid.settings-layout .center-rail {
+    grid-column: 1;
+  }
+  .app-shell-grid.reels-layout .center-rail {
     grid-column: 1;
   }
   .app-shell-grid.messages-layout .center-rail,
@@ -276,7 +319,7 @@
   top: calc(var(--nav-height, 64px) + 8px);
   left: 12px;
   z-index: 1050;
-  background: #2563EB;
+  background: #2F80ED;
   color: #fff;
   border: none;
   padding: 8px 10px;

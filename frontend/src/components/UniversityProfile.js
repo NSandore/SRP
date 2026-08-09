@@ -11,6 +11,9 @@ import buildUploadSrc from "../utils/uploads";
 import { getAdjustedColor, getReadableTextColor } from "../utils/color";
 import { isSuperAdmin } from "../constants/roles";
 import RightRail from "../widgets/RightRail";
+import useCommunityAccent from "../hooks/useCommunityAccent";
+import { THREAD_TITLE_MAX_LENGTH } from "../utils/contentLimits";
+import ReelGrid from "./ReelGrid";
 
 function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNotificationsRefresh }) {
   const { id } = useParams(); // community id
@@ -88,7 +91,13 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [ambassadorEligibility, setAmbassadorEligibility] = useState({ can_apply: false, reason: null });
   const [isApplyingAmbassador, setIsApplyingAmbassador] = useState(false);
+  const [showAmbassadorApplication, setShowAmbassadorApplication] = useState(false);
+  const [ambassadorMotivation, setAmbassadorMotivation] = useState('');
+  const [ambassadorConnectionConfirmed, setAmbassadorConnectionConfirmed] = useState(false);
+  const [ambassadorApplicationError, setAmbassadorApplicationError] = useState('');
   const hasSubcommunities = subcommunities.length > 0;
+
+  useCommunityAccent(university?.primary_color, university?.secondary_color);
 
   const isAmbassador =
     Boolean(userData) &&
@@ -245,8 +254,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
           setEditTagline(response.data.university.tagline || "");
           setEditLocation(response.data.university.location || "");
           setEditWebsite(response.data.university.website || "");
-          setEditPrimaryColor(response.data.university.primary_color || "#0077B5");
-          setEditSecondaryColor(response.data.university.secondary_color || "#005f8d");
+          setEditPrimaryColor(response.data.university.primary_color || "#2F80ED");
+          setEditSecondaryColor(response.data.university.secondary_color || "#1D5FC4");
         } else {
           setError(response.data.error);
         }
@@ -368,8 +377,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
       setEditTagline(university.tagline || "");
       setEditLocation(university.location || "");
       setEditWebsite(university.website || "");
-      setEditPrimaryColor(university.primary_color || "#0077B5");
-      setEditSecondaryColor(university.secondary_color || "#005f8d");
+      setEditPrimaryColor(university.primary_color || "#2F80ED");
+      setEditSecondaryColor(university.secondary_color || "#1D5FC4");
       setNewLogoFile(null);
       setNewBannerFile(null);
       setEditStatus('');
@@ -567,6 +576,10 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
       alert('Title cannot be empty.');
       return;
     }
+    if (trimmed.length > THREAD_TITLE_MAX_LENGTH) {
+      alert(`Thread titles must be ${THREAD_TITLE_MAX_LENGTH} characters or fewer.`);
+      return;
+    }
     try {
       const res = await axios.post(
         '/api/edit_thread.php',
@@ -762,8 +775,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     if (university) {
       setCreateSubData((prev) => ({
         ...prev,
-        primary_color: prev.primary_color || university.primary_color || '#0077B5',
-        secondary_color: prev.secondary_color || university.secondary_color || '#005f8d'
+        primary_color: prev.primary_color || university.primary_color || '#2F80ED',
+        secondary_color: prev.secondary_color || university.secondary_color || '#1D5FC4'
       }));
     }
   }, [university]);
@@ -781,8 +794,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
         ...createSubData,
         type: 'group',
         parent_community_id: id,
-        primary_color: createSubData.primary_color || university?.primary_color || '#0077B5',
-        secondary_color: createSubData.secondary_color || university?.secondary_color || '#005f8d'
+        primary_color: createSubData.primary_color || university?.primary_color || '#2F80ED',
+        secondary_color: createSubData.secondary_color || university?.secondary_color || '#1D5FC4'
       };
       const res = await axios.post('/api/create_community.php', payload, { withCredentials: true });
       if (res.data.success) {
@@ -793,8 +806,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
           tagline: '',
           location: '',
           website: '',
-          primary_color: university?.primary_color || '#0077B5',
-          secondary_color: university?.secondary_color || '#005f8d'
+          primary_color: university?.primary_color || '#2F80ED',
+          secondary_color: university?.secondary_color || '#1D5FC4'
         });
         loadSubcommunities();
       } else {
@@ -900,17 +913,27 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     }
   };
 
-  const handleApplyAmbassador = async () => {
+  const closeAmbassadorApplication = () => {
+    if (isApplyingAmbassador) return;
+    setShowAmbassadorApplication(false);
+    setAmbassadorApplicationError('');
+  };
+
+  const handleApplyAmbassador = async (event) => {
+    event.preventDefault();
     if (!canApplyForAmbassador || !userData?.user_id) return;
-    const motivationMessage = window.prompt(
-      'Why do you want to be an ambassador for this university?'
-    );
-    if (motivationMessage === null) return;
-    if (!motivationMessage.trim()) {
-      alert('Please include a short motivation message.');
+
+    const motivationMessage = ambassadorMotivation.trim();
+    if (!motivationMessage) {
+      setAmbassadorApplicationError('Please include a short motivation message.');
+      return;
+    }
+    if (!ambassadorConnectionConfirmed) {
+      setAmbassadorApplicationError('Please confirm your connection to this university.');
       return;
     }
 
+    setAmbassadorApplicationError('');
     setIsApplyingAmbassador(true);
     try {
       const res = await axios.post(
@@ -928,11 +951,16 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
           'Application sent. Review typically takes 12-48 hours. You can keep using the platform in the meantime.'
         );
         setAmbassadorEligibility({ can_apply: false, reason: 'pending_application' });
+        setShowAmbassadorApplication(false);
+        setAmbassadorMotivation('');
+        setAmbassadorConnectionConfirmed(false);
       } else {
-        alert(res.data?.error || 'Unable to submit ambassador application.');
+        setAmbassadorApplicationError(res.data?.error || 'Unable to submit ambassador application.');
       }
     } catch (err) {
-      alert(err?.response?.data?.error || 'Unable to submit ambassador application.');
+      setAmbassadorApplicationError(
+        err?.response?.data?.error || 'Unable to submit ambassador application.'
+      );
     } finally {
       setIsApplyingAmbassador(false);
     }
@@ -987,8 +1015,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
       )
     : universityLogoFallback;
   const subCommunityCount = Number(university.child_count || 0);
-  const primaryColor = university.primary_color || "#0077B5";
-  const secondaryColor = university.secondary_color || "#005f8d";
+  const primaryColor = university.primary_color || "#2F80ED";
+  const secondaryColor = university.secondary_color || "#1D5FC4";
   const gradientLight = getAdjustedColor(primaryColor, 1.12);
   const gradientDark = getAdjustedColor(primaryColor, 0.85);
   const pillTextColor = getReadableTextColor(primaryColor);
@@ -1112,6 +1140,13 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
             </button>
             <button
               type="button"
+              className={`tab-link ${activeTab === 'reels' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reels')}
+            >
+              Reels
+            </button>
+            <button
+              type="button"
               className={`tab-link community-mobile-tab ${activeTab === 'events' ? 'active' : ''}`}
               onClick={() => setActiveTab('events')}
             >
@@ -1189,6 +1224,17 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                   )}
                 </dl>
               </div>
+            )}
+
+            {activeTab === 'reels' && (
+              <ReelGrid
+                communityId={communityId}
+                isOwner={isFollowing || canEditCommunity || canPinToOverview}
+                showCreate={Boolean(userData) && (isFollowing || canEditCommunity || canPinToOverview)}
+                title={`${university.name} Reels`}
+                description={`Short videos shared with the ${university.name} community.`}
+                emptyLabel="No community reels have been shared yet."
+              />
             )}
 
             {activeTab === 'posts' && (
@@ -1321,8 +1367,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                           tagline: '',
                           location: '',
                           website: '',
-                          primary_color: university?.primary_color || '#0077B5',
-                          secondary_color: university?.secondary_color || '#005f8d'
+                          primary_color: university?.primary_color || '#2F80ED',
+                          secondary_color: university?.secondary_color || '#1D5FC4'
                         });
                       }}
                     >
@@ -1737,14 +1783,14 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
             <input
               id="edit-primary-color"
               type="color"
-              value={editPrimaryColor || "#0077B5"}
+              value={editPrimaryColor || "#2F80ED"}
               onChange={(e) => setEditPrimaryColor(e.target.value)}
             />
             <label className="qa-label" htmlFor="edit-secondary-color">Secondary Color</label>
             <input
               id="edit-secondary-color"
               type="color"
-              value={editSecondaryColor || "#005f8d"}
+              value={editSecondaryColor || "#1D5FC4"}
               onChange={(e) => setEditSecondaryColor(e.target.value)}
             />
             <label className="qa-label" htmlFor="edit-logo">Logo</label>
@@ -1836,14 +1882,14 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
             <input
               id="sub-primary-color"
               type="color"
-              value={createSubData.primary_color || '#0077B5'}
+              value={createSubData.primary_color || '#2F80ED'}
               onChange={(e) => handleSubFieldChange('primary_color', e.target.value)}
             />
             <label className="qa-label" htmlFor="sub-secondary-color">Secondary Color</label>
             <input
               id="sub-secondary-color"
               type="color"
-              value={createSubData.secondary_color || '#005f8d'}
+              value={createSubData.secondary_color || '#1D5FC4'}
               onChange={(e) => handleSubFieldChange('secondary_color', e.target.value)}
             />
             <div className="qa-actions">
@@ -1886,17 +1932,29 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
               <div>
                 <h2>Ambassador List</h2>
                 <p className="muted">
-                  Ambassador status is earned by applying and verifying your school affiliation. Admins can only promote existing ambassadors.
+                  Ambassador status is reserved for verified staff members (and super admins). Admins can only promote existing ambassadors.
                 </p>
+                {ambassadorEligibility?.reason === 'staff_verification_required' && (
+                  <p className="muted">
+                    Want to become an ambassador? Complete staff verification for this university first.
+                  </p>
+                )}
+                {ambassadorEligibility?.reason === 'pending_application' && (
+                  <p className="ambassador-application-pending" role="status">
+                    Your ambassador application is pending review.
+                  </p>
+                )}
               </div>
               {canApplyForAmbassador && (
                 <button
                   type="button"
-                  className="pill-button"
-                  onClick={handleApplyAmbassador}
-                  disabled={isApplyingAmbassador}
+                  className="pill-button ambassador-application-trigger"
+                  onClick={() => {
+                    setAmbassadorApplicationError('');
+                    setShowAmbassadorApplication(true);
+                  }}
                 >
-                  {isApplyingAmbassador ? 'Submitting…' : 'Apply to be an Ambassador for this University'}
+                  Apply to be an ambassador
                 </button>
               )}
             </div>
@@ -2007,6 +2065,94 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
               </ul>
             )}
           </div>
+      </ModalOverlay>
+
+      <ModalOverlay
+        isOpen={showAmbassadorApplication && canApplyForAmbassador}
+        contentClassName="ambassador-application-overlay"
+        onClose={closeAmbassadorApplication}
+      >
+        <div className="ambassador-application-dialog">
+          <header className="ambassador-application-header">
+            <p className="ambassador-application-kicker">Verified staff application</p>
+            <h2>Represent {university?.name || 'your university'}</h2>
+            <p>
+              Tell the community team how you plan to welcome students, answer questions,
+              and share reliable campus information.
+            </p>
+          </header>
+
+          <div className="ambassador-application-eligibility" aria-label="Eligibility confirmed">
+            <span>Verified staff</span>
+            <span>University connection confirmed</span>
+            <span>Ready for review</span>
+          </div>
+
+          <form className="ambassador-application-form" onSubmit={handleApplyAmbassador}>
+            <div className="ambassador-application-field">
+              <div className="ambassador-application-label-row">
+                <label htmlFor="ambassador-motivation">
+                  Why would you like to be an ambassador?
+                </label>
+                <span>{ambassadorMotivation.length}/1000</span>
+              </div>
+              <p id="ambassador-motivation-help">
+                Share your role, how you support students, and what you can contribute.
+              </p>
+              <textarea
+                id="ambassador-motivation"
+                value={ambassadorMotivation}
+                onChange={(event) => setAmbassadorMotivation(event.target.value)}
+                aria-describedby="ambassador-motivation-help"
+                placeholder="I work with students as…"
+                maxLength={1000}
+                required
+                disabled={isApplyingAmbassador}
+              />
+            </div>
+
+            <label className="ambassador-application-confirmation">
+              <input
+                type="checkbox"
+                checked={ambassadorConnectionConfirmed}
+                onChange={(event) => setAmbassadorConnectionConfirmed(event.target.checked)}
+                disabled={isApplyingAmbassador}
+              />
+              <span>
+                I confirm that I currently work with {university?.name || 'this university'} and
+                that the university information in my profile is accurate.
+              </span>
+            </label>
+
+            {ambassadorApplicationError && (
+              <p className="ambassador-application-error" role="alert">
+                {ambassadorApplicationError}
+              </p>
+            )}
+
+            <div className="ambassador-application-actions">
+              <button
+                type="button"
+                className="pill-button secondary"
+                onClick={closeAmbassadorApplication}
+                disabled={isApplyingAmbassador}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="pill-button"
+                disabled={
+                  isApplyingAmbassador ||
+                  !ambassadorMotivation.trim() ||
+                  !ambassadorConnectionConfirmed
+                }
+              >
+                {isApplyingAmbassador ? 'Submitting…' : 'Submit application'}
+              </button>
+            </div>
+          </form>
+        </div>
       </ModalOverlay>
 
       <ModalOverlay

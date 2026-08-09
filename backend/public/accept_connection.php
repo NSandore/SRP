@@ -2,9 +2,17 @@
 // accept_connection.php
 
 require_once __DIR__ . '/cors.php';
-
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
+
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'You must be logged in.']);
+    exit;
+}
+$sessionUserId = normalizeId($_SESSION['user_id']);
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
@@ -12,6 +20,9 @@ if (!$input) {
 }
 
 $connection_id = isset($input['connection_id']) ? normalizeId($input['connection_id']) : '';
+// The pair lookup is only used to locate a candidate row when no
+// connection_id was supplied; who is actually allowed to accept is decided
+// below from the resolved row, never from these client-supplied values.
 $user_id1 = isset($input['user_id1']) ? normalizeId($input['user_id1']) : '';
 $user_id2 = isset($input['user_id2']) ? normalizeId($input['user_id2']) : '';
 
@@ -51,7 +62,16 @@ try {
 
     $resolvedConnectionId = $connRow['connection_id'];
     $recipient = $connRow['user_id1']; // original requester
-    $actor = $connRow['user_id2'];     // recipient of the request (now accepting)
+    $actor = normalizeId($connRow['user_id2']); // recipient of the request (now accepting)
+
+    // Only the actual recipient of a pending connection request may accept
+    // it — otherwise anyone could accept a connection on someone else's
+    // behalf by guessing/enumerating a connection_id or user pair.
+    if ($sessionUserId !== $actor) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'You are not the recipient of this connection request.']);
+        exit;
+    }
 
     $update = $db->prepare("UPDATE connections SET status = 'accepted', accepted_at = NOW() WHERE connection_id = :cid");
     $update->execute([':cid' => $resolvedConnectionId]);

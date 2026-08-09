@@ -20,7 +20,7 @@
   height: 72px;
   border-radius: 50%;
   margin: 0 auto 1rem;
-  background: rgba(0, 119, 181, 0.08);
+  background: rgba(47, 128, 237, 0.08);
   color: var(--primary-color);
   display: flex;
   align-items: center;
@@ -97,7 +97,7 @@
 .locked-button.primary {
   background: var(--primary-color);
   color: #fff;
-  box-shadow: 0 10px 18px rgba(0, 119, 181, 0.3);
+  box-shadow: 0 10px 18px rgba(47, 128, 237, 0.3);
 }
 
 .locked-button.primary:hover {
@@ -107,7 +107,7 @@
 .locked-button.ghost {
   background: transparent;
   color: var(--primary-color);
-  border: 1px solid rgba(0, 119, 181, 0.4);
+  border: 1px solid rgba(47, 128, 237, 0.4);
 }
 
 .locked-button.ghost:hover {
@@ -151,9 +151,9 @@
 }
 
 .coming-soon-actions button.primary {
-  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  background: linear-gradient(135deg, #2F80ED, #69A8F7);
   color: #fff;
-  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 12px 26px rgba(47, 128, 237, 0.28);
 }
 
 .coming-soon-actions button.secondary {

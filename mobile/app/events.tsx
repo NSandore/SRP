@@ -1039,7 +1039,7 @@ const createStyles = (colors: BrandColors) =>
     backgroundColor: '#f59e0b',
   },
   calDotPoll: {
-    backgroundColor: '#0ea5e9',
+    backgroundColor: '#69A8F7',
   },
   calDayEvents: {
     marginTop: 12,

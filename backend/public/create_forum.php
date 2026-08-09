@@ -5,6 +5,7 @@ require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../includes/sanitize.php';
+require_once __DIR__ . '/../includes/content_limits.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
@@ -13,7 +14,7 @@ header('Content-Type: application/json');
 $data = json_decode(file_get_contents('php://input'), true);
 $usingForm = !empty($_POST) || !empty($_FILES);
 $community_id = $usingForm ? normalizeId($_POST['community_id'] ?? '') : (isset($data['community_id']) ? normalizeId($data['community_id']) : '');
-$name = srp_sanitize_plain($usingForm ? ($_POST['name'] ?? '') : ($data['name'] ?? ''), 255);
+$name = srp_sanitize_plain($usingForm ? ($_POST['name'] ?? '') : ($data['name'] ?? ''));
 $description = srp_sanitize_plain($usingForm ? ($_POST['description'] ?? '') : ($data['description'] ?? ''), 2000);
 $tagsRaw = $usingForm ? ($_POST['tags'] ?? '[]') : ($data['tags'] ?? []);
 if (is_string($tagsRaw)) {
@@ -24,6 +25,11 @@ if (is_string($tagsRaw)) {
 } else {
     $tags = [];
 }
+$imageLayoutRaw = strtolower(trim((string)($usingForm ? ($_POST['image_layout'] ?? '') : ($data['image_layout'] ?? ''))));
+if ($imageLayoutRaw === 'left') {
+    $imageLayoutRaw = 'right';
+}
+$imageLayout = in_array($imageLayoutRaw, ['right', 'banner', 'full'], true) ? $imageLayoutRaw : 'banner';
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
     http_response_code(403); // Forbidden
     echo json_encode(['error' => 'Not authenticated.']);
@@ -36,6 +42,11 @@ $roleId = (int)$_SESSION['role_id'];
 if (empty($name)) {
     http_response_code(400); // Bad Request
     echo json_encode(['error' => 'Forum name is required.']);
+    exit;
+}
+if (srp_content_text_length($name) > SRP_FORUM_TITLE_MAX_LENGTH) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Forum names must be 100 characters or fewer.']);
     exit;
 }
 
@@ -113,8 +124,8 @@ try {
     }
 
     $stmt = $db->prepare("
-        INSERT INTO forums (forum_id, community_id, name, description, banner_path, created_at, created_by)
-        VALUES (:forum_id, :cid, :name, :desc, :banner_path, NOW(), :created_by)
+        INSERT INTO forums (forum_id, community_id, name, description, banner_path, image_layout, created_at, created_by)
+        VALUES (:forum_id, :cid, :name, :desc, :banner_path, :image_layout, NOW(), :created_by)
     ");
     $stmt->execute([
         ':forum_id' => $forumId,
@@ -122,6 +133,7 @@ try {
         ':name' => $name,
         ':desc' => $description,
         ':banner_path' => $bannerPath,
+        ':image_layout' => $imageLayout,
         ':created_by' => $creatorUserId
     ]);
 

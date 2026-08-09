@@ -50,6 +50,11 @@ import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
 import { DEV_MODE } from './config';
 import ContactUsButton from './components/ContactUsButton';
+import ChangelogModal from './components/ChangelogModal';
+import ChangelogPage from './components/ChangelogPage';
+import ChangelogAdmin from './components/ChangelogAdmin';
+import ProductTour from './components/ProductTour';
+import { PrivacyPolicyPage, TermsPage } from './components/LegalPage';
 import SearchResults from './components/SearchResults';
 import CommunityRequests from './components/CommunityRequests';
 import AuthOverlay from './components/AuthOverlay';
@@ -61,9 +66,22 @@ import PollsPage from './components/PollsPage';
 import DonationPage from './components/DonationPage';
 import { buildAvatarSrc } from './utils/avatar';
 import VerificationReview from './components/VerificationReview';
+import Newsroom from './components/Newsroom';
+import ReelsPage from './components/ReelsPage';
+import InstitutionDataReview from './components/InstitutionDataReview';
 import './layout/PlatformPolish.css';
 
-const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/polls', '/admin/verifications'];
+const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/polls', '/admin/verifications', '/admin/institutions', '/admin/newsroom', '/admin/changelog'];
+const AUTH_ROUTES = ['/login', '/signup'];
+
+// "Continue as guest" must land somewhere a signed-out visitor can actually
+// stay. Sending them to a protected route re-prompts for login, and sending
+// them to an auth route is the login page itself, so either choice loops.
+const isGuestAccessiblePath = (path) =>
+  typeof path === 'string'
+  && path.startsWith('/')
+  && !AUTH_ROUTES.includes(path)
+  && !PROTECTED_ROUTES.some((route) => path.startsWith(route));
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -125,7 +143,7 @@ function App() {
   useOnClickOutside(notificationRef, () => setIsNotificationsOpen(false));
   const navigate = useNavigate();
   const location = useLocation();
-  const authRoutes = ['/login', '/signup'];
+  const authRoutes = AUTH_ROUTES;
   const isAuthPage = authRoutes.includes(location.pathname);
   const previousPathRef = useRef(location.pathname);
 
@@ -202,7 +220,9 @@ function App() {
       setPendingProtectedReturnPath(null);
     } else if (!userData) {
       const fallback = prevPath === location.pathname ? lastAccessiblePath : prevPath;
-      setPendingProtectedReturnPath(fallback || '/home');
+      // The previous path is only a usable return target if a guest may stay
+      // there. Otherwise leave it unset and fall back to a known-safe path.
+      setPendingProtectedReturnPath(isGuestAccessiblePath(fallback) ? fallback : null);
     }
 
     previousPathRef.current = location.pathname;
@@ -341,7 +361,11 @@ function App() {
   const openSignUpPage = () => navigate('/signup');
   const openLoginPage = () => navigate('/login');
   const continueAsGuest = () => {
-    const target = pendingProtectedReturnPath || lastAccessiblePath || '/home';
+    // Guarded here as well as at the point the return path is recorded, so no
+    // future caller can send a guest back to a page that re-prompts for login.
+    const target =
+      [pendingProtectedReturnPath, lastAccessiblePath].find(isGuestAccessiblePath)
+      || '/home';
     setPendingProtectedReturnPath(null);
     navigate(target);
   };
@@ -507,8 +531,11 @@ function App() {
       <audio ref={audioRef} src="/notification.wav" preload="auto" />
       <div className="toast-stack" aria-live="polite" aria-atomic="true">
         {toasts.map((t) => (
-          <div key={t.id} className="toast">
-            {t.message}
+          <div key={t.id} className="toast app-notification-toast" role="status">
+            <span className="toast-icon" aria-hidden="true">
+              <FaBell />
+            </span>
+            <span className="toast-copy">{t.message}</span>
           </div>
         ))}
       </div>
@@ -633,6 +660,13 @@ function App() {
         </div>
       )}
 
+      {/* Both read their own eligibility from the server and render nothing
+          when there is nothing to show, so mounting them here is safe. The
+          tour waits for onboarding to finish; the changelog waits for an entry
+          published since the user last acknowledged one. */}
+      {shouldShowOverlays && <ChangelogModal userData={userData} />}
+      {shouldShowOverlays && <ProductTour userData={userData} />}
+
       <Routes>
         <Route
           path="/signup"
@@ -647,6 +681,32 @@ function App() {
           element={<Navigate to="/signup" replace />}
         />
         <Route path="/" element={<Navigate to="/home" replace />} />
+        {/* Public: guests following "See full changelog" must not hit a login
+            prompt, so this stays out of PROTECTED_ROUTES. */}
+        <Route
+          path="/changelog"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <ChangelogPage />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/privacy"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <PrivacyPolicyPage />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/terms"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <TermsPage />
+            </AppShell>
+          }
+        />
         <Route
           path="/profile"
           element={
@@ -789,6 +849,15 @@ function App() {
                   }
                 />
                 <Route
+                  path="/reels"
+                  element={
+                    <ReelsPage
+                      userData={userData}
+                      onRequireAuth={() => setRequireAuthOverlay(true)}
+                    />
+                  }
+                />
+                <Route
                   path="/community-requests"
                   element={
                     userData && userData.email === 'n.sandore5140@gmail.com' ? (
@@ -882,6 +951,54 @@ function App() {
                   element={
                     userData ? (
                       <VerificationReview userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/institutions"
+                  element={
+                    userData ? (
+                      <InstitutionDataReview userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/newsroom"
+                  element={
+                    userData ? (
+                      <Newsroom userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/changelog"
+                  element={
+                    userData ? (
+                      <ChangelogAdmin userData={userData} />
                     ) : (
                       <AuthOverlay
                         isOpen

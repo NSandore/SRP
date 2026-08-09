@@ -2,27 +2,43 @@
 // request_connection.php
 
 require_once __DIR__ . '/cors.php';
-
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
+
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'You must be logged in.']);
+    exit;
+}
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
     $input = $_POST;
 }
 
-if (empty($input['user_id1']) || empty($input['user_id2'])) {
+if (empty($input['user_id2'])) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Missing user_id1 or user_id2']);
+    echo json_encode(['success' => false, 'error' => 'Missing user_id2']);
     exit;
 }
 
-$user_id1 = normalizeId($input['user_id1']);
+// The requester is always the authenticated session's own user, never a
+// client-supplied user_id1 — otherwise anyone could send connection
+// requests that appear to come from another user.
+$user_id1 = normalizeId($_SESSION['user_id']);
 $user_id2 = normalizeId($input['user_id2']);
 
-if ($user_id1 === '' || $user_id2 === '') {
+if ($user_id2 === '') {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Missing user_id1 or user_id2']);
+    echo json_encode(['success' => false, 'error' => 'Missing user_id2']);
+    exit;
+}
+
+if ($user_id1 === $user_id2) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'You cannot connect with yourself']);
     exit;
 }
 

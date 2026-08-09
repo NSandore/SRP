@@ -11,6 +11,9 @@ import buildUploadSrc from '../utils/uploads';
 import { getAdjustedColor, getReadableTextColor } from '../utils/color';
 import { isSuperAdmin } from '../constants/roles';
 import RightRail from '../widgets/RightRail';
+import useCommunityAccent from '../hooks/useCommunityAccent';
+import { THREAD_TITLE_MAX_LENGTH } from '../utils/contentLimits';
+import ReelGrid from './ReelGrid';
 
 function GroupProfile({ userData, onRequireAuth }) {
   const { id } = useParams(); // group community id
@@ -64,6 +67,8 @@ function GroupProfile({ userData, onRequireAuth }) {
   const [subcommunitiesError, setSubcommunitiesError] = useState('');
   const [childFollowBusy, setChildFollowBusy] = useState({});
   const hasSubcommunities = subcommunities.length > 0;
+
+  useCommunityAccent(group?.primary_color, group?.secondary_color);
 
   const currentAmbassador = ambassadors.find((a) => String(a.user_id) === String(userData?.user_id));
   const viewerRole = (currentAmbassador?.community_role || '').toLowerCase() || 'viewer';
@@ -203,8 +208,8 @@ function GroupProfile({ userData, onRequireAuth }) {
           setEditTagline(response.data.group.tagline || '');
           setEditLocation(response.data.group.location || '');
           setEditWebsite(response.data.group.website || '');
-          setEditPrimaryColor(response.data.group.primary_color || '#0077B5');
-          setEditSecondaryColor(response.data.group.secondary_color || '#005f8d');
+          setEditPrimaryColor(response.data.group.primary_color || '#2F80ED');
+          setEditSecondaryColor(response.data.group.secondary_color || '#1D5FC4');
         } else {
           setError(response.data.error);
         }
@@ -440,6 +445,10 @@ function GroupProfile({ userData, onRequireAuth }) {
       alert('Title cannot be empty.');
       return;
     }
+    if (trimmed.length > THREAD_TITLE_MAX_LENGTH) {
+      alert(`Thread titles must be ${THREAD_TITLE_MAX_LENGTH} characters or fewer.`);
+      return;
+    }
     try {
       const res = await axios.post(
         '/api/edit_thread.php',
@@ -658,8 +667,8 @@ function GroupProfile({ userData, onRequireAuth }) {
     setEditTagline(group.tagline || '');
     setEditLocation(group.location || '');
     setEditWebsite(group.website || '');
-    setEditPrimaryColor(group.primary_color || '#0077B5');
-    setEditSecondaryColor(group.secondary_color || '#005f8d');
+    setEditPrimaryColor(group.primary_color || '#2F80ED');
+    setEditSecondaryColor(group.secondary_color || '#1D5FC4');
     setShowEditModal(true);
   };
 
@@ -744,8 +753,8 @@ function GroupProfile({ userData, onRequireAuth }) {
   };
 
   const logoSrc = buildUploadSrc(group.logo_path || '/uploads/logos/default-logo.png');
-  const primaryColor = group.primary_color || '#0077B5';
-  const secondaryColor = group.secondary_color || '#005f8d';
+  const primaryColor = group.primary_color || '#2F80ED';
+  const secondaryColor = group.secondary_color || '#1D5FC4';
   const gradientLight = getAdjustedColor(primaryColor, 1.12);
   const gradientDark = getAdjustedColor(primaryColor, 0.85);
   const pillTextColor = getReadableTextColor(primaryColor);
@@ -824,7 +833,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                 </p>
               </div>
             </div>
-            <div className="hero-right">
+            <div className="hero-right hero-actions">
               <button
                 type="button"
                 className={`pill-button ${isFollowing ? 'secondary' : ''} ${!isLoggedIn ? 'locked' : ''}`}
@@ -873,6 +882,13 @@ function GroupProfile({ userData, onRequireAuth }) {
               onClick={() => setActiveTab('qa')}
             >
               Q+A
+            </button>
+            <button
+              type="button"
+              className={`tab-link ${activeTab === 'reels' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reels')}
+            >
+              Reels
             </button>
             <button
               type="button"
@@ -953,6 +969,17 @@ function GroupProfile({ userData, onRequireAuth }) {
                   )}
                 </dl>
               </div>
+            )}
+
+            {activeTab === 'reels' && (
+              <ReelGrid
+                communityId={communityId}
+                isOwner={isFollowing || canEditCommunity || canPinToOverview}
+                showCreate={isLoggedIn && (isFollowing || canEditCommunity || canPinToOverview)}
+                title={`${group.name} Reels`}
+                description={`Short videos shared with the ${group.name} community.`}
+                emptyLabel="No community reels have been shared yet."
+              />
             )}
 
             {activeTab === 'posts' && (
@@ -1582,14 +1609,14 @@ function GroupProfile({ userData, onRequireAuth }) {
             <input
               id="edit-primary-color"
               type="color"
-              value={editPrimaryColor || '#0077B5'}
+              value={editPrimaryColor || '#2F80ED'}
               onChange={(e) => setEditPrimaryColor(e.target.value)}
             />
             <label className="qa-label" htmlFor="edit-secondary-color">Secondary Color</label>
             <input
               id="edit-secondary-color"
               type="color"
-              value={editSecondaryColor || '#005f8d'}
+              value={editSecondaryColor || '#1D5FC4'}
               onChange={(e) => setEditSecondaryColor(e.target.value)}
             />
             <label className="qa-label" htmlFor="edit-logo">Logo</label>

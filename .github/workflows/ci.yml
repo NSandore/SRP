@@ -24,6 +24,12 @@ jobs:
           echo "All PHP files pass php -l"
       - name: Run permission tests
         run: php backend/tests/permissions_test.php
+      - name: Run institution pipeline tests
+        run: |
+          set -e
+          for test in backend/tests/institution_*_test.php; do
+            php "$test"
+          done
 
   frontend:
     name: Frontend (React build)

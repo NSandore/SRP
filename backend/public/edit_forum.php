@@ -5,6 +5,7 @@ require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../includes/sanitize.php';
+require_once __DIR__ . '/../includes/content_limits.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
@@ -23,7 +24,7 @@ $user_id_session = normalizeId($_SESSION['user_id']);
 $data = json_decode(file_get_contents('php://input'), true);
 $usingForm = !empty($_POST) || !empty($_FILES);
 $forum_id = normalizeId($usingForm ? ($_POST['forum_id'] ?? '') : ($data['forum_id'] ?? ''));
-$new_name = srp_sanitize_plain($usingForm ? ($_POST['name'] ?? '') : ($data['name'] ?? ''), 255);
+$new_name = srp_sanitize_plain($usingForm ? ($_POST['name'] ?? '') : ($data['name'] ?? ''));
 $new_desc = srp_sanitize_plain($usingForm ? ($_POST['description'] ?? '') : ($data['description'] ?? ''), 2000);
 $tagsRaw = $usingForm ? ($_POST['tags'] ?? null) : ($data['tags'] ?? null);
 $tagsProvided = $tagsRaw !== null;
@@ -36,9 +37,20 @@ if (is_string($tagsRaw)) {
     $tags = [];
 }
 
+$imageLayoutRaw = strtolower(trim((string)($usingForm ? ($_POST['image_layout'] ?? '') : ($data['image_layout'] ?? ''))));
+if ($imageLayoutRaw === 'left') {
+    $imageLayoutRaw = 'right';
+}
+$imageLayout = in_array($imageLayoutRaw, ['right', 'banner', 'full'], true) ? $imageLayoutRaw : null;
+
 if ($forum_id === '' || $new_name === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid forum_id or missing name.']);
+    exit;
+}
+if (srp_content_text_length($new_name) > SRP_FORUM_TITLE_MAX_LENGTH) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Forum names must be 100 characters or fewer.']);
     exit;
 }
 
@@ -99,6 +111,9 @@ try {
     if ($bannerPath !== null) {
         $query .= ", banner_path = :banner_path";
     }
+    if ($imageLayout !== null) {
+        $query .= ", image_layout = :image_layout";
+    }
     $query .= " WHERE forum_id = :forum_id";
     $stmt = $db->prepare($query);
     $stmt->bindValue(':name', $new_name);
@@ -106,6 +121,9 @@ try {
     $stmt->bindValue(':forum_id', $forum_id);
     if ($bannerPath !== null) {
         $stmt->bindValue(':banner_path', $bannerPath);
+    }
+    if ($imageLayout !== null) {
+        $stmt->bindValue(':image_layout', $imageLayout);
     }
     $stmt->execute();
 

@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import RightRail from '../widgets/RightRail';
 import ThreadRightRail from './ThreadRightRail';
 import { useProfileContactRailContent } from '../context/ProfileContactContext';
+import { useLanguage } from '../i18n/LanguageContext';
 
 // Pages where the generic "Upcoming Events" / "Polls" widgets are allowed to show.
 // Everywhere else (including all "Your Commons" and "Manage" pages) hides them.
@@ -11,6 +12,7 @@ const GENERIC_WIDGET_PATHS = ['/home', '/info', '/funding', '/communities'];
 
 function RightSidebar({ userData }) {
   const location = useLocation();
+  const { t } = useLanguage();
   const pathname = location.pathname;
   const isThreadView = /\/thread\//.test(pathname);
   const isDonateRoute = pathname.startsWith('/donate');
@@ -34,7 +36,7 @@ function RightSidebar({ userData }) {
       {profileContactContent && (
         <section className="widget-card profile-contact-widget" aria-labelledby="profile-contact-rail-header">
           <div id="profile-contact-rail-header" className="widget-header compact-widget-header">
-            <h3 className="widget-title">Contact Me</h3>
+            <h3 className="widget-title">{t('rail.contactMe')}</h3>
           </div>
           <div className="widget-body community-contact-list">
             {profileContactContent}

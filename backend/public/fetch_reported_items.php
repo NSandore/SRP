@@ -120,6 +120,11 @@ try {
             e.title AS event_title,
             e.description AS event_description,
             e.is_hidden AS event_hidden,
+            reel.caption AS reel_caption,
+            reel.thumbnail_path AS reel_thumbnail_path,
+            reel.is_hidden AS reel_hidden,
+            reelComment.body AS reel_comment_body,
+            reelComment.is_hidden AS reel_comment_hidden,
             targetUser.first_name AS reported_first,
             targetUser.last_name AS reported_last
         FROM reports r
@@ -131,6 +136,10 @@ try {
         LEFT JOIN posts p ON (r.item_type = 'post' OR r.item_type = 'comment') AND p.post_id = r.item_id
         LEFT JOIN announcements a ON r.item_type = 'announcement' AND a.announcement_id = r.item_id
         LEFT JOIN events e ON r.item_type = 'event' AND e.event_id = r.item_id
+        LEFT JOIN reels reel ON r.item_type = 'reel' AND reel.reel_id = r.item_id
+        LEFT JOIN reel_comments reelComment
+               ON r.item_type = 'reel_comment'
+              AND reelComment.reel_comment_id = r.item_id
         LEFT JOIN users targetUser ON r.item_type = 'user' AND targetUser.user_id = r.item_id
         {$whereSql}
         ORDER BY r.created_at DESC

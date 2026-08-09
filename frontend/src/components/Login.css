@@ -3,7 +3,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at top, rgba(37, 99, 235, 0.2), transparent 60%),
+  background: radial-gradient(circle at top, rgba(47, 128, 237, 0.2), transparent 60%),
     var(--background-color);
   padding: 2rem 1rem;
 }
@@ -19,7 +19,7 @@
 .auth-hourglass {
   width: 42px;
   height: 64px;
-  border: 2px solid #0f3d66;
+  border: 2px solid #16305C;
   border-radius: 20px;
   position: relative;
   box-sizing: border-box;
@@ -34,7 +34,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #0f3d66;
+  background: #16305C;
   animation: hourglass-flow 2.2s ease-in-out infinite;
 }
 
@@ -87,7 +87,7 @@
 .auth-gradient {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(15, 23, 42, 0.05));
+  background: linear-gradient(135deg, rgba(47, 128, 237, 0.08), rgba(15, 23, 42, 0.05));
   z-index: 0;
 }
 
@@ -107,7 +107,7 @@
 
 .auth-hero {
   padding: 3rem;
-  background: linear-gradient(160deg, rgba(37, 99, 235, 0.08), rgba(14, 165, 233, 0.08));
+  background: linear-gradient(160deg, rgba(47, 128, 237, 0.08), rgba(47, 128, 237, 0.08));
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -159,7 +159,7 @@
   align-self: flex-start;
   border-radius: 999px;
   padding: 0.85rem 1.75rem;
-  border: 1px solid rgba(37, 99, 235, 0.3);
+  border: 1px solid rgba(47, 128, 237, 0.3);
   background: transparent;
   color: var(--primary-color);
   font-weight: 600;
@@ -261,7 +261,7 @@
 
 .auth-upload-trigger:hover {
   transform: translateY(-1px);
-  border-color: rgba(37, 99, 235, 0.5);
+  border-color: rgba(47, 128, 237, 0.5);
   box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
 }
 
@@ -296,7 +296,7 @@
 
 .auth-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 16px 30px rgba(47, 128, 237, 0.3);
 }
 
 .auth-link-row {
@@ -383,8 +383,8 @@
     align-items: center;
     justify-content: center;
     padding: 1.25rem 1rem;
-    background: radial-gradient(circle at top, rgba(56, 189, 248, 0.18), transparent 55%),
-      radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.12), transparent 45%),
+    background: radial-gradient(circle at top, rgba(114, 174, 250, 0.18), transparent 55%),
+      radial-gradient(circle at 20% 20%, rgba(47, 128, 237, 0.12), transparent 45%),
       var(--background-color);
   }
   .auth-content {
@@ -433,7 +433,7 @@
     border-radius: 16px;
     padding: 0.9rem;
     font-size: 1rem;
-    box-shadow: 0 16px 30px rgba(37, 99, 235, 0.28);
+    box-shadow: 0 16px 30px rgba(47, 128, 237, 0.28);
   }
   .auth-link-row {
     align-items: center;
@@ -467,21 +467,22 @@
 
 /* Scholarly authentication surfaces */
 .auth-welcome {
-  --auth-kraft: #eee4d1;
-  --auth-paper: #fbf7ef;
-  --auth-paper-strong: #fffdf8;
-  --auth-ink: #20332d;
-  --auth-ink-soft: #5f6e67;
-  --auth-forest: #183e35;
-  --auth-forest-light: #2f6657;
-  --auth-rust: #a6533e;
-  --auth-line: #d5c7ae;
+  --auth-kraft: #EEF4FC;
+  --auth-paper: #FCFDFF;
+  --auth-paper-strong: #FFFFFF;
+  --auth-ink: #11244D;
+  --auth-ink-soft: #667895;
+  --auth-forest: #2F80ED;
+  --auth-forest-light: #69A8F7;
+  --auth-on-accent: #FFFFFF;
+  --auth-rust: #7656D9;
+  --auth-line: #DCE7F5;
   --auth-serif: Georgia, 'Times New Roman', Times, serif;
   --auth-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   background-color: var(--auth-kraft);
   background-image:
-    linear-gradient(rgba(90, 70, 39, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(90, 70, 39, 0.018) 1px, transparent 1px);
+    linear-gradient(rgba(47, 128, 237, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(47, 128, 237, 0.018) 1px, transparent 1px);
   background-size: 28px 28px;
   color: var(--auth-ink);
 }
@@ -500,12 +501,12 @@
   border: 1px solid var(--auth-line);
   border-radius: 18px;
   background: var(--auth-paper);
-  box-shadow: 0 24px 64px rgba(70, 54, 29, 0.18);
+  box-shadow: 0 24px 64px rgba(38, 82, 132, 0.18);
 }
 
 .auth-hero {
   border-right: 1px solid var(--auth-line);
-  background: rgba(238, 228, 209, 0.58);
+  background: rgba(228, 238, 251, 0.58);
 }
 
 .auth-panel {
@@ -543,9 +544,9 @@
 }
 
 .auth-pill {
-  border: 1px solid rgba(166, 83, 62, 0.2);
+  border: 1px solid rgba(118, 86, 217, 0.2);
   border-radius: 7px;
-  background: rgba(166, 83, 62, 0.07);
+  background: rgba(118, 86, 217, 0.07);
 }
 
 .auth-benefits {
@@ -571,7 +572,7 @@
 .auth-select-label select:focus {
   outline: none;
   border-color: var(--auth-forest-light);
-  box-shadow: 0 0 0 3px rgba(47, 102, 87, 0.12);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.12);
 }
 
 .auth-primary,
@@ -593,7 +594,7 @@
 .auth-welcome .pill-button:not(.secondary) {
   border: 1px solid var(--auth-forest);
   background: var(--auth-forest);
-  color: #fffaf0;
+  color: var(--auth-on-accent);
 }
 
 .auth-secondary,
@@ -640,7 +641,7 @@
   .auth-welcome .pill-button.secondary:hover,
   .auth-upload-trigger:hover {
     border-color: var(--auth-forest-light);
-    background: rgba(24, 62, 53, 0.06);
+    background: rgba(47, 128, 237, 0.06);
     box-shadow: none;
     color: var(--auth-forest);
     transform: none;
@@ -648,15 +649,19 @@
 }
 
 [data-theme='dark'] .auth-welcome {
-  --auth-kraft: #181a17;
-  --auth-paper: #22251f;
-  --auth-paper-strong: #292c25;
-  --auth-ink: #ece5d7;
-  --auth-ink-soft: #b8b3a8;
-  --auth-forest: #315d50;
-  --auth-forest-light: #477d6d;
-  --auth-rust: #d58a70;
-  --auth-line: #47483e;
+  --auth-kraft: #08152B;
+  --auth-paper: #0E203B;
+  --auth-paper-strong: #102642;
+  --auth-ink: #EAF2FF;
+  --auth-ink-soft: #A8B9D3;
+  --auth-forest: #4B91EC;
+  --auth-forest-light: #72AEFA;
+  /* Dark mode lightens the accent so it reads on a dark panel, which leaves
+     white label text at about 3.2:1 (and ~2.6:1 on hover). Deep navy on the
+     light accent gives 5.7:1 instead, and 7.9:1 on hover. */
+  --auth-on-accent: #08152B;
+  --auth-rust: #E8B77F;
+  --auth-line: #2A4163;
 }
 
 [data-theme='dark'] .auth-content,
@@ -666,7 +671,7 @@
 
 [data-theme='dark'] .auth-hero {
   border-right-color: var(--auth-line);
-  background: rgba(24, 26, 23, 0.72);
+  background: rgba(8, 21, 43, 0.72);
 }
 
 [data-theme='dark'] .auth-form input,
@@ -691,13 +696,13 @@
   .auth-welcome {
     background-color: var(--auth-kraft);
     background-image:
-      linear-gradient(rgba(90, 70, 39, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(90, 70, 39, 0.018) 1px, transparent 1px);
+      linear-gradient(rgba(47, 128, 237, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(47, 128, 237, 0.018) 1px, transparent 1px);
   }
 
   .auth-content {
     border-radius: 14px;
-    box-shadow: 0 18px 48px rgba(70, 54, 29, 0.16);
+    box-shadow: 0 18px 48px rgba(38, 82, 132, 0.16);
   }
 
   .auth-form input {

@@ -75,6 +75,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="reels"
+        options={{
+          title: 'Reels',
+          tabBarIcon: ({ color, focused }) => (
+            <AnimatedTabIcon name="play.rectangle.fill" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="communities"
         options={{
           title: 'Communities',

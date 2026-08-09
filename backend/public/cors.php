@@ -45,8 +45,9 @@ if (in_array($origin, $allowed_origins, true) || $is_same_host_dev_origin) {
     header("Access-Control-Allow-Origin: {$origin}");
     header("Vary: Origin");
     header("Access-Control-Allow-Credentials: true");
-    header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-    header("Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Session-Id");
+    header("Access-Control-Allow-Methods: GET, HEAD, POST, OPTIONS");
+    header("Access-Control-Allow-Headers: Origin, Content-Type, Accept, Authorization, X-Requested-With, X-Session-Id, Range");
+    header("Access-Control-Expose-Headers: Accept-Ranges, Content-Length, Content-Range");
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {

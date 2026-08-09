@@ -2,24 +2,35 @@
 // upload_avatar.php
 
 require_once __DIR__ . '/cors.php';
-
-// Enable error reporting for debugging (disable in production)
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 
 header('Content-Type: application/json');
 
 // Include the database connection
 require_once __DIR__ . '/../db_connection.php';
 
+if (srp_is_dev_mode()) {
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+}
+
 // Validate the request
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['avatar']) || !isset($_POST['user_id'])) {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['avatar'])) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid request.']);
     exit;
 }
 
-$user_id = normalizeId($_POST['user_id']);
+// The actor is always the authenticated session's own user, never the
+// client-supplied user_id — this endpoint only ever replaces the caller's
+// own avatar.
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'You must be logged in.']);
+    exit;
+}
+$user_id = normalizeId($_SESSION['user_id']);
 $uploadDir = __DIR__ . '/../../uploads/avatars/'; // Adjust the path as needed
 
 // Ensure the upload directory exists and is writable
@@ -51,17 +62,20 @@ if ($_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
     exit;
 }
 
-// Validate the file type
-$allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
+// Validate the file type. The stored extension is derived from the
+// detected MIME type, never the client-supplied filename — otherwise a
+// real image with an attacker-chosen name (e.g. "x.gif.php") could be
+// stored under an executable extension.
+$allowedMimeTypes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif'];
 $fileMimeType = mime_content_type($_FILES['avatar']['tmp_name']);
-if (!in_array($fileMimeType, $allowedMimeTypes)) {
+if (!isset($allowedMimeTypes[$fileMimeType]) || @getimagesize($_FILES['avatar']['tmp_name']) === false) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid file type. Only JPEG, PNG, and GIF are allowed.']);
     exit;
 }
 
 // Generate a unique filename
-$fileExtension = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
+$fileExtension = $allowedMimeTypes[$fileMimeType];
 $filename = 'avatar_' . $user_id . '_' . time() . '.' . $fileExtension;
 $destination = $uploadDir . $filename;
 

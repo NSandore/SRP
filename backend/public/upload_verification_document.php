@@ -49,6 +49,55 @@ if (!in_array($extension, $allowedExtensions, true)) {
     exit;
 }
 
+$maxBytes = 10 * 1024 * 1024; // 10 MB
+if (($file['size'] ?? 0) > $maxBytes) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'File is too large (10MB max)']);
+    exit;
+}
+
+$tmpPath = $file['tmp_name'];
+
+// Validate the actual file content, not just the client-supplied filename.
+// This blocks the classic "rename an HTML/JS/SVG file to .jpg" trick, which
+// would otherwise let active content be stored and later served same-origin
+// to a reviewer or the account owner.
+$finfo = finfo_open(FILEINFO_MIME_TYPE);
+$detectedMime = $finfo ? finfo_file($finfo, $tmpPath) : '';
+if ($finfo) {
+    finfo_close($finfo);
+}
+
+$extensionMimeMap = [
+    'jpg' => 'image/jpeg',
+    'jpeg' => 'image/jpeg',
+    'png' => 'image/png',
+    'pdf' => 'application/pdf',
+];
+if (($extensionMimeMap[$extension] ?? null) !== $detectedMime) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'File content does not match its extension']);
+    exit;
+}
+
+if ($extension === 'pdf') {
+    $header = @file_get_contents($tmpPath, false, null, 0, 5);
+    if ($header !== '%PDF-') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid PDF file']);
+        exit;
+    }
+} else {
+    // Must successfully decode as a genuine raster image; this defeats
+    // polyglot files that pass a MIME sniff but aren't real images.
+    $imageInfo = @getimagesize($tmpPath);
+    if ($imageInfo === false || !in_array($imageInfo[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid image file']);
+        exit;
+    }
+}
+
 $uploadDir = __DIR__ . '/../../uploads/verification/';
 if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
     http_response_code(500);

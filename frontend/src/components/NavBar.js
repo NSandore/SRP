@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaUserCircle, FaEnvelope, FaBell, FaSearch, FaBars, FaTimes, FaSun, FaMoon } from 'react-icons/fa';
+import { FaUserCircle, FaEnvelope, FaBell, FaSearch, FaBars, FaTimes, FaSun, FaMoon, FaGlobe, FaCheck } from 'react-icons/fa';
 import DOMPurify from 'dompurify';
 import axios from 'axios';
 import { buildAvatarSrc } from '../utils/avatar';
+import { LANGUAGE_OPTIONS, useLanguage } from '../i18n/LanguageContext';
+import './LanguageSwitcher.css';
 
 //
 
@@ -29,8 +31,10 @@ function NavBar({
   onAnnouncementHeight,
 }) {
   const navigate = useNavigate();
+  const { language, locale, setLanguage, t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [notifList, setNotifList] = useState(notifications || []);
   const [fadeMap, setFadeMap] = useState({});
   const [globalAnnouncements, setGlobalAnnouncements] = useState([]);
@@ -43,6 +47,9 @@ function NavBar({
   const accountMenuRef = useRef(null);
   const searchAreaRef = useRef(null);
   const searchToggleRef = useRef(null);
+  const languageSwitcherRef = useRef(null);
+  const languageTriggerRef = useRef(null);
+  const languageMenuRef = useRef(null);
   const tickerRef = useRef(null);
   const announcementBarRef = useRef(null);
   useEffect(() => {
@@ -69,6 +76,63 @@ function NavBar({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [accountMenuVisible, setAccountMenuVisible]);
+
+  useEffect(() => {
+    if (!isLanguageMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!languageSwitcherRef.current?.contains(event.target)) {
+        setIsLanguageMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsLanguageMenuOpen(false);
+        languageTriggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isLanguageMenuOpen]);
+
+  const focusLanguageOption = (index) => {
+    const options = languageMenuRef.current?.querySelectorAll('[role="menuitemradio"]');
+    options?.[index]?.focus();
+  };
+
+  const openLanguageMenuFromKeyboard = (index) => {
+    closeDrawerIfOpen();
+    setAccountMenuVisible(false);
+    if (isNotificationsOpen) toggleNotifications();
+    setIsLanguageMenuOpen(true);
+    window.requestAnimationFrame(() => focusLanguageOption(index));
+  };
+
+  const handleLanguageOptionKeyDown = (event) => {
+    const options = Array.from(languageMenuRef.current?.querySelectorAll('[role="menuitemradio"]') || []);
+    const currentIndex = options.indexOf(event.currentTarget);
+    let nextIndex = currentIndex;
+
+    if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % options.length;
+    else if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + options.length) % options.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = options.length - 1;
+    else return;
+
+    event.preventDefault();
+    options[nextIndex]?.focus();
+  };
+
+  const chooseLanguage = (nextLanguage) => {
+    setLanguage(nextLanguage);
+    setIsLanguageMenuOpen(false);
+    window.requestAnimationFrame(() => languageTriggerRef.current?.focus());
+  };
 
   useEffect(() => {
     setNotifList(notifications || []);
@@ -335,21 +399,21 @@ function NavBar({
 
   return (
     <>
-    <nav className={`nav-bar ${isMobileSearchOpen ? 'search-open' : ''}`} aria-label="Top Navigation Bar">
+    <nav className={`nav-bar ${isMobileSearchOpen ? 'search-open' : ''}`} aria-label={t('nav.top')}>
       {/* Left: hamburger + wordmark */}
       <div className="nav-left">
         <button
           type="button"
           className="nav-icon-button hamburger-button mobile-only"
           onClick={handleHamburgerClick}
-          aria-label="Open navigation menu"
+          aria-label={t('nav.openMenu')}
         >
           <FaBars className="nav-icon" aria-hidden="true" />
         </button>
         <Link
           to="/home"
           className="brand-button"
-          aria-label="Go to Home"
+          aria-label={t('nav.goHome')}
           onClick={handleLogoClick}
           >
           <img
@@ -366,24 +430,24 @@ function NavBar({
         className={`nav-center ${isMobileSearchOpen ? 'search-open' : ''}`}
         ref={searchAreaRef}
       >
-        <form className="search-form" role="search" onSubmit={handleSearch} aria-label="Site Search">
-          <div className="search-container" aria-live="polite">
+        <form className="search-form" role="search" onSubmit={handleSearch} aria-label={t('nav.siteSearch')}>
+          <div className="search-container" aria-live="polite" data-tour="search">
             <input
               type="text"
-              placeholder="Search forums, posts, people…"
-              aria-label="Search StudentSphere"
+              placeholder={t('nav.searchPlaceholder')}
+              aria-label={t('nav.searchPlatform')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
             />
-            <button type="submit" className="search-button" aria-label="Search">
+            <button type="submit" className="search-button" aria-label={t('nav.search')}>
               <FaSearch size={14} />
             </button>
             {isMobileSearchOpen && (
               <button
                 type="button"
                 className="search-button mobile-only"
-                aria-label="Close search"
+                aria-label={t('nav.closeSearch')}
                 onClick={() => setIsMobileSearchOpen(false)}
               >
                 <FaTimes size={14} />
@@ -394,11 +458,11 @@ function NavBar({
       </div>
 
       {/* Right: Icons and avatar */}
-      <div className="nav-right">
+      <div className={`nav-right${!userData ? ' nav-right--guest' : ''}`}>
         <button
           type="button"
           className="nav-icon-button mobile-only"
-          aria-label={isMobileSearchOpen ? 'Close search' : 'Open search'}
+          aria-label={isMobileSearchOpen ? t('nav.closeSearch') : t('nav.openSearch')}
           ref={searchToggleRef}
           onClick={() =>
             setIsMobileSearchOpen((prev) => {
@@ -410,20 +474,78 @@ function NavBar({
         >
           {isMobileSearchOpen ? <FaTimes className="nav-icon" /> : <FaSearch className="nav-icon" />}
         </button>
-        <div className="nav-icons" role="group" aria-label="Quick actions">
+        <div
+          className="language-switcher"
+          ref={languageSwitcherRef}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              setIsLanguageMenuOpen(false);
+            }
+          }}
+        >
+          <button
+            type="button"
+            className="nav-icon-button language-switcher-trigger"
+            ref={languageTriggerRef}
+            onClick={() => {
+              closeDrawerIfOpen();
+              setAccountMenuVisible(false);
+              if (isNotificationsOpen) toggleNotifications();
+              setIsLanguageMenuOpen((open) => !open);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                openLanguageMenuFromKeyboard(event.key === 'ArrowDown' ? 0 : LANGUAGE_OPTIONS.length - 1);
+              }
+            }}
+            aria-label={t('language.choose')}
+            title={t('language.choose')}
+            aria-haspopup="menu"
+            aria-expanded={isLanguageMenuOpen}
+            aria-controls="platform-language-menu"
+          >
+            <FaGlobe className="nav-icon language-switcher-icon" aria-hidden="true" />
+          </button>
+          <div
+            id="platform-language-menu"
+            ref={languageMenuRef}
+            className={`language-switcher-menu${isLanguageMenuOpen ? ' open' : ''}`}
+            role="menu"
+            aria-label={t('language.choose')}
+            aria-hidden={!isLanguageMenuOpen}
+          >
+            {LANGUAGE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`language-switcher-option${language === option.value ? ' selected' : ''}`}
+                role="menuitemradio"
+                aria-checked={language === option.value}
+                tabIndex={isLanguageMenuOpen ? 0 : -1}
+                onClick={() => chooseLanguage(option.value)}
+                onKeyDown={handleLanguageOptionKeyDown}
+              >
+                <span>{option.label}</span>
+                <FaCheck className="language-switcher-check" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="nav-icons" role="group" aria-label={t('nav.quickActions')}>
           {userData && (
             <>
               {/* Messages link */}
               <Link
                 to="/messages"
-                aria-label="Messages"
+                aria-label={t('nav.messages')}
                 className="messages-link"
                 onClick={closeDrawerIfOpen}
               >
                 <div className="notification-container">
-                  <FaEnvelope className="nav-icon" title="Messages" aria-hidden="true" />
+                  <FaEnvelope className="nav-icon" title={t('nav.messages')} aria-hidden="true" />
                   {unreadMessages > 0 && (
-                    <span className="notification-badge" aria-label={`${unreadMessages} unread messages`}>{unreadMessages}</span>
+                    <span className="notification-badge" aria-label={t('nav.unreadMessages', { count: unreadMessages })}>{unreadMessages}</span>
                   )}
                 </div>
               </Link>
@@ -440,22 +562,22 @@ function NavBar({
                   aria-haspopup="true"
                   aria-expanded={isNotificationsOpen}
                   aria-controls="notifications-dropdown"
-                  aria-label="Notifications"
-                  title="Notifications"
+                  aria-label={t('nav.notifications')}
+                  title={t('nav.notifications')}
                 >
                   <FaBell className="nav-icon" aria-hidden="true" />
                   {unreadCount > 0 && (
-                    <span className="notification-badge" aria-label={`${unreadCount} unread notifications`}>{unreadCount}</span>
+                    <span className="notification-badge" aria-label={t('nav.unreadNotifications', { count: unreadCount })}>{unreadCount}</span>
                   )}
                 </button>
 
                 {isNotificationsOpen && (
-                  <div id="notifications-dropdown" className="notifications-dropdown" role="dialog" aria-label="Notifications">
+                  <div id="notifications-dropdown" className="notifications-dropdown" role="dialog" aria-label={t('nav.notifications')}>
                     <div className="notifications-header">
                       <div className="notifications-heading">
-                        <p className="notifications-title">Notifications</p>
+                        <p className="notifications-title">{t('nav.notifications')}</p>
                         <p className="notifications-subtitle">
-                          {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+                          {unreadCount > 0 ? t('nav.unread', { count: unreadCount }) : t('nav.allCaughtUp')}
                         </p>
                       </div>
                       {notifList.length > 0 && (
@@ -464,15 +586,15 @@ function NavBar({
                           className="notifications-mark-read pill-button"
                           onClick={markAllAsRead}
                         >
-                          Mark all read
+                          {t('nav.markAllRead')}
                         </button>
                       )}
                     </div>
                     <div className="notifications-body">
                       {notifList.length === 0 ? (
                         <div className="notifications-empty">
-                          <p>You're all caught up.</p>
-                          <small>We'll let you know when something new arrives.</small>
+                          <p>{t('nav.caughtUpMessage')}</p>
+                          <small>{t('nav.newItemsMessage')}</small>
                         </div>
                       ) : (
                         <ul>
@@ -497,7 +619,7 @@ function NavBar({
                                 <div className="notification-body">
                                   <img
                                     src={buildAvatarSrc(notif.avatar_path)}
-                                    alt={`${notif.first_name || 'User'} ${notif.last_name || ''}`.trim()}
+                                    alt={`${notif.first_name || t('nav.userAvatar')} ${notif.last_name || ''}`.trim()}
                                     className="notification-avatar"
                                     role={notif.actor_user_id ? 'button' : undefined}
                                     tabIndex={notif.actor_user_id ? 0 : undefined}
@@ -544,13 +666,13 @@ function NavBar({
                                   >
                                     <p dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notif.message) }} />
                                     <time className="notification-time" dateTime={createdAt.toISOString()}>
-                                      {createdAt.toLocaleString()}
+                                      {createdAt.toLocaleString(locale)}
                                     </time>
                                   </div>
                                   <button
                                     type="button"
                                     className="notification-dismiss"
-                                    aria-label="Dismiss notification"
+                                    aria-label={t('nav.dismissNotification')}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleDismissNotification(notif.notification_id);
@@ -594,7 +716,7 @@ function NavBar({
             >
             <img
               src={buildAvatarSrc(userData.avatar_path)}
-              alt="User Avatar"
+              alt={t('nav.userAvatar')}
               className="user-avatar"
               onError={(e) => {
                 e.currentTarget.onerror = null;
@@ -602,7 +724,7 @@ function NavBar({
               }}
             />
               {accountMenuVisible && (
-                <div id="account-menu" className="account-menu" role="menu" aria-label="Account Menu">
+                <div id="account-menu" className="account-menu" role="menu" aria-label={t('nav.accountMenu')}>
                   <div
                     className="account-menu-item"
                     onClick={() => {
@@ -618,7 +740,7 @@ function NavBar({
                       }
                     }}
                   >
-                    Account Settings
+                    {t('nav.accountSettings')}
                   </div>
                   {/*
                   <div
@@ -648,7 +770,7 @@ function NavBar({
                     }}
                     role="menuitem"
                     aria-pressed={isDarkTheme}
-                    aria-label={isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'}
+                    aria-label={isDarkTheme ? t('nav.switchLight') : t('nav.switchDark')}
                     onKeyDown={(e) => {
                       e.stopPropagation();
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -662,7 +784,7 @@ function NavBar({
                       <div className="theme-toggle-thumb" />
                     </div>
                     <FaMoon className={`theme-icon ${isDarkTheme ? 'active' : ''}`} aria-hidden="true" />
-                    <span className="sr-only">{isDarkTheme ? 'Light mode' : 'Dark mode'}</span>
+                    <span className="sr-only">{isDarkTheme ? t('nav.lightMode') : t('nav.darkMode')}</span>
                   </button>
                   <div
                     className="account-menu-item"
@@ -679,7 +801,7 @@ function NavBar({
                       }
                     }}
                   >
-                    Log Out
+                    {t('nav.logOut')}
                   </div>
                 </div>
               )}
@@ -694,7 +816,7 @@ function NavBar({
               onOpenLogin();
             }}
           >
-            Login
+            {t('nav.logIn')}
           </button>
         )}
       </div>
@@ -710,7 +832,7 @@ function NavBar({
         <button
           type="button"
           className="global-announcement-dismiss"
-          aria-label="Dismiss announcement banner"
+          aria-label={t('nav.dismissAnnouncement')}
           onClick={() => {
             setGlobalAnnouncements([]);
             onAnnouncementHeight?.(0);

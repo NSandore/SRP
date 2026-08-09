@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import AppShell from '@/components/navigation/AppShell';
+import ReelGrid from '@/components/reels/ReelGrid';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
@@ -147,7 +148,7 @@ export default function UserProfileScreen() {
   const [errorExp, setErrorExp] = useState<string | null>(null);
   const [errorEdu, setErrorEdu] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'about' | 'posts'>('about');
+  const [activeTab, setActiveTab] = useState<'about' | 'reels' | 'posts'>('about');
   const [userThreads, setUserThreads] = useState<ThreadItem[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
   const [threadsError, setThreadsError] = useState<string | null>(null);
@@ -736,11 +737,12 @@ export default function UserProfileScreen() {
           <View style={styles.tabsRow}>
             {[
               { id: 'about', label: 'About' },
+              { id: 'reels', label: 'Reels' },
               { id: 'posts', label: 'Posts' },
             ].map((tab) => {
               const active = activeTab === tab.id;
               return (
-                <Pressable key={tab.id} onPress={() => setActiveTab(tab.id as 'about' | 'posts')}>
+                <Pressable key={tab.id} onPress={() => setActiveTab(tab.id as typeof activeTab)}>
                   <View style={styles.tabButton}>
                     <ThemedText style={[styles.tabText, active && styles.tabTextActive]}>
                       {tab.label}
@@ -957,6 +959,12 @@ export default function UserProfileScreen() {
                     <ThemedText style={styles.mutedText}>This user has chosen to hide their email.</ThemedText>
                   )}
                 </View>
+              </View>
+            ) : null}
+
+            {activeTab === 'reels' ? (
+              <View style={styles.sectionCard}>
+                <ReelGrid userId={userId} isOwnProfile={Boolean(isOwnProfile)} />
               </View>
             ) : null}
 

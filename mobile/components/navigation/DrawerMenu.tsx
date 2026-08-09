@@ -27,8 +27,9 @@ import { useBrandStyles } from '@/hooks/use-brand-styles';
 const DRAWER_WIDTH = 300;
 
 const baseItems = [
-  { key: 'home', label: 'Home', route: '/feed', icon: 'home', color: '#2563EB' },
-  { key: 'info', label: 'Info Board', route: '/info', icon: 'information-variant', color: '#0EA5E9' },
+  { key: 'home', label: 'Home', route: '/feed', icon: 'home', color: '#2F80ED' },
+  { key: 'reels', label: 'Reels', route: '/reels', icon: 'play-box-multiple', color: '#8B5CF6' },
+  { key: 'info', label: 'Info Board', route: '/info', icon: 'information-variant', color: '#69A8F7' },
   { key: 'funding', label: 'Funding', route: '/funding', icon: 'medal-outline', color: '#F59E0B', comingSoon: true },
   { key: 'communities', label: 'Communities', route: '/communities', icon: 'account-group', color: '#10B981' },
   { key: 'saved', label: 'Saved', route: '/saved', icon: 'bookmark-outline', color: '#6366F1' },
@@ -42,7 +43,7 @@ const mobileExtras = [
 ];
 
 const adminItems = [
-  { key: 'events_admin', label: 'Event Management', route: '/events-management', icon: 'calendar-star', color: '#2563EB' },
+  { key: 'events_admin', label: 'Event Management', route: '/events-management', icon: 'calendar-star', color: '#2F80ED' },
   { key: 'verifications', label: 'Verification Review', route: '/verifications', icon: 'shield-check', color: '#F43F5E' },
 ];
 

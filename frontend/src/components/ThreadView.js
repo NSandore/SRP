@@ -27,6 +27,7 @@ import {
   FaChevronRight,
   FaEllipsisV, // add for 3-dot menu
   FaCheckCircle,
+  FaPlus,
 } from 'react-icons/fa';
 import { FiMessageCircle } from 'react-icons/fi';
 
@@ -45,6 +46,9 @@ import ReportModal from './ReportModal';
 import { buildAvatarSrc } from '../utils/avatar';
 import { buildUploadSrc } from '../utils/uploads';
 import { getTagStyle } from '../utils/tagStyle';
+import { normalizeImageLayout } from '../utils/imageLayout';
+import { getPlainTextLength, POST_MAX_LENGTH } from '../utils/contentLimits';
+import { useLanguage } from '../i18n/LanguageContext';
 
 // Helper: relative time formatter
 const timeAgo = (dateStr) => {
@@ -445,6 +449,10 @@ function PostItem({
 }) {
   const [localReply, setLocalReply] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editCharacterCount, setEditCharacterCount] = useState(() =>
+    getPlainTextLength(post.original_content ?? post.content ?? '')
+  );
 
   // 3-dot menu
   const [openMenu, setOpenMenu] = useState(false);
@@ -461,7 +469,7 @@ function PostItem({
     }
   });
 
-  const postContext = stripHtml(post.content || '').slice(0, 200);
+  const postContext = stripHtml(post.original_content ?? post.content ?? '').slice(0, 200);
   const reportLabel = post.reply_to ? 'comment' : 'post';
 
   // Check if post is saved
@@ -481,8 +489,11 @@ function PostItem({
         types: ['heading', 'paragraph'],
       }),
     ],
-    content: post.content || '',
+    content: post.original_content ?? post.content ?? '',
     editable: isEditing,
+    onUpdate: ({ editor: activeEditor }) => {
+      setEditCharacterCount(activeEditor.getText().trim().length);
+    },
   });
 
   // Cleanup the editor when editing finishes
@@ -521,10 +532,12 @@ function PostItem({
 
   // EDIT Logic
   const startEditing = () => {
+    setEditError('');
     setIsEditing(true);
   };
 
   const cancelEditing = () => {
+    setEditError('');
     setIsEditing(false);
   };
 
@@ -534,6 +547,11 @@ function PostItem({
 
     const newContent = editor.getHTML();
     if (!newContent.trim()) return;
+    const contentLength = getPlainTextLength(newContent);
+    if (contentLength > POST_MAX_LENGTH) {
+      setEditError(`Posts must be ${POST_MAX_LENGTH.toLocaleString()} characters or fewer.`);
+      return;
+    }
 
     // Sanitize to prevent XSS
     const sanitizedContent = DOMPurify.sanitize(newContent);
@@ -611,13 +629,18 @@ function PostItem({
   }, [openMenu, userData?.user_id, post.post_id]);
   
   return (
-    <div id={`post-${postAnchorId}`} className={`post-card card-lift level-${level}`}>
-      {isEditing ? (
+    <div id={`post-${postAnchorId}`} className={`post-card card-lift reply-post-card level-${level}`}>
+      <div className="reply-post-surface">
+        {isEditing ? (
         <form onSubmit={confirmEdit} className="edit-form" style={{ marginBottom: '1rem' }}>
           {/* Show the same toolbar from TextEditor.js */}
           <EditToolbar editor={editor} />
           {/* Editor content */}
           <EditorContent editor={editor} className="tiptap-editor" />
+          <span className="field-character-count">
+            {editCharacterCount.toLocaleString()} / {POST_MAX_LENGTH.toLocaleString()}
+          </span>
+          {editError && <p className="form-error" role="alert">{editError}</p>}
   
           <div className="edit-form-actions">
             <button type="submit" className="create-button">
@@ -816,6 +839,7 @@ function PostItem({
                   onClick={toggleCollapse}
                   title={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
                   aria-label={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
+                  aria-expanded={!isCollapsed}
                 >
                   {isCollapsed ? <FaChevronRight /> : <FaChevronDown />}
                   <span className="collapse-text">
@@ -852,9 +876,13 @@ function PostItem({
             value={localReply}
             onChange={handleLocalReplyChange}
             rows={3}
+            maxLength={POST_MAX_LENGTH}
             required
             className="reply-textarea"
           />
+          <span className="field-character-count">
+            {localReply.length.toLocaleString()} / {POST_MAX_LENGTH.toLocaleString()}
+          </span>
           <div className="reply-form-actions">
             <button type="submit" className="create-button reply-button">
               Submit
@@ -868,7 +896,8 @@ function PostItem({
             </button>
           </div>
         </form>
-      )}
+        )}
+      </div>
   
       {/* Recursively render child replies */}
       {post.children && post.children.length > 0 && !isCollapsed && (
@@ -908,6 +937,7 @@ function PostItem({
 -------------------------------------------------------------------------- */
 function ThreadView({ userData, onRequireAuth }) {
   const { thread_id } = useParams();
+  const { language } = useLanguage();
   const location = useLocation();
 
   const [threadData, setThreadData] = useState(null);
@@ -922,6 +952,80 @@ function ThreadView({ userData, onRequireAuth }) {
   const [rootReplyContent, setRootReplyContent] = useState('');
   const [reportTarget, setReportTarget] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  // Original post header: 3-dot menu + follow-the-author state
+  const [origMenuOpen, setOrigMenuOpen] = useState(false);
+  const origMenuRef = useRef(null);
+  const [origSavedStatus, setOrigSavedStatus] = useState(false);
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
+  const [loadingFollowStatus, setLoadingFollowStatus] = useState(false);
+
+  useOnClickOutside(origMenuRef, () => {
+    if (origMenuOpen) setOrigMenuOpen(false);
+  });
+
+  useEffect(() => {
+    if (!origMenuOpen || !userData?.user_id || !originalPost?.post_id) return;
+    const loadSavedStatus = async () => {
+      try {
+        const resp = await axios.get('/api/save_check.php', {
+          params: { user_id: userData.user_id, item_type: 'post', item_id: originalPost.post_id },
+          withCredentials: true,
+        });
+        setOrigSavedStatus(Boolean(resp.data?.saved ?? resp.data?.is_saved));
+      } catch (err) {
+        console.error('save_check failed for original post', err);
+      }
+    };
+    loadSavedStatus();
+  }, [origMenuOpen, userData?.user_id, originalPost?.post_id]);
+
+  useEffect(() => {
+    if (!userData?.user_id || !originalPost?.user_id) return undefined;
+    if (Number(userData.user_id) === Number(originalPost.user_id)) return undefined;
+    let cancelled = false;
+    setLoadingFollowStatus(true);
+    axios
+      .get('/api/fetch_following_status.php', {
+        params: { follower_id: userData.user_id, followed_user_id: originalPost.user_id },
+      })
+      .then((res) => {
+        if (!cancelled && res.data?.success) {
+          setIsFollowingAuthor(Boolean(res.data.isFollowing));
+        }
+      })
+      .catch((err) => console.error('Error checking follow status:', err))
+      .finally(() => {
+        if (!cancelled) setLoadingFollowStatus(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userData?.user_id, originalPost?.user_id]);
+
+  const handleFollowAuthorToggle = async () => {
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
+    if (!originalPost?.user_id) return;
+    const endpoint = isFollowingAuthor ? '/api/unfollow_user.php' : '/api/follow_user.php';
+    try {
+      const resp = await axios.post(
+        endpoint,
+        { followed_user_id: originalPost.user_id },
+        { withCredentials: true }
+      );
+      if (resp.data?.success) {
+        setIsFollowingAuthor((prev) => !prev);
+      } else {
+        setNotification({ type: 'error', message: resp.data?.error || 'Unable to update follow status.' });
+      }
+    } catch (error) {
+      console.error('Error toggling follow status:', error);
+      setNotification({ type: 'error', message: 'Error updating follow status.' });
+    }
+  };
 
   useEffect(() => {
     if (!notification) return undefined;
@@ -1103,7 +1207,8 @@ function ThreadView({ userData, onRequireAuth }) {
         return;
       }
       try {
-        const res = await axios.get(`/api/fetch_thread.php?thread_id=${thread_id}`);
+        const params = new URLSearchParams({ thread_id: String(thread_id), lang: language });
+        const res = await axios.get(`/api/fetch_thread.php?${params.toString()}`);
         setThreadData(res.data);
       } catch (err) {
         console.error('Error fetching thread details:', err);
@@ -1113,7 +1218,7 @@ function ThreadView({ userData, onRequireAuth }) {
       }
     };
     fetchThread();
-  }, [thread_id]);
+  }, [thread_id, language]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -1161,6 +1266,7 @@ function ThreadView({ userData, onRequireAuth }) {
       if (userData?.user_id) {
         url += `&user_id=${userData.user_id}`;
       }
+      url += `&lang=${encodeURIComponent(language)}`;
       const res = await axios.get(url);
       const data = Array.isArray(res.data) ? res.data : [];
       console.log("Fetched Posts:", data);
@@ -1193,7 +1299,7 @@ function ThreadView({ userData, onRequireAuth }) {
     if (userData) {
       fetchSavedPosts();
     }
-  }, [thread_id, userData]);
+  }, [thread_id, userData, language]);
 
   useEffect(() => {
     if (isLoadingPosts || !targetPostId) return;
@@ -1490,44 +1596,60 @@ function ThreadView({ userData, onRequireAuth }) {
     );
   }
 
+  const threadDetailImageLayout = normalizeImageLayout(threadData?.image_layout);
+
   // Final return block
   return (
     <div className="feed-container thread-view">
       {/* Breadcrumbs */}
-      <nav className="breadcrumbs" aria-label="Breadcrumb">
-        <RouterLink to="/info">Info Board</RouterLink>
-        <span className="breadcrumb-sep">/</span>
-        {threadData?.forum_id ? (
-          <RouterLink to={`/info/forum/${threadData.forum_id}`}>
-            {threadData?.forum_name || 'Category'}
-          </RouterLink>
-        ) : (
-          <span>{threadData?.forum_name || 'Category'}</span>
-        )}
-        <span className="breadcrumb-sep">/</span>
-        {/*<span className="breadcrumb-current" aria-current="page">
-          {threadData?.title || `Thread ${thread_id}`}
-        </span>*/}
-      </nav>
-      {/* Title */}
-      <h1 className="h1" style={{ margin: 0 }}>
-        {threadData?.title || `Thread ${thread_id}`}
-      </h1>
+      <div className="thread-header-row">
+        <nav className="breadcrumbs" aria-label="Breadcrumb">
+          <RouterLink to="/info">Info Board</RouterLink>
+          <span className="breadcrumb-sep">&gt;</span>
+          {threadData?.forum_id ? (
+            <RouterLink to={`/info/forum/${threadData.forum_id}`}>
+              {threadData?.forum_name || 'Category'}
+            </RouterLink>
+          ) : (
+            <span>{threadData?.forum_name || 'Category'}</span>
+          )}
+          <span className="breadcrumb-sep">&gt;</span>
+          {/*<span className="breadcrumb-current" aria-current="page">
+            {threadData?.title || `Thread ${thread_id}`}
+          </span>*/}
+        </nav>
+      </div>
+      <section className={`thread-hero thread-hero--${threadDetailImageLayout}`}>
+        <div className="thread-hero__heading">
+          <h1 className="h1" style={{ margin: 0 }}>
+            {threadData?.title || `Thread ${thread_id}`}
+          </h1>
 
-      {/* Tags under title */}
-      {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
-        <div className="chips-row" style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
-          {threadData.tags.map((tag, idx) => (
-            <span
-              key={idx}
-              className="chip tag-chip"
-              style={{ ...getTagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}
-            >
-              {tag}
-            </span>
-          ))}
+          {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
+            <div className="chips-row" style={{ display: 'flex', gap: '8px', margin: 0 }}>
+              {threadData.tags.map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="chip tag-chip"
+                  style={{ ...getTagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        {threadData?.image_path && (
+          <div className={`thread-hero-media thread-hero-media--${threadDetailImageLayout}`}>
+            <img
+              src={buildUploadSrc(threadData.image_path)}
+              alt={threadData?.title || 'Thread'}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+        )}
+      </section>
 
       {hasMeaningfulUpdate(threadData?.created_at, threadData?.updated_at) && (
         <div className="meta-quiet" style={{ marginTop: 2, marginBottom: 10 }}>
@@ -1586,9 +1708,92 @@ function ThreadView({ userData, onRequireAuth }) {
                     </RouterLink>
                     {originalPost.user_role && <span className="meta-quiet">· {originalPost.user_role}</span>}
                   </div>
+                  {originalPost.headline && (
+                    <p className="connection-headline original-post-headline">{originalPost.headline}</p>
+                  )}
                   <div className="meta-quiet">{timeAgo(originalPost.created_at)}</div>
                   {hasMeaningfulUpdate(originalPost.created_at, originalPost.updated_at) && (
                     <div className="meta-quiet">Edited {timeAgo(originalPost.updated_at)}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="original-post-header-actions">
+                {String(userData?.user_id || '') !== String(originalPost.user_id || '') && (
+                  <button
+                    type="button"
+                    className={`follow-button ${isFollowingAuthor ? 'unfollow' : 'follow'}`}
+                    onClick={handleFollowAuthorToggle}
+                    disabled={loadingFollowStatus}
+                  >
+                    {isFollowingAuthor ? 'Following' : (
+                      <>
+                        <FaPlus className="follow-button-icon" aria-hidden="true" /> Follow
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <div className="kebab-menu original-post-menu" ref={origMenuRef}>
+                  <button
+                    type="button"
+                    className="kebab-trigger"
+                    onClick={() => setOrigMenuOpen((prev) => !prev)}
+                    aria-label="Post actions"
+                    aria-expanded={origMenuOpen}
+                  >
+                    <FaEllipsisV className="menu-icon" />
+                  </button>
+                  {origMenuOpen && (
+                    <div className="dropdown-menu post-header-menu-panel">
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          handleToggleSavePost(originalPost.post_id, origSavedStatus);
+                          setOrigSavedStatus((prev) => !prev);
+                          setOrigMenuOpen(false);
+                        }}
+                      >
+                        {origSavedStatus ? 'Unsave' : 'Save'}
+                      </button>
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          handleOpenReport({
+                            id: originalPost.post_id,
+                            type: 'post',
+                            label: 'original post',
+                            context: stripHtml(originalPost.original_content ?? originalPost.content ?? '').slice(0, 200),
+                          });
+                          setOrigMenuOpen(false);
+                        }}
+                      >
+                        Report post
+                      </button>
+                      {canVerifyPosts && Number(originalPost.verified) !== 1 && (
+                        <button
+                          className="dropdown-item"
+                          onClick={() => {
+                            handleVerifyPost(originalPost.post_id);
+                            setOrigMenuOpen(false);
+                          }}
+                        >
+                          Verify answer
+                        </button>
+                      )}
+                      {Number(originalPost.verified) === 1 &&
+                        String(originalPost.verified_by || '') === String(userData?.user_id || '') && (
+                          <button
+                            className="dropdown-item"
+                            onClick={() => {
+                              handleUnverifyPost(originalPost.post_id);
+                              setOrigMenuOpen(false);
+                            }}
+                          >
+                            Unverify answer
+                          </button>
+                        )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1630,20 +1835,6 @@ function ThreadView({ userData, onRequireAuth }) {
                 <FiMessageCircle />
               </button>
               <span className="vote-count comment-count">{totalComments}</span>
-              <button
-                type="button"
-                className="report-inline-button"
-                onClick={() =>
-                  handleOpenReport({
-                    id: originalPost.post_id,
-                    type: 'post',
-                    label: 'original post',
-                    context: stripHtml(originalPost.content || '').slice(0, 200),
-                  })
-                }
-              >
-                Report
-              </button>
             </div>
           </div>
       {rootReplyOpen && (
@@ -1654,8 +1845,12 @@ function ThreadView({ userData, onRequireAuth }) {
             value={rootReplyContent}
             onChange={(e) => setRootReplyContent(e.target.value)}
             placeholder="Share your thoughts..."
+            maxLength={POST_MAX_LENGTH}
             required
           />
+          <span className="field-character-count">
+            {rootReplyContent.length.toLocaleString()} / {POST_MAX_LENGTH.toLocaleString()}
+          </span>
           <div className="reply-form-actions">
             <button type="submit" className="create-button reply-button">
               Submit
@@ -1671,7 +1866,7 @@ function ThreadView({ userData, onRequireAuth }) {
   )}
 
   <div className="reply-sort-controls filter-toolbar filter-toolbar--sort-only">
-        <label htmlFor="replySort" className="sort-pill">Sort replies</label>
+        <label htmlFor="replySort" className="sort-pill">Sort</label>
         <select
           id="replySort"
           value={replySortCriteria}

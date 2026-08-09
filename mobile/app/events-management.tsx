@@ -1914,7 +1914,7 @@ const createStyles = (colors: BrandColors) =>
     backgroundColor: hexToRgba('#f59e0b', 0.14),
   },
   eventPill_poll: {
-    backgroundColor: hexToRgba('#38bdf8', 0.14),
+    backgroundColor: hexToRgba('#72AEFA', 0.14),
   },
   eventDate: {
     fontSize: 11,
@@ -2116,7 +2116,7 @@ const createStyles = (colors: BrandColors) =>
     backgroundColor: '#f59e0b',
   },
   calendarDotPoll: {
-    backgroundColor: '#38bdf8',
+    backgroundColor: '#72AEFA',
   },
   calendarDaySection: {
     marginTop: 12,

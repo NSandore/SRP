@@ -85,16 +85,16 @@ function srp_column_is_generated(PDO $db, string $tableName, string $columnName)
 }
 
 function srp_ensure_tag_tables(PDO $db): void {
-    $db->exec("
+    $tables = [
+        'tags' => "
         CREATE TABLE IF NOT EXISTS tags (
             tag_id VARCHAR(32) PRIMARY KEY,
             name VARCHAR(80) NOT NULL,
             slug VARCHAR(80) NOT NULL UNIQUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-
-    $db->exec("
+    ",
+        'thread_tags' => "
         CREATE TABLE IF NOT EXISTS thread_tags (
             id VARCHAR(32) PRIMARY KEY,
             thread_id VARCHAR(32) NOT NULL,
@@ -103,9 +103,8 @@ function srp_ensure_tag_tables(PDO $db): void {
             KEY idx_thread_tags_thread (thread_id),
             KEY idx_thread_tags_tag (tag_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-
-    $db->exec("
+    ",
+        'forum_tags' => "
         CREATE TABLE IF NOT EXISTS forum_tags (
             id VARCHAR(32) PRIMARY KEY,
             forum_id VARCHAR(32) NOT NULL,
@@ -114,9 +113,8 @@ function srp_ensure_tag_tables(PDO $db): void {
             KEY idx_forum_tags_forum (forum_id),
             KEY idx_forum_tags_tag (tag_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-
-    $db->exec("
+    ",
+        'user_interests' => "
         CREATE TABLE IF NOT EXISTS user_interests (
             id VARCHAR(32) PRIMARY KEY,
             user_id VARCHAR(32) NOT NULL,
@@ -125,7 +123,18 @@ function srp_ensure_tag_tables(PDO $db): void {
             KEY idx_user_interests_user (user_id),
             KEY idx_user_interests_tag (tag_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
+    ",
+    ];
+
+    foreach ($tables as $tableName => $createSql) {
+        if (srp_table_exists($db, $tableName)) {
+            continue;
+        }
+        if ($db->inTransaction()) {
+            throw new RuntimeException("Tag table {$tableName} must be initialized before starting a transaction.");
+        }
+        $db->exec($createSql);
+    }
 }
 
 function srp_seed_tags(PDO $db): array {

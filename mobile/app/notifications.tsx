@@ -56,7 +56,7 @@ const typeIcon = (type?: string): string => {
 
 const typeColor = (type?: string, primaryFrom?: string): string => {
   switch (type) {
-    case 'message': return '#0ea5e9';
+    case 'message': return '#69A8F7';
     case 'connection': return '#10b981';
     case 'follow': return '#f43f5e';
     case 'verification_request': return '#f59e0b';

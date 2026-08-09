@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
@@ -9,15 +11,23 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$inputData = json_decode(file_get_contents('php://input'), true);
-
-if (empty($inputData['user_id']) || empty($inputData['selected_schools'])) {
-    http_response_code(400);
-    echo json_encode(['error' => 'User ID and selected schools are required.']);
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'You must be logged in.']);
     exit;
 }
 
-$user_id = normalizeId($inputData['user_id']);
+$inputData = json_decode(file_get_contents('php://input'), true);
+
+if (empty($inputData['selected_schools'])) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Selected schools are required.']);
+    exit;
+}
+
+// The actor is always the authenticated session's own user, never a
+// client-supplied user_id.
+$user_id = normalizeId($_SESSION['user_id']);
 $selected_schools = $inputData['selected_schools'];
 
 try {
