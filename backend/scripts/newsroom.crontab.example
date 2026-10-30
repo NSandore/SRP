@@ -1,0 +1,4 @@
+# Import this line into the host crontab with deployment-specific absolute
+# paths. The script itself locks concurrent runs and records a successful run,
+# so a delayed cron invocation cannot refresh the source twice in one day.
+18 5 * * * cd /srv/studentsphere && /usr/bin/php backend/scripts/sync_newsroom.php >> /var/log/studentsphere/newsroom-sync.log 2>&1

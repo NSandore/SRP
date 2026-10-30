@@ -2,9 +2,19 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import axios from 'axios';
-import { FaLock } from 'react-icons/fa';
+import { FaLock, FaEllipsisV, FaSearch } from 'react-icons/fa';
 import './GroupProfile.css';
 import ModalOverlay from './ModalOverlay';
+import ReportModal from './ReportModal';
+import { buildAvatarSrc } from '../utils/avatar';
+import buildUploadSrc from '../utils/uploads';
+import { getAdjustedColor, getHighestContrastColor, getReadableTextColor } from '../utils/color';
+import { isSuperAdmin } from '../constants/roles';
+import RightRail from '../widgets/RightRail';
+import useCommunityAccent from '../hooks/useCommunityAccent';
+import { THREAD_TITLE_MAX_LENGTH } from '../utils/contentLimits';
+import ReelGrid from './ReelGrid';
+import { REELS_ENABLED } from '../constants/features';
 
 function GroupProfile({ userData, onRequireAuth }) {
   const { id } = useParams(); // group community id
@@ -17,6 +27,8 @@ function GroupProfile({ userData, onRequireAuth }) {
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const [ambassadors, setAmbassadors] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [subgroupSearch, setSubgroupSearch] = useState('');
+  const [questionSearch, setQuestionSearch] = useState('');
   const [questions, setQuestions] = useState([]);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [questionTitle, setQuestionTitle] = useState('');
@@ -39,23 +51,43 @@ function GroupProfile({ userData, onRequireAuth }) {
   const [postsLoading, setPostsLoading] = useState(false);
   const [postsError, setPostsError] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [openPostsMenuId, setOpenPostsMenuId] = useState(null);
+  const [pinnedItems, setPinnedItems] = useState([]);
+  const [isLoadingPinned, setIsLoadingPinned] = useState(false);
+  const [pinnedError, setPinnedError] = useState('');
+  const [unpinBusy, setUnpinBusy] = useState({});
+  const [openPinnedMenuId, setOpenPinnedMenuId] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [showAmbassadorOverlay, setShowAmbassadorOverlay] = useState(false);
   const [loadingAmbassadors, setLoadingAmbassadors] = useState(false);
   const [errorAmbassadors, setErrorAmbassadors] = useState(null);
-  const [ambassadorsLoaded, setAmbassadorsLoaded] = useState(false);
   const [menuOpenFor, setMenuOpenFor] = useState(null);
   const [subcommunities, setSubcommunities] = useState([]);
   const [loadingSubcommunities, setLoadingSubcommunities] = useState(false);
   const [subcommunitiesError, setSubcommunitiesError] = useState('');
   const [childFollowBusy, setChildFollowBusy] = useState({});
+  const [knowledgeBaseArticles, setKnowledgeBaseArticles] = useState([]);
+  const [knowledgeBaseLoading, setKnowledgeBaseLoading] = useState(false);
+  const [knowledgeBaseError, setKnowledgeBaseError] = useState('');
+  const [knowledgeBaseSearch, setKnowledgeBaseSearch] = useState('');
   const hasSubcommunities = subcommunities.length > 0;
+  const isKnowledgeBase = group?.content_mode === 'knowledge_base';
+
+  useCommunityAccent(group?.primary_color, group?.secondary_color);
 
   const currentAmbassador = ambassadors.find((a) => String(a.user_id) === String(userData?.user_id));
-  const viewerRole = (currentAmbassador?.role || '').toLowerCase() || 'viewer';
-  const isSuperAdmin = Number(userData?.role_id) === 1;
+  const viewerRole = (currentAmbassador?.community_role || '').toLowerCase() || 'viewer';
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const isCommunityAdmin = viewerRole === 'admin';
-  const canEditCommunity = Boolean(userData) && (isSuperAdmin || isCommunityAdmin);
-  const canRemoveAmbassador = Boolean(userData) && (isSuperAdmin || isCommunityAdmin);
+  const canEditCommunity = Boolean(userData) && (isSuperAdminUser || isCommunityAdmin);
+  const canRemoveAmbassador = Boolean(userData) && (isSuperAdminUser || isCommunityAdmin);
+  const canPinToOverview = Array.isArray(userData?.ambassador_communities)
+    && userData.ambassador_communities.some((c) => String(c?.community_id ?? c?.id ?? '') === String(id));
+  const canUnpinFromCommunity = Array.isArray(userData?.ambassador_communities)
+    && userData.ambassador_communities.some((c) => String(c?.community_id ?? c?.id ?? '') === String(id));
+
+  const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
   const timeAgo = (dateStr) => {
     if (!dateStr) return '';
@@ -86,6 +118,84 @@ function GroupProfile({ userData, onRequireAuth }) {
     return 'just now';
   };
 
+  const formatShortDate = (dateStr) => {
+    if (!dateStr) return '';
+    const parsed = new Date(dateStr);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: '2-digit',
+    });
+  };
+
+  const handleOpenReport = (target) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    if (!target || !target.id || !target.type) return;
+    setReportTarget({
+      ...target,
+      label: target.label || target.type,
+      context: target.context ? target.context.trim() : '',
+    });
+  };
+
+  const handleSubmitReport = async ({ reasonCode, reasonText, details }) => {
+    if (!reportTarget) return;
+    setIsSubmittingReport(true);
+    try {
+      const resp = await axios.post(
+        '/api/submit_report.php',
+        {
+          item_type: reportTarget.type,
+          item_id: reportTarget.id,
+          reason_code: reasonCode,
+          reason_text: reasonText,
+          details,
+        },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        setStatusMessage('Report submitted.');
+        setReportTarget(null);
+      } else {
+        setStatusMessage(resp.data.error || 'Unable to submit report.');
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setStatusMessage('An error occurred while submitting the report.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  const handleSavePinnedItem = async (item) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    const isThread = item?.item_type === 'thread';
+    const payload = isThread
+      ? { user_id: userData.user_id, thread_id: item.thread_id || item.item_id }
+      : { user_id: userData.user_id, forum_id: item.forum_id || item.item_id };
+    const url = isThread ? '/api/save_thread.php' : '/api/save_forum.php';
+    try {
+      const resp = await axios.post(url, payload, { withCredentials: true });
+      if (resp.data.success) {
+        setStatusMessage(isThread ? 'Thread saved.' : 'Forum saved.');
+      } else {
+        setStatusMessage(resp.data.error || 'Unable to save.');
+      }
+    } catch (error) {
+      console.error('Error saving pinned item:', error);
+      setStatusMessage('An error occurred while saving.');
+    } finally {
+      setOpenPinnedMenuId(null);
+    }
+  };
+
   // Fetch group details on mount (or when id changes)
   useEffect(() => {
     const fetchGroup = async () => {
@@ -98,14 +208,15 @@ function GroupProfile({ userData, onRequireAuth }) {
         const response = await axios.get(`/api/fetch_group.php?${params.toString()}`);
         if (response.data.success) {
           setGroup(response.data.group);
+          setActiveTab(response.data.group.content_mode === 'knowledge_base' ? 'articles' : 'overview');
           setFollowersCount(response.data.group.followers_count || 0);
           setIsFollowing(Boolean(response.data.group.is_following));
           setEditName(response.data.group.name || '');
           setEditTagline(response.data.group.tagline || '');
           setEditLocation(response.data.group.location || '');
           setEditWebsite(response.data.group.website || '');
-          setEditPrimaryColor(response.data.group.primary_color || '#0077B5');
-          setEditSecondaryColor(response.data.group.secondary_color || '#005f8d');
+          setEditPrimaryColor(response.data.group.primary_color || '#2F80ED');
+          setEditSecondaryColor(response.data.group.secondary_color || '#1D5FC4');
         } else {
           setError(response.data.error);
         }
@@ -118,8 +229,43 @@ function GroupProfile({ userData, onRequireAuth }) {
     fetchGroup();
   }, [id, userData?.user_id]);
 
+  useEffect(() => {
+    if (!isKnowledgeBase) {
+      setKnowledgeBaseArticles([]);
+      setKnowledgeBaseError('');
+      return;
+    }
+    let cancelled = false;
+    const loadKnowledgeBase = async () => {
+      setKnowledgeBaseLoading(true);
+      setKnowledgeBaseError('');
+      try {
+        const params = new URLSearchParams({ community_id: id });
+        if (userData?.user_id) params.append('user_id', userData.user_id);
+        const res = await axios.get(`/api/fetch_knowledge_base_articles.php?${params.toString()}`);
+        if (cancelled) return;
+        if (res.data.success) {
+          setKnowledgeBaseArticles(Array.isArray(res.data.articles) ? res.data.articles : []);
+        } else {
+          setKnowledgeBaseArticles([]);
+          setKnowledgeBaseError(res.data.error || 'Unable to load the knowledge base.');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setKnowledgeBaseArticles([]);
+          setKnowledgeBaseError('Unable to load the knowledge base.');
+        }
+      } finally {
+        if (!cancelled) setKnowledgeBaseLoading(false);
+      }
+    };
+    loadKnowledgeBase();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isKnowledgeBase, userData?.user_id]);
+
   const fetchAmbassadors = async (withSpinner = false) => {
-    setAmbassadorsLoaded(false);
     if (withSpinner) {
       setLoadingAmbassadors(true);
       setErrorAmbassadors(null);
@@ -139,7 +285,6 @@ function GroupProfile({ userData, onRequireAuth }) {
       if (withSpinner) {
         setLoadingAmbassadors(false);
       }
-      setAmbassadorsLoaded(true);
     }
   };
 
@@ -147,11 +292,22 @@ function GroupProfile({ userData, onRequireAuth }) {
     fetchAmbassadors();
   }, [id]);
 
+  useEffect(() => {
+    const handleOpenAmbassadors = (event) => {
+      if (String(event?.detail?.communityId || '') !== String(id) || !userData) return;
+      setShowAmbassadorOverlay(true);
+      setMenuOpenFor(null);
+      fetchAmbassadors(true);
+    };
+    window.addEventListener('openCommunityAmbassadors', handleOpenAmbassadors);
+    return () => window.removeEventListener('openCommunityAmbassadors', handleOpenAmbassadors);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, userData?.user_id]);
+
   const isLoggedIn = Boolean(userData);
   const isAmbassador =
     isLoggedIn &&
     ambassadors.some((a) => String(a.user_id || a.id) === String(userData.user_id));
-  const canApplyForAmbassador = isLoggedIn && ambassadorsLoaded && !isAmbassador;
 
   const getInitials = (firstName = '', lastName = '') => {
     const first = firstName.trim().charAt(0);
@@ -214,49 +370,179 @@ function GroupProfile({ userData, onRequireAuth }) {
   }, [id, userData?.user_id]);
 
   useEffect(() => {
-    const fetchPostsForGroup = async () => {
-      setPostsLoading(true);
-      setPostsError(null);
+    const fetchPinnedItems = async () => {
+      setIsLoadingPinned(true);
+      setPinnedError('');
       try {
-        // 1) Fetch forums for this community
-        const forumsRes = await axios.get(`/api/fetch_forums.php?community_id=${id}`);
-        const forumsList = Array.isArray(forumsRes.data?.forums)
-          ? forumsRes.data.forums
-          : Array.isArray(forumsRes.data)
-          ? forumsRes.data
-          : [];
-        if (!forumsList.length) {
-          setPosts([]);
-          return;
+        const res = await axios.get(`/api/fetch_pinned_items.php?community_id=${id}`);
+        if (res.data.success) {
+          setPinnedItems(Array.isArray(res.data.items) ? res.data.items : []);
+        } else {
+          setPinnedItems([]);
+          setPinnedError(res.data.error || 'Unable to load pinned items.');
         }
-
-        // 2) Fetch threads for each forum
-        const threadsPromises = forumsList.map(async (forum) => {
-          const tRes = await axios.get(
-            `/api/fetch_threads.php?forum_id=${forum.forum_id}&user_id=${userData?.user_id || ''}`
-          );
-          const threads = Array.isArray(tRes.data) ? tRes.data : [];
-          return threads.map((t) => ({ ...t, forum_name: forum.name }));
-        });
-
-        const threadGroups = await Promise.all(threadsPromises);
-        const allThreads = threadGroups.flat();
-        // Sort newest first
-        allThreads.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        setPosts(allThreads);
       } catch (err) {
-        console.error('Error fetching group posts:', err);
-        setPostsError('Unable to load posts.');
-        setPosts([]);
+        setPinnedItems([]);
+        setPinnedError('Unable to load pinned items.');
       } finally {
-        setPostsLoading(false);
+        setIsLoadingPinned(false);
       }
     };
 
-    if (activeTab === 'posts') {
-      fetchPostsForGroup();
+    fetchPinnedItems();
+  }, [id]);
+
+  const handleUnpin = async (pinId) => {
+    if (!canUnpinFromCommunity || !pinId) return;
+    setOpenPinnedMenuId(null);
+    setUnpinBusy((prev) => ({ ...prev, [pinId]: true }));
+    try {
+      const res = await axios.post(
+        '/api/unpin_from_community.php',
+        { pin_id: pinId },
+        { withCredentials: true }
+      );
+      if (res.data.success) {
+        setPinnedItems((prev) => prev.filter((item) => String(item.pin_id) !== String(pinId)));
+      } else {
+        alert(res.data.error || 'Unable to un-pin this item.');
+      }
+    } catch (err) {
+      alert('Unable to un-pin this item.');
+    } finally {
+      setUnpinBusy((prev) => {
+        const next = { ...prev };
+        delete next[pinId];
+        return next;
+      });
     }
-  }, [activeTab, id, userData?.user_id]);
+  };
+
+  const refreshGroupPosts = async () => {
+    setPostsLoading(true);
+    setPostsError(null);
+    try {
+      const forumsRes = await axios.get(`/api/fetch_forums.php?community_id=${id}`);
+      const forumsList = Array.isArray(forumsRes.data?.forums)
+        ? forumsRes.data.forums
+        : Array.isArray(forumsRes.data)
+        ? forumsRes.data
+        : [];
+      if (!forumsList.length) {
+        setPosts([]);
+        return;
+      }
+
+      const threadsPromises = forumsList.map(async (forum) => {
+        const tRes = await axios.get(
+          `/api/fetch_threads.php?forum_id=${forum.forum_id}&user_id=${userData?.user_id || ''}`
+        );
+        const threads = Array.isArray(tRes.data) ? tRes.data : [];
+        return threads.map((t) => ({ ...t, forum_name: forum.name }));
+      });
+      const threadGroups = await Promise.all(threadsPromises);
+      const allThreads = threadGroups.flat();
+      allThreads.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setPosts(allThreads);
+    } catch (err) {
+      setPostsError('Unable to load posts.');
+      setPosts([]);
+    } finally {
+      setPostsLoading(false);
+    }
+  };
+
+  const handlePinThreadToOverview = async (thread) => {
+    if (!canPinToOverview) return;
+    try {
+      const res = await axios.post(
+        '/api/pin_to_community.php',
+        {
+          community_id: id,
+          item_id: thread.thread_id,
+          item_type: 'thread',
+        },
+        { withCredentials: true }
+      );
+      if (!res.data.success) {
+        alert(res.data.error || 'Unable to pin thread.');
+        return;
+      }
+      const pinnedRes = await axios.get(`/api/fetch_pinned_items.php?community_id=${id}`);
+      if (pinnedRes.data.success) {
+        setPinnedItems(Array.isArray(pinnedRes.data.items) ? pinnedRes.data.items : []);
+      }
+      setOpenPostsMenuId(null);
+    } catch (err) {
+      alert('Unable to pin thread.');
+    }
+  };
+
+  const handleEditThreadFromPosts = async (thread) => {
+    const canManage = isSuperAdminUser || isCommunityAdmin || String(thread.user_id) === String(userData?.user_id);
+    if (!canManage) return;
+    const nextTitle = window.prompt('Edit thread title:', thread.title || '');
+    if (nextTitle === null) return;
+    const trimmed = nextTitle.trim();
+    if (!trimmed) {
+      alert('Title cannot be empty.');
+      return;
+    }
+    if (trimmed.length > THREAD_TITLE_MAX_LENGTH) {
+      alert(`Thread titles must be ${THREAD_TITLE_MAX_LENGTH} characters or fewer.`);
+      return;
+    }
+    try {
+      const res = await axios.post(
+        '/api/edit_thread.php',
+        { thread_id: thread.thread_id, new_title: trimmed },
+        { withCredentials: true }
+      );
+      if (!res.data.success) {
+        alert(res.data.error || 'Unable to edit thread.');
+        return;
+      }
+      await refreshGroupPosts();
+      setOpenPostsMenuId(null);
+    } catch (err) {
+      alert('Unable to edit thread.');
+    }
+  };
+
+  const handleDeleteThreadFromPosts = async (thread) => {
+    const canManage = isSuperAdminUser || isCommunityAdmin || String(thread.user_id) === String(userData?.user_id);
+    if (!canManage) return;
+    if (!window.confirm('Delete this thread? This cannot be undone.')) return;
+    try {
+      const res = await axios.post(
+        '/api/delete_thread.php',
+        { thread_id: thread.thread_id },
+        { withCredentials: true }
+      );
+      if (!res.data.success) {
+        alert(res.data.error || 'Unable to delete thread.');
+        return;
+      }
+      await refreshGroupPosts();
+      setOpenPostsMenuId(null);
+    } catch (err) {
+      alert('Unable to delete thread.');
+    }
+  };
+
+  useEffect(() => {
+    if (!openPinnedMenuId) return undefined;
+    const handleClickOutside = (event) => {
+      if (event.target.closest('.pinned-menu-container')) return;
+      setOpenPinnedMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [openPinnedMenuId]);
 
   const handleSubmitQuestion = async (e) => {
     e.preventDefault();
@@ -414,7 +700,6 @@ function GroupProfile({ userData, onRequireAuth }) {
   if (loading) return <p>Loading...</p>;
   if (error) return <p>{error}</p>;
   if (!group) return <p>No group found.</p>;
-  const hasAmbassadors = ambassadors.length > 0;
 
   const openEdit = () => {
     if (!canEditCommunity) return;
@@ -425,13 +710,13 @@ function GroupProfile({ userData, onRequireAuth }) {
     setEditTagline(group.tagline || '');
     setEditLocation(group.location || '');
     setEditWebsite(group.website || '');
-    setEditPrimaryColor(group.primary_color || '#0077B5');
-    setEditSecondaryColor(group.secondary_color || '#005f8d');
+    setEditPrimaryColor(group.primary_color || '#2F80ED');
+    setEditSecondaryColor(group.secondary_color || '#1D5FC4');
     setShowEditModal(true);
   };
 
   const handleRemoveAmbassador = async (amb) => {
-    if (!canRemoveAmbassador || String(amb.role).toLowerCase() === 'admin') return;
+    if (!canRemoveAmbassador || String(amb.community_role).toLowerCase() === 'admin') return;
     const reason = window.prompt('Are you sure you want to revoke their access? Provide a reason (optional):', '');
     if (reason === null) return;
     try {
@@ -447,7 +732,7 @@ function GroupProfile({ userData, onRequireAuth }) {
   };
 
   const handlePromoteToAdmin = async (amb) => {
-    if (!canEditCommunity || String(amb.role).toLowerCase() === 'admin') return;
+    if (!canEditCommunity || String(amb.community_role).toLowerCase() === 'admin') return;
     try {
       await axios.post(
         '/api/promote_user_to_admin.php',
@@ -480,8 +765,19 @@ function GroupProfile({ userData, onRequireAuth }) {
         withCredentials: true,
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      if (res.data.success) {
-        const updated = res.data.university || res.data.group || res.data.community || null;
+      const payload = (() => {
+        if (typeof res.data === 'string') {
+          try {
+            return JSON.parse(res.data);
+          } catch {
+            return {};
+          }
+        }
+        return res.data || {};
+      })();
+
+      if (payload.success) {
+        const updated = payload.university || payload.group || payload.community || null;
         if (updated) {
           setGroup(updated);
           setEditStatus('Community updated successfully.');
@@ -490,7 +786,7 @@ function GroupProfile({ userData, onRequireAuth }) {
           setEditStatus('Updated, but no data returned. Please refresh.');
         }
       } else {
-        setEditStatus(res.data.error || 'Unable to update community.');
+        setEditStatus(payload.error || 'Unable to update community.');
       }
     } catch (err) {
       setEditStatus('An error occurred while updating.');
@@ -499,21 +795,70 @@ function GroupProfile({ userData, onRequireAuth }) {
     }
   };
 
-  const logoSrc =
-    group.logo_path && group.logo_path.startsWith('/')
-      ? group.logo_path
-      : `/uploads/logos/${group.logo_path || 'default-logo.png'}`;
+  const logoSrc = buildUploadSrc(group.logo_path || '/uploads/logos/default-logo.png');
+  const primaryColor = group.primary_color || '#2F80ED';
+  const secondaryColor = group.secondary_color || '#1D5FC4';
+  const gradientLight = getAdjustedColor(primaryColor, 1.12);
+  const gradientDark = getAdjustedColor(primaryColor, 0.85);
+  const pillTextColor = getReadableTextColor(primaryColor);
+  const secondaryPillTextColor = getReadableTextColor(secondaryColor);
+  const lightThemeAccent = getHighestContrastColor([primaryColor, secondaryColor], '#FFFFFF') || primaryColor;
+  const darkThemeAccent = getHighestContrastColor([primaryColor, secondaryColor], '#08152B') || primaryColor;
+  const subgroupQuery = subgroupSearch.trim().toLowerCase();
+  const questionQuery = questionSearch.trim().toLowerCase();
+  const visibleSubcommunities = subgroupQuery
+    ? subcommunities.filter((child) => (
+        [child.name, child.tagline, child.location, child.community_type]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(subgroupQuery))
+      ))
+    : subcommunities;
+  const visibleQuestions = questionQuery
+    ? questions.filter((question) => (
+        [
+          question.title,
+          question.body,
+          question.asker_first_name,
+          question.asker_last_name,
+          ...(Array.isArray(question.answers)
+            ? question.answers.flatMap((answer) => [answer.body, answer.first_name, answer.last_name])
+            : []),
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(questionQuery))
+      ))
+    : questions;
+  const knowledgeBaseQuery = knowledgeBaseSearch.trim().toLowerCase();
+  const visibleKnowledgeBaseArticles = knowledgeBaseQuery
+    ? knowledgeBaseArticles.filter((article) => (
+        [article.title, article.excerpt, ...(article.tags || [])]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(knowledgeBaseQuery))
+      ))
+    : knowledgeBaseArticles;
 
   return (
-    <div className="profile-container" style={{
-      '--primary-color': group.primary_color || '#0077B5',
-      '--secondary-color': group.secondary_color || '#005f8d',
-    }}>
+    <div
+      className="profile-container community-profile"
+      style={{
+        '--community-accent': primaryColor,
+        '--community-accent-secondary': secondaryColor,
+        '--community-accent-light-theme': lightThemeAccent,
+        '--community-accent-dark-theme': darkThemeAccent,
+        '--community-on-accent': pillTextColor,
+        '--community-on-accent-secondary': secondaryPillTextColor,
+        ...(gradientLight ? { '--gradient-secondary-light': gradientLight } : {}),
+        ...(gradientDark ? { '--gradient-secondary-dark': gradientDark } : {})
+      }}
+    >
       <section className="profile-main">
         {/* HERO CARD */}
         <div className="hero-card community-hero">
           <div className="hero-banner">
-            <img src={group.banner_path || '/uploads/banners/DefaultBanner.jpeg'} alt="Group Banner" />
+            <img
+              src={buildUploadSrc(group.banner_path || '/uploads/banners/DefaultBanner.jpeg')}
+              alt="Group Banner"
+            />
           </div>
           <div className="hero-content">
             <div className="hero-left">
@@ -533,14 +878,19 @@ function GroupProfile({ userData, onRequireAuth }) {
                     </RouterLink>
                   </p>
                 )}
-                <p className="muted" style={{ marginTop: 6 }}>
-                  {followersCount} follower{followersCount === 1 ? '' : 's'}
-                </p>
                 {group.tagline && <p className="hero-sub">{group.tagline}</p>}
                 {group.location && <p className="hero-sub">{group.location}</p>}
+                <p className="hero-sub hero-sub-row">
+                  <span>{followersCount} follower{followersCount === 1 ? '' : 's'}</span>
+                  {typeof group.child_count !== 'undefined' && (
+                    <span>
+                      {group.child_count} {Number(group.child_count) === 1 ? 'sub-community' : 'sub-communities'}
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
-            <div className="hero-right">
+            <div className="hero-right hero-actions">
               <button
                 type="button"
                 className={`pill-button ${isFollowing ? 'secondary' : ''} ${!isLoggedIn ? 'locked' : ''}`}
@@ -561,7 +911,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                   title="Edit this community"
                   onClick={openEdit}
                 >
-                  Edit Community
+                  Edit
                 </button>
               )}
             </div>
@@ -574,7 +924,7 @@ function GroupProfile({ userData, onRequireAuth }) {
             >
               Overview
             </button>
-            {(hasSubcommunities || isLoggedIn) && (
+            {!isKnowledgeBase && (hasSubcommunities || isLoggedIn) && (
               <button
                 type="button"
                 className={`tab-link ${activeTab === 'subgroups' ? 'active' : ''}`}
@@ -583,35 +933,332 @@ function GroupProfile({ userData, onRequireAuth }) {
                 Sub-Groups
               </button>
             )}
-            <button
-              type="button"
-              className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
-              onClick={() => setActiveTab('posts')}
-            >
-              Posts
-            </button>
-            <button
+            {!isKnowledgeBase && <button
               type="button"
               className={`tab-link ${activeTab === 'qa' ? 'active' : ''}`}
               onClick={() => setActiveTab('qa')}
             >
               Q+A
-            </button>
+            </button>}
+            {REELS_ENABLED && !isKnowledgeBase && <button
+              type="button"
+              className={`tab-link ${activeTab === 'reels' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reels')}
+            >
+              Reels
+            </button>}
+            {!isKnowledgeBase && <button
+              type="button"
+              className={`tab-link community-mobile-tab ${activeTab === 'events' ? 'active' : ''}`}
+              onClick={() => setActiveTab('events')}
+            >
+              Events
+            </button>}
+            {!isKnowledgeBase && <button
+              type="button"
+              className={`tab-link community-mobile-tab ${activeTab === 'polls' ? 'active' : ''}`}
+              onClick={() => setActiveTab('polls')}
+            >
+              Polls
+            </button>}
+            {!isKnowledgeBase && <button
+              type="button"
+              className={`tab-link community-mobile-tab ${activeTab === 'contact' ? 'active' : ''}`}
+              onClick={() => setActiveTab('contact')}
+            >
+              Contact
+            </button>}
+            {!isKnowledgeBase && <button
+              type="button"
+              className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('posts')}
+            >
+              Pinned Topics
+            </button>}
+            {isKnowledgeBase && (
+              <button
+                type="button"
+                className={`tab-link ${activeTab === 'articles' ? 'active' : ''}`}
+                onClick={() => setActiveTab('articles')}
+              >
+                Articles
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Below hero: two-column split — main content + right cards */}
-        <div className={`profile-split ${activeTab === 'qa' ? 'fullwidth' : ''}`}>
+        <div className="community-profile-content">
           <div className="split-main">
-            {activeTab === 'overview' && null}
+            {activeTab === 'articles' && isKnowledgeBase && (
+              <div className="content-card community-knowledge-base-card">
+                <div className="qa-header knowledge-base-header">
+                  <div>
+                    <p className="knowledge-base-kicker">Information Board knowledge base</p>
+                    <h3>International students &amp; study abroad</h3>
+                    <p className="muted">
+                      Read the guides first, then use a megathread for questions and shared experience.
+                    </p>
+                  </div>
+                  <span className="knowledge-base-count">
+                    {knowledgeBaseLoading ? '—' : visibleKnowledgeBaseArticles.length} entries
+                  </span>
+                </div>
+                <label className="community-tab-search knowledge-base-search" htmlFor="knowledge-base-search">
+                  <FaSearch aria-hidden="true" />
+                  <span className="sr-only">Search knowledge base</span>
+                  <input
+                    id="knowledge-base-search"
+                    type="search"
+                    placeholder="Search articles and megathreads"
+                    value={knowledgeBaseSearch}
+                    onChange={(event) => setKnowledgeBaseSearch(event.target.value)}
+                  />
+                </label>
+                {knowledgeBaseLoading ? (
+                  <p>Loading knowledge base…</p>
+                ) : knowledgeBaseError ? (
+                  <p>{knowledgeBaseError}</p>
+                ) : visibleKnowledgeBaseArticles.length === 0 ? (
+                  <p className="muted">No knowledge base entries match your search.</p>
+                ) : (
+                  <div className="knowledge-base-list">
+                    {visibleKnowledgeBaseArticles.map((article) => {
+                      const isMegathread = article.content_kind === 'megathread';
+                      return (
+                        <article
+                          key={article.thread_id}
+                          className={`knowledge-base-entry knowledge-base-entry--${isMegathread ? 'megathread' : 'article'}`}
+                        >
+                          <div className="knowledge-base-entry__meta">
+                            <span>{isMegathread ? 'Questions megathread' : 'Knowledge base article'}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{isMegathread ? `${article.reply_count} replies` : 'Read-only guide'}</span>
+                          </div>
+                          <h4>
+                            <RouterLink to={`/info/forum/${article.forum_id}/thread/${article.thread_id}`}>
+                              {article.title}
+                            </RouterLink>
+                          </h4>
+                          {article.excerpt && <p>{article.excerpt}</p>}
+                          {Array.isArray(article.tags) && article.tags.length > 0 && (
+                            <div className="knowledge-base-entry__tags" aria-label="Topics">
+                              {article.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'overview' && (
+              <div className="content-card community-overview-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Overview</h3>
+                    <p className="muted">About {group.name}.</p>
+                  </div>
+                </div>
+                {group.tagline ? (
+                  <p className="community-overview__lead">{group.tagline}</p>
+                ) : (
+                  <p className="muted">This group has not added an introduction yet.</p>
+                )}
+                <dl className="community-overview__facts">
+                  <div>
+                    <dt>Type</dt>
+                    <dd>{group.parent_community_id ? 'Sub-Group' : 'Group'}</dd>
+                  </div>
+                  {group.parent_name && (
+                    <div>
+                      <dt>Part of</dt>
+                      <dd>{group.parent_name}</dd>
+                    </div>
+                  )}
+                  {group.location && (
+                    <div>
+                      <dt>Location</dt>
+                      <dd>{group.location}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>Community</dt>
+                    <dd>{followersCount} follower{followersCount === 1 ? '' : 's'}</dd>
+                  </div>
+                  {group.website && (
+                    <div>
+                      <dt>Website</dt>
+                      <dd>
+                        <a href={group.website} target="_blank" rel="noreferrer">
+                          Visit website
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
+
+            {REELS_ENABLED && activeTab === 'reels' && (
+              <ReelGrid
+                communityId={communityId}
+                isOwner={isFollowing || canEditCommunity || canPinToOverview}
+                showCreate={isLoggedIn && (isFollowing || canEditCommunity || canPinToOverview)}
+                title={`${group.name} Reels`}
+                description={`Short videos shared with the ${group.name} community.`}
+                emptyLabel="No community reels have been shared yet."
+              />
+            )}
+
+            {activeTab === 'posts' && (
+              <div className="content-card community-pinned-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Pinned Topics</h3>
+                    <p className="muted">Ambassador-picked threads and forums for {group.name}.</p>
+                  </div>
+                </div>
+                {isLoadingPinned ? (
+                  <p>Loading pinned items...</p>
+                ) : pinnedError ? (
+                  <p>{pinnedError}</p>
+                ) : pinnedItems.length === 0 ? (
+                  <div className="community-launch-empty">
+                    <p className="community-launch-empty__eyebrow">A fresh community</p>
+                    <h4>Help start the first conversation</h4>
+                    <p>No topics have been pinned yet. Ask a useful question and give the next member something to join.</p>
+                    <button
+                      type="button"
+                      className="pill-button"
+                      onClick={() => {
+                        if (!isLoggedIn) {
+                          onRequireAuth?.();
+                          return;
+                        }
+                        setActiveTab('qa');
+                        setShowQuestionModal(true);
+                      }}
+                    >
+                      Ask the first question
+                    </button>
+                  </div>
+                ) : (
+                  <div className="posts-list pinned-topic-list">
+                    {pinnedItems.map((item) => {
+                      const isThread = item.item_type === 'thread';
+                      const threadId = item.thread_id || item.item_id;
+                      const forumId = item.forum_id;
+                      const href = isThread
+                        ? `/info/forum/${forumId}/thread/${threadId}`
+                        : `/info/forum/${forumId}`;
+                      const canShowPinnedMenu = Boolean(userData);
+                      return (
+                        <article
+                          key={item.pin_id || `${item.item_type}:${item.item_id}`}
+                          className={`forum-card pinned-topic-card pinned-topic-card--${isThread ? 'thread' : 'forum'}`}
+                        >
+                          {canShowPinnedMenu ? (
+                            <div className="pinned-menu-container" style={{ position: 'absolute', right: 10, top: 10, zIndex: 10000 }}>
+                              <button
+                                type="button"
+                                className="kebab-button"
+                                aria-haspopup="menu"
+                                aria-expanded={openPinnedMenuId === item.pin_id}
+                                onClick={() =>
+                                  setOpenPinnedMenuId((prev) => (prev === item.pin_id ? null : item.pin_id))
+                                }
+                              >
+                                <FaEllipsisV />
+                              </button>
+                              {openPinnedMenuId === item.pin_id && (
+                                <div className="dropdown-menu" style={{ position: 'absolute', right: 0, top: 26, zIndex: 10001 }}>
+                                  {canUnpinFromCommunity && item.pin_id ? (
+                                    <button
+                                      type="button"
+                                      className="dropdown-item"
+                                      onClick={() => handleUnpin(item.pin_id)}
+                                      disabled={Boolean(unpinBusy[item.pin_id])}
+                                    >
+                                      {unpinBusy[item.pin_id] ? 'Un-pinning...' : 'Un-pin from Community'}
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={() => handleSavePinnedItem(item)}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={() => {
+                                      const targetId = isThread ? threadId : forumId;
+                                      handleOpenReport({
+                                        id: targetId,
+                                        type: isThread ? 'thread' : 'forum',
+                                        label: item.title || (isThread ? 'thread' : 'forum'),
+                                        context: stripHtml(item.description || item.title || '').slice(0, 200),
+                                      });
+                                      setOpenPinnedMenuId(null);
+                                    }}
+                                  >
+                                    Report
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+                          <div className="meta-row" style={{ marginBottom: '4px' }}>
+                            <span className="meta-quiet">{isThread ? 'Thread' : 'Forum'}</span>
+                            <span className="middot">·</span>
+                            <span className="meta-quiet">Pinned {timeAgo(item.pinned_at)}</span>
+                          </div>
+                          <h4 style={{ margin: 0 }}>
+                            <RouterLink to={href} style={{ textDecoration: 'none', color: 'inherit' }}>
+                              {item.title}
+                            </RouterLink>
+                          </h4>
+                          {isThread && item.forum_name ? (
+                            <p className="pinned-topic-card__context">{item.forum_name}</p>
+                          ) : item.description ? (
+                            <p className="pinned-topic-card__summary">
+                              {stripHtml(item.description).slice(0, 180)}
+                              {stripHtml(item.description).length > 180 ? '…' : ''}
+                            </p>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeTab === 'subgroups' && (
-              <div className="content-card">
+              <div className="content-card community-subgroups-card">
                 <div className="qa-header">
                   <div>
                     <h3>Sub-Groups</h3>
                     <p className="muted">Teams or programs inside {group.name}.</p>
                   </div>
+                </div>
+                <div className="community-tab-search">
+                  <FaSearch aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={subgroupSearch}
+                    onChange={(event) => setSubgroupSearch(event.target.value)}
+                    placeholder="Search sub-groups"
+                    aria-label="Search sub-groups"
+                  />
+                  {subgroupSearch && (
+                    <button type="button" onClick={() => setSubgroupSearch('')} aria-label="Clear sub-group search">
+                      ×
+                    </button>
+                  )}
                 </div>
                 {loadingSubcommunities ? (
                   <p>Loading sub-groups...</p>
@@ -619,27 +1266,30 @@ function GroupProfile({ userData, onRequireAuth }) {
                   <p>{subcommunitiesError}</p>
                 ) : subcommunities.length === 0 ? (
                   <p className="muted">No sub-groups yet.</p>
+                ) : visibleSubcommunities.length === 0 ? (
+                  <p className="community-tab-empty">No sub-groups match “{subgroupSearch}”.</p>
                 ) : (
-                  <div className="community-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {subcommunities.map((child) => {
+                  <div className="community-list community-subgroup-list">
+                    {visibleSubcommunities.map((child) => {
                       const isFollowingChild =
                         child.is_following === true ||
                         child.is_following === 1 ||
                         child.is_following === '1';
-                      const logoSrc =
-                        child.logo_path && child.logo_path.startsWith('/')
-                          ? child.logo_path
-                          : `/uploads/logos/${child.logo_path || 'default-logo.png'}`;
+                          const logoSrc = buildUploadSrc(child.logo_path || '/uploads/logos/default-logo.png');
                       return (
                         <div
                           key={child.community_id}
-                          className={`community-row-card${isFollowingChild ? ' followed' : ''}`}
+                          className={`community-row-card community-subgroup-card${isFollowingChild ? ' followed' : ''}`}
                         >
                           <img
                             src={logoSrc}
                             alt={`${child.name} Logo`}
                             className="community-row-logo"
                             loading="lazy"
+                            onError={(event) => {
+                              event.currentTarget.onerror = null;
+                              event.currentTarget.src = buildUploadSrc('/uploads/logos/School Image.png');
+                            }}
                           />
                           <div className="community-row-content">
                             <div className="community-row-header">
@@ -651,7 +1301,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                                   <span className="truncate-38ch">{child.name}</span>
                                 </RouterLink>
                               </h4>
-                              <span className="pill-button secondary" style={{ padding: '4px 10px' }}>
+                              <span className="community-subgroup-type">
                                 {child.community_type === 'group' ? 'Group' : 'University'}
                               </span>
                             </div>
@@ -662,11 +1312,8 @@ function GroupProfile({ userData, onRequireAuth }) {
                               {child.location && (
                                 <span className="community-location">{child.location}</span>
                               )}
-                              <span
-                                className="followers-count"
-                                style={{ marginLeft: child.location ? 12 : 0 }}
-                              >
-                                Followers: {child.followers_count || 0}
+                              <span className="followers-count">
+                                {child.followers_count || 0} follower{Number(child.followers_count || 0) === 1 ? '' : 's'}
                               </span>
                             </div>
                           </div>
@@ -697,8 +1344,14 @@ function GroupProfile({ userData, onRequireAuth }) {
               </div>
             )}
 
-            {activeTab === 'posts' && (
+            {false && activeTab === 'posts' && (
               <div className="content-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Recent Topics</h3>
+                    <p className="muted">Recent conversations from {group.name}.</p>
+                  </div>
+                </div>
                 <div className="posts-list">
                   {postsLoading ? (
                     <p>Loading posts...</p>
@@ -708,7 +1361,59 @@ function GroupProfile({ userData, onRequireAuth }) {
                     <p>No posts yet.</p>
                   ) : (
                     posts.map((p) => (
-                      <div key={p.thread_id} className="forum-card card-lift" style={{ marginBottom: '12px' }}>
+                      <div key={p.thread_id} className="forum-card card-lift" style={{ marginBottom: '12px', position: 'relative' }}>
+                        {(() => {
+                          const canManageThread =
+                            isSuperAdminUser || isCommunityAdmin || String(p.user_id) === String(userData?.user_id);
+                          const canShowPostsMenu = isLoggedIn && (canPinToOverview || canManageThread);
+                          if (!canShowPostsMenu) return null;
+                          return (
+                          <div style={{ position: 'absolute', right: 10, top: 10 }}>
+                            <button
+                              type="button"
+                              className="kebab-button"
+                              aria-haspopup="menu"
+                              aria-expanded={openPostsMenuId === p.thread_id}
+                              onClick={() =>
+                                setOpenPostsMenuId((prev) => (prev === p.thread_id ? null : p.thread_id))
+                              }
+                            >
+                              <FaEllipsisV />
+                            </button>
+                            {openPostsMenuId === p.thread_id && (
+                              <div className="dropdown-menu" style={{ position: 'absolute', right: 0, top: 26, zIndex: 10 }}>
+                                {canPinToOverview && (
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={() => handlePinThreadToOverview(p)}
+                                  >
+                                    Pin to Pinned Topics
+                                  </button>
+                                )}
+                                {canManageThread && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="dropdown-item"
+                                      onClick={() => handleEditThreadFromPosts(p)}
+                                    >
+                                      Edit Thread
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="dropdown-item"
+                                      onClick={() => handleDeleteThreadFromPosts(p)}
+                                    >
+                                      Delete Thread
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          );
+                        })()}
                         <div className="meta-row" style={{ marginBottom: '4px' }}>
                           <span className="meta-quiet">{p.forum_name || 'Forum'}</span>
                           <span className="middot">·</span>
@@ -725,6 +1430,21 @@ function GroupProfile({ userData, onRequireAuth }) {
                         <p className="muted" style={{ marginTop: 4 }}>
                           {p.first_name} {p.last_name ? `${p.last_name[0]}.` : ''}
                         </p>
+                        {p.updated_by && p.updated_by_first_name && (
+                          <p className="muted" style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>Last Edited on {formatShortDate(p.updated_at)} by</span>
+                            <img
+                              src={buildAvatarSrc(p.updated_by_avatar_path)}
+                              alt={`${p.updated_by_first_name} ${p.updated_by_last_name || ''}`}
+                              style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }}
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = buildAvatarSrc(null);
+                              }}
+                            />
+                            <span>{p.updated_by_first_name} {p.updated_by_last_name || ''}</span>
+                          </p>
+                        )}
                         <div className="meta-row" style={{ gap: '8px', flexWrap: 'wrap' }}>
                           <span className="meta-quiet">{p.upvotes || 0} upvotes</span>
                           <span className="meta-quiet">{p.downvotes || 0} downvotes</span>
@@ -738,15 +1458,15 @@ function GroupProfile({ userData, onRequireAuth }) {
             )}
 
             {activeTab === 'qa' && (
-              <div className="content-card">
+              <div className="content-card community-qa-card">
                 <div className="qa-header">
                   <div>
-                    <h3>Group Q+A</h3>
-                    <p className="muted">Submit a question for ambassadors. Approved items appear for everyone.</p>
+                    <h3>Questions &amp; answers</h3>
+                    <p className="muted">Ask {group.name} ambassadors and browse verified community guidance.</p>
                   </div>
                   <button
                     type="button"
-                    className="pill-button"
+                    className="pill-button community-qa-ask"
                     onClick={() => {
                       if (!isLoggedIn) {
                         onRequireAuth?.();
@@ -758,60 +1478,89 @@ function GroupProfile({ userData, onRequireAuth }) {
                     Ask a question
                   </button>
                 </div>
+                <div className="community-tab-search">
+                  <FaSearch aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={questionSearch}
+                    onChange={(event) => setQuestionSearch(event.target.value)}
+                    placeholder="Search questions and answers"
+                    aria-label="Search questions and answers"
+                  />
+                  {questionSearch && (
+                    <button type="button" onClick={() => setQuestionSearch('')} aria-label="Clear Q and A search">
+                      ×
+                    </button>
+                  )}
+                </div>
 
                 <div className="qa-list">
                   {isLoadingQuestions ? (
                     <p>Loading questions...</p>
                   ) : questions.length === 0 ? (
-                    <p>No questions yet.</p>
+                    <div className="community-launch-empty community-launch-empty--compact">
+                      <p className="community-launch-empty__eyebrow">Be the first</p>
+                      <h4>What would help someone in this community?</h4>
+                      <p>Ask the first question. An ambassador can review it and add a trusted answer for everyone who joins next.</p>
+                    </div>
+                  ) : visibleQuestions.length === 0 ? (
+                    <p className="community-tab-empty">No questions match “{questionSearch}”.</p>
                   ) : (
-                    questions.map((q) => {
+                    visibleQuestions.map((q) => {
                       const isPending = q.status === 'pending';
+                      const questionId = q.question_id || q.id;
                       return (
-                        <div key={q.id} className="qa-item">
+                        <article key={questionId} className="qa-item community-qa-item">
                           <div className="qa-item-header">
-                            <div>
+                            <div className="community-qa-item__heading">
+                              <div className="community-qa-item__eyebrow">
+                                <span>Question</span>
+                                {isPending && <span className="community-qa-status">Pending review</span>}
+                              </div>
                               <h4>{q.title}</h4>
-                              <p className="muted">
+                              <p className="community-qa-item__byline">
                                 Asked by {q.asker_first_name} {q.asker_last_name}
-                                {isPending && ' · Pending approval'}
+                                {q.created_at ? ` · ${timeAgo(q.created_at)}` : ''}
                               </p>
                             </div>
-                      {isAmbassador && isPending && (
-                        <div className="qa-actions">
-                          <button
-                            type="button"
-                            className="pill-button secondary"
-                            onClick={() => handleApproveQuestion(q.id)}
-                          >
-                            Add to Q+A list
-                          </button>
-                          <button
-                            type="button"
-                            className="pill-button secondary"
-                            onClick={() => {
-                              const reason = window.prompt('Provide a justification for declining:');
-                              if (!reason) return;
-                              handleRejectQuestion(q.id, reason);
-                            }}
-                          >
-                            Decline
-                          </button>
-                        </div>
-                      )}
+                            {isAmbassador && isPending && (
+                              <div className="qa-actions community-qa-moderation">
+                                <button
+                                  type="button"
+                                  className="pill-button secondary"
+                                  onClick={() => handleApproveQuestion(questionId)}
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  className="pill-button secondary"
+                                  onClick={() => {
+                                    const reason = window.prompt('Provide a justification for declining:');
+                                    if (!reason) return;
+                                    handleRejectQuestion(questionId, reason);
+                                  }}
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          <p style={{ marginTop: 6 }}>{q.body}</p>
+                          <p className="community-qa-item__question">{q.body}</p>
 
                           <div className="qa-answers">
                             {q.answers && q.answers.length > 0 ? (
                               q.answers.map((a) => (
-                                <div key={a.id} className="qa-answer">
-                                  <strong>{a.first_name} {a.last_name}</strong>
+                                <div key={a.answer_id || a.id} className="qa-answer community-qa-answer">
+                                  <div className="community-qa-answer__meta">
+                                    <span>Ambassador answer</span>
+                                    <strong>{a.first_name} {a.last_name}</strong>
+                                  </div>
                                   <p>{a.body}</p>
                                 </div>
                               ))
                             ) : (
-                              <p className="muted">No answers yet.</p>
+                              <p className="community-qa-unanswered">Awaiting an ambassador response.</p>
                             )}
                           </div>
 
@@ -819,122 +1568,59 @@ function GroupProfile({ userData, onRequireAuth }) {
                             <div className="qa-answer-form">
                               <textarea
                                 placeholder="Write an answer..."
-                                value={answerDrafts[q.id] || ''}
+                                value={answerDrafts[questionId] || ''}
                                 onChange={(e) =>
-                                  setAnswerDrafts((prev) => ({ ...prev, [q.id]: e.target.value }))
+                                  setAnswerDrafts((prev) => ({ ...prev, [questionId]: e.target.value }))
                                 }
                               />
                               <div className="qa-actions">
                                 <button
                                   type="button"
                                   className="pill-button secondary"
-                                  onClick={() => handleSubmitAnswer(q.id)}
+                                  onClick={() => handleSubmitAnswer(questionId)}
                                 >
                                   Post answer
                                 </button>
                               </div>
                             </div>
                           )}
-                        </div>
+                        </article>
                       );
                     })
                   )}
                 </div>
               </div>
             )}
+            {['contact', 'events', 'polls'].includes(activeTab) && (
+              <div className="content-card community-mobile-context community-embedded-tab-card" role="tabpanel">
+                <RightRail
+                  userData={userData}
+                  communityContext={{ id: communityId, type: 'group' }}
+                  section={activeTab}
+                  embedded
+                />
+              </div>
+            )}
           </div>
-          {activeTab !== 'qa' && (
-          <aside className="split-aside">
-            <div className="info-card">
-              <h3>Ambassadors</h3>
-              {hasAmbassadors ? (
-                <div className="avatar-stack" style={{ marginBottom: 8 }}>
-                  {ambassadors.slice(0, 6).map((a) => {
-                    const initials = getInitials(a.first_name, a.last_name);
-                    const key = a.user_id || a.id || initials;
-                    return a.avatar_path ? (
-                      <img
-                        key={key}
-                        className="avatar"
-                        src={a.avatar_path}
-                        alt={`${a.first_name} ${a.last_name}`}
-                      />
-                    ) : (
-                      <div key={key} className="avatar avatar-initial" aria-label={`${a.first_name} ${a.last_name}`}>
-                        {initials}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="muted" style={{ marginBottom: 8 }}>
-                  No current ambassadors.
-                </p>
-              )}
-              <button
-                className={`pill-button ${!isLoggedIn ? 'locked' : ''}`}
-                type="button"
-                onClick={() => {
-                  if (!isLoggedIn) {
-                    onRequireAuth?.();
-                    return;
-                  }
-                  setShowAmbassadorOverlay(true);
-                  fetchAmbassadors(true);
-                }}
-                aria-disabled={!isLoggedIn}
-                title={!isLoggedIn ? 'Log in to view ambassadors' : 'View ambassadors'}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  {!isLoggedIn && <FaLock size={12} />}
-                  View all
-                </span>
-              </button>
-            </div>
-            <div className="info-card">
-              <h3>Contact Us</h3>
-              {group.website ? (
-                <p style={{ margin: 0 }}>
-                  <a href={group.website} target="_blank" rel="noopener noreferrer">{group.website}</a>
-                </p>
-              ) : null}
-              {group.contact_email || group.email ? (
-                <p className="muted" style={{ margin: '6px 0 0 0' }}>{group.contact_email || group.email}</p>
-              ) : (
-                <p className="muted" style={{ margin: 0 }}>No contact info provided.</p>
-              )}
-            </div>
-          </aside>
-          )}
         </div>
       </section>
 
       <ModalOverlay
         isOpen={showAmbassadorOverlay && isLoggedIn}
+        contentClassName="ambassador-directory-overlay"
         onClose={() => {
       setShowAmbassadorOverlay(false);
       setMenuOpenFor(null);
     }}
   >
-    <div className="content-card">
+    <div className="ambassador-directory-dialog">
       <div className="qa-header">
         <div>
           <h3>Ambassadors</h3>
           <p className="muted">
-            Ambassador status is earned by applying and verifying school affiliation. Existing admins can still manage roles.
+            Group ambassadors are assigned directly by group admins after manual review of ownership and community alignment.
           </p>
         </div>
-        {canApplyForAmbassador && (
-          <button
-            type="button"
-            className="pill-button"
-            onClick={() => {
-              alert('Ambassador applications will guide you through school verification. This flow is coming soon.');
-            }}
-          >
-            Apply to be an Ambassador
-          </button>
-        )}
       </div>
 
           {loadingAmbassadors ? (
@@ -951,7 +1637,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                 const isOnline = Number(amb.show_online ?? 1) === 1 && Boolean(amb.is_online);
                 const avatarNode = amb.avatar_path ? (
                   <img
-                    src={amb.avatar_path}
+                    src={buildAvatarSrc(amb.avatar_path)}
                     alt={`${amb.first_name} ${amb.last_name}`}
                     className="ambassador-avatar"
                   />
@@ -978,7 +1664,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                         <a href={`/user/${amb.user_id}`}>
                           {amb.first_name} {amb.last_name}
                         </a>
-                        {String(amb.role).toLowerCase() === 'admin' && <span className="muted"> · Admin</span>}
+                        {String(amb.community_role).toLowerCase() === 'admin' && <span className="muted"> · Admin</span>}
                       </p>
                       <p className="ambassador-headline">{amb.headline}</p>
                     </div>
@@ -995,7 +1681,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                             <button
                               type="button"
                               className="menu-item"
-                              disabled={!canEditCommunity || String(amb.role).toLowerCase() === 'admin'}
+                              disabled={!canEditCommunity || String(amb.community_role).toLowerCase() === 'admin'}
                               onClick={() => {
                                 setMenuOpenFor(null);
                                 handlePromoteToAdmin(amb);
@@ -1006,7 +1692,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                             <button
                               type="button"
                               className="menu-item"
-                              disabled={!canRemoveAmbassador || String(amb.role).toLowerCase() === 'admin'}
+                              disabled={!canRemoveAmbassador || String(amb.community_role).toLowerCase() === 'admin'}
                               onClick={() => {
                                 setMenuOpenFor(null);
                                 handleRemoveAmbassador(amb);
@@ -1028,12 +1714,13 @@ function GroupProfile({ userData, onRequireAuth }) {
 
       <ModalOverlay
         isOpen={showEditModal}
+        contentClassName="community-form-overlay community-form-overlay--edit"
         onClose={() => {
           setShowEditModal(false);
           setEditStatus('');
         }}
       >
-        <div className="content-card">
+        <div className="content-card community-form-dialog">
           <div className="qa-header">
             <div>
               <h3>Edit Community</h3>
@@ -1074,14 +1761,14 @@ function GroupProfile({ userData, onRequireAuth }) {
             <input
               id="edit-primary-color"
               type="color"
-              value={editPrimaryColor || '#0077B5'}
+              value={editPrimaryColor || '#2F80ED'}
               onChange={(e) => setEditPrimaryColor(e.target.value)}
             />
             <label className="qa-label" htmlFor="edit-secondary-color">Secondary Color</label>
             <input
               id="edit-secondary-color"
               type="color"
-              value={editSecondaryColor || '#005f8d'}
+              value={editSecondaryColor || '#1D5FC4'}
               onChange={(e) => setEditSecondaryColor(e.target.value)}
             />
             <label className="qa-label" htmlFor="edit-logo">Logo</label>
@@ -1124,12 +1811,13 @@ function GroupProfile({ userData, onRequireAuth }) {
 
       <ModalOverlay
         isOpen={showQuestionModal}
+        contentClassName="community-form-overlay community-form-overlay--question"
         onClose={() => {
           setShowQuestionModal(false);
           setStatusMessage('');
         }}
       >
-        <div className="content-card">
+        <div className="content-card community-form-dialog">
           <div className="qa-header">
             <div>
               <h3>Ask a question</h3>
@@ -1186,6 +1874,14 @@ function GroupProfile({ userData, onRequireAuth }) {
           </form>
         </div>
       </ModalOverlay>
+
+      <ReportModal
+        isOpen={!!reportTarget}
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+        onSubmit={handleSubmitReport}
+        submitting={isSubmittingReport}
+      />
     </div>
   );
 }

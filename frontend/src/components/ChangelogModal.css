@@ -1,0 +1,161 @@
+.changelog-modal {
+  width: min(92vw, 560px);
+  padding: 26px;
+  border-radius: 18px;
+}
+
+.changelog-modal__head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding-right: 36px;
+}
+
+.changelog-modal__emoji {
+  flex: 0 0 auto;
+  font-size: 2.1rem;
+  line-height: 1.1;
+}
+
+.changelog-modal__headings {
+  min-width: 0;
+}
+
+.changelog-modal__kicker {
+  margin: 0 0 4px;
+  color: var(--muted-text, #667895);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.changelog-modal__title {
+  margin: 0;
+  color: var(--text-color);
+  font-size: clamp(1.35rem, 3vw, 1.7rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.changelog-modal__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 7px 0 0;
+  color: var(--muted-text, #667895);
+  font-size: 0.85rem;
+}
+
+.changelog-modal__version {
+  padding: 1px 8px;
+  border: 1px solid var(--card-border, #DCE7F5);
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.changelog-modal__summary {
+  margin: 16px 0 0;
+  color: var(--text-color);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.changelog-modal__body {
+  margin-top: 14px;
+  color: var(--text-color);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  /* Release notes can run long; keep the dialog itself a fixed size. */
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.changelog-modal__body > :first-child {
+  margin-top: 0;
+}
+
+.changelog-modal__body ul,
+.changelog-modal__body ol {
+  padding-left: 1.25rem;
+}
+
+.changelog-modal__body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+.changelog-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.changelog-modal__full {
+  color: var(--link-color, #2F80ED);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.changelog-modal__full:hover {
+  text-decoration: underline;
+}
+
+.changelog-modal__dismiss {
+  min-height: 40px;
+  padding: 9px 20px;
+  border: 1px solid #2F80ED;
+  border-radius: 9px;
+  background: #2F80ED;
+  color: #FFFFFF;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 140ms ease;
+}
+
+.changelog-modal__dismiss:hover {
+  background: #1D6FD7;
+}
+
+.changelog-modal__dismiss:active {
+  transform: scale(0.97);
+}
+
+[data-theme='dark'] .changelog-modal__version {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+[data-theme='dark'] .changelog-modal__dismiss {
+  border-color: #4B91EC;
+  background: #4B91EC;
+  /* Dark mode lightens the accent, so a light label would drop under 3.5:1. */
+  color: #08152B;
+}
+
+[data-theme='dark'] .changelog-modal__dismiss:hover {
+  background: #72AEFA;
+}
+
+@media (max-width: 640px) {
+  .changelog-modal {
+    padding: 20px 18px;
+  }
+
+  .changelog-modal__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .changelog-modal__dismiss {
+    width: 100%;
+  }
+
+  .changelog-modal__full {
+    text-align: center;
+  }
+}

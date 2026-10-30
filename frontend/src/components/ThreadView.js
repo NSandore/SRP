@@ -1,10 +1,11 @@
 // src/components/ThreadView.js
 import './ThreadView.css';
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, Link as RouterLink, useLocation } from 'react-router-dom';
 import useOnClickOutside from '../hooks/useOnClickOutside'; // <--- import the hook
 import axios from 'axios';
 import debounce from 'lodash.debounce';
+import { ROLE_MODERATOR } from '../constants/roles';
 import {
   FaArrowAltCircleUp,
   FaRegArrowAltCircleUp,
@@ -25,6 +26,8 @@ import {
   FaChevronDown,
   FaChevronRight,
   FaEllipsisV, // add for 3-dot menu
+  FaCheckCircle,
+  FaPlus,
 } from 'react-icons/fa';
 import { FiMessageCircle } from 'react-icons/fi';
 
@@ -40,6 +43,12 @@ import TiptapLink from '@tiptap/extension-link';
 // For sanitizing HTML
 import DOMPurify from 'dompurify';
 import ReportModal from './ReportModal';
+import { buildAvatarSrc } from '../utils/avatar';
+import { buildUploadSrc } from '../utils/uploads';
+import { getTagStyle } from '../utils/tagStyle';
+import { normalizeImageLayout } from '../utils/imageLayout';
+import { getPlainTextLength, POST_MAX_LENGTH } from '../utils/contentLimits';
+import { useLanguage } from '../i18n/LanguageContext';
 
 // Helper: relative time formatter
 const timeAgo = (dateStr) => {
@@ -71,15 +80,33 @@ const timeAgo = (dateStr) => {
   return 'just now';
 };
 
-const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-
-const buildAvatarSrc = (path) => {
-  const fallback = '/uploads/avatars/DefaultAvatar.png';
-  if (!path) return fallback;
-  if (path.startsWith('http')) return path;
-  // If we already have a root-relative path, use as-is; otherwise prepend uploads path
-  return path.startsWith('/') ? path : `/uploads/avatars/${path}`;
+const formatVerifiedDate = (dateStr) => {
+  if (!dateStr) return '';
+  const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+  const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getUTCDate()).padStart(2, '0');
+  const year = parsed.getUTCFullYear();
+  return `${month}-${day}-${year}`;
 };
+
+const hasMeaningfulUpdate = (createdAt, updatedAt) => {
+  if (!createdAt || !updatedAt) return false;
+  const created = new Date(createdAt).getTime();
+  const updated = new Date(updatedAt).getTime();
+  if (Number.isNaN(created) || Number.isNaN(updated)) return false;
+  return updated - created > 1000;
+};
+
+const getVerificationDisclaimer = (communityType) => {
+  const type = String(communityType || '').toLowerCase();
+  const target = type === 'university' ? 'university' : 'community';
+  const ambassadorLabel = type === 'university' ? 'school ambassador' : 'community ambassador';
+  return `This post has been verified correct by a ${ambassadorLabel}. Information may have changed since the time of posting, so it is always best to check with the ${target} directly.`;
+};
+
+const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
 const getDisplayName = (author, viewerId) => {
   const first = author?.first_name || 'User';
@@ -414,11 +441,19 @@ function PostItem({
   savedPosts,
   handleToggleSavePost,
   handleVerifyPost, // NEW prop for verifying posts
+  handleUnverifyPost,
+  canVerifyPosts,
+  communityType,
+  repliesDisabled = false,
   onRequireAuth,
   onReport,
 }) {
   const [localReply, setLocalReply] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editCharacterCount, setEditCharacterCount] = useState(() =>
+    getPlainTextLength(post.original_content ?? post.content ?? '')
+  );
 
   // 3-dot menu
   const [openMenu, setOpenMenu] = useState(false);
@@ -435,11 +470,15 @@ function PostItem({
     }
   });
 
-  const postContext = stripHtml(post.content || '').slice(0, 200);
+  const postContext = stripHtml(post.original_content ?? post.content ?? '').slice(0, 200);
   const reportLabel = post.reply_to ? 'comment' : 'post';
 
   // Check if post is saved
-  const isSaved = savedPosts.some((pSaved) => Number(pSaved.post_id) === Number(post.post_id));  
+  const baseSaved =
+    Boolean(post.saved) ||
+    savedPosts.some((pSaved) => Number(pSaved.post_id) === Number(post.post_id));
+  const [savedStatus, setSavedStatus] = useState(baseSaved);
+  const isSaved = savedStatus ?? baseSaved;
 
   // Tiptap editor with same config as TextEditor.js
   const editor = useEditor({
@@ -451,8 +490,11 @@ function PostItem({
         types: ['heading', 'paragraph'],
       }),
     ],
-    content: post.content || '',
+    content: post.original_content ?? post.content ?? '',
     editable: isEditing,
+    onUpdate: ({ editor: activeEditor }) => {
+      setEditCharacterCount(activeEditor.getText().trim().length);
+    },
   });
 
   // Cleanup the editor when editing finishes
@@ -470,7 +512,7 @@ function PostItem({
     const userIdNum = Number(userData.user_id);
     const postOwnerId = Number(post.user_id);
 
-    canDelete = roleNum === 3 || userIdNum === postOwnerId;
+    canDelete = roleNum === ROLE_MODERATOR || userIdNum === postOwnerId;
     // Only allow editing the root post if user is either admin or post owner
     canEdit = isRoot && canDelete;
   }
@@ -491,10 +533,12 @@ function PostItem({
 
   // EDIT Logic
   const startEditing = () => {
+    setEditError('');
     setIsEditing(true);
   };
 
   const cancelEditing = () => {
+    setEditError('');
     setIsEditing(false);
   };
 
@@ -504,6 +548,11 @@ function PostItem({
 
     const newContent = editor.getHTML();
     if (!newContent.trim()) return;
+    const contentLength = getPlainTextLength(newContent);
+    if (contentLength > POST_MAX_LENGTH) {
+      setEditError(`Posts must be ${POST_MAX_LENGTH.toLocaleString()} characters or fewer.`);
+      return;
+    }
 
     // Sanitize to prevent XSS
     const sanitizedContent = DOMPurify.sanitize(newContent);
@@ -549,17 +598,50 @@ function PostItem({
   const computedClassName = `forum-card reply-card level-${level} ${
     Number(post.verified) === 1 ? 'verified' : ''
   }`;
-  const isAmbassador = Number(userData?.is_ambassador) === 1;
-  const canVerify = userData && ([5, 6, 7].includes(Number(userData.role_id)) || isAmbassador);
+  const postAnchorId = String(post.post_id || '')
+    .trim()
+    .replace(/^["']+|["']+$/g, '')
+    .replace(/^#/, '');
+  const canVerify = canVerifyPosts;
+  const canUnverifyOwn =
+    Number(post.verified) === 1 &&
+    String(post.verified_by || '') === String(userData?.user_id || '');
+
+  useEffect(() => {
+    setSavedStatus(baseSaved);
+  }, [baseSaved]);
+
+  useEffect(() => {
+    if (!openMenu || !userData?.user_id) return;
+    const loadSavedStatus = async () => {
+      try {
+        const resp = await axios.get('/api/save_check.php', {
+          params: { user_id: userData.user_id, item_type: 'post', item_id: post.post_id },
+          withCredentials: true,
+        });
+        const saved = Boolean(resp.data?.saved ?? resp.data?.is_saved);
+        setSavedStatus(saved);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('save_check failed for post', err);
+      }
+    };
+    loadSavedStatus();
+  }, [openMenu, userData?.user_id, post.post_id]);
   
   return (
-    <div className={`post-card card-lift level-${level} ${post.verified === 1 ? 'verified' : ''}`}>
-      {isEditing ? (
+    <div id={`post-${postAnchorId}`} className={`post-card card-lift reply-post-card level-${level}`}>
+      <div className="reply-post-surface">
+        {isEditing ? (
         <form onSubmit={confirmEdit} className="edit-form" style={{ marginBottom: '1rem' }}>
           {/* Show the same toolbar from TextEditor.js */}
           <EditToolbar editor={editor} />
           {/* Editor content */}
           <EditorContent editor={editor} className="tiptap-editor" />
+          <span className="field-character-count">
+            {editCharacterCount.toLocaleString()} / {POST_MAX_LENGTH.toLocaleString()}
+          </span>
+          {editError && <p className="form-error" role="alert">{editError}</p>}
   
           <div className="edit-form-actions">
             <button type="submit" className="create-button">
@@ -576,177 +658,199 @@ function PostItem({
         </form>
       ) : (
         <>
-          {/* 3-dot menu */}
-          <FaEllipsisV
-            className="menu-icon"
-            onClick={() => setOpenMenu((prev) => !prev)}
-            style={{ position: 'absolute', top: '8px', right: '8px', cursor: 'pointer' }}
-          />
-          {openMenu && (
-            <div
-              ref={menuRef}
-              className="dropdown-menu"
-              style={{
-                position: 'absolute',
-                top: '30px',
-                right: '8px',
-                backgroundColor: '#fff',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                zIndex: 10,
-                width: '150px',
-              }}
-            >
-              {handleToggleSavePost && (
-                <button
-                  className="dropdown-item"
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    background: 'none',
-                    padding: '8px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    handleToggleSavePost(post.post_id, isSaved);
-                    setOpenMenu(false);
-                  }}
-                >
-                  {isSaved ? 'Unsave' : 'Save'}
-                </button>
-              )}
-              <button
-                className="dropdown-item"
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  background: 'none',
-                  padding: '8px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  if (onReport) {
-                    onReport({
-                      id: post.post_id,
-                      type: reportLabel,
-                      label: reportLabel,
-                      context: postContext,
-                    });
-                  }
-                  setOpenMenu(false);
-                }}
-              >
-                Report {reportLabel === 'comment' ? 'comment' : 'post'}
-              </button>
-              {canVerify && post.verified !== 1 && (
-                <button
-                  className="dropdown-item"
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    background: 'none',
-                    padding: '8px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    handleVerifyPost(post.post_id);
-                    setOpenMenu(false);
-                  }}
-                >
-                  Verify answer
-                </button>
-              )}
-            </div>
-          )}
-          {Number(post.verified) === 1 && post.verified_at && (
-            <div className="verified-info">
-              Verified Answer on {timeAgo(post.verified_at)}
-            </div>
-          )}
-          {/* Reply header: avatar + meta */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
-            <div className="avatar-wrapper">
-              <img
-                src={buildAvatarSrc(post.avatar_path)}
-                alt={getDisplayName(post, userData?.user_id)}
-                className="avatar-image"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = buildAvatarSrc(null);
-                }}
+          <div className={`verified-scope ${Number(post.verified) === 1 ? 'verified' : ''}`}>
+            {Number(post.verified) === 1 && (
+              <div className="verified-banner">
+                <div className="verified-badge">
+                  <FaCheckCircle className="verified-icon" />
+                  <div>
+                    <div className="verified-title">Verified Correct</div>
+                    {post.verified_at && (
+                      <div className="verified-date">
+                        Verified on {formatVerifiedDate(post.verified_at)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="verified-disclaimer">
+                  {getVerificationDisclaimer(communityType)}
+                </div>
+              </div>
+            )}
+            {/* Reply header: avatar + meta */}
+            <div className="post-header-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '2px', marginBottom: '6px' }}>
+              {/* 3-dot menu */}
+              <FaEllipsisV
+                className="menu-icon post-header-menu"
+                onClick={() => setOpenMenu((prev) => !prev)}
               />
-            </div>
-            <div className="post-meta" style={{ margin: 0 }}>
-              <div>
-                <RouterLink to={`/user/${post.user_id}`} style={{ color: 'var(--text-color)', textDecoration: 'none', fontWeight: 600 }}>
-                  {getDisplayName(post, userData?.user_id)}
-                </RouterLink>
+              {openMenu && (
+                <div
+                  ref={menuRef}
+                  className="dropdown-menu post-header-menu-panel"
+                >
+                  {handleToggleSavePost && (
+                    <button
+                      className="dropdown-item"
+                      onClick={() => {
+                        handleToggleSavePost(post.post_id, isSaved);
+                        setSavedStatus((prev) => !prev);
+                        setOpenMenu(false);
+                      }}
+                    >
+                      {isSaved ? 'Unsave' : 'Save'}
+                    </button>
+                  )}
+                  <button
+                    className="dropdown-item"
+                    onClick={() => {
+                      if (onReport) {
+                        onReport({
+                          id: post.post_id,
+                          type: reportLabel,
+                          label: reportLabel,
+                          context: postContext,
+                        });
+                      }
+                      setOpenMenu(false);
+                    }}
+                  >
+                    Report {reportLabel === 'comment' ? 'comment' : 'post'}
+                  </button>
+                  {canVerify && post.verified !== 1 && (
+                    <button
+                      className="dropdown-item"
+                      onClick={() => {
+                        handleVerifyPost(post.post_id);
+                        setOpenMenu(false);
+                      }}
+                    >
+                      Verify answer
+                    </button>
+                  )}
+                  {canUnverifyOwn && (
+                    <button
+                      className="dropdown-item"
+                      onClick={() => {
+                        handleUnverifyPost(post.post_id);
+                        setOpenMenu(false);
+                      }}
+                    >
+                      Unverify answer
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="avatar-wrapper">
+                <img
+                  src={buildAvatarSrc(post.avatar_path)}
+                  alt={getDisplayName(post, userData?.user_id)}
+                  className="avatar-image"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = buildAvatarSrc(null);
+                  }}
+                />
               </div>
-              <div className="meta-quiet" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                {post.school_name && <span>{post.school_name}</span>}
-                <span>{timeAgo(post.created_at)}</span>
+              <div className="post-meta" style={{ margin: 0 }}>
+                <div className="post-author-line">
+                  <RouterLink to={`/user/${post.user_id}`} className="post-author-name" style={{ textDecoration: 'none', fontWeight: 600 }}>
+                    {getDisplayName(post, userData?.user_id)}
+                  </RouterLink>
+                  <span className="author-badges">
+                    {Number(post.author_verified) === 1 && (
+                      <FaCheckCircle className="author-verified-icon" title="Verified" />
+                    )}
+                    {post.ambassador_logo_path && (
+                      <img
+                        src={buildUploadSrc(post.ambassador_logo_path)}
+                        alt="Ambassador badge"
+                        className="author-ambassador-logo"
+                        title="Ambassador"
+                      />
+                    )}
+                  </span>
+                </div>
+                <div className="meta-quiet" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  {post.school_name && <span>{post.school_name}</span>}
+                  <span>{timeAgo(post.created_at)}</span>
+                  {hasMeaningfulUpdate(post.created_at, post.updated_at) && post.updated_by_first_name && (
+                    <>
+                      <span>· Edited {timeAgo(post.updated_at)} by</span>
+                      <img
+                        src={buildAvatarSrc(post.updated_by_avatar_path)}
+                        alt={`${post.updated_by_first_name} ${post.updated_by_last_name || ''}`}
+                        style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = buildAvatarSrc(null);
+                        }}
+                      />
+                      <span>{post.updated_by_first_name} {post.updated_by_last_name || ''}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          <div
-            className="forum-description"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
-          />
-  
-          {/* Upvote count + Reply */}
-          <div className="vote-row">
-            <button
-              type="button"
-              className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
-              onClick={() => handleUpvoteClick(post.post_id)}
-              title="Upvote"
-              aria-label="Upvote"
-            >
-              {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
-            </button>
-            <span className="vote-count">{post.upvotes}</span>
-            <button
-              type="button"
-              className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
-              onClick={() => handleDownvoteClick(post.post_id)}
-              title="Downvote"
-              aria-label="Downvote"
-            >
-              {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
-            </button>
-            <span className="vote-count">{post.downvotes}</span>
-
-            {/* Reply Button */}
-            <button
-              type="button"
-              className="reply-button"
-              onClick={handleToggleReplyBox}
-              title="Reply"
-              aria-label="Reply"
-            >
-              <FiMessageCircle />
-            </button>
-            <span className="vote-count comment-count">{childReplyCount}</span>
-  
-            {/* Collapse/Expand Replies Button */}
-            {post.children && post.children.length > 0 && (
+            <div
+              className="forum-description"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
+            />
+    
+            {/* Upvote count + Reply */}
+            <div className="vote-row">
               <button
                 type="button"
-                className="collapse-button"
-                onClick={toggleCollapse}
-                title={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
-                aria-label={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
+                className={`vote-button upvote-button ${hasUpvoted ? 'active' : ''}`}
+                onClick={() => handleUpvoteClick(post.post_id)}
+                title="Upvote"
+                aria-label="Upvote"
               >
-                {isCollapsed ? <FaChevronRight /> : <FaChevronDown />}
-                <span className="collapse-text">
-                  {isCollapsed ? 'Show Replies' : 'Hide Replies'}
-                </span>
+                {hasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
               </button>
-            )}
+              <span className="vote-count">{post.upvotes}</span>
+              <button
+                type="button"
+                className={`vote-button downvote-button ${hasDownvoted ? 'active' : ''}`}
+                onClick={() => handleDownvoteClick(post.post_id)}
+                title="Downvote"
+                aria-label="Downvote"
+              >
+                {hasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+              </button>
+              <span className="vote-count">{post.downvotes}</span>
+
+              {/* Reply Button */}
+              {!repliesDisabled && (
+                <button
+                  type="button"
+                  className="reply-button"
+                  onClick={handleToggleReplyBox}
+                  title="Reply"
+                  aria-label="Reply"
+                >
+                  <FiMessageCircle />
+                </button>
+              )}
+              <span className="vote-count comment-count">{childReplyCount}</span>
+    
+              {/* Collapse/Expand Replies Button */}
+              {post.children && post.children.length > 0 && (
+                <button
+                  type="button"
+                  className="collapse-button"
+                  onClick={toggleCollapse}
+                  title={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
+                  aria-label={isCollapsed ? 'Expand Replies' : 'Collapse Replies'}
+                  aria-expanded={!isCollapsed}
+                >
+                  {isCollapsed ? <FaChevronRight /> : <FaChevronDown />}
+                  <span className="collapse-text">
+                    {isCollapsed ? 'Show Replies' : 'Hide Replies'}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         </>
       )}
@@ -768,16 +872,20 @@ function PostItem({
       </div>
   
       {/* Reply Form */}
-      {userData?.user_id && !isEditing && isReplyBoxOpen && (
+      {!repliesDisabled && userData?.user_id && !isEditing && isReplyBoxOpen && (
         <form onSubmit={handleReplySubmitLocal} className="reply-form">
           <textarea
             placeholder="Write your reply..."
             value={localReply}
             onChange={handleLocalReplyChange}
             rows={3}
+            maxLength={POST_MAX_LENGTH}
             required
             className="reply-textarea"
           />
+          <span className="field-character-count">
+            {localReply.length.toLocaleString()} / {POST_MAX_LENGTH.toLocaleString()}
+          </span>
           <div className="reply-form-actions">
             <button type="submit" className="create-button reply-button">
               Submit
@@ -791,7 +899,8 @@ function PostItem({
             </button>
           </div>
         </form>
-      )}
+        )}
+      </div>
   
       {/* Recursively render child replies */}
       {post.children && post.children.length > 0 && !isCollapsed && (
@@ -813,6 +922,10 @@ function PostItem({
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost} // pass the verify function down
+              handleUnverifyPost={handleUnverifyPost}
+              canVerifyPosts={canVerifyPosts}
+              communityType={communityType}
+              repliesDisabled={repliesDisabled}
               onRequireAuth={onRequireAuth}
               onReport={onReport}
             />
@@ -828,8 +941,12 @@ function PostItem({
 -------------------------------------------------------------------------- */
 function ThreadView({ userData, onRequireAuth }) {
   const { thread_id } = useParams();
+  const { language } = useLanguage();
+  const location = useLocation();
 
   const [threadData, setThreadData] = useState(null);
+  const [knowledgeBaseChildren, setKnowledgeBaseChildren] = useState([]);
+  const [isLoadingKnowledgeBaseChildren, setIsLoadingKnowledgeBaseChildren] = useState(false);
   const [postTree, setPostTree] = useState([]);
   const [originalPost, setOriginalPost] = useState(null);
   const [isLoadingThread, setIsLoadingThread] = useState(true);
@@ -842,8 +959,90 @@ function ThreadView({ userData, onRequireAuth }) {
   const [reportTarget, setReportTarget] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
+  // Original post header: 3-dot menu + follow-the-author state
+  const [origMenuOpen, setOrigMenuOpen] = useState(false);
+  const origMenuRef = useRef(null);
+  const [origSavedStatus, setOrigSavedStatus] = useState(false);
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
+  const [loadingFollowStatus, setLoadingFollowStatus] = useState(false);
+
+  useOnClickOutside(origMenuRef, () => {
+    if (origMenuOpen) setOrigMenuOpen(false);
+  });
+
+  useEffect(() => {
+    if (!origMenuOpen || !userData?.user_id || !originalPost?.post_id) return;
+    const loadSavedStatus = async () => {
+      try {
+        const resp = await axios.get('/api/save_check.php', {
+          params: { user_id: userData.user_id, item_type: 'post', item_id: originalPost.post_id },
+          withCredentials: true,
+        });
+        setOrigSavedStatus(Boolean(resp.data?.saved ?? resp.data?.is_saved));
+      } catch (err) {
+        console.error('save_check failed for original post', err);
+      }
+    };
+    loadSavedStatus();
+  }, [origMenuOpen, userData?.user_id, originalPost?.post_id]);
+
+  useEffect(() => {
+    if (Number(threadData?.is_system_container) === 1 || !userData?.user_id || !originalPost?.user_id) return undefined;
+    if (Number(userData.user_id) === Number(originalPost.user_id)) return undefined;
+    let cancelled = false;
+    setLoadingFollowStatus(true);
+    axios
+      .get('/api/fetch_following_status.php', {
+        params: { follower_id: userData.user_id, followed_user_id: originalPost.user_id },
+      })
+      .then((res) => {
+        if (!cancelled && res.data?.success) {
+          setIsFollowingAuthor(Boolean(res.data.isFollowing));
+        }
+      })
+      .catch((err) => console.error('Error checking follow status:', err))
+      .finally(() => {
+        if (!cancelled) setLoadingFollowStatus(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [threadData?.is_system_container, userData?.user_id, originalPost?.user_id]);
+
+  const handleFollowAuthorToggle = async () => {
+    if (!userData) {
+      promptAuthOverlay();
+      return;
+    }
+    if (!originalPost?.user_id) return;
+    const endpoint = isFollowingAuthor ? '/api/unfollow_user.php' : '/api/follow_user.php';
+    try {
+      const resp = await axios.post(
+        endpoint,
+        { followed_user_id: originalPost.user_id },
+        { withCredentials: true }
+      );
+      if (resp.data?.success) {
+        setIsFollowingAuthor((prev) => !prev);
+      } else {
+        setNotification({ type: 'error', message: resp.data?.error || 'Unable to update follow status.' });
+      }
+    } catch (error) {
+      console.error('Error toggling follow status:', error);
+      setNotification({ type: 'error', message: 'Error updating follow status.' });
+    }
+  };
+
+  useEffect(() => {
+    if (!notification) return undefined;
+    const timeoutId = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notification]);
+
   const [replySortCriteria, setReplySortCriteria] = useState('mostRecent');
   const [savedPosts, setSavedPosts] = useState([]);
+  const [sessionAmbassadorCommunities, setSessionAmbassadorCommunities] = useState([]);
+  const [hasSessionAmbassadorSnapshot, setHasSessionAmbassadorSnapshot] = useState(false);
   const countReplies = (nodes = []) =>
     nodes.reduce(
       (sum, node) => sum + 1 + (node.children && node.children.length > 0 ? countReplies(node.children) : 0),
@@ -851,14 +1050,32 @@ function ThreadView({ userData, onRequireAuth }) {
     );
   const totalComments = useMemo(() => countReplies(postTree), [postTree]);
 
-  const tagStyle = (tag) => {
-    const t = String(tag || '').toLowerCase();
-    if (t.includes('hous')) return { background: '#ffedd5', color: '#9a3412', borderColor: '#fed7aa' }; // amber
-    if (t.includes('campus')) return { background: '#e0e7ff', color: '#3730a3', borderColor: '#c7d2fe' }; // indigo
-    if (t.includes('academ')) return { background: '#dbeafe', color: '#1d4ed8', borderColor: '#bfdbfe' }; // blue
-    if (t.includes('admiss')) return { background: '#dcfce7', color: '#166534', borderColor: '#bbf7d0' }; // green
-    return {};
-  };
+  const targetPostId = useMemo(() => {
+    const searchValue = new URLSearchParams(location.search).get('post_id') || '';
+    const hashValue = location.hash?.startsWith('#post-') ? location.hash.slice('#post-'.length) : '';
+    const raw = searchValue || hashValue;
+    return String(raw || '')
+      .trim()
+      .replace(/^["']+|["']+$/g, '')
+      .replace(/^#/, '');
+  }, [location.search, location.hash]);
+
+  const ambassadorCommunityIds = useMemo(() => {
+    const fromSession = Array.isArray(sessionAmbassadorCommunities) ? sessionAmbassadorCommunities : [];
+    const fromUserData = Array.isArray(userData?.ambassador_communities) ? userData.ambassador_communities : [];
+    const source = hasSessionAmbassadorSnapshot ? fromSession : fromUserData;
+    return source
+      .map((item) => String(item?.community_id ?? item?.id ?? item ?? ''))
+      .filter(Boolean);
+  }, [hasSessionAmbassadorSnapshot, sessionAmbassadorCommunities, userData?.ambassador_communities]);
+
+  const canVerifyPosts = useMemo(() => {
+    if (!userData?.user_id) return false;
+    const communityId = String(threadData?.community_id ?? '');
+    if (!communityId) return false;
+    return ambassadorCommunityIds.includes(communityId);
+  }, [userData?.user_id, threadData?.community_id, ambassadorCommunityIds]);
+
 
   const promptAuthOverlay = () => {
     if (onRequireAuth) {
@@ -908,7 +1125,7 @@ function ThreadView({ userData, onRequireAuth }) {
 
   // NEW: Function to verify a post
   const handleVerifyPost = async (post_id) => {
-    const isAllowed = userData && ([5, 6, 7].includes(Number(userData.role_id)) || Number(userData.is_ambassador) === 1);
+    const isAllowed = canVerifyPosts;
     if (!isAllowed) {
       setNotification({ type: 'error', message: 'You are not authorized to verify posts.' });
       return;
@@ -916,7 +1133,6 @@ function ThreadView({ userData, onRequireAuth }) {
     try {
       const response = await axios.post('/api/verify_post.php', {
         post_id,
-        user_id: userData.user_id,
       }, { withCredentials: true });
       if (response.data.success) {
         setNotification({ type: 'success', message: 'Post verified successfully!' });
@@ -927,6 +1143,23 @@ function ThreadView({ userData, onRequireAuth }) {
     } catch (error) {
       console.error('Error verifying post:', error);
       setNotification({ type: 'error', message: 'An error occurred while verifying the post.' });
+    }
+  };
+
+  const handleUnverifyPost = async (post_id) => {
+    try {
+      const response = await axios.post('/api/unverify_post.php', {
+        post_id,
+      }, { withCredentials: true });
+      if (response.data.success) {
+        setNotification({ type: 'success', message: 'Post unverified successfully!' });
+        fetchPosts();
+      } else {
+        setNotification({ type: 'error', message: response.data.error || 'Error unverifying post.' });
+      }
+    } catch (error) {
+      console.error('Error unverifying post:', error);
+      setNotification({ type: 'error', message: 'An error occurred while unverifying the post.' });
     }
   };
 
@@ -980,7 +1213,8 @@ function ThreadView({ userData, onRequireAuth }) {
         return;
       }
       try {
-        const res = await axios.get(`/api/fetch_thread.php?thread_id=${thread_id}`);
+        const params = new URLSearchParams({ thread_id: String(thread_id), lang: language });
+        const res = await axios.get(`/api/fetch_thread.php?${params.toString()}`);
         setThreadData(res.data);
       } catch (err) {
         console.error('Error fetching thread details:', err);
@@ -990,7 +1224,76 @@ function ThreadView({ userData, onRequireAuth }) {
       }
     };
     fetchThread();
-  }, [thread_id]);
+  }, [thread_id, language]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const communityId = String(threadData?.community_id || '');
+    if (!threadData?.is_system_container || !communityId || !thread_id) {
+      setKnowledgeBaseChildren([]);
+      setIsLoadingKnowledgeBaseChildren(false);
+      return undefined;
+    }
+
+    setKnowledgeBaseChildren([]);
+    setIsLoadingKnowledgeBaseChildren(true);
+    const params = new URLSearchParams({
+      community_id: communityId,
+      parent_thread_id: String(thread_id),
+      lang: language,
+    });
+    axios
+      .get(`/api/fetch_knowledge_base_nodes.php?${params.toString()}`)
+      .then((response) => {
+        if (!cancelled) {
+          setKnowledgeBaseChildren(Array.isArray(response.data?.nodes) ? response.data.nodes : []);
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching knowledge base sections:', error);
+        if (!cancelled) setKnowledgeBaseChildren([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingKnowledgeBaseChildren(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [threadData?.community_id, threadData?.is_system_container, thread_id, language]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const refreshSessionAmbassadorCommunities = async () => {
+      if (!userData?.user_id) {
+        if (!isCancelled) {
+          setSessionAmbassadorCommunities([]);
+          setHasSessionAmbassadorSnapshot(false);
+        }
+        return;
+      }
+      try {
+        const res = await axios.get('/api/check_session.php', { withCredentials: true });
+        const fromSession = Array.isArray(res.data?.user?.ambassador_communities)
+          ? res.data.user.ambassador_communities
+          : [];
+        if (!isCancelled) {
+          setSessionAmbassadorCommunities(fromSession);
+          setHasSessionAmbassadorSnapshot(true);
+        }
+      } catch (err) {
+        console.error('Error refreshing ambassador communities from session:', err);
+        if (!isCancelled) {
+          setSessionAmbassadorCommunities([]);
+          setHasSessionAmbassadorSnapshot(false);
+        }
+      }
+    };
+    refreshSessionAmbassadorCommunities();
+    return () => {
+      isCancelled = true;
+    };
+  }, [thread_id, userData?.user_id]);
 
   // Build the nested structure of posts
   const fetchPosts = async () => {
@@ -1005,6 +1308,7 @@ function ThreadView({ userData, onRequireAuth }) {
       if (userData?.user_id) {
         url += `&user_id=${userData.user_id}`;
       }
+      url += `&lang=${encodeURIComponent(language)}`;
       const res = await axios.get(url);
       const data = Array.isArray(res.data) ? res.data : [];
       console.log("Fetched Posts:", data);
@@ -1037,7 +1341,19 @@ function ThreadView({ userData, onRequireAuth }) {
     if (userData) {
       fetchSavedPosts();
     }
-  }, [thread_id, userData]);
+  }, [thread_id, userData, language]);
+
+  useEffect(() => {
+    if (isLoadingPosts || !targetPostId) return;
+    const node = document.getElementById(`post-${targetPostId}`);
+    if (!node) return;
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    node.classList.add('post-target-highlight');
+    const timeoutId = window.setTimeout(() => {
+      node.classList.remove('post-target-highlight');
+    }, 2400);
+    return () => window.clearTimeout(timeoutId);
+  }, [isLoadingPosts, targetPostId, postTree.length, originalPost?.post_id]);
 
   useEffect(() => {
     setRootReplyOpen(false);
@@ -1080,7 +1396,10 @@ function ThreadView({ userData, onRequireAuth }) {
       }
     } catch (error) {
       console.error('Error creating reply:', error);
-      setNotification({ type: 'error', message: 'An error occurred while creating the reply.' });
+      setNotification({
+        type: 'error',
+        message: error?.response?.data?.error || 'An error occurred while creating the reply.',
+      });
     }
   };  
 
@@ -1312,127 +1631,294 @@ function ThreadView({ userData, onRequireAuth }) {
   };
 
   if (isLoadingThread || isLoadingPosts) {
-    return <p>Loading thread and posts...</p>;
+    return (
+      <div className="feed-container thread-view thread-view--loading">
+        <p>Loading Threads and Posts...</p>
+      </div>
+    );
   }
+
+  const threadDetailImageLayout = normalizeImageLayout(threadData?.image_layout);
+  const isKnowledgeBaseEntry = Number(threadData?.is_system_container) === 1;
+  const isReadOnlyKnowledgeBase = isKnowledgeBaseEntry && Number(threadData?.is_locked) === 1;
+  const knowledgeBaseTypeLabel = {
+    guide: 'Student guide',
+    section: 'Knowledge base section',
+    article: 'Knowledge base article',
+  }[threadData?.content_kind] || 'Knowledge base entry';
 
   // Final return block
   return (
     <div className="feed-container thread-view">
       {/* Breadcrumbs */}
-      <nav className="breadcrumbs" aria-label="Breadcrumb">
-        <RouterLink to="/info">Info Board</RouterLink>
-        <span className="breadcrumb-sep">/</span>
-        {threadData?.forum_id ? (
-          <RouterLink to={`/info/forum/${threadData.forum_id}`}>
-            {threadData?.forum_name || 'Category'}
-          </RouterLink>
-        ) : (
-          <span>{threadData?.forum_name || 'Category'}</span>
+      <div className="thread-header-row">
+        <nav className="breadcrumbs" aria-label="Breadcrumb">
+          <RouterLink to="/info">Info Board</RouterLink>
+          {isKnowledgeBaseEntry && threadData?.parent_thread_id ? (
+            <>
+              <span className="breadcrumb-sep">&gt;</span>
+              <RouterLink to={`/info/forum/${threadData.forum_id}/thread/${threadData.parent_thread_id}`}>
+                {threadData?.parent_thread_title || 'Parent article'}
+              </RouterLink>
+            </>
+          ) : !isKnowledgeBaseEntry && threadData?.forum_id ? (
+            <>
+              <span className="breadcrumb-sep">&gt;</span>
+              <RouterLink to={`/info/forum/${threadData.forum_id}`}>
+                {threadData?.forum_name || 'Category'}
+              </RouterLink>
+            </>
+          ) : null}
+        </nav>
+      </div>
+      <section className={`thread-hero thread-hero--${threadDetailImageLayout}`}>
+        <div className="thread-hero__heading">
+          <h1 className="h1" style={{ margin: 0 }}>
+            {threadData?.title || `Thread ${thread_id}`}
+          </h1>
+
+          {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
+            <div className="chips-row" style={{ display: 'flex', gap: '8px', margin: 0 }}>
+              {threadData.tags.map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="chip tag-chip"
+                  style={{ ...getTagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {threadData?.image_path && (
+          <div className={`thread-hero-media thread-hero-media--${threadDetailImageLayout}`}>
+            <img
+              src={buildUploadSrc(threadData.image_path)}
+              alt={threadData?.title || 'Thread'}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
         )}
-        <span className="breadcrumb-sep">/</span>
-        {/*<span className="breadcrumb-current" aria-current="page">
-          {threadData?.title || `Thread ${thread_id}`}
-        </span>*/}
-      </nav>
-      {/* Title */}
-      <h1 className="h1" style={{ margin: 0 }}>
-        {threadData?.title || `Thread ${thread_id}`}
-      </h1>
+      </section>
 
-      {/* Author row + sort pill moved into original post card */}
+      {isReadOnlyKnowledgeBase && (
+        <div className="knowledge-base-readonly-note" role="note">
+          <strong>{knowledgeBaseTypeLabel}</strong>
+          <span>This entry is read-only. Use an Information Board question megathread for discussion.</span>
+        </div>
+      )}
 
-      {/* Tags under title */}
-      {Array.isArray(threadData?.tags) && threadData.tags.length > 0 && (
-        <div className="chips-row" style={{ display: 'flex', gap: '8px', marginTop: '8px', marginBottom: '8px' }}>
-          {threadData.tags.map((tag, idx) => (
-            <span key={idx} className="chip" style={{ ...tagStyle(tag), border: '1px solid', borderRadius: '9999px', padding: '4px 10px', fontWeight: 600 }}>
-              {tag}
-            </span>
-          ))}
+      {hasMeaningfulUpdate(threadData?.created_at, threadData?.updated_at) && (
+        <div className="meta-quiet" style={{ marginTop: 2, marginBottom: 10 }}>
+          Last updated {timeAgo(threadData.updated_at)}
+          {!isKnowledgeBaseEntry && threadData.updated_by_first_name
+            ? ` by ${threadData.updated_by_first_name} ${threadData.updated_by_last_name || ''}`
+            : ''}
         </div>
       )}
 
       {/* Original Post at top */}
       {originalPost && (
-        <div className="post-card card-lift original-post">
-          {/* Use the thread-top-row pattern inside the card */}
-          <div className="thread-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className="avatar-wrapper">
-                <img
-                  src={buildAvatarSrc(originalPost.avatar_path)}
-                  alt={getDisplayName(originalPost, userData?.user_id)}
-                  className="avatar-image"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = buildAvatarSrc(null);
-                  }}
-                />
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <RouterLink to={`/user/${originalPost.user_id}`} style={{ textDecoration: 'none', color: 'var(--text-color)', fontWeight: 700 }}>
-                    {getDisplayName(originalPost, userData?.user_id)}
-                  </RouterLink>
-                  {originalPost.user_role && <span className="meta-quiet">· {originalPost.user_role}</span>}
+        <div
+          id={`post-${String(originalPost.post_id || '')
+            .trim()
+            .replace(/^["']+|["']+$/g, '')
+            .replace(/^#/, '')}`}
+          className={`post-card original-post${isKnowledgeBaseEntry ? ' knowledge-base-original' : ' card-lift'}`}
+          aria-label={isKnowledgeBaseEntry ? `${knowledgeBaseTypeLabel} content` : undefined}
+        >
+          <div className={`verified-scope ${!isKnowledgeBaseEntry && Number(originalPost.verified) === 1 ? 'verified' : ''}`}>
+            {!isKnowledgeBaseEntry && Number(originalPost.verified) === 1 && (
+              <div className="verified-banner">
+                <div className="verified-badge">
+                  <FaCheckCircle className="verified-icon" />
+                  <div>
+                    <div className="verified-title">Verified Correct</div>
+                    {originalPost.verified_at && (
+                      <div className="verified-date">
+                        Verified on {formatVerifiedDate(originalPost.verified_at)}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="meta-quiet">{timeAgo(originalPost.created_at)}</div>
+                <div className="verified-disclaimer">
+                  {getVerificationDisclaimer(threadData?.community_type)}
+                </div>
+              </div>
+            )}
+
+            {/* Knowledge-base root content is institutional copy, not an individual's post. */}
+            {!isKnowledgeBaseEntry && (
+            <div className="thread-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="original-post-author" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div className="avatar-wrapper">
+                  <img
+                    src={buildAvatarSrc(originalPost.avatar_path)}
+                    alt={getDisplayName(originalPost, userData?.user_id)}
+                    className="avatar-image"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = buildAvatarSrc(null);
+                    }}
+                  />
+                </div>
+                <div className="original-post-author-copy">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <RouterLink to={`/user/${originalPost.user_id}`} className="post-author-name" style={{ textDecoration: 'none', fontWeight: 700 }}>
+                      {getDisplayName(originalPost, userData?.user_id)}
+                    </RouterLink>
+                    {originalPost.user_role && <span className="meta-quiet">· {originalPost.user_role}</span>}
+                  </div>
+                  {originalPost.headline && (
+                    <p className="connection-headline original-post-headline">{originalPost.headline}</p>
+                  )}
+                  <div className="meta-quiet">{timeAgo(originalPost.created_at)}</div>
+                  {hasMeaningfulUpdate(originalPost.created_at, originalPost.updated_at) && (
+                    <div className="meta-quiet">Edited {timeAgo(originalPost.updated_at)}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="original-post-header-actions">
+                {String(userData?.user_id || '') !== String(originalPost.user_id || '') && (
+                  <button
+                    type="button"
+                    className={`follow-button ${isFollowingAuthor ? 'unfollow' : 'follow'}`}
+                    onClick={handleFollowAuthorToggle}
+                    disabled={loadingFollowStatus}
+                  >
+                    {isFollowingAuthor ? 'Following' : (
+                      <>
+                        <FaPlus className="follow-button-icon" aria-hidden="true" /> Follow
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <div className="kebab-menu original-post-menu" ref={origMenuRef}>
+                  <button
+                    type="button"
+                    className="kebab-trigger"
+                    onClick={() => setOrigMenuOpen((prev) => !prev)}
+                    aria-label="Post actions"
+                    aria-expanded={origMenuOpen}
+                  >
+                    <FaEllipsisV className="menu-icon" />
+                  </button>
+                  {origMenuOpen && (
+                    <div className="dropdown-menu post-header-menu-panel">
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          handleToggleSavePost(originalPost.post_id, origSavedStatus);
+                          setOrigSavedStatus((prev) => !prev);
+                          setOrigMenuOpen(false);
+                        }}
+                      >
+                        {origSavedStatus ? 'Unsave' : 'Save'}
+                      </button>
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          handleOpenReport({
+                            id: originalPost.post_id,
+                            type: 'post',
+                            label: 'original post',
+                            context: stripHtml(originalPost.original_content ?? originalPost.content ?? '').slice(0, 200),
+                          });
+                          setOrigMenuOpen(false);
+                        }}
+                      >
+                        Report post
+                      </button>
+                      {canVerifyPosts && Number(originalPost.verified) !== 1 && (
+                        <button
+                          className="dropdown-item"
+                          onClick={() => {
+                            handleVerifyPost(originalPost.post_id);
+                            setOrigMenuOpen(false);
+                          }}
+                        >
+                          Verify answer
+                        </button>
+                      )}
+                      {Number(originalPost.verified) === 1 &&
+                        String(originalPost.verified_by || '') === String(userData?.user_id || '') && (
+                          <button
+                            className="dropdown-item"
+                            onClick={() => {
+                              handleUnverifyPost(originalPost.post_id);
+                              setOrigMenuOpen(false);
+                            }}
+                          >
+                            Unverify answer
+                          </button>
+                        )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+            )}
 
-          <div
-            className="post-content"
-            style={{ marginTop: '8px' }}
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
-          />
-          <div className="vote-row">
-            <button
-              type="button"
-              className={`vote-button upvote-button ${originalHasUpvoted ? 'active' : ''}`}
-              onClick={() => handleUpvoteClick(originalPost.post_id)}
-              title="Upvote"
-              aria-label="Upvote"
-            >
-              {originalHasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
-            </button>
-            <span className="vote-count">{originalUpvotes}</span>
-            <button
-              type="button"
-              className={`vote-button downvote-button ${originalHasDownvoted ? 'active' : ''}`}
-              onClick={() => handleDownvoteClick(originalPost.post_id)}
-              title="Downvote"
-              aria-label="Downvote"
-            >
-              {originalHasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
-            </button>
-            <span className="vote-count">{originalDownvotes}</span>
-            <button
-              type="button"
-              className="reply-button"
-              onClick={handleOpenRootReply}
-              title="Leave a comment"
-              aria-label="Leave a comment"
-            >
-              <FiMessageCircle />
-            </button>
-            <span className="vote-count comment-count">{totalComments}</span>
-            <button
-              type="button"
-              className="report-inline-button"
-              onClick={() =>
-                handleOpenReport({
-                  id: originalPost.post_id,
-                  type: 'post',
-                  label: 'original post',
-                  context: stripHtml(originalPost.content || '').slice(0, 200),
-                })
-              }
-            >
-              Report
-            </button>
+            <div
+              className="post-content"
+              style={{ marginTop: isKnowledgeBaseEntry ? 0 : '8px' }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
+            />
+            {!isKnowledgeBaseEntry && (
+              <div className="vote-row">
+              <button
+                type="button"
+                className={`vote-button upvote-button ${originalHasUpvoted ? 'active' : ''}`}
+                onClick={() => handleUpvoteClick(originalPost.post_id)}
+                title="Upvote"
+                aria-label="Upvote"
+              >
+                {originalHasUpvoted ? <FaArrowAltCircleUp /> : <FaRegArrowAltCircleUp />}
+              </button>
+              <span className="vote-count">{originalUpvotes}</span>
+              <button
+                type="button"
+                className={`vote-button downvote-button ${originalHasDownvoted ? 'active' : ''}`}
+                onClick={() => handleDownvoteClick(originalPost.post_id)}
+                title="Downvote"
+                aria-label="Downvote"
+              >
+                {originalHasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
+              </button>
+              <span className="vote-count">{originalDownvotes}</span>
+              {!isReadOnlyKnowledgeBase && (
+                <button
+                  type="button"
+                  className="reply-button"
+                  onClick={handleOpenRootReply}
+                  title="Leave a comment"
+                  aria-label="Leave a comment"
+                >
+                  <FiMessageCircle />
+                </button>
+              )}
+              <span className="vote-count comment-count">{totalComments}</span>
+              </div>
+            )}
+            {isKnowledgeBaseEntry && !isReadOnlyKnowledgeBase && (
+              <div className="knowledge-base-discussion-action">
+                <button
+                  type="button"
+                  className="reply-button"
+                  onClick={handleOpenRootReply}
+                >
+                  <FiMessageCircle aria-hidden="true" />
+                  Join the discussion
+                </button>
+                <span>{totalComments} {totalComments === 1 ? 'comment' : 'comments'}</span>
+              </div>
+            )}
           </div>
-      {rootReplyOpen && (
+      {!isReadOnlyKnowledgeBase && rootReplyOpen && (
         <form className="reply-form" onSubmit={handleRootReplySubmit}>
           <textarea
             className="reply-textarea"
@@ -1440,8 +1926,12 @@ function ThreadView({ userData, onRequireAuth }) {
             value={rootReplyContent}
             onChange={(e) => setRootReplyContent(e.target.value)}
             placeholder="Share your thoughts..."
+            maxLength={POST_MAX_LENGTH}
             required
           />
+          <span className="field-character-count">
+            {rootReplyContent.length.toLocaleString()} / {POST_MAX_LENGTH.toLocaleString()}
+          </span>
           <div className="reply-form-actions">
             <button type="submit" className="create-button reply-button">
               Submit
@@ -1452,12 +1942,46 @@ function ThreadView({ userData, onRequireAuth }) {
           </div>
         </form>
       )}
-      <hr className="thread-divider" />
     </div>
   )}
 
-  <div className="reply-sort-controls">
-        <label htmlFor="replySort" className="sr-only">Sort Replies</label>
+      {isLoadingKnowledgeBaseChildren ? (
+        <div className="knowledge-base-child-state" role="status">Loading sections…</div>
+      ) : knowledgeBaseChildren.length > 0 ? (
+        <section className="knowledge-base-child-section" aria-labelledby="knowledge-base-child-heading">
+          <div className="knowledge-base-child-heading">
+            <p>Continue reading</p>
+            <h2 id="knowledge-base-child-heading">
+              {threadData?.content_kind === 'guide' ? 'Explore this guide' : 'Articles in this section'}
+            </h2>
+          </div>
+          <div className="knowledge-base-child-grid">
+            {knowledgeBaseChildren.map((child, index) => (
+              <RouterLink
+                key={child.thread_id}
+                className="knowledge-base-child-card"
+                to={`/info/forum/${child.forum_id}/thread/${child.thread_id}`}
+              >
+                <span className="knowledge-base-child-index">{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <small>{child.content_kind === 'megathread' ? 'Questions & discussion' : child.child_count > 0 ? 'Section' : 'Article'}</small>
+                  <h3>{child.title}</h3>
+                  {child.excerpt && <p>{child.excerpt}</p>}
+                  {child.child_count > 0 && (
+                    <span>{child.child_count} {child.child_count === 1 ? 'article' : 'articles'}</span>
+                  )}
+                </div>
+                <FaChevronRight aria-hidden="true" />
+              </RouterLink>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+  {!isReadOnlyKnowledgeBase && (
+    <>
+      <div className="reply-sort-controls filter-toolbar filter-toolbar--sort-only">
+        <label htmlFor="replySort" className="sort-pill">Sort</label>
         <select
           id="replySort"
           value={replySortCriteria}
@@ -1492,12 +2016,18 @@ function ThreadView({ userData, onRequireAuth }) {
               savedPosts={savedPosts}
               handleToggleSavePost={handleToggleSavePost}
               handleVerifyPost={handleVerifyPost}
+              handleUnverifyPost={handleUnverifyPost}
+              canVerifyPosts={canVerifyPosts}
+              communityType={threadData?.community_type}
+              repliesDisabled={isReadOnlyKnowledgeBase}
               onRequireAuth={onRequireAuth}
               onReport={handleOpenReport}
             />
           ))}
         </div>
       )}
+    </>
+  )}
   
       <ReportModal
         isOpen={!!reportTarget}

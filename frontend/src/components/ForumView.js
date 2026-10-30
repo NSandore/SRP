@@ -1,6 +1,6 @@
 // src/components/ForumView.js
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import TextEditor from './TextEditor';
 import './ForumView.css';  // Adjusted to match feed styling
@@ -9,6 +9,16 @@ import ModalOverlay from './ModalOverlay';
 import { FaEllipsisV, FaArrowAltCircleUp, FaRegArrowAltCircleUp, FaArrowAltCircleDown, FaRegArrowAltCircleDown } from 'react-icons/fa';
 import ThreadCard from './ThreadCard';
 import ReportModal from './ReportModal';
+import TagPicker from './TagPicker';
+import useTagOptions from '../hooks/useTagOptions';
+import { mapTagNamesToSlugs, normalizeTagValue } from '../utils/tagUtils';
+import { isSuperAdmin } from '../constants/roles';
+import { buildAvatarSrc } from '../utils/avatar';
+import buildUploadSrc from '../utils/uploads';
+import { getTagStyle } from '../utils/tagStyle';
+import { IMAGE_LAYOUTS, normalizeImageLayout } from '../utils/imageLayout';
+import { POST_MAX_LENGTH, THREAD_TITLE_MAX_LENGTH } from '../utils/contentLimits';
+import { useLanguage } from '../i18n/LanguageContext';
 
 // Sorting function
 const sortItems = (items, criteria) => {
@@ -32,9 +42,31 @@ const sortItems = (items, criteria) => {
 };
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+const timeAgo = (dateStr) => {
+  if (!dateStr) return '';
+  const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+  const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  const ts = parsed.getTime();
+  if (Number.isNaN(ts)) return '';
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 0) return 'just now';
+  if (seconds < 3600) {
+    const mins = Math.max(1, Math.floor(seconds / 60));
+    return `${mins} minute${mins > 1 ? 's' : ''} ago`;
+  }
+  if (seconds < 86400) {
+    const hours = Math.max(1, Math.round(seconds / 3600));
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+  const days = Math.floor(seconds / 86400);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
 
 function ForumView({ userData, onRequireAuth }) {
   const { forum_id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { language } = useLanguage();
+  const { tags: tagOptions } = useTagOptions();
 
   // Forum data & threads
   const [forumData, setForumData] = useState(null);
@@ -43,20 +75,88 @@ function ForumView({ userData, onRequireAuth }) {
 
   // Sorting
   const [sortBy, setSortBy] = useState('mostRecent');
+  const [showTagFilter, setShowTagFilter] = useState(false);
+
+  // Tag filter
+  const [activeTags, setActiveTags] = useState([]);
+  const tagNameToSlug = useMemo(
+    () => new Map((tagOptions || []).map((opt) => [opt.name, opt.slug])),
+    [tagOptions]
+  );
+  const tagNameLowerToSlug = useMemo(
+    () => new Map((tagOptions || []).map((opt) => [String(opt.name || '').toLowerCase(), opt.slug])),
+    [tagOptions]
+  );
+  const tagNameNormalizedToSlug = useMemo(
+    () => new Map((tagOptions || []).map((opt) => [normalizeTagValue(opt.name || ''), opt.slug])),
+    [tagOptions]
+  );
+  const tagSlugSet = useMemo(
+    () => new Set((tagOptions || []).map((opt) => String(opt.slug || '').toLowerCase()).filter(Boolean)),
+    [tagOptions]
+  );
+
+  const resolveTagSlug = useMemo(
+    () => (value) => {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      const lower = raw.toLowerCase();
+      if (tagSlugSet.has(lower)) return lower;
+      const byName = tagNameLowerToSlug.get(lower);
+      if (byName) return byName;
+      const normalized = normalizeTagValue(raw);
+      if (tagSlugSet.has(normalized)) return normalized;
+      const byNormalizedName = tagNameNormalizedToSlug.get(normalized);
+      if (byNormalizedName) return byNormalizedName;
+      return normalized;
+    },
+    [tagNameLowerToSlug, tagNameNormalizedToSlug, tagSlugSet]
+  );
 
   // Create Thread
   const [showCreateThreadModal, setShowCreateThreadModal] = useState(false);
   const [threadTitle, setThreadTitle] = useState('');
   const [firstPostContent, setFirstPostContent] = useState('');
+  const [threadTags, setThreadTags] = useState([]);
+  const [threadImageFile, setThreadImageFile] = useState(null);
+  const [threadImagePreview, setThreadImagePreview] = useState('');
+  const [threadImageLayout, setThreadImageLayout] = useState('banner');
   const [isCreatingThread, setIsCreatingThread] = useState(false);
+
+  useEffect(() => {
+    if (!threadImageFile) {
+      setThreadImagePreview('');
+      return undefined;
+    }
+    const previewUrl = URL.createObjectURL(threadImageFile);
+    setThreadImagePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [threadImageFile]);
 
   // Edit Thread
   const [editThreadId, setEditThreadId] = useState(null);
   const [editThreadTitle, setEditThreadTitle] = useState('');
+  const [editThreadTags, setEditThreadTags] = useState([]);
+  const [editThreadImageFile, setEditThreadImageFile] = useState(null);
+  const [editThreadImagePreview, setEditThreadImagePreview] = useState('');
+  const [editThreadImageLayout, setEditThreadImageLayout] = useState('banner');
   const [isEditingThread, setIsEditingThread] = useState(false);
+
+  useEffect(() => {
+    if (!editThreadImageFile) return undefined;
+    const previewUrl = URL.createObjectURL(editThreadImageFile);
+    setEditThreadImagePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [editThreadImageFile]);
 
   // Notification
   const [notification, setNotification] = useState(null);
+
+  useEffect(() => {
+    if (!notification) return undefined;
+    const timeoutId = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notification]);
 
   // Saved Threads
   const [savedThreads, setSavedThreads] = useState([]);
@@ -77,7 +177,8 @@ function ForumView({ userData, onRequireAuth }) {
   // === API Calls ===
   const fetchForumDetails = async () => {
     try {
-      const res = await axios.get(`/api/fetch_forum.php?forum_id=${forum_id}`);
+      const params = new URLSearchParams({ forum_id: String(forum_id), lang: language });
+      const res = await axios.get(`/api/fetch_forum.php?${params.toString()}`);
       setForumData(res.data);
     } catch (err) {
       console.error('Error fetching forum details:', err);
@@ -89,7 +190,12 @@ function ForumView({ userData, onRequireAuth }) {
     setIsLoading(true);
     try {
       const userId = userData ? userData.user_id : 0;
-      const res = await axios.get(`/api/fetch_threads.php?forum_id=${forum_id}&user_id=${userId}`);
+      const params = new URLSearchParams({
+        forum_id: String(forum_id),
+        user_id: String(userId),
+        lang: language,
+      });
+      const res = await axios.get(`/api/fetch_threads.php?${params.toString()}`);
       setThreads(res.data || []);
     } catch (err) {
       console.error('Error fetching threads:', err);
@@ -121,7 +227,64 @@ function ForumView({ userData, onRequireAuth }) {
       fetchSavedThreads();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [forum_id, userData]);
+  }, [forum_id, userData, language]);
+
+  useEffect(() => {
+    const param = searchParams.get('tag') || searchParams.get('tags') || '';
+    const parsed = param
+      ? param
+          .split(',')
+          .map((value) => resolveTagSlug(value))
+          .filter(Boolean)
+      : [];
+    const unique = Array.from(new Set(parsed));
+    setActiveTags(unique);
+  }, [searchParams, resolveTagSlug]);
+
+  const handleTagFilter = (tag) => {
+    const slug = resolveTagSlug(tag);
+    if (!slug) return;
+    const current = new Set(activeTags);
+    if (current.has(slug)) {
+      current.delete(slug);
+    } else {
+      current.add(slug);
+    }
+    const next = Array.from(current);
+    const params = new URLSearchParams(searchParams);
+    params.delete('tag');
+    if (next.length) {
+      params.set('tags', next.join(','));
+    } else {
+      params.delete('tags');
+    }
+    setSearchParams(params);
+    setActiveTags(next);
+  };
+
+  const handleTagSelect = (event) => {
+    const value = event?.target?.value || '';
+    if (!value) {
+      const params = new URLSearchParams(searchParams);
+      params.delete('tag');
+      params.delete('tags');
+      setSearchParams(params);
+      setActiveTags([]);
+      return;
+    }
+    handleTagFilter(value);
+  };
+
+  const tagSlugToName = useMemo(
+    () => new Map((tagOptions || []).map((opt) => [opt.slug, opt.name])),
+    [tagOptions]
+  );
+
+  const activeTagLabel = activeTags.length
+    ? activeTags
+        .map((slug) => tagSlugToName.get(slug) || slug)
+        .join(', ')
+    : 'All tags';
 
   // Load ambassador communities when user is ambassador
   useEffect(() => {
@@ -141,7 +304,13 @@ function ForumView({ userData, onRequireAuth }) {
   }, [userData]);
 
   // Sort threads
-  const sortedThreads = sortItems(threads, sortBy);
+  const filteredThreads = activeTags.length
+    ? threads.filter((thread) => {
+        if (!Array.isArray(thread.tags) || thread.tags.length === 0) return false;
+        return thread.tags.some((tag) => activeTags.includes(resolveTagSlug(tag)));
+      })
+    : threads;
+  const sortedThreads = sortItems(filteredThreads, sortBy);
 
   // kebab menu handled inside ThreadCard
 
@@ -227,15 +396,23 @@ function ForumView({ userData, onRequireAuth }) {
     }
     setIsCreatingThread(true);
     try {
-      const resp = await axios.post('/api/create_thread.php', {
-        forum_id,
-        user_id: userData.user_id,
-        title: threadTitle,
-        firstPostContent,
-      });
+      const payload = new FormData();
+      payload.append('forum_id', forum_id);
+      payload.append('user_id', userData.user_id);
+      payload.append('title', threadTitle);
+      payload.append('firstPostContent', firstPostContent);
+      payload.append('tags', JSON.stringify(threadTags));
+      payload.append('image_layout', threadImageLayout);
+      if (threadImageFile) {
+        payload.append('image', threadImageFile);
+      }
+      const resp = await axios.post('/api/create_thread.php', payload);
       if (resp.data.success) {
         setThreadTitle('');
         setFirstPostContent('');
+        setThreadTags([]);
+        setThreadImageFile(null);
+        setThreadImageLayout('banner');
         setShowCreateThreadModal(false);
         fetchThreads();
         setNotification({ type: 'success', message: 'Thread created successfully!' });
@@ -249,7 +426,7 @@ function ForumView({ userData, onRequireAuth }) {
       console.error('Error creating thread:', err);
       setNotification({
         type: 'error',
-        message: 'An error occurred while creating the thread.',
+        message: err?.response?.data?.error || 'An error occurred while creating the thread.',
       });
     } finally {
       setIsCreatingThread(false);
@@ -260,6 +437,9 @@ function ForumView({ userData, onRequireAuth }) {
     setShowCreateThreadModal(false);
     setThreadTitle('');
     setFirstPostContent('');
+    setThreadTags([]);
+    setThreadImageFile(null);
+    setThreadImageLayout('banner');
     setIsCreatingThread(false);
   };
 
@@ -332,13 +512,21 @@ function ForumView({ userData, onRequireAuth }) {
 
   const startEditingThread = (thread) => {
     setEditThreadId(thread.thread_id);
-    setEditThreadTitle(thread.title);
+    setEditThreadTitle(thread.original_title ?? thread.title ?? '');
+    setEditThreadTags(mapTagNamesToSlugs(thread.tags || [], tagOptions));
+    setEditThreadImageFile(null);
+    setEditThreadImagePreview(thread.image_path ? buildUploadSrc(thread.image_path) : '');
+    setEditThreadImageLayout(normalizeImageLayout(thread.image_layout));
     setIsEditingThread(true);
   };
 
   const cancelEditingThread = () => {
     setEditThreadId(null);
     setEditThreadTitle('');
+    setEditThreadTags([]);
+    setEditThreadImageFile(null);
+    setEditThreadImagePreview('');
+    setEditThreadImageLayout('banner');
     setIsEditingThread(false);
   };
 
@@ -349,10 +537,15 @@ function ForumView({ userData, onRequireAuth }) {
       return;
     }
     try {
-      const resp = await axios.post('/api/edit_thread.php', {
-        thread_id: editThreadId,
-        new_title: editThreadTitle,
-      });
+      const payload = new FormData();
+      payload.append('thread_id', editThreadId);
+      payload.append('new_title', editThreadTitle);
+      payload.append('tags', JSON.stringify(editThreadTags));
+      payload.append('image_layout', editThreadImageLayout);
+      if (editThreadImageFile) {
+        payload.append('image', editThreadImageFile);
+      }
+      const resp = await axios.post('/api/edit_thread.php', payload);
       if (resp.data.success) {
         fetchThreads();
         setNotification({ type: 'success', message: 'Thread updated successfully!' });
@@ -369,21 +562,19 @@ function ForumView({ userData, onRequireAuth }) {
         message: 'An error occurred while editing the thread.',
       });
     } finally {
-      setIsEditingThread(false);
-      setEditThreadId(null);
-      setEditThreadTitle('');
+      cancelEditingThread();
     }
   };
 
   if (isLoading) {
     return (
-      <div className="feed-container forum-view">
-        <p>Loading threads...</p>
+      <div className="feed-container forum-view forum-view--loading">
+        <p>Loading Threads...</p>
       </div>
     );
   }
 
-  const isAdmin = Number(userData?.role_id) === 1;
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const isAmbassador = Number(userData?.is_ambassador) === 1;
   const communityId = forumData?.community_id;
   const ambassadorHasAccess =
@@ -393,83 +584,186 @@ function ForumView({ userData, onRequireAuth }) {
       const id = c?.community_id ?? c?.id ?? c;
       return Number(id) === Number(communityId);
     });
-  const canCreateThread = Boolean(userData && (isAdmin || ambassadorHasAccess));
+  const canCreateThread = Boolean(userData && (isSuperAdminUser || ambassadorHasAccess));
+  const bannerSrc = buildUploadSrc(forumData?.banner_path || '/uploads/banners/DefaultBanner.jpeg');
+  const forumImageLayout = normalizeImageLayout(forumData?.image_layout);
 
   return (
     <div className="feed-container forum-view">
-    {/* Breadcrumbs */}
-    <nav className="breadcrumbs" aria-label="Breadcrumb">
-      <Link to="/info">Info Board</Link>
-      <span className="breadcrumb-sep">&gt;</span>
-      {/*<span className="breadcrumb-current" aria-current="page">
-        {forumData?.name ? forumData.name : `Forum ${forum_id}`}
-      </span>*/}
-    </nav>
-    {/* Top Header Row */}
-    <div
-      className="feed-header"
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '1.1vh', paddingBottom: '1.7rem' }}
-    >
-      {/* Left side: arrow + forum title in one flex row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <Link to="/info" className="arrow-link">
-          ←
-        </Link>
-        <h2 className="forum-title">
-          {forumData?.name ? forumData.name : `Forum ${forum_id}`}
-        </h2>
+      {/* Breadcrumbs */}
+      <div className="forum-header-row">
+        <nav className="breadcrumbs" aria-label="Breadcrumb">
+          <Link to="/info">Info Board</Link>
+          <span className="breadcrumb-sep">&gt;</span>
+          {/*<span className="breadcrumb-current" aria-current="page">
+            {forumData?.name ? forumData.name : `Forum ${forum_id}`}
+          </span>*/}
+        </nav>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <button
-          type="button"
-          className="pill-button ghost"
-          onClick={() =>
-            handleOpenReport({
-              id: forum_id,
-              type: 'forum',
-              label: forumData?.name || 'forum',
-              context: stripHtml(forumData?.description || '').slice(0, 200),
-            })
-          }
-        >
-          Report
-        </button>
-        {canCreateThread && (
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => setShowCreateThreadModal(true)}
-          >
-            New Thread
-          </button>
+      <section className="forum-intro">
+        <div className={`forum-hero forum-hero--${forumImageLayout}`}>
+          <div className={`forum-banner forum-banner--${forumImageLayout}`}>
+            <img
+              src={bannerSrc}
+              alt={`${forumData?.name || 'Forum'} banner`}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = buildUploadSrc('/uploads/banners/DefaultBanner.jpeg');
+              }}
+            />
+          </div>
+          <div className="forum-title-row">
+            <h2 className="forum-title">
+              {forumData?.name ? forumData.name : `Forum ${forum_id}`}
+            </h2>
+          </div>
+          {Array.isArray(forumData?.tags) && forumData.tags.length > 0 && (
+            <div className="chips-row" style={{ marginBottom: 0 }}>
+              {forumData.tags.map((tag) => (
+                <span key={tag} className="chip tag-chip" style={getTagStyle(tag)}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+          {forumData?.description && (
+            <p className="forum-description">{forumData.description}</p>
+          )}
+        </div>
+
+        {forumData?.created_by && (
+          <div className="meta-quiet forum-meta-row">
+            <span>Created by</span>
+            <img
+              src={buildAvatarSrc(forumData.created_by_avatar_path)}
+              alt={`${forumData.created_by_first_name || 'User'} ${forumData.created_by_last_name || ''}`}
+              style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = buildAvatarSrc(null);
+              }}
+            />
+            <Link to={`/user/${forumData.created_by}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 600 }}>
+              {forumData.created_by_first_name || 'User'} {forumData.created_by_last_name || ''}
+            </Link>
+            {forumData.created_at ? <span>· {timeAgo(forumData.created_at)}</span> : null}
+          </div>
         )}
-      </div>
-    </div>
-    
-      {/* Sorting */}
-      <div className="sort-container">
-        <label htmlFor="sort-by">Sort by:</label>
-        <select
-          id="sort-by"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-        >
-          <option value="mostRecent">Most Recent</option>
-          <option value="popularity">Popularity</option>
-          <option value="mostUpvoted">Most Upvoted</option>
-        </select>
+      </section>
+
+      <div className="forum-browse-controls section-controls filter-toolbar filter-toolbar--filter-first">
+        <div className="control-group">
+          <span className="sort-pill">Tags</span>
+          <div className="forum-tag-filter">
+            <div className="topic-dropdown">
+              <button
+                type="button"
+                className={`topic-dropdown-toggle${showTagFilter ? ' open' : ''}`}
+                aria-haspopup="listbox"
+                aria-expanded={showTagFilter}
+                onClick={() => setShowTagFilter((prev) => !prev)}
+              >
+                <span className="topic-dropdown-label">{activeTagLabel}</span>
+              </button>
+              {showTagFilter && (
+                <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
+                  <button
+                    type="button"
+                    className="topic-dropdown-option"
+                    role="option"
+                    aria-selected={activeTags.length === 0}
+                    onClick={() => {
+                      handleTagSelect({ target: { value: '' } });
+                    }}
+                  >
+                    <input type="checkbox" readOnly checked={activeTags.length === 0} />
+                    All tags
+                  </button>
+                  {(tagOptions || []).map((opt) => (
+                    <button
+                      key={opt.slug}
+                      type="button"
+                      className="topic-dropdown-option"
+                      role="option"
+                      aria-selected={activeTags.includes(opt.slug)}
+                      onClick={() => {
+                        handleTagSelect({ target: { value: opt.slug } });
+                      }}
+                    >
+                      <input type="checkbox" readOnly checked={activeTags.includes(opt.slug)} />
+                      {opt.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="control-group">
+          <label htmlFor="sort-by" className="sort-pill">Sort</label>
+          <select
+            id="sort-by"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="sort-select"
+          >
+            <option value="mostRecent">Most Recent</option>
+            <option value="popularity">Popularity</option>
+            <option value="mostUpvoted">Most Upvoted</option>
+          </select>
+        </div>
+        {canCreateThread && (
+          <div className="control-action">
+            <button
+              type="button"
+              className="pill-button toolbar-primary-action"
+              onClick={() => setShowCreateThreadModal(true)}
+            >
+              + New Thread
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Thread list */}
       {sortedThreads.length === 0 ? (
-        <p>No threads available.</p>
+        activeTags.length ? (
+          <div className="community-launch-empty community-launch-empty--compact">
+            <h3>No threads match these tags</h3>
+            <p>Clear the filters to see every conversation in this forum.</p>
+            <button type="button" className="pill-button secondary" onClick={() => handleTagSelect({ target: { value: '' } })}>
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <div className="community-launch-empty">
+            <p className="community-launch-empty__eyebrow">This forum is ready</p>
+            <h3>Be the first to start a thread</h3>
+            <p>
+              {canCreateThread
+                ? 'Share a question, resource, or idea that gives this community its first conversation.'
+                : 'Community ambassadors open new threads. Follow the community and ask a question while its first discussions are being prepared.'}
+            </p>
+            {canCreateThread ? (
+              <button type="button" className="pill-button" onClick={() => setShowCreateThreadModal(true)}>
+                Start the first thread
+              </button>
+            ) : !userData ? (
+              <button type="button" className="pill-button" onClick={promptAuthOverlay}>
+                Join StudentSphere
+              </button>
+            ) : null}
+          </div>
+        )
       ) : (
         <div className="forum-list">
-          {sortedThreads.map((thread) => (
+          {sortedThreads.map((thread) => {
+            const isSaved = isThreadSaved(thread.thread_id);
+            return (
             <ThreadCard
               key={thread.thread_id}
-              thread={thread}
+              thread={{ ...thread, saved: isSaved }}
               userData={userData}
               onUpvote={handleUpvoteClick}
               onDownvote={handleDownvoteClick}
@@ -480,13 +774,14 @@ function ForumView({ userData, onRequireAuth }) {
                 handleOpenReport({
                   id: thread.thread_id,
                   type: 'thread',
-                  label: thread.title || 'thread',
-                  context: stripHtml(thread.title || ''),
+                  label: thread.original_title ?? thread.title ?? 'thread',
+                  context: stripHtml(thread.original_title ?? thread.title ?? ''),
                 })
               }
               linkTo={`/info/forum/${forum_id}/thread/${thread.thread_id}`}
             />
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -495,88 +790,226 @@ function ForumView({ userData, onRequireAuth }) {
         <ModalOverlay
           isOpen={showCreateThreadModal}
           onClose={handleDismissCreateThreadModal}
+          contentClassName="community-form-overlay"
         >
           <div className="creation-modal">
-            <div className="creation-modal__form">
-              <div className="creation-modal__header">
-                <div>
-                  <p className="creation-modal__meta">
-                    {forumData?.name ? forumData.name : `Forum ${forum_id}`}
-                  </p>
-                  <h3 className="creation-modal__title">Create a new thread</h3>
-                  <p className="creation-modal__sub">
-                    Set the tone with a sharp title and a first post that spells out what you need.
-                  </p>
-                  <ul className="creation-points">
-                    <li>Lead with a clear, specific title</li>
-                    <li>Add the background readers need to respond fast</li>
-                    <li>Highlight what kind of replies you&apos;re looking for</li>
-                  </ul>
-                </div>
+            <header className="creation-modal__header">
+              <p className="creation-modal__meta">
+                {forumData?.name ? forumData.name : `Forum ${forum_id}`}
+              </p>
+              <h3 className="creation-modal__title">New thread</h3>
+              <p className="creation-modal__sub">
+                Lead with a clear title, then give readers the context they need to reply.
+              </p>
+            </header>
+            <form className="creation-fields" onSubmit={handleCreateThreadSubmit}>
+              <div className="creation-field">
+                <label htmlFor="thread-title">
+                  Title
+                  <span className="creation-optional">
+                    {threadTitle.length} / {THREAD_TITLE_MAX_LENGTH}
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  id="thread-title"
+                  value={threadTitle}
+                  placeholder="What do you want to discuss?"
+                  onChange={(e) => setThreadTitle(e.target.value)}
+                  maxLength={THREAD_TITLE_MAX_LENGTH}
+                  required
+                />
               </div>
-              <form className="creation-fields" onSubmit={handleCreateThreadSubmit}>
-                <div className="creation-field">
-                  <label htmlFor="thread-title">Thread title</label>
+              <div className="creation-field">
+                <label>First post</label>
+                <TextEditor
+                  value={firstPostContent}
+                  onChange={(content) => setFirstPostContent(content)}
+                  maxLength={POST_MAX_LENGTH}
+                />
+              </div>
+              <div className="creation-field">
+                <TagPicker
+                  label="Tags"
+                  options={tagOptions}
+                  value={threadTags}
+                  onChange={setThreadTags}
+                  max={5}
+                  helperText="Add up to 5 tags to help others find this thread."
+                />
+              </div>
+              <div className="creation-field creation-media">
+                <label htmlFor="thread-image">
+                  Image <span className="creation-optional">optional</span>
+                </label>
+                <div className="creation-media__row">
                   <input
-                    type="text"
-                    id="thread-title"
-                    value={threadTitle}
-                    onChange={(e) => setThreadTitle(e.target.value)}
-                    required
+                    type="file"
+                    id="thread-image"
+                    accept="image/png, image/jpeg"
+                    onChange={(e) => setThreadImageFile(e.target.files?.[0] || null)}
                   />
+                  {threadImageFile && (
+                    <div className="creation-layout-toggle" role="radiogroup" aria-label="Image display">
+                      <button
+                        type="button"
+                        className={threadImageLayout === IMAGE_LAYOUTS.BANNER ? 'active' : ''}
+                        aria-pressed={threadImageLayout === IMAGE_LAYOUTS.BANNER}
+                        onClick={() => setThreadImageLayout(IMAGE_LAYOUTS.BANNER)}
+                      >
+                        Banner
+                      </button>
+                      <button
+                        type="button"
+                        className={threadImageLayout === IMAGE_LAYOUTS.RIGHT ? 'active' : ''}
+                        aria-pressed={threadImageLayout === IMAGE_LAYOUTS.RIGHT}
+                        onClick={() => setThreadImageLayout(IMAGE_LAYOUTS.RIGHT)}
+                      >
+                        Right aligned
+                      </button>
+                      <button
+                        type="button"
+                        className={threadImageLayout === IMAGE_LAYOUTS.FULL ? 'active' : ''}
+                        aria-pressed={threadImageLayout === IMAGE_LAYOUTS.FULL}
+                        onClick={() => setThreadImageLayout(IMAGE_LAYOUTS.FULL)}
+                      >
+                        Full size
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className="creation-field">
-                  <label>First post</label>
-                  <TextEditor
-                    value={firstPostContent}
-                    onChange={(content) => setFirstPostContent(content)}
+                {threadImagePreview && (
+                  <img
+                    src={threadImagePreview}
+                    alt="Preview"
+                    className={`creation-media__preview creation-media__preview--${normalizeImageLayout(threadImageLayout)}`}
                   />
-                </div>
-                <div className="creation-actions">
-                  <button
-                    type="button"
-                    className="creation-ghost"
-                    onClick={handleDismissCreateThreadModal}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="creation-primary"
-                    disabled={isCreatingThread}
-                  >
-                    {isCreatingThread ? 'Publishing...' : 'Publish thread'}
-                  </button>
-                </div>
-              </form>
-            </div>
+                )}
+              </div>
+              <div className="creation-actions">
+                <button
+                  type="button"
+                  className="creation-ghost"
+                  onClick={handleDismissCreateThreadModal}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="creation-primary"
+                  disabled={isCreatingThread}
+                >
+                  {isCreatingThread ? 'Publishing…' : 'Publish thread'}
+                </button>
+              </div>
+            </form>
           </div>
         </ModalOverlay>
       )}
 
       {/* EDIT THREAD MODAL */}
       {isEditingThread && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Edit Thread Title</h3>
-            <form onSubmit={handleEditThreadSubmit}>
-              <div className="form-group">
-                <label htmlFor="edit-thread-title">Thread Title:</label>
+        <ModalOverlay
+          isOpen={isEditingThread}
+          onClose={cancelEditingThread}
+          contentClassName="community-form-overlay"
+        >
+          <div className="creation-modal">
+            <header className="creation-modal__header">
+              <p className="creation-modal__meta">
+                {forumData?.name ? forumData.name : `Forum ${forum_id}`}
+              </p>
+              <h3 className="creation-modal__title">Edit thread</h3>
+              <p className="creation-modal__sub">
+                Update the title, tags, or image for this thread.
+              </p>
+            </header>
+            <form className="creation-fields" onSubmit={handleEditThreadSubmit}>
+              <div className="creation-field">
+                <label htmlFor="edit-thread-title">
+                  Title
+                  <span className="creation-optional">
+                    {editThreadTitle.length} / {THREAD_TITLE_MAX_LENGTH}
+                  </span>
+                </label>
                 <input
                   type="text"
                   id="edit-thread-title"
                   value={editThreadTitle}
                   onChange={(e) => setEditThreadTitle(e.target.value)}
+                  maxLength={THREAD_TITLE_MAX_LENGTH}
                   required
                 />
               </div>
-              <div className="form-actions">
-                <button type="submit">Save</button>
-                <button type="button" onClick={cancelEditingThread}>Cancel</button>
+              <div className="creation-field">
+                <TagPicker
+                  label="Tags"
+                  options={tagOptions}
+                  value={editThreadTags}
+                  onChange={setEditThreadTags}
+                  max={5}
+                  helperText="Update the tags for this thread."
+                />
+              </div>
+              <div className="creation-field creation-media">
+                <label htmlFor="edit-thread-image">
+                  Image <span className="creation-optional">optional</span>
+                </label>
+                <div className="creation-media__row">
+                  <input
+                    type="file"
+                    id="edit-thread-image"
+                    accept="image/png, image/jpeg"
+                    onChange={(e) => setEditThreadImageFile(e.target.files?.[0] || null)}
+                  />
+                  {(editThreadImageFile || editThreadImagePreview) && (
+                    <div className="creation-layout-toggle" role="radiogroup" aria-label="Image display">
+                      <button
+                        type="button"
+                        className={editThreadImageLayout === IMAGE_LAYOUTS.BANNER ? 'active' : ''}
+                        aria-pressed={editThreadImageLayout === IMAGE_LAYOUTS.BANNER}
+                        onClick={() => setEditThreadImageLayout(IMAGE_LAYOUTS.BANNER)}
+                      >
+                        Banner
+                      </button>
+                      <button
+                        type="button"
+                        className={editThreadImageLayout === IMAGE_LAYOUTS.RIGHT ? 'active' : ''}
+                        aria-pressed={editThreadImageLayout === IMAGE_LAYOUTS.RIGHT}
+                        onClick={() => setEditThreadImageLayout(IMAGE_LAYOUTS.RIGHT)}
+                      >
+                        Right aligned
+                      </button>
+                      <button
+                        type="button"
+                        className={editThreadImageLayout === IMAGE_LAYOUTS.FULL ? 'active' : ''}
+                        aria-pressed={editThreadImageLayout === IMAGE_LAYOUTS.FULL}
+                        onClick={() => setEditThreadImageLayout(IMAGE_LAYOUTS.FULL)}
+                      >
+                        Full size
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {editThreadImagePreview && (
+                  <img
+                    src={editThreadImagePreview}
+                    alt="Preview"
+                    className={`creation-media__preview creation-media__preview--${normalizeImageLayout(editThreadImageLayout)}`}
+                  />
+                )}
+              </div>
+              <div className="creation-actions">
+                <button type="button" className="creation-ghost" onClick={cancelEditingThread}>
+                  Cancel
+                </button>
+                <button type="submit" className="creation-primary">
+                  Save changes
+                </button>
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       <ReportModal

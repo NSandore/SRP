@@ -1,6 +1,10 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php'; // Adjust if needed
+require_once __DIR__ . '/../includes/onboarding.php';
+require_once __DIR__ . '/../includes/sanitize.php';
+require_once __DIR__ . '/../includes/content_limits.php';
 
 header('Content-Type: application/json');
 
@@ -11,37 +15,45 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// OPTIONAL: If only users with role_id = 7 can create posts, uncomment:
-// if ($_SESSION['role_id'] != 7) {
-//     http_response_code(403);
-//     echo json_encode(['error' => 'You do not have permission to create posts.']);
-//     exit;
-// }
-
 // 2. Retrieve JSON input
 $data = json_decode(file_get_contents('php://input'), true);
 
 // 3. Extract and validate necessary fields
 $thread_id = isset($data['thread_id']) ? normalizeId($data['thread_id']) : '';
 $user_id   = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
-$content   = trim($data['content']    ?? '');
+$content   = srp_sanitize_html(trim($data['content'] ?? ''));
 
 if (empty($thread_id) || empty($user_id) || empty($content)) {
     http_response_code(400); // Bad Request
     echo json_encode(['error' => 'Invalid data for creating a post.']);
     exit;
 }
+if (srp_post_exceeds_limit($content)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Posts must be 10,000 characters or fewer.']);
+    exit;
+}
 
-// OPTIONAL: If user_id must match the session user, you can force it:
-// if ($user_id !== (int)$_SESSION['user_id']) {
-//     http_response_code(403);
-//     echo json_encode(['error' => 'You cannot create a post as another user.']);
-//     exit;
-// }
+if ($user_id !== normalizeId($_SESSION['user_id'])) {
+    http_response_code(403);
+    echo json_encode(['error' => 'You cannot create a post as another user.']);
+    exit;
+}
 
 try {
     // 4. Get the DB connection
     $db = getDB(); // Must match the same function you use in create_forum.php, etc.
+    $postingWindow = srp_get_posting_window($db, $user_id);
+    if (!$postingWindow['can_post']) {
+        http_response_code(403);
+        echo json_encode([
+            'error' => 'Unverified users can create up to 1 post per day. Verify your email to remove this limit.',
+            'requires_verification_prompt' => true,
+            'posting' => $postingWindow,
+        ]);
+        exit;
+    }
+
     $post_id = generateUniqueId($db, 'posts');
 
     // 5. Insert a new row into `posts`
@@ -65,5 +77,5 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500); // Internal Server Error
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }

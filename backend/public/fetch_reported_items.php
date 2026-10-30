@@ -1,6 +1,9 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../reporting_utils.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 header('Content-Type: application/json');
 
@@ -18,27 +21,29 @@ try {
     $db = getDB();
     ensureReportsTable($db);
 
-    $roleStmt = $db->prepare("
-        SELECT CASE WHEN r.role_name = 'super_admin' OR :rid = 1 THEN 1 ELSE 0 END AS is_super
-        FROM roles r
-        WHERE r.role_id = :rid
-        LIMIT 1
-    ");
-    $roleStmt->execute([':rid' => $roleId]);
-    $isSuperAdmin = (bool)$roleStmt->fetchColumn() || $roleId === 1;
+    $isSuperAdmin = isSuperAdmin($roleId);
+    // Global moderators and admins can review reports across every community.
+    $isGlobalModerator = isModerator($roleId);
 
-    // Determine accessible communities
+    // Determine accessible communities by moderation scope.
     $accessibleCommunities = [];
-    if ($isSuperAdmin) {
+    if ($isGlobalModerator) {
         $communityStmt = $db->query('SELECT id FROM communities');
         $accessibleCommunities = $communityStmt->fetchAll(PDO::FETCH_COLUMN);
     } else {
-        $ambStmt = $db->prepare('SELECT community_id FROM ambassadors WHERE user_id = :uid');
+        // Ambassadors moderate their own communities. The community_role enum is
+        // ('admin','moderator'); both tiers may review that community's reports.
+        $ambStmt = $db->prepare("
+            SELECT community_id
+            FROM ambassadors
+            WHERE user_id = :uid
+              AND community_role IN ('admin', 'moderator')
+        ");
         $ambStmt->execute([':uid' => $userId]);
         $accessibleCommunities = $ambStmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    if (!$isSuperAdmin && empty($accessibleCommunities)) {
+    if (!$isGlobalModerator && empty($accessibleCommunities)) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'You do not have access to reported items.']);
         exit;
@@ -58,7 +63,7 @@ try {
         $params['status'] = $statusFilter;
     }
 
-    if (!$isSuperAdmin) {
+    if (!$isGlobalModerator) {
         $placeholders = [];
         foreach ($accessibleCommunities as $idx => $cid) {
             $ph = ":cid{$idx}";
@@ -115,6 +120,11 @@ try {
             e.title AS event_title,
             e.description AS event_description,
             e.is_hidden AS event_hidden,
+            reel.caption AS reel_caption,
+            reel.thumbnail_path AS reel_thumbnail_path,
+            reel.is_hidden AS reel_hidden,
+            reelComment.body AS reel_comment_body,
+            reelComment.is_hidden AS reel_comment_hidden,
             targetUser.first_name AS reported_first,
             targetUser.last_name AS reported_last
         FROM reports r
@@ -126,6 +136,10 @@ try {
         LEFT JOIN posts p ON (r.item_type = 'post' OR r.item_type = 'comment') AND p.post_id = r.item_id
         LEFT JOIN announcements a ON r.item_type = 'announcement' AND a.announcement_id = r.item_id
         LEFT JOIN events e ON r.item_type = 'event' AND e.event_id = r.item_id
+        LEFT JOIN reels reel ON r.item_type = 'reel' AND reel.reel_id = r.item_id
+        LEFT JOIN reel_comments reelComment
+               ON r.item_type = 'reel_comment'
+              AND reelComment.reel_comment_id = r.item_id
         LEFT JOIN users targetUser ON r.item_type = 'user' AND targetUser.user_id = r.item_id
         {$whereSql}
         ORDER BY r.created_at DESC
@@ -138,5 +152,5 @@ try {
     echo json_encode(['success' => true, 'reports' => $reports]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }

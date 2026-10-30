@@ -1,47 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import './InterestSelection.css';
+import useTagOptions from '../hooks/useTagOptions';
 
 function InterestSelection({ onComplete }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSchools, setSelectedSchools] = useState([]);
-  const [schoolsFromDatabase, setSchoolsFromDatabase] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
+  const { tags, loading } = useTagOptions();
+  const MAX_TAGS = 8;
 
-  // Fetch communities from the backend when the component mounts
-  useEffect(() => {
-    async function fetchCommunities() {
-      try {
-        const response = await fetch('/api/fetch_communities.php');
-        const data = await response.json();
+  const filteredTags = useMemo(() => {
+    if (!searchTerm.trim()) return tags;
+    const term = searchTerm.trim().toLowerCase();
+    return tags.filter((tag) => tag.name.toLowerCase().includes(term));
+  }, [tags, searchTerm]);
 
-        if (response.ok) {
-          setSchoolsFromDatabase(data);
-        } else {
-          alert('Failed to fetch communities: ' + data.error);
-        }
-      } catch (error) {
-        console.error('Error fetching communities:', error);
-        alert('An error occurred while fetching communities.');
-      }
-    }
-
-    fetchCommunities();
-  }, []);
-
-  const filteredSchools = schoolsFromDatabase.filter((school) =>
-    school.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleSchoolClick = (schoolName) => {
-    setSelectedSchools((prev) =>
-      prev.includes(schoolName)
-        ? prev.filter((s) => s !== schoolName)
-        : [...prev, schoolName]
+  const handleTagClick = (slug) => {
+    setSelectedTags((prev) =>
+      prev.includes(slug)
+        ? prev.filter((s) => s !== slug)
+        : prev.length >= MAX_TAGS
+          ? prev
+          : [...prev, slug]
     );
   };
 
   const handleSubmit = async () => {
-    if (selectedSchools.length === 0) {
-      alert('Please select at least one school.');
+    if (selectedTags.length === 0) {
+      alert('Please select at least one interest.');
       return;
     }
 
@@ -52,12 +37,12 @@ function InterestSelection({ onComplete }) {
     }
 
     try {
-      const response = await fetch('/api/update_interests.php', {
+      const response = await fetch('/api/update_tag_interests.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id,
-          selected_schools: selectedSchools,
+          tags: selectedTags,
         }),
       });
 
@@ -65,7 +50,7 @@ function InterestSelection({ onComplete }) {
 
       if (response.ok) {
         alert('Interests updated successfully!');
-        onComplete(selectedSchools);
+        onComplete(selectedTags);
       } else {
         alert('Error: ' + data.error);
       }
@@ -79,47 +64,45 @@ function InterestSelection({ onComplete }) {
     <div className="interest-selection-wrapper">
       <h2>Choose Your Interests</h2>
       <p className="interest-subtext">
-        Select one or more schools that interest you. Your feed will be curated based on these communities.
+        Select the topics you care about most (up to 8). Your feed will be curated based on these tags.
       </p>
 
       <div className="search-bar-container">
         <input
           type="text"
           className="interest-search-bar"
-          placeholder="Search for schools..."
+          placeholder="Search for tags..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
       <div className="interest-grid">
-        {filteredSchools.map((school, index) => {
-          const isSelected = selectedSchools.includes(school.name);
+        {loading ? (
+          <p className="no-results">Loading tags...</p>
+        ) : filteredTags.map((tag, index) => {
+          const isSelected = selectedTags.includes(tag.slug);
           return (
             <div
               key={index}
               className={`interest-card ${isSelected ? 'selected' : ''}`}
-              onClick={() => handleSchoolClick(school.name)}
+              onClick={() => handleTagClick(tag.slug)}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSchoolClick(school.name);
+                if (e.key === 'Enter') handleTagClick(tag.slug);
               }}
             >
-              <img
-                src={school.logo_path || '/uploads/logos/default-logo.png'}
-                alt={`${school.name} Logo`}
-                className="school-logo"
-              />
-              <h3 className="interest-name">{school.name}</h3>
-              <p className="interest-tagline">{school.tagline}</p>
+              <div className="interest-logo-placeholder" aria-hidden="true" />
+              <h3 className="interest-name">{tag.name}</h3>
+              <p className="interest-tagline">Tag</p>
             </div>
           );
         })}
       </div>
 
-      {!filteredSchools.length && (
-        <p className="no-results">No matching schools found. Try another search.</p>
+      {!loading && !filteredTags.length && (
+        <p className="no-results">No matching tags found. Try another search.</p>
       )}
 
       <button className="submit-button" onClick={handleSubmit}>Submit</button>

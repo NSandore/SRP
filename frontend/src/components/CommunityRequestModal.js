@@ -17,6 +17,27 @@ function CommunityRequestModal({
   isLoadingParents = false
 }) {
   const [parentSearch, setParentSearch] = React.useState('');
+  const [primaryColorInput, setPrimaryColorInput] = React.useState(formData.primary_color || '');
+  const [secondaryColorInput, setSecondaryColorInput] = React.useState(formData.secondary_color || '');
+
+  React.useEffect(() => {
+    setPrimaryColorInput(formData.primary_color || '');
+  }, [formData.primary_color]);
+
+  React.useEffect(() => {
+    setSecondaryColorInput(formData.secondary_color || '');
+  }, [formData.secondary_color]);
+
+  const handleHexInputChange = (value, field, setInput) => {
+    const raw = value.trim();
+    if (!/^#?[0-9a-fA-F]*$/.test(raw)) return;
+    const normalized = raw.startsWith('#') ? raw : `#${raw}`;
+    if (normalized.length > 7) return;
+    setInput(normalized);
+    if (normalized.length === 7) {
+      setFormData(prev => ({ ...prev, [field]: normalized }));
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -38,8 +59,8 @@ function CommunityRequestModal({
   if (!isVisible) return null;
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="request-modal-title">
-      <div className="modal-content">
+    <div className="modal-overlay community-request-modal" role="dialog" aria-modal="true" aria-labelledby="request-modal-title">
+      <div className="modal-content community-request-content">
         <h3 id="request-modal-title">{title || 'Request New Community'}</h3>
         <form onSubmit={onSubmit}>
           <div className="form-group">
@@ -85,25 +106,47 @@ function CommunityRequestModal({
           </div>
           <div className="form-group">
             <label htmlFor="primary-color">Primary Color:</label>
-            <input
-              type="text"
-              id="primary-color"
-              name="primary_color"
-              value={formData.primary_color}
-              onChange={handleChange}
-              placeholder="#0077B5"
-            />
+            <div className="color-picker-row">
+              <input
+                type="text"
+                id="primary-color"
+                name="primary_color"
+                className="color-hex-input"
+                value={primaryColorInput}
+                onChange={(e) => handleHexInputChange(e.target.value, 'primary_color', setPrimaryColorInput)}
+                onBlur={() => setPrimaryColorInput(formData.primary_color || '')}
+                placeholder="#2F80ED"
+                spellCheck="false"
+              />
+              <input
+                type="color"
+                aria-label="Primary color"
+                value={formData.primary_color || '#2F80ED'}
+                onChange={(e) => setFormData(prev => ({ ...prev, primary_color: e.target.value }))}
+              />
+            </div>
           </div>
           <div className="form-group">
             <label htmlFor="secondary-color">Secondary Color:</label>
-            <input
-              type="text"
-              id="secondary-color"
-              name="secondary_color"
-              value={formData.secondary_color}
-              onChange={handleChange}
-              placeholder="#005f8d"
-            />
+            <div className="color-picker-row">
+              <input
+                type="text"
+                id="secondary-color"
+                name="secondary_color"
+                className="color-hex-input"
+                value={secondaryColorInput}
+                onChange={(e) => handleHexInputChange(e.target.value, 'secondary_color', setSecondaryColorInput)}
+                onBlur={() => setSecondaryColorInput(formData.secondary_color || '')}
+                placeholder="#1D5FC4"
+                spellCheck="false"
+              />
+              <input
+                type="color"
+                aria-label="Secondary color"
+                value={formData.secondary_color || '#1D5FC4'}
+                onChange={(e) => setFormData(prev => ({ ...prev, secondary_color: e.target.value }))}
+              />
+            </div>
           </div>
           <div className="form-group">
             <label htmlFor="community-type">Type:</label>

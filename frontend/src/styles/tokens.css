@@ -1,18 +1,22 @@
 :root {
-  /* Primary gradient */
-  --primary-from: #2563EB; /* blue-600 */
-  --primary-to: #60A5FA;   /* blue-400 */
+  /* StudentSphere academic-blue system */
+  --primary-from: #2F80ED;
+  --primary-to: #9BC5F6;
   --gradient-primary: linear-gradient(90deg, var(--primary-from), var(--primary-to));
 
-  /* Accents */
-  --accent-trending: #7C3AED; /* violet-600 */
-  --accent-webinars: #F43F5E; /* rose-500 */
-  --accent-poll: #F59E0B;     /* amber-500 */
-  --accent-success: #22C55E;  /* green-500 */
+  /* Supporting accents from the reference palette */
+  --accent-trending: #7656D9;
+  --accent-webinars: #8D72E8;
+  --accent-poll: #E6A768;
+  --accent-success: #4AA67B;
 
   /* Backgrounds */
-  --bg-page: #F8FAFC; /* slate-50 */
+  --bg-page: #F8FBFF;
   --bg-card: #FFFFFF;
+  --bg-subtle: #F1F6FD;
+  --ink-strong: #11244D;
+  --ink-muted: #667895;
+  --line-soft: #DCE7F5;
 
   /* Radius scale */
   --radius-card: 16px;  /* default card radius */

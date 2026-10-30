@@ -1,10 +1,20 @@
 <?php
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'You must be logged in.']);
+    exit;
+}
+
 $data = json_decode(file_get_contents('php://input'), true);
 $post_id  = isset($data['post_id']) ? normalizeId($data['post_id']) : '';
-$user_id  = isset($data['user_id']) ? normalizeId($data['user_id']) : '';
+// The voter is always the authenticated session's own user, never a
+// client-supplied user_id — otherwise anyone could cast votes as anyone.
+$user_id  = normalizeId($_SESSION['user_id']);
 $vote_type = $data['vote_type'] ?? '';
 
 if ($post_id === '' || $user_id === '' || !in_array($vote_type, ['up','down'], true)) {
@@ -104,9 +114,27 @@ try {
         $actorStmt->execute([':uid' => $user_id]);
         $actor = $actorStmt->fetch(PDO::FETCH_ASSOC);
         $actorName = $actor ? ($actor['first_name'] . ' ' . substr($actor['last_name'], 0, 1) . '.') : 'Someone';
+        $linkStmt = $db->prepare("
+            SELECT t.thread_id, t.forum_id
+            FROM posts p
+            JOIN threads t ON t.thread_id = p.thread_id
+            WHERE p.post_id = :post_id
+            LIMIT 1
+        ");
+        $linkStmt->execute([':post_id' => $post_id]);
+        $target = $linkStmt->fetch(PDO::FETCH_ASSOC);
+        $postPath = $target
+            ? "/info/forum/{$target['forum_id']}/thread/{$target['thread_id']}#post-{$post_id}"
+            : null;
+
         $message = $notifyType === 'upvote'
             ? "$actorName upvoted your post."
             : "$actorName downvoted your post.";
+        if ($postPath) {
+            $message = $notifyType === 'upvote'
+                ? "$actorName upvoted your <a href=\"{$postPath}\">post</a>."
+                : "$actorName downvoted your <a href=\"{$postPath}\">post</a>.";
+        }
         $notifStmt = $db->prepare("
             INSERT INTO notifications (notification_id, recipient_user_id, actor_user_id, notification_type, reference_id, message)
             VALUES (:nid, :rid, :aid, :ntype, NULL, :msg)
@@ -126,5 +154,5 @@ try {
         $db->rollBack();
     }
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }

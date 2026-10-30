@@ -1,6 +1,6 @@
 // src/App.js
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Route,
   Routes,
@@ -33,7 +33,6 @@ import { BiInfoCircle } from 'react-icons/bi';
 import UserConnections from './components/UserConnections';
 import { RiMedalFill } from 'react-icons/ri';
 import SignUp from './components/SignUp';
-import InterestSelection from './components/InterestSelection';
 import Login from './components/Login';
 import ForumView from './components/ForumView';   // Forum details + threads
 import ThreadView from './components/ThreadView'; // Thread details
@@ -49,20 +48,53 @@ import RightSidebar from './components/RightSidebar';
 import AppShell from './layout/AppShell';
 import ForumCard from './components/ForumCard';
 import Feed from './components/Feed';
+import { DEV_MODE } from './config';
 import ContactUsButton from './components/ContactUsButton';
+import ChangelogModal from './components/ChangelogModal';
+import ChangelogPage from './components/ChangelogPage';
+import ChangelogAdmin from './components/ChangelogAdmin';
+import ProductTour from './components/ProductTour';
+import TestControls from './components/TestControls';
+import WelcomeOverlay from './components/WelcomeOverlay';
+import { PrivacyPolicyPage, TermsPage } from './components/LegalPage';
+import FaqPage from './components/FaqPage';
 import SearchResults from './components/SearchResults';
 import CommunityRequests from './components/CommunityRequests';
 import AuthOverlay from './components/AuthOverlay';
 import AccountSettings from './components/AccountSettings';
 import ReportedItems from './components/ReportedItems';
 import EventManagement from './components/EventManagement';
+import EventsFeed from './components/EventsFeed';
+import PollsPage from './components/PollsPage';
+import DonationPage from './components/DonationPage';
+import { buildAvatarSrc } from './utils/avatar';
+import VerificationReview from './components/VerificationReview';
+import Newsroom from './components/Newsroom';
+import ReelsPage from './components/ReelsPage';
+import ReelsComingSoon from './components/ReelsComingSoon';
+import { REELS_ENABLED } from './constants/features';
+import InstitutionDataReview from './components/InstitutionDataReview';
+import { hasTestControls } from './utils/testAccounts';
+import { isSuperAdmin } from './constants/roles';
+import './layout/PlatformPolish.css';
 
-const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events'];
+const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/polls', '/admin/verifications', '/admin/institutions', '/admin/newsroom', '/admin/changelog'];
+const AUTH_ROUTES = ['/login', '/signup'];
+
+// "Continue as guest" must land somewhere a signed-out visitor can actually
+// stay. Sending them to a protected route re-prompts for login, and sending
+// them to an auth route is the login page itself, so either choice loops.
+const isGuestAccessiblePath = (path) =>
+  typeof path === 'string'
+  && path.startsWith('/')
+  && !AUTH_ROUTES.includes(path)
+  && !PROTECTED_ROUTES.some((route) => path.startsWith(route));
 
 function App() {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [selectedSchools, setSelectedSchools] = useState([]);
+  const [userInterests, setUserInterests] = useState([]);
   const [activeFeed, setActiveFeed] = useState(() => {
     if (typeof window === 'undefined') return 'explore';
     return localStorage.getItem('defaultFeed') || 'explore';
@@ -91,6 +123,7 @@ function App() {
   const [soundUnlocked, setSoundUnlocked] = useState(false);
 
   const [showWelcome, setShowWelcome] = useState(false);
+  const [tourReplayToken, setTourReplayToken] = useState(0);
 
   const getInitials = (firstName = '', lastName = '') => {
     const first = firstName.trim().charAt(0);
@@ -106,8 +139,8 @@ function App() {
     }, 4000);
   };
 
-  const playNotificationSound = () => {
-    if (!soundUnlocked) return;
+  const playNotificationSound = (force = false) => {
+    if (!soundUnlocked && !force) return;
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(() => {});
@@ -118,7 +151,7 @@ function App() {
   useOnClickOutside(notificationRef, () => setIsNotificationsOpen(false));
   const navigate = useNavigate();
   const location = useLocation();
-  const authRoutes = ['/login', '/signup'];
+  const authRoutes = AUTH_ROUTES;
   const isAuthPage = authRoutes.includes(location.pathname);
   const previousPathRef = useRef(location.pathname);
 
@@ -145,6 +178,16 @@ function App() {
             setActiveFeed(finalFeed);
             localStorage.setItem('defaultFeed', finalFeed);
           }
+        } else if (DEV_MODE && typeof window !== 'undefined') {
+          const storedUserId = localStorage.getItem('user_id');
+          if (storedUserId) {
+            setUserData((prev) => ({
+              ...prev,
+              user_id: storedUserId,
+              role_id: Number(prev?.role_id || 0),
+              is_ambassador: Number(prev?.is_ambassador || 0),
+            }));
+          }
         }
       } catch (err) {
         console.error('Error checking session:', err);
@@ -156,6 +199,25 @@ function App() {
     checkUserSession();
   }, []); // ✅ useEffect is always called in the same order
 
+  const refreshUserInterests = React.useCallback(async (overrideUserId) => {
+    const uid = overrideUserId || userData?.user_id;
+    if (!uid) return;
+    try {
+      const resp = await axios.get(`/api/fetch_tag_interests.php?user_id=${uid}`, {
+        withCredentials: true
+      });
+      if (resp.data?.success) {
+        setUserInterests(Array.isArray(resp.data.tags) ? resp.data.tags : []);
+      }
+    } catch (err) {
+      console.error('Error fetching user interests:', err);
+    }
+  }, [userData?.user_id]);
+
+  useEffect(() => {
+    refreshUserInterests();
+  }, [refreshUserInterests]);
+
   useEffect(() => {
     const prevPath = previousPathRef.current;
     const isProtectedRoute = PROTECTED_ROUTES.some((route) => location.pathname.startsWith(route));
@@ -166,7 +228,9 @@ function App() {
       setPendingProtectedReturnPath(null);
     } else if (!userData) {
       const fallback = prevPath === location.pathname ? lastAccessiblePath : prevPath;
-      setPendingProtectedReturnPath(fallback || '/home');
+      // The previous path is only a usable return target if a guest may stay
+      // there. Otherwise leave it unset and fall back to a known-safe path.
+      setPendingProtectedReturnPath(isGuestAccessiblePath(fallback) ? fallback : null);
     }
 
     previousPathRef.current = location.pathname;
@@ -259,6 +323,78 @@ function App() {
     }
   };
 
+  const runTestAccountAction = async (action) => {
+    try {
+      const response = await axios.post(
+        '/api/test_account_action.php',
+        { action },
+        { withCredentials: true }
+      );
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'The test action could not be completed.');
+      }
+      return response.data;
+    } catch (error) {
+      throw new Error(
+        error.response?.data?.error
+        || error.message
+        || 'The test action could not be completed.'
+      );
+    }
+  };
+
+  const replayProductGuide = async () => {
+    const result = await runTestAccountAction('replay_guide');
+    if (!result.tour?.eligible) {
+      throw new Error('The guide is not eligible for this account yet.');
+    }
+    setShowWelcome(false);
+    setShowAmbassadorOverlay(false);
+    setIsNotificationsOpen(false);
+    navigate('/home');
+    setTourReplayToken((token) => token + 1);
+  };
+
+  const createTestNotification = async () => {
+    const result = await runTestAccountAction('create_notification');
+    if (!result.notification?.notification_id) {
+      throw new Error('The test notification was not returned by the server.');
+    }
+
+    const notification = {
+      ...result.notification,
+      is_read: String(result.notification.is_read ?? 0),
+    };
+    setNotifications((current) => {
+      const next = [
+        notification,
+        ...current.filter((item) => item.notification_id !== notification.notification_id),
+      ];
+      prevUnreadNotifs.current = next.filter((item) => parseInt(item.is_read, 10) === 0).length;
+      return next;
+    });
+    notifInitRef.current = true;
+    pushToast('Test notification received');
+    playNotificationSound(true);
+    setIsNotificationsOpen(true);
+  };
+
+  const sendAccountTestEmail = async () => {
+    try {
+      const response = await axios.post('/api/send_test_email.php', {}, { withCredentials: true });
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Unable to send the test email.');
+      }
+      pushToast(response.data?.message || 'Test email sent');
+    } catch (error) {
+      throw new Error(
+        error.response?.data?.error
+        || error.message
+        || 'Unable to send the test email.'
+      );
+    }
+  };
+
   // Mark Notifications as Read
   const markAllAsRead = async () => {
     try {
@@ -273,15 +409,13 @@ function App() {
     }
   };
 
-  // Onboarding steps
-  const handleNext = (formData) => {
-    setUserData(formData);
-    navigate('/interest-selection');
-  };
-
-  const handleInterestComplete = (schools) => {
-    setSelectedSchools(schools);
-    navigate('/home');
+  const handleSignupAuthenticated = (user) => {
+    if (!user) return;
+    user.role_id = Number(user.role_id);
+    setUserData(user);
+    fetchNotifications(user.user_id);
+    fetchConversations(user.user_id);
+    refreshUserInterests(user.user_id);
   };
 
   // Login
@@ -307,7 +441,11 @@ function App() {
   const openSignUpPage = () => navigate('/signup');
   const openLoginPage = () => navigate('/login');
   const continueAsGuest = () => {
-    const target = pendingProtectedReturnPath || lastAccessiblePath || '/home';
+    // Guarded here as well as at the point the return path is recorded, so no
+    // future caller can send a guest back to a page that re-prompts for login.
+    const target =
+      [pendingProtectedReturnPath, lastAccessiblePath].find(isGuestAccessiblePath)
+      || '/home';
     setPendingProtectedReturnPath(null);
     navigate(target);
   };
@@ -467,35 +605,50 @@ function App() {
   };
 
   const shouldShowOverlays = !isAuthPage;
+  const testControlsEnabled = shouldShowOverlays && hasTestControls(userData?.email);
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
 
   return (
     <div className={`app-container ${isAuthPage ? 'auth-page' : ''}`}>
       <audio ref={audioRef} src="/notification.wav" preload="auto" />
       <div className="toast-stack" aria-live="polite" aria-atomic="true">
         {toasts.map((t) => (
-          <div key={t.id} className="toast">
-            {t.message}
+          <div key={t.id} className="toast app-notification-toast" role="status">
+            <span className="toast-icon" aria-hidden="true">
+              <FaBell />
+            </span>
+            <span className="toast-copy">{t.message}</span>
           </div>
         ))}
       </div>
+      {testControlsEnabled && (
+        <TestControls
+          onReplayGuide={replayProductGuide}
+          onTestNotification={createTestNotification}
+          onShowWelcome={() => {
+            setIsNotificationsOpen(false);
+            setShowAmbassadorOverlay(false);
+            setShowWelcome(true);
+          }}
+          onShowAmbassadors={() => {
+            setIsNotificationsOpen(false);
+            setShowWelcome(false);
+            setShowAmbassadorOverlay(true);
+            fetchAmbassadors();
+          }}
+          onSendTestEmail={sendAccountTestEmail}
+        />
+      )}
       {shouldShowOverlays && showWelcome && (
-        <div className="welcome-overlay">
-          <div className="welcome-message">
-            <h1>Welcome to StudentSphere!</h1>
-            <p>Start your journey by following ambassadors who can guide you.</p>
-            <button
-              className="get-started-button"
-              onClick={() => {
-                setShowWelcome(false);
-                setShowAmbassadorOverlay(true);
-                fetchAmbassadors();
-              }}
-            >
-              Get Started
-            </button>
-            <button onClick={() => setShowWelcome(false)}>Close</button>
-          </div>
-        </div>
+        <WelcomeOverlay
+          firstName={userData?.first_name}
+          onExplore={() => {
+            setShowWelcome(false);
+            setShowAmbassadorOverlay(true);
+            fetchAmbassadors();
+          }}
+          onDismiss={() => setShowWelcome(false)}
+        />
       )}
 
       {shouldShowOverlays && showAmbassadorOverlay && (
@@ -507,21 +660,17 @@ function App() {
         >
           <div className="overlay-content">
             <div className="ambassador-overlay__header">
-              <div>
+              <div className="ambassador-overlay__titleblock">
                 <p className="ambassador-overlay__eyebrow">Community ambassadors</p>
                 <h2 id="ambassador-overlay-title">Ambassador List</h2>
                 <p className="ambassador-overlay__subtitle">
-                  Connect with students and counselors ready to help.
+                  Connect with ambassadors from the communities you follow and are part of.
                 </p>
+                <div className="ambassador-overlay__meta">
+                  <span className="ambassador-overlay__meta-item">Verified students</span>
+                  <span className="ambassador-overlay__meta-item">Real campus guidance</span>
+                </div>
               </div>
-              <button
-                type="button"
-                className="ambassador-overlay__close"
-                aria-label="Close ambassador list"
-                onClick={() => setShowAmbassadorOverlay(false)}
-              >
-                &times;
-              </button>
             </div>
 
             {loadingAmbassadors ? (
@@ -538,7 +687,7 @@ function App() {
                   const avatarKey = amb.user_id || amb.id || initials;
                   const avatarNode = amb.avatar_path ? (
                     <img
-                      src={amb.avatar_path}
+                      src={buildAvatarSrc(amb.avatar_path)}
                       alt={`${amb.first_name} ${amb.last_name}`}
                       className="ambassador-avatar"
                     />
@@ -597,10 +746,19 @@ function App() {
         </div>
       )}
 
+      {/* Both read their own eligibility from the server and render nothing
+          when there is nothing to show, so mounting them here is safe. The
+          tour waits for onboarding to finish; the changelog waits for an entry
+          published since the user last acknowledged one. */}
+      {shouldShowOverlays && <ChangelogModal userData={userData} />}
+      {shouldShowOverlays && !showWelcome && !showAmbassadorOverlay && (
+        <ProductTour userData={userData} replayToken={tourReplayToken} />
+      )}
+
       <Routes>
         <Route
           path="/signup"
-          element={<SignUp onNext={handleNext} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} />}
+          element={<SignUp onAuthenticated={handleSignupAuthenticated} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} />}
         />
         <Route
           path="/login"
@@ -608,9 +766,43 @@ function App() {
         />
         <Route
           path="/interest-selection"
-          element={<InterestSelection onComplete={handleInterestComplete} />}
+          element={<Navigate to="/signup" replace />}
         />
         <Route path="/" element={<Navigate to="/home" replace />} />
+        {/* Public: guests following "See full changelog" must not hit a login
+            prompt, so this stays out of PROTECTED_ROUTES. */}
+        <Route
+          path="/changelog"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <ChangelogPage />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/faq"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <FaqPage />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/privacy"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <PrivacyPolicyPage />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/terms"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <TermsPage />
+            </AppShell>
+          }
+        />
         <Route
           path="/profile"
           element={
@@ -654,6 +846,7 @@ function App() {
                       setActiveFeed={setActiveFeed}
                       activeSection="home"
                       userData={userData}
+                      userInterests={userInterests}
                       onRequireAuth={() => setRequireAuthOverlay(true)}
                     />
                   }
@@ -666,6 +859,7 @@ function App() {
                       setActiveFeed={setActiveFeed}
                       activeSection="info"
                       userData={userData}
+                      userInterests={userInterests}
                       onRequireAuth={() => setRequireAuthOverlay(true)}
                     />
                   }
@@ -679,6 +873,7 @@ function App() {
                         setActiveFeed={setActiveFeed}
                         activeSection="saved"
                         userData={userData}
+                        userInterests={userInterests}
                       />
                     ) : (
                       <AuthOverlay
@@ -711,7 +906,7 @@ function App() {
                   path="/settings"
                   element={
                     userData ? (
-                      <AccountSettings userData={userData} />
+                      <AccountSettings userData={userData} onInterestsUpdated={refreshUserInterests} />
                     ) : (
                       <AuthOverlay
                         isOpen
@@ -723,6 +918,7 @@ function App() {
                     )
                   }
                 />
+                <Route path="/donate" element={<DonationPage />} />
                 <Route
                   path="/funding"
                   element={
@@ -731,6 +927,7 @@ function App() {
                       setActiveFeed={setActiveFeed}
                       activeSection="funding"
                       userData={userData}
+                      userInterests={userInterests}
                     />
                   }
                 />
@@ -742,14 +939,28 @@ function App() {
                       setActiveFeed={setActiveFeed}
                       activeSection="communities"
                       userData={userData}
+                      userInterests={userInterests}
                       onRequireAuth={() => setRequireAuthOverlay(true)}
                     />
                   }
                 />
                 <Route
+                  path="/reels"
+                  element={
+                    REELS_ENABLED ? (
+                      <ReelsPage
+                        userData={userData}
+                        onRequireAuth={() => setRequireAuthOverlay(true)}
+                      />
+                    ) : (
+                      <ReelsComingSoon />
+                    )
+                  }
+                />
+                <Route
                   path="/community-requests"
                   element={
-                    userData && userData.email === 'n.sandore5140@gmail.com' ? (
+                    isSuperAdminUser ? (
                       <CommunityRequests />
                     ) : (
                       <Navigate to="/communities" />
@@ -781,7 +992,7 @@ function App() {
                 />
                 <Route
                   path="/messages"
-                  element={<Messages userData={userData} />}
+                  element={userData ? <Messages userData={userData} /> : <Navigate to="/login" replace />}
                 />
                 <Route
                   path="/reports"
@@ -804,6 +1015,90 @@ function App() {
                   element={
                     userData ? (
                       <EventManagement userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/events-feed"
+                  element={<EventsFeed userData={userData} />}
+                />
+                <Route
+                  path="/polls"
+                  element={
+                    userData ? (
+                      <PollsPage userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/verifications"
+                  element={
+                    isSuperAdminUser ? (
+                      <VerificationReview userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/institutions"
+                  element={
+                    isSuperAdminUser ? (
+                      <InstitutionDataReview userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/newsroom"
+                  element={
+                    isSuperAdminUser ? (
+                      <Newsroom userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/changelog"
+                  element={
+                    isSuperAdminUser ? (
+                      <ChangelogAdmin userData={userData} />
                     ) : (
                       <AuthOverlay
                         isOpen

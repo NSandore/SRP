@@ -1,0 +1,38 @@
+# Secrets — never commit these. Keep them in the deployment environment only.
+.env
+frontend/.env
+mobile/.env
+*.env.local
+.env.*
+!.env.example
+
+# Database dumps / backups (contain real user data + password hashes).
+# NOTE: intentionally specific — migration files under backend/migrations/ and
+# docs/*.sql are meant to be tracked.
+/srp_db.sql
+frontend/srp_app_backup.sql
+*_backup.sql
+*_dump.sql
+
+# Uploaded user content, including sensitive verification documents (PII)
+uploads/verification/
+uploads/reels/
+
+# Unvalidated chunked reel uploads and assembled processing sources. These are
+# runtime-only and deliberately live outside the public uploads tree.
+backend/runtime/reel_uploads/
+
+# Download cache, raw federal/source files, locks, and generated institution
+# pipeline reports are private runtime state, not repository assets.
+backend/runtime/institution_pipeline/
+
+# Dependencies / build output
+vendor/
+node_modules/
+frontend/build/
+
+# Runtime job output belongs outside version control.
+backend/scripts/*.log
+
+# HTMLPurifier serializer cache
+backend/htmlpurifier-cache/

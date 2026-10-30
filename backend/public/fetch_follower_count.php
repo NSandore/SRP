@@ -1,8 +1,10 @@
 <?php
 // fetch_follower_count.php
 
+require_once __DIR__ . '/cors.php';
+
 // Enable error reporting for debugging (disable in production)
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
 header('Content-Type: application/json');
@@ -45,12 +47,12 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Database error: ' . $e->getMessage()
+        'error' => 'Database error'
     ]);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Server error: ' . $e->getMessage()
+        'error' => 'Server error'
     ]);
 }

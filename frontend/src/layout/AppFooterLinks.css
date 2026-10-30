@@ -1,0 +1,31 @@
+.app-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  /* The bottom placement comes from .center-rail__content growing into the
+     spare height. `margin-top: auto` would do it too, but it collapses to 0
+     once the page is long enough to scroll, losing this gap exactly when the
+     separation matters most. */
+  margin: 28px 0 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--card-border, #DCE7F5);
+  color: var(--muted-text, #667895);
+  font-size: 0.85rem;
+}
+
+.app-footer-links a {
+  color: var(--muted-text, #667895);
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+.app-footer-links a:hover {
+  color: var(--link-color, #2F80ED);
+  text-decoration: underline;
+}
+
+[data-theme='dark'] .app-footer-links {
+  border-top-color: rgba(148, 163, 184, 0.22);
+}

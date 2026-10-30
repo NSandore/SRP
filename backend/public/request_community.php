@@ -1,6 +1,9 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 require __DIR__ . '/../vendor/autoload.php';
 use Mailgun\Mailgun;
 
@@ -25,9 +28,43 @@ $description = trim($input['description'] ?? '');
 $tagline = trim($input['tagline'] ?? '');
 $location = trim($input['location'] ?? '');
 $website = trim($input['website'] ?? '');
+$phone = trim($input['phone'] ?? '');
 $primaryColor = trim($input['primary_color'] ?? '');
 $secondaryColor = trim($input['secondary_color'] ?? '');
 $parentCommunityId = isset($input['parent_community_id']) ? normalizeId($input['parent_community_id']) : '';
+$aliasesInput = $input['aliases'] ?? null;
+
+function normalizeAliases($raw) {
+    if ($raw === null) {
+        return null;
+    }
+    $aliases = [];
+    if (is_array($raw)) {
+        $aliases = $raw;
+    } elseif (is_string($raw)) {
+        $trimmed = trim($raw);
+        if ($trimmed !== '' && $trimmed[0] === '[') {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                $aliases = $decoded;
+            } else {
+                $aliases = preg_split('/\s*,\s*/', $trimmed);
+            }
+        } else {
+            $aliases = preg_split('/\s*,\s*/', $trimmed);
+        }
+    }
+    $aliases = array_values(array_unique(array_filter(array_map(static function ($item) {
+        $val = trim((string)$item);
+        return $val !== '' ? $val : null;
+    }, $aliases))));
+    if (!$aliases) {
+        return null;
+    }
+    return json_encode($aliases);
+}
+
+$aliasesJson = normalizeAliases($aliasesInput);
 
 if ($name === '' || $type === '' || $description === '') {
     http_response_code(400);
@@ -38,6 +75,7 @@ if ($name === '' || $type === '' || $description === '') {
 $userId = normalizeId($_SESSION['user_id']);
 $userEmail = $_SESSION['email'] ?? '';
 $roleId = $_SESSION['role_id'] ?? null;
+$isSuperAdmin = isSuperAdmin($roleId);
 
 try {
     $db = getDB();
@@ -70,9 +108,9 @@ try {
     }
 
     // If requesting a sub-community and not super-admin, ensure the user is an admin of the parent.
-    if ($isSubCommunity && $parentCommunityId !== '' && $roleId !== 1 && $roleId !== '1') {
+    if ($isSubCommunity && $parentCommunityId !== '' && !$isSuperAdmin) {
         $permStmt = $db->prepare("
-            SELECT role FROM ambassadors WHERE community_id = :cid AND user_id = :uid LIMIT 1
+            SELECT community_role FROM ambassadors WHERE community_id = :cid AND user_id = :uid LIMIT 1
         ");
         $permStmt->execute([':cid' => $parentCommunityId, ':uid' => $userId]);
         $role = strtolower((string)$permStmt->fetchColumn());
@@ -84,11 +122,11 @@ try {
     }
 
     // If super admin, create community immediately
-    if ($roleId === 1 || $roleId === '1') {
+    if ($isSuperAdmin) {
         $communityId = generateUniqueId($db, 'communities');
         $insert = $db->prepare("
-            INSERT INTO communities (id, name, community_type, parent_community_id, tagline, location, website, primary_color, secondary_color, created_at)
-            VALUES (:id, :name, :type, :parent_id, :tagline, :location, :website, :primary_color, :secondary_color, NOW())
+            INSERT INTO communities (id, name, community_type, parent_community_id, tagline, location, website, phone, primary_color, secondary_color, aliases, created_at)
+            VALUES (:id, :name, :type, :parent_id, :tagline, :location, :website, :phone, :primary_color, :secondary_color, :aliases, NOW())
         ");
         $insert->execute([
             ':id' => $communityId,
@@ -98,9 +136,20 @@ try {
             ':tagline' => $tagline,
             ':location' => $location,
             ':website' => $website,
+            ':phone' => $phone !== '' ? $phone : null,
             ':primary_color' => $primaryColor,
-            ':secondary_color' => $secondaryColor
+            ':secondary_color' => $secondaryColor,
+            ':aliases' => $aliasesJson
         ]);
+
+        autoJoinCampusGroups(
+            $db,
+            $communityId,
+            $parentCommunityId !== '' ? $parentCommunityId : null,
+            $name,
+            $parentName,
+            $userId
+        );
 
         echo json_encode(['success' => true, 'community_id' => $communityId, 'status' => 'created', 'parent_name' => $parentName]);
         exit;
@@ -128,7 +177,7 @@ try {
         $domain = 'sandboxe67f4501277d44af9f736a2154a5b6cb.mailgun.org';
         $mg->messages()->send($domain, [
             'from' => 'noreply@studentsphere.com',
-            'to' => 'n.sandore5140@gmail.com',
+            'to' => getenv('SUPPORT_EMAIL') ?: 'support@thestudentsphere.com',
             'subject' => 'New Community Creation Request',
             'text' => "User $userEmail requested a new community:\nName: $name\nType: {$type}\nParent: " . ($parentName ?: 'N/A') . "\nTagline: $tagline\nLocation: $location\nWebsite: $website\nPrimary Color: $primaryColor\nSecondary Color: $secondaryColor\nDescription: $description"
         ]);
@@ -139,6 +188,6 @@ try {
     echo json_encode(['success' => true, 'request_id' => $requestId, 'parent_name' => $parentName]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }
 ?>

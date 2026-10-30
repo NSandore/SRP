@@ -2,9 +2,16 @@
 // create_announcement.php
 // Create a global or community announcement.
 
-session_start();
+require_once __DIR__ . '/cors.php';
+
+require_once __DIR__ . '/../session_bootstrap.php';
+
+startSession();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -23,8 +30,8 @@ if (!$input || !is_array($input)) {
     $input = $_POST;
 }
 
-$title = trim($input['title'] ?? '');
-$body = trim($input['body'] ?? '');
+$title = srp_sanitize_plain($input['title'] ?? '', 255);
+$body = srp_sanitize_html($input['body'] ?? '');
 $scope = ($input['scope'] ?? 'community') === 'global' ? 'global' : 'community';
 $communityId = $scope === 'community' ? normalizeId($input['community_id'] ?? '') : '';
 $announcementType = trim($input['announcement_type'] ?? 'general');
@@ -41,7 +48,7 @@ if ($title === '' || $body === '') {
 
 $sessionUserId = normalizeId($_SESSION['user_id']);
 $sessionRoleId = (int)($_SESSION['role_id'] ?? 0);
-$isSuperAdmin = $sessionRoleId === 1;
+$isSuperAdmin = isSuperAdmin($sessionRoleId);
 
 try {
     $db = getDB();
@@ -60,7 +67,7 @@ try {
         }
         if (!$isSuperAdmin) {
             $permStmt = $db->prepare("
-                SELECT role FROM ambassadors WHERE community_id = :cid AND user_id = :uid LIMIT 1
+                SELECT community_role FROM ambassadors WHERE community_id = :cid AND user_id = :uid LIMIT 1
             ");
             $permStmt->execute([':cid' => $communityId, ':uid' => $sessionUserId]);
             $role = strtolower((string)$permStmt->fetchColumn());
@@ -126,6 +133,6 @@ try {
     echo json_encode(['success' => true, 'announcement_id' => $announcementId]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }
 ?>

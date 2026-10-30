@@ -1,6 +1,9 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/onboarding.php';
+require_once __DIR__ . '/../includes/roles.php';
 require __DIR__ . '/../vendor/autoload.php';
 use Mailgun\Mailgun;
 
@@ -12,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-if (!isset($_SESSION['user_id']) || $_SESSION['email'] !== 'n.sandore5140@gmail.com') {
+if (!isset($_SESSION['user_id']) || !isSuperAdmin((int)($_SESSION['role_id'] ?? 0))) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
@@ -40,6 +43,21 @@ try {
     }
 
     if ($action === 'approve') {
+        // Ambassadors are restricted to verified staff (and super admins);
+        // approving a request makes the requester an admin ambassador.
+        srp_ensure_onboarding_tables($db);
+        $requesterStmt = $db->prepare("SELECT user_id FROM users WHERE email = :email LIMIT 1");
+        $requesterStmt->execute([':email' => $request['email']]);
+        $requesterUserId = $requesterStmt->fetchColumn();
+        if (!$requesterUserId || !srp_can_be_ambassador($db, normalizeId($requesterUserId))) {
+            http_response_code(409);
+            echo json_encode([
+                'success' => false,
+                'error' => 'The requester must be a verified staff member (or super admin) before this request can be approved, because approval makes them an ambassador.'
+            ]);
+            exit;
+        }
+
         $parentName = null;
         if (!empty($request['parent_community_id'])) {
             $pstmt = $db->prepare("SELECT name FROM communities WHERE id = :pid LIMIT 1");
@@ -58,8 +76,8 @@ try {
         $defaultBanner = '/uploads/banners/DefaultBanner.jpeg';
 
         $stmt = $db->prepare(
-            "INSERT INTO communities (id, community_type, parent_community_id, name, tagline, location, website, primary_color, secondary_color, logo_path, banner_path) " .
-            "VALUES (:id, :type, :parent_id, :name, :tagline, :location, :website, :primary_color, :secondary_color, :logo_path, :banner_path)"
+            "INSERT INTO communities (id, community_type, parent_community_id, name, tagline, location, website, phone, primary_color, secondary_color, aliases, logo_path, banner_path) " .
+            "VALUES (:id, :type, :parent_id, :name, :tagline, :location, :website, :phone, :primary_color, :secondary_color, :aliases, :logo_path, :banner_path)"
         );
         $stmt->execute([
             ':id' => $communityId,
@@ -69,15 +87,32 @@ try {
             ':tagline' => $request['tagline'],
             ':location' => $request['location'],
             ':website' => $request['website'],
+            ':phone' => $request['phone'] ?? null,
             ':primary_color' => $request['primary_color'] ?: '#0077B5',
             ':secondary_color' => $request['secondary_color'] ?: '#005f8d',
+            ':aliases' => $request['aliases'] ?? null,
             ':logo_path' => $defaultLogo,
             ':banner_path' => $defaultBanner
         ]);
+
+        $creatorStmt = $db->prepare("SELECT user_id FROM users WHERE email = :email LIMIT 1");
+        $creatorStmt->execute([':email' => $request['email']]);
+        $creatorUserId = $creatorStmt->fetchColumn() ?: null;
+
+        autoJoinCampusGroups(
+            $db,
+            $communityId,
+            empty($request['parent_community_id']) ? null : $request['parent_community_id'],
+            $request['name'],
+            $parentName,
+            $creatorUserId ? normalizeId($creatorUserId) : null
+        );
         // add admin ambassador
         $adminId = generateUniqueId($db, 'ambassadors');
-        $stmt = $db->prepare("INSERT INTO ambassadors (id, user_id, community_id, role) VALUES (:id, (SELECT user_id FROM users WHERE email = :email), :cid, 'admin')");
+        $stmt = $db->prepare("INSERT INTO ambassadors (id, user_id, community_id, community_role) VALUES (:id, (SELECT user_id FROM users WHERE email = :email), :cid, 'admin')");
         $stmt->execute([':id' => $adminId, ':cid' => $communityId, ':email' => $request['email']]);
+        $flagStmt = $db->prepare("UPDATE users SET is_ambassador = 1 WHERE email = :email");
+        $flagStmt->execute([':email' => $request['email']]);
         $status = 'approved';
     } else {
         $status = 'rejected';
@@ -107,6 +142,6 @@ try {
     echo json_encode(['success' => true]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }
 ?>

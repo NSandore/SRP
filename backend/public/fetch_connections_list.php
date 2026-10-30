@@ -1,24 +1,22 @@
 <?php
 // fetch_connections_list.php
 
-// Enable error reporting for debugging (disable in production)
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
+require_once __DIR__ . '/cors.php';
 
 header('Content-Type: application/json');
 
 // Include your database connection function
 require_once __DIR__ . '/../db_connection.php';
 
-// Check that a user_id is provided
-if (!isset($_GET['user_id'])) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Missing user_id']);
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
 }
 
-// Sanitize and retrieve the user_id
-$user_id = normalizeId($_GET['user_id']);
+$user_id = normalizeId($_SESSION['user_id']);
 
 try {
     // Get the database connection
@@ -54,12 +52,12 @@ echo json_encode([
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Database error: ' . $e->getMessage()
+        'error' => 'Database error'
     ]);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Server error: ' . $e->getMessage()
+        'error' => 'Server error'
     ]);
 }

@@ -1,0 +1,23 @@
+{
+  "metadata": {
+    "total": 1,
+    "page": 0,
+    "per_page": 100
+  },
+  "results": [
+    {
+      "id": 130794,
+      "ope6_id": "001426",
+      "ope8_id": "00142600",
+      "school.name": "Yale University",
+      "school.city": "New Haven",
+      "school.state": "CT",
+      "school.zip": "06520",
+      "school.school_url": "www.yale.edu",
+      "school.ownership": 2,
+      "school.operating": 1,
+      "school.accreditor": "New England Commission of Higher Education",
+      "school.federal_school_code": "001426"
+    }
+  ]
+}

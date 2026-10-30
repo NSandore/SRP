@@ -1,5 +1,10 @@
 <?php
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
+require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/onboarding.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 header('Content-Type: application/json');
 
@@ -10,18 +15,34 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $inputData = json_decode(file_get_contents('php://input'), true);
+if (!is_array($inputData)) {
+    $inputData = [];
+}
 
-if (empty($inputData['user_id']) || empty($inputData['code'])) {
+$userId = normalizeId($inputData['user_id'] ?? ($_SESSION['user_id'] ?? ''));
+$submittedCode = trim((string)($inputData['code'] ?? ''));
+
+if ($userId === '' || $submittedCode === '') {
     http_response_code(400);
     echo json_encode(['error' => 'user_id and verification code are required']);
     exit;
 }
 
-$userId = normalizeId($inputData['user_id']);
-$submittedCode = trim($inputData['code']);
+if (empty($_SESSION['user_id']) || normalizeId($_SESSION['user_id']) !== $userId) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
+}
 
 try {
     $db = getDB();
+    srp_rate_limit_enforce(
+        $db,
+        'email-verify:' . $userId . ':' . srp_client_ip(),
+        6,
+        900,
+        'Too many verification attempts. Please request a new code.'
+    );
 
     // Fetch stored code
     $stmt = $db->prepare("SELECT verification_code, is_verified FROM users WHERE user_id = :user_id");
@@ -40,6 +61,16 @@ try {
         exit;
     }
 
+    $extras = srp_get_account_settings_extras($db, $userId);
+    $expiresAt = isset($extras['email_verification_expires_at'])
+        ? strtotime((string)$extras['email_verification_expires_at'])
+        : false;
+    if ($expiresAt === false || $expiresAt < time()) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Verification code expired. Please request a new code.']);
+        exit;
+    }
+
     if ($user['verification_code'] != $submittedCode) {
         http_response_code(401);
         echo json_encode(['error' => 'Invalid verification code']);
@@ -47,12 +78,30 @@ try {
     }
 
     // Update is_verified
-    $updateStmt = $db->prepare("UPDATE users SET is_verified = 1, verification_code = NULL WHERE user_id = :user_id");
+    $updateStmt = $db->prepare("
+        UPDATE users
+        SET is_verified = 1, verification_code = NULL
+        WHERE user_id = :user_id
+    ");
     $updateStmt->execute([':user_id' => $userId]);
 
+    $state = srp_get_onboarding_state($db, $userId);
+    srp_mark_step_complete($state, 1);
+    $state['current_step'] = max(2, (int)($state['current_step'] ?? 2));
+    $state['email_verification_skipped'] = false;
+    srp_save_onboarding_state($db, $userId, $state);
+
+    $extras = srp_get_account_settings_extras($db, $userId);
+    unset($extras['email_verification_expires_at']);
+    srp_save_account_settings_extras($db, $userId, $extras);
+
     http_response_code(200);
-    echo json_encode(['message' => 'User verified successfully']);
+    echo json_encode([
+        'success' => true,
+        'message' => 'User verified successfully',
+        'wizard' => $state,
+    ]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }

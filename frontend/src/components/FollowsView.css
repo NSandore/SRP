@@ -29,7 +29,7 @@
 }
 
 .tab.active {
-  background: #0077B5;
+  background: #2F80ED;
   color: #fff;
   font-weight: bold;
 }
@@ -56,5 +56,5 @@
   height: 50px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #0077B5;
+  border: 2px solid #2F80ED;
 }

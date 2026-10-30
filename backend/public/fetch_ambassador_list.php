@@ -2,7 +2,7 @@
 // fetch_ambassador_list.php
 
 // Enable error reporting for debugging (disable in production)
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
 header('Content-Type: application/json');
@@ -30,7 +30,7 @@ try {
                 a.id,
                 a.user_id,
                 a.community_id,
-                a.role,
+                a.community_role,
                 a.added_at,
                 u.avatar_path,
                 u.first_name,
@@ -49,8 +49,8 @@ try {
     $ambassadors = $aStmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($ambassadors as &$amb) {
-        if (empty($amb['role'])) {
-            $amb['role'] = 'moderator';
+        if (empty($amb['community_role'])) {
+            $amb['community_role'] = 'member';
         }
         $lastSeenTs = isset($amb['last_seen_at']) ? strtotime($amb['last_seen_at']) : false;
         $amb['is_online'] = ((int)$amb['show_online'] === 1) && $lastSeenTs !== false && (time() - $lastSeenTs) <= 300;
@@ -66,7 +66,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Database error: ' . $e->getMessage()
+        'error' => 'Database error'
     ]);
     exit;
 }

@@ -1,5 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { isAdmin, isSuperAdmin } from '../constants/roles';
+import { buildAvatarSrc } from '../utils/avatar';
+import EventJoinButton from '../components/EventJoinButton';
+import { useLanguage } from '../i18n/LanguageContext';
+import NewsRailPane from './NewsRailPane';
 
 type ManagedItem = {
   id: string;
@@ -7,39 +13,139 @@ type ManagedItem = {
   title: string;
   description?: string;
   date?: string;
+  timezone?: string;
   location?: string;
   scope?: 'global' | 'community';
   communityId?: string;
   communityName?: string;
+  subCommunityId?: string;
+  subCommunityName?: string;
+  sourceCommunityId?: string;
   pollOptions?: string[];
+  pollOptionRecords?: Array<{ option_id: string; text: string; votes: number }>;
+  totalVotes?: number;
+  hasVoted?: boolean;
+  userChoices?: string[];
+  closed?: boolean;
+  allowMultipleChoices?: boolean;
   createdAt?: string;
   showResults?: boolean;
+  zoomMeetingId?: string;
+  zoomJoinUrl?: string;
+  zoomStartUrl?: string;
+  zoomHostEmail?: string;
+  zoomDuration?: number;
+  rsvpCount?: number;
+  viewerRsvped?: boolean;
+  isRemote?: boolean;
+  createdById?: string;
+  allowedAudiences?: string[];
+  invitedUsers?: Array<{ user_id?: string }>;
 };
 
 type RightRailProps = {
   userData?: any;
+  communityContext?: {
+    id: string;
+    type: 'university' | 'group' | string;
+  } | null;
+  section?: 'all' | 'ambassadors' | 'contact' | 'events' | 'polls';
+  embedded?: boolean;
+  hideGenericWidgets?: boolean;
+};
+
+type CommunitySummary = {
+  id?: string;
+  name?: string;
+  community_type?: string;
+  parent_community_id?: string;
+  website?: string;
+  phone?: string;
+  phone_number?: string;
+  telephone?: string;
+  contact_email?: string;
+  email?: string;
 };
 
 const STORAGE_KEY = 'managedEvents';
 const POLL_RESPONSES_KEY = 'managedPollResponses';
 const POLL_RESULTS_KEY = 'managedPollTallies';
+const RSVP_KEY = 'managedEventRsvps';
+const COMMUNITY_EVENT_PAGE_SIZE = 4;
 
-const datePrefix = (type?: string) => {
-  if (type === 'poll') return 'Closes';
-  if (type === 'announcement') return 'Publishes';
-  return 'Occurs';
+const localizePollOption = (
+  _pollId: string,
+  option: string,
+  _t: (key: string) => string
+) => {
+  return option;
 };
 
-export default function RightRail({ userData }: RightRailProps) {
-  const isSuperAdmin = Number(userData?.role_id) === 1;
+const datePrefix = (type: string | undefined, t: (key: string) => string) => {
+  if (type === 'poll') return t('rail.closes');
+  if (type === 'announcement') return t('rail.publishes');
+  return t('rail.occurs');
+};
+
+const formatRailDateTime = (value?: string, locale?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(locale, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+};
+
+const formatCalendarDate = (value?: string, timeZone?: string, locale?: string) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const options = timeZone ? { timeZone } : {};
+  try {
+    return {
+      iso: date.toISOString(),
+      month: date.toLocaleDateString(locale, { ...options, month: 'short' }).toUpperCase(),
+      day: date.toLocaleDateString(locale, { ...options, day: '2-digit' }),
+      weekday: date.toLocaleDateString(locale, { ...options, weekday: 'short' }).toUpperCase(),
+    };
+  } catch {
+    return {
+      iso: date.toISOString(),
+      month: date.toLocaleDateString(locale, { month: 'short' }).toUpperCase(),
+      day: date.toLocaleDateString(locale, { day: '2-digit' }),
+      weekday: date.toLocaleDateString(locale, { weekday: 'short' }).toUpperCase(),
+    };
+  }
+};
+
+export default function RightRail({
+  userData,
+  communityContext = null,
+  section = 'all',
+  embedded = false,
+  hideGenericWidgets = false,
+}: RightRailProps) {
+  const navigate = useNavigate();
+  const { locale, t } = useLanguage();
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
+  const isAdminUser = isAdmin(userData?.role_id);
   const adminCommunityIds = useMemo(() => {
     if (!Array.isArray(userData?.admin_community_ids)) return [];
     return userData.admin_community_ids.map((id: any) => String(id));
   }, [userData]);
 
   const [items, setItems] = useState<ManagedItem[]>([]);
+  const [remoteEvents, setRemoteEvents] = useState<ManagedItem[]>([]);
+  const [remotePolls, setRemotePolls] = useState<ManagedItem[]>([]);
   const [followed, setFollowed] = useState<string[]>([]);
-  const [loadingFollowed, setLoadingFollowed] = useState(false);
+  const [community, setCommunity] = useState<CommunitySummary | null>(null);
+  const [communityAmbassadors, setCommunityAmbassadors] = useState<any[]>([]);
+  const [eventIndex, setEventIndex] = useState(0);
   const [pollIndex, setPollIndex] = useState(0);
   const [pollResponses, setPollResponses] = useState<Record<string, string>>(() => {
     try {
@@ -60,6 +166,28 @@ export default function RightRail({ userData }: RightRailProps) {
     }
   });
   const [pollMessage, setPollMessage] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  const [rsvps, setRsvps] = useState<Record<string, string[]>>(() => {
+    try {
+      const raw = localStorage.getItem(RSVP_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+  const [rsvpMessages, setRsvpMessages] = useState<Record<string, string>>({});
+  const postWithFallback = async (primaryUrl: string, fallbackUrl: string, payload: Record<string, unknown>) => {
+    try {
+      return await axios.post(primaryUrl, payload, { withCredentials: true });
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 404 && fallbackUrl) {
+        return await axios.post(fallbackUrl, payload, { withCredentials: true });
+      }
+      throw err;
+    }
+  };
 
   const readLocalItems = () => {
     try {
@@ -78,6 +206,11 @@ export default function RightRail({ userData }: RightRailProps) {
           communityId: i.communityId ? String(i.communityId) : '',
           pollOptions: Array.isArray(i.pollOptions) ? i.pollOptions : [],
           showResults: Boolean(i.showResults),
+          zoomMeetingId: i.zoomMeetingId ? String(i.zoomMeetingId) : '',
+          zoomJoinUrl: i.zoomJoinUrl || '',
+          zoomStartUrl: i.zoomStartUrl || '',
+          zoomHostEmail: i.zoomHostEmail || '',
+          zoomDuration: i.zoomDuration ? Number(i.zoomDuration) : undefined,
         }));
       setItems(normalized);
     } catch (err) {
@@ -85,6 +218,129 @@ export default function RightRail({ userData }: RightRailProps) {
       setItems([]);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadEvents = async () => {
+      try {
+        const res = await axios.get('/api/fetch_events.php', { withCredentials: true });
+        if (!cancelled) {
+          setRemoteEvents(Array.isArray(res.data?.events) ? res.data.events : []);
+        }
+      } catch {
+        if (!cancelled) setRemoteEvents([]);
+      }
+    };
+    loadEvents();
+    return () => {
+      cancelled = true;
+    };
+  }, [userData?.user_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPolls = async () => {
+      try {
+        const res = await axios.get('/api/fetch_polls.php', { withCredentials: true });
+        const polls = Array.isArray(res.data?.polls) ? res.data.polls : [];
+        const normalized: ManagedItem[] = polls.map((poll: any) => {
+          const options = Array.isArray(poll.options) ? poll.options : [];
+          return {
+            id: String(poll.poll_id),
+            type: 'poll',
+            title: String(poll.question || ''),
+            description: String(poll.description || ''),
+            date: poll.closes_at || undefined,
+            scope: poll.scope === 'community' ? 'community' : 'global',
+            communityId: poll.community_id ? String(poll.community_id) : '',
+            sourceCommunityId: poll.community_id ? String(poll.community_id) : '',
+            communityName: String(poll.community_name || ''),
+            pollOptions: options.map((option: any) => String(option.text || '')),
+            pollOptionRecords: options.map((option: any) => ({
+              option_id: String(option.option_id),
+              text: String(option.text || ''),
+              votes: Number(option.votes || 0),
+            })),
+            totalVotes: Number(poll.total_votes || 0),
+            hasVoted: Boolean(poll.has_voted),
+            userChoices: Array.isArray(poll.user_choices) ? poll.user_choices.map(String) : [],
+            closed: Boolean(poll.closed),
+            allowMultipleChoices: Boolean(poll.allow_multiple_choices),
+            isRemote: true,
+          };
+        });
+        if (!cancelled) {
+          setRemotePolls(normalized);
+          const responses: Record<string, string> = {};
+          const tallies: Record<string, Record<string, number>> = {};
+          normalized.forEach((poll) => {
+            const selected = poll.pollOptionRecords?.find((option) => poll.userChoices?.includes(option.option_id));
+            if (poll.hasVoted && selected) responses[poll.id] = selected.text;
+            tallies[poll.id] = Object.fromEntries(
+              (poll.pollOptionRecords || []).map((option) => [option.text, option.votes])
+            );
+          });
+          setPollResponses(responses);
+          setPollTallies(tallies);
+        }
+      } catch {
+        if (!cancelled) setRemotePolls([]);
+      }
+    };
+    loadPolls();
+    return () => {
+      cancelled = true;
+    };
+  }, [userData?.user_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!communityContext?.id) {
+      setCommunity(null);
+      setCommunityAmbassadors([]);
+      return undefined;
+    }
+
+    const loadCommunityRail = async () => {
+      const [communityResult, ambassadorsResult] = await Promise.allSettled([
+        axios.get(`/api/fetch_community.php?community_id=${encodeURIComponent(communityContext.id)}`),
+        axios.get(`/api/fetch_ambassador_list.php?community_id=${encodeURIComponent(communityContext.id)}`),
+      ]);
+      if (cancelled) return;
+
+      if (
+        communityResult.status === 'fulfilled'
+        && communityResult.value.data?.success
+      ) {
+        setCommunity(communityResult.value.data.community || null);
+      } else {
+        setCommunity(null);
+      }
+
+      if (
+        ambassadorsResult.status === 'fulfilled'
+        && ambassadorsResult.value.data?.success
+      ) {
+        setCommunityAmbassadors(
+          Array.isArray(ambassadorsResult.value.data.ambassadors)
+            ? ambassadorsResult.value.data.ambassadors
+            : []
+        );
+      } else {
+        setCommunityAmbassadors([]);
+      }
+    };
+
+    loadCommunityRail();
+    return () => {
+      cancelled = true;
+    };
+  }, [communityContext?.id]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     readLocalItems();
@@ -108,7 +364,6 @@ export default function RightRail({ userData }: RightRailProps) {
     let isCancelled = false;
     const loadFollowed = async () => {
       if (!userData?.user_id) return;
-      setLoadingFollowed(true);
       try {
         const res = await axios.get(`/api/followed_communities.php?user_id=${userData.user_id}`);
         if (!isCancelled) {
@@ -119,8 +374,6 @@ export default function RightRail({ userData }: RightRailProps) {
       } catch (err) {
         console.error('Unable to fetch followed communities', err);
         if (!isCancelled) setFollowed([]);
-      } finally {
-        if (!isCancelled) setLoadingFollowed(false);
       }
     };
     loadFollowed();
@@ -129,26 +382,97 @@ export default function RightRail({ userData }: RightRailProps) {
     };
   }, [userData?.user_id]);
 
-  const followsCommunity = (communityId?: string) => {
-    if (!communityId) return false;
-    if (adminCommunityIds.includes(String(communityId))) return true;
-    return followed.includes(String(communityId));
-  };
+  const isVisible = useCallback((item: ManagedItem) => {
+    const userId = String(userData?.user_id || '');
+    if (userId && String(item.createdById || '') === userId) return true;
+    if (userId && item.invitedUsers?.some((user) => String(user.user_id || '') === userId)) return true;
+    const audiences = Array.isArray(item.allowedAudiences) && item.allowedAudiences.length
+      ? item.allowedAudiences
+      : ['public', 'members', 'verified', 'ambassadors', 'admins'];
+    if (item.scope === 'global') {
+      return audiences.includes('public')
+        || (Boolean(userId) && audiences.includes('members'))
+        || (isAdminUser && audiences.includes('admins'))
+        || (Number(userData?.is_ambassador) === 1 && audiences.includes('ambassadors'))
+        || (Number(userData?.verified) === 1 && audiences.includes('verified'));
+    }
+    const sourceCommunityId = String(item.subCommunityId || item.communityId || '');
+    if (!sourceCommunityId) return false;
+    if (isSuperAdminUser) return true;
 
-  const isVisible = (item: ManagedItem) => {
-    if (item.scope === 'global') return true;
-    if (!item.communityId) return false;
-    if (isSuperAdmin) return true;
-    if (adminCommunityIds.includes(String(item.communityId))) return true;
-    return followsCommunity(item.communityId);
-  };
+    const ambassadorCommunityIds = Array.isArray(userData?.ambassador_communities)
+      ? userData.ambassador_communities
+          .map((entry: any) => String(entry?.community_id ?? entry?.id ?? entry ?? ''))
+          .filter(Boolean)
+      : [];
+    const verifiedCommunityId = String(userData?.verified_community_id || '');
+    const isVerifiedForCommunity =
+      Number(userData?.verified) === 1
+      && (
+        verifiedCommunityId === sourceCommunityId
+        || (
+          String(communityContext?.id || '') === sourceCommunityId
+          && verifiedCommunityId === String(community?.parent_community_id || '')
+        )
+      );
 
-  const visibleItems = useMemo(
-    () => items.filter((i) => isVisible(i)),
-    [items, adminCommunityIds, followed, isSuperAdmin]
-  );
+    return audiences.includes('public')
+      || (
+        audiences.includes('admins')
+        && (isAdminUser || adminCommunityIds.includes(sourceCommunityId))
+      )
+      || (
+        audiences.includes('ambassadors')
+        && ambassadorCommunityIds.includes(sourceCommunityId)
+      )
+      || (
+        audiences.includes('verified')
+        && isVerifiedForCommunity
+      )
+      || (
+        audiences.includes('members')
+        && followed.includes(sourceCommunityId)
+      );
+  }, [
+    adminCommunityIds,
+    community?.parent_community_id,
+    communityContext?.id,
+    followed,
+    isAdminUser,
+    isSuperAdminUser,
+    userData?.ambassador_communities,
+    userData?.is_ambassador,
+    userData?.user_id,
+    userData?.verified,
+    userData?.verified_community_id,
+  ]);
+
+  const visibleItems = useMemo(() => {
+    const merged = new Map<string, ManagedItem>();
+    items.forEach((item) => merged.set(String(item.id), item));
+    remoteEvents.forEach((item) => merged.set(String(item.id), item));
+    remotePolls.forEach((item) => merged.set(String(item.id), item));
+    const accessible = Array.from(merged.values()).filter((item) => item.isRemote || isVisible(item));
+    if (!communityContext?.id) return accessible;
+    return accessible.filter((item) => {
+      const sourceCommunityId = String(
+        item.sourceCommunityId || item.subCommunityId || item.communityId || ''
+      );
+      return sourceCommunityId === String(communityContext.id);
+    });
+  }, [communityContext?.id, items, remoteEvents, remotePolls, isVisible]);
 
   const sortedEvents = useMemo(() => {
+    const isUpcomingEvent = (item: ManagedItem) => {
+      if (item.type === 'announcement') return true;
+      const date = item.date || item.createdAt;
+      if (!date) return true;
+      const start = Date.parse(date);
+      if (Number.isNaN(start)) return true;
+      const durationMinutes = item.zoomDuration ? Number(item.zoomDuration) : 60;
+      const end = start + Math.max(durationMinutes, 0) * 60 * 1000;
+      return end > now;
+    };
     const rank = (item: ManagedItem) => {
       const date = item.date || item.createdAt;
       if (date) {
@@ -158,22 +482,60 @@ export default function RightRail({ userData }: RightRailProps) {
       return Number.MAX_SAFE_INTEGER;
     };
     return visibleItems
-      .filter((i) => i.type !== 'poll')
+      .filter((i) => i.type !== 'poll' && i.type !== 'announcement')
+      .filter((i) => isUpcomingEvent(i))
       .sort((a, b) => rank(a) - rank(b))
       .slice(0, 8);
-  }, [visibleItems]);
+  }, [visibleItems, now]);
 
   const polls = useMemo(
-    () => visibleItems.filter((i) => i.type === 'poll').slice(0, 5),
+    () => visibleItems.filter((i) => i.type === 'poll' && i.isRemote).slice(0, 5),
     [visibleItems]
   );
+  const communityKind = community?.parent_community_id
+    ? t('rail.subGroup')
+    : communityContext?.type === 'university'
+      ? t('rail.university')
+      : communityContext?.type === 'group'
+        ? t('rail.group')
+        : t('rail.community');
+  const displayEvents = sortedEvents;
+  const displayPolls = polls;
+  const shouldPaginateCommunityEvents = Boolean(
+    communityContext && displayEvents.length >= 5
+  );
+  const eventPageCount = communityContext
+    ? shouldPaginateCommunityEvents
+      ? Math.ceil(displayEvents.length / COMMUNITY_EVENT_PAGE_SIZE)
+      : 1
+    : Math.max(displayEvents.length, 1);
+  const visibleEventItems = communityContext
+    ? shouldPaginateCommunityEvents
+      ? displayEvents.slice(
+          eventIndex * COMMUNITY_EVENT_PAGE_SIZE,
+          (eventIndex + 1) * COMMUNITY_EVENT_PAGE_SIZE
+        )
+      : displayEvents
+    : displayEvents[eventIndex]
+      ? [displayEvents[eventIndex]]
+      : [];
+  const shouldShowEventPagination = communityContext
+    ? shouldPaginateCommunityEvents
+    : displayEvents.length > 1;
+
+  useEffect(() => {
+    setEventIndex((idx) => {
+      if (eventPageCount <= 1) return 0;
+      return Math.min(idx, eventPageCount - 1);
+    });
+  }, [eventPageCount]);
 
   useEffect(() => {
     setPollIndex((idx) => {
-      if (polls.length === 0) return 0;
-      return Math.min(idx, polls.length - 1);
+      if (displayPolls.length === 0) return 0;
+      return Math.min(idx, displayPolls.length - 1);
     });
-  }, [polls.length]);
+  }, [displayPolls.length]);
 
   useEffect(() => {
     try {
@@ -191,128 +553,395 @@ export default function RightRail({ userData }: RightRailProps) {
     }
   }, [pollTallies]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(RSVP_KEY, JSON.stringify(rsvps));
+    } catch {
+      // ignore storage errors
+    }
+  }, [rsvps]);
+
   const scopeLabel = (item: ManagedItem) =>
     item.scope === 'global'
-      ? 'Global'
-      : item.communityName || (item.communityId ? `Community ${item.communityId}` : 'Community item');
+      ? t('rail.global')
+      : [
+          `${t('rail.community')}: ${item.communityName || (item.communityId ? `${t('rail.community')} ${item.communityId}` : t('rail.communityItem'))}`,
+          item.subCommunityName ? `${t('rail.subCommunity')}: ${item.subCommunityName}` : '',
+        ].filter(Boolean).join(' · ');
 
   const renderItemMeta = (item: ManagedItem) => {
-    const dateText = item.date ? `${datePrefix(item.type)} ${new Date(item.date).toLocaleString()}` : '';
-    const baseType = item.type === 'announcement' ? 'Announcement' : 'Event';
+    const formattedDate = formatRailDateTime(item.date, locale);
+    const dateText = formattedDate ? `${datePrefix(item.type, t)} ${formattedDate}` : '';
+    const baseType = item.type === 'announcement' ? t('rail.announcement') : t('rail.event');
     return `${baseType} · ${scopeLabel(item)}${dateText ? ` · ${dateText}` : ''}`;
   };
 
   const renderPollMeta = (item: ManagedItem) => {
-    const dateText = item.date ? `${datePrefix(item.type)} ${new Date(item.date).toLocaleString()}` : '';
-    return `Poll · ${scopeLabel(item)}${dateText ? ` · ${dateText}` : ''}`;
+    const formattedDate = formatRailDateTime(item.date, locale);
+    const dateText = formattedDate ? `${datePrefix(item.type, t)} ${formattedDate}` : '';
+    return `${t('rail.poll')} · ${scopeLabel(item)}${dateText ? ` · ${dateText}` : ''}`;
   };
 
-  const currentPoll = polls[pollIndex];
+  const currentPoll = displayPolls[pollIndex];
 
-  const handleVote = (option: string) => {
+  const handleVote = async (option: string) => {
     if (!currentPoll) return;
     if (!userData?.user_id) {
-      setPollMessage('Log in or sign up to vote in polls.');
+      setPollMessage(t('rail.logInToVote'));
       return;
     }
 
     const prevChoice = pollResponses[currentPoll.id];
-    if (prevChoice === option) {
-      setPollMessage('You already selected this option.');
+    if (currentPoll.closed) {
+      setPollMessage('This poll is closed.');
       return;
     }
-
-    setPollResponses((prev) => ({ ...prev, [currentPoll.id]: option }));
-    setPollTallies((prev) => {
-      const next = { ...prev };
-      const pollTotals = { ...(next[currentPoll.id] || {}) };
-      if (prevChoice && pollTotals[prevChoice]) {
-        pollTotals[prevChoice] = Math.max(0, pollTotals[prevChoice] - 1);
-      }
-      pollTotals[option] = (pollTotals[option] || 0) + 1;
-      next[currentPoll.id] = pollTotals;
-      return next;
-    });
-    setPollMessage(prevChoice ? 'Vote updated.' : 'Thanks for voting!');
-    if (!prevChoice && polls.length > 1) {
-      setTimeout(() => {
-        setPollIndex((prev) => (prev + 1) % polls.length);
-      }, 3000);
+    if (prevChoice && !currentPoll.allowMultipleChoices) {
+      setPollMessage(t('rail.responseFinal'));
+      return;
+    }
+    const optionRecord = currentPoll.pollOptionRecords?.find((entry) => entry.text === option);
+    if (!optionRecord) {
+      setPollMessage(t('rail.noPollOptions'));
+      return;
+    }
+    try {
+      const res = await axios.post('/api/vote_poll.php', {
+        poll_id: currentPoll.id,
+        option_id: optionRecord.option_id,
+      }, { withCredentials: true });
+      if (!res.data?.success) throw new Error(res.data?.error || 'Unable to record vote');
+      const updatedOptions = Array.isArray(res.data.options) ? res.data.options : [];
+      setPollResponses((prev) => ({ ...prev, [currentPoll.id]: option }));
+      setPollTallies((prev) => ({
+        ...prev,
+        [currentPoll.id]: Object.fromEntries(
+          updatedOptions.map((entry: any) => [String(entry.text || ''), Number(entry.votes || 0)])
+        ),
+      }));
+      setRemotePolls((prev) => prev.map((poll) => poll.id === currentPoll.id ? {
+        ...poll,
+        hasVoted: true,
+        userChoices: [...(poll.userChoices || []), optionRecord.option_id],
+        pollOptionRecords: updatedOptions,
+        totalVotes: Number(res.data.total_votes || 0),
+      } : poll));
+      setPollMessage(t('rail.thanksVoting'));
+    } catch (err: any) {
+      setPollMessage(err?.response?.data?.error || err?.message || 'Unable to record your vote.');
     }
   };
 
   const goNextPoll = () => {
-    if (!polls.length) return;
-    setPollIndex((prev) => (prev + 1) % polls.length);
+    if (!displayPolls.length) return;
+    setPollIndex((prev) => (prev + 1) % displayPolls.length);
     setPollMessage('');
   };
 
   const goPrevPoll = () => {
-    if (!polls.length) return;
-    setPollIndex((prev) => (prev - 1 + polls.length) % polls.length);
+    if (!displayPolls.length) return;
+    setPollIndex((prev) => (prev - 1 + displayPolls.length) % displayPolls.length);
     setPollMessage('');
   };
 
   useEffect(() => {
     setPollMessage('');
-  }, [pollIndex]);
+  }, [pollIndex, locale]);
+
+  useEffect(() => {
+    setRsvpMessages({});
+  }, [locale]);
+
+  const goNextEvent = () => {
+    if (eventPageCount <= 1) return;
+    setEventIndex((prev) => (prev + 1) % eventPageCount);
+  };
+
+  const goPrevEvent = () => {
+    if (eventPageCount <= 1) return;
+    setEventIndex((prev) => (prev - 1 + eventPageCount) % eventPageCount);
+  };
+
+  const userId = userData?.user_id ? String(userData.user_id) : '';
+  const toggleRsvp = async (item: ManagedItem) => {
+    const eventId = item.id;
+    if (!userId) {
+      setRsvpMessages((prev) => ({ ...prev, [eventId]: t('rail.logInToRsvp') }));
+      return;
+    }
+    const currentList = rsvps[eventId] || [];
+    const hasRsvped = Boolean(item.viewerRsvped || currentList.includes(userId));
+    if (!eventId.startsWith('sample-')) {
+      try {
+        await postWithFallback(
+          '/api/rsvp_event.php',
+          '/rsvp_event.php',
+          { event_id: eventId, action: hasRsvped ? 'cancel' : 'register' }
+        );
+        setRemoteEvents((prev) => prev.map((event) => (
+          event.id === eventId
+            ? {
+                ...event,
+                viewerRsvped: !hasRsvped,
+                rsvpCount: Math.max(0, Number(event.rsvpCount || 0) + (hasRsvped ? -1 : 1)),
+              }
+            : event
+        )));
+        try {
+          const refreshed = await axios.get('/api/fetch_events.php', { withCredentials: true });
+          if (Array.isArray(refreshed.data?.events)) {
+            setRemoteEvents(refreshed.data.events);
+          }
+        } catch {
+          // The RSVP succeeded; keep the optimistic rail state if refresh fails.
+        }
+      } catch (err) {
+        console.error('Unable to update RSVP', err);
+        setRsvpMessages((prev) => ({ ...prev, [eventId]: t('rail.unableRsvp') }));
+        return;
+      }
+    }
+    setRsvps((prev) => {
+      const next = { ...prev };
+      const nextList = hasRsvped
+        ? currentList.filter((id) => id !== userId)
+        : [...currentList, userId];
+      next[eventId] = nextList;
+      return next;
+    });
+    setRsvpMessages((prev) => ({
+      ...prev,
+      [eventId]: hasRsvped ? t('rail.rsvpRemoved') : t('rail.rsvpConfirmed'),
+    }));
+  };
+
+  const communityPhone = community?.phone || community?.phone_number || community?.telephone || '';
+  const communityEmail = community?.contact_email || community?.email || '';
+  const showSection = (candidate: RightRailProps['section']) => section === 'all' || section === candidate;
+  const idPrefix = embedded ? `community-mobile-${section}` : 'community-rail';
 
   return (
-    <div className="right-rail-stack">
-      <section className="widget-card" aria-labelledby="events-header">
+    <div
+      className={`right-rail-stack${communityContext ? ' community-context-rail' : ''}${embedded ? ' community-context-rail--embedded' : ''}`}
+    >
+      {communityContext && showSection('ambassadors') && (
+        <section className="widget-card community-ambassadors-widget" aria-labelledby={`${idPrefix}-ambassadors-header`}>
+          <div id={`${idPrefix}-ambassadors-header`} className="widget-header compact-widget-header">
+            <h3 className="widget-title">{t('rail.ambassadors')}</h3>
+            <span>{communityAmbassadors.length}</span>
+          </div>
+          <div className="widget-body">
+            {communityAmbassadors.length ? (
+              <ul className="community-rail-ambassadors" aria-label={`${community?.name || communityKind} ambassadors`}>
+                {communityAmbassadors.slice(0, 5).map((ambassador) => (
+                  <li key={ambassador.user_id || ambassador.id}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/user/${ambassador.user_id || ambassador.id}`)}
+                    >
+                      <img
+                        src={buildAvatarSrc(ambassador.avatar_path)}
+                        alt=""
+                        aria-hidden="true"
+                      />
+                      <span>
+                        <strong>{ambassador.first_name} {ambassador.last_name}</strong>
+                        <small>{ambassador.headline || ambassador.community_role || t('rail.communityAmbassador')}</small>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="community-rail-empty">{t('rail.noAmbassadors')}</p>
+            )}
+            {userData?.user_id && (
+              <button
+                type="button"
+                className="widget-cta community-rail-view-all"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('openCommunityAmbassadors', {
+                    detail: { communityId: communityContext.id },
+                  }));
+                }}
+              >
+                {t('rail.viewAll')}
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {communityContext && showSection('contact') && (
+        <section className="widget-card community-contact-widget" aria-labelledby={`${idPrefix}-contact-header`}>
+          <div id={`${idPrefix}-contact-header`} className="widget-header compact-widget-header">
+            <h3 className="widget-title">{t('rail.contact')}</h3>
+          </div>
+          <div className="widget-body community-contact-list">
+            {community?.website && (
+              <a href={community.website} target="_blank" rel="noopener noreferrer">
+                {t('rail.visitWebsite')}
+              </a>
+            )}
+            {communityPhone && (
+              <a href={`tel:${communityPhone}`} aria-label={t('rail.call', { phone: communityPhone })}>
+                <span>{t('rail.phone')}</span>
+                <strong>{communityPhone}</strong>
+              </a>
+            )}
+            {communityEmail && (
+              <a href={`mailto:${communityEmail}`}>
+                <span>{t('rail.email')}</span>
+                <strong>{communityEmail}</strong>
+              </a>
+            )}
+            {!community?.website && !communityPhone && !communityEmail && (
+              <p className="community-rail-empty">{t('rail.noContact')}</p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {section === 'all' && !communityContext && !hideGenericWidgets && <NewsRailPane />}
+
+      {showSection('events') && !(hideGenericWidgets && !communityContext) && (
+      <section className="widget-card compact-agenda-widget" aria-labelledby={`${idPrefix}-events-header`}>
         <div
-          id="events-header"
-          className="widget-header"
-          style={{ backgroundColor: '#2563EB' }}
+          id={`${idPrefix}-events-header`}
+          className="widget-header compact-widget-header"
         >
-          <h3 className="widget-title">Upcoming Events</h3>
+          <h3 className="widget-title">
+            {communityContext
+              ? t('rail.communityEvents', { community: communityKind })
+              : t('rail.upcomingEvents')}
+          </h3>
+          <span>{displayEvents.length}</span>
         </div>
         <div className="widget-body">
-          {!sortedEvents.length && (
-            <div className="widget-item-meta">
-              {loadingFollowed
-                ? 'Loading your upcoming events...'
-                : 'No upcoming events for your communities yet.'}
-            </div>
-          )}
-          <ul className="widget-list" aria-label="Upcoming events">
-            {sortedEvents.map((item) => (
-              <li
-                key={item.id}
-                className="widget-list-item"
-                style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '6px' }}
-              >
-                <div className="widget-item-title">{item.title}</div>
-                <div className="widget-item-meta">{renderItemMeta(item)}</div>
-                {item.description && (
-                  <div className="widget-item-meta" style={{ color: 'var(--text-color)' }}>
-                    {item.description.length > 140 ? `${item.description.slice(0, 140)}…` : item.description}
+          <ul
+            className="widget-list"
+            aria-label={communityContext
+              ? t('rail.communityEvents', { community: communityKind })
+              : t('rail.upcomingEvents')}
+          >
+            {visibleEventItems.map((item) => {
+              const rsvpList = rsvps[item.id] || [];
+              const rsvpCount = Math.max(Number(item.rsvpCount) || 0, rsvpList.length);
+              const hasRsvped = Boolean(item.viewerRsvped || (userId && rsvpList.includes(userId)));
+              const rsvpMessage = rsvpMessages[item.id];
+              const isEvent = item.type !== 'announcement' && item.type !== 'poll';
+              const calendarDate = formatCalendarDate(item.date, item.timezone, locale);
+              const eventParams = new URLSearchParams({
+                event: String(item.id),
+                from: communityContext ? 'community' : 'rail',
+              });
+              if (communityContext?.id) {
+                eventParams.set('community', String(communityContext.id));
+              }
+              const eventDestination = `/events-feed?${eventParams.toString()}`;
+              return (
+                <li
+                  key={item.id}
+                  className="widget-list-item compact-event-item"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => navigate(eventDestination)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      navigate(eventDestination);
+                    }
+                  }}
+                >
+                  <div className="community-event-card-layout">
+                    {calendarDate && (
+                      <time className="community-event-date" dateTime={calendarDate.iso}>
+                        <span>{calendarDate.month}</span>
+                        <strong>{calendarDate.day}</strong>
+                        <small>{calendarDate.weekday}</small>
+                      </time>
+                    )}
+                    <div className="community-event-card-copy">
+                      <div className="widget-item-title">{item.title}</div>
+                      <div className="widget-item-meta">{renderItemMeta(item)}</div>
+                      {item.description && (
+                        <div className="community-event-description">
+                          {item.description.length > 180 ? `${item.description.slice(0, 180)}…` : item.description}
+                        </div>
+                      )}
+                      {isEvent && (
+                        <div className="widget-item-actions community-event-actions">
+                          <button
+                            type="button"
+                            className={`widget-cta${hasRsvped ? ' selected' : ''}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleRsvp(item);
+                            }}
+                          >
+                            {hasRsvped ? t('rail.going') : 'RSVP'}
+                          </button>
+                          <EventJoinButton
+                            event={item}
+                            now={now}
+                            className="widget-cta secondary"
+                            label={t('rail.joinZoom')}
+                          />
+                          {rsvpCount > 0 && (
+                            <span className="community-event-rsvp-count">{t('rail.goingCount', { count: rsvpCount })}</span>
+                          )}
+                        </div>
+                      )}
+                      {isEvent && rsvpMessage && (
+                        <div className="widget-item-meta">{rsvpMessage}</div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
+          {visibleEventItems.length === 0 && (
+            <p className="community-rail-empty">
+              {t('rail.noEvents', { community: communityKind.toLowerCase() })}
+            </p>
+          )}
+          {shouldShowEventPagination && (
+          <div className="poll-nav rail-event-nav">
+            <button type="button" onClick={goPrevEvent} disabled={eventPageCount <= 1} aria-label={t('rail.previousEventPage')}>
+              ‹
+            </button>
+            <div className="poll-dots" aria-label={t('rail.eventPagination')}>
+              {Array.from({ length: eventPageCount }, (_, idx) => (
+                <span key={idx} className={`poll-dot${idx === eventIndex ? ' active' : ''}`} aria-hidden="true" />
+              ))}
+            </div>
+            <button type="button" onClick={goNextEvent} disabled={eventPageCount <= 1} aria-label={t('rail.nextEventPage')}>
+              ›
+            </button>
+          </div>
+          )}
         </div>
       </section>
+      )}
 
-      <section className="widget-card" aria-labelledby="polls-header">
+      {showSection('polls') && !(hideGenericWidgets && !communityContext) && (
+      <section className="widget-card compact-poll-widget" aria-labelledby={`${idPrefix}-polls-header`}>
         <div
-          id="polls-header"
-          className="widget-header"
-          style={{ backgroundColor: '#F59E0B' }}
+          id={`${idPrefix}-polls-header`}
+          className="widget-header compact-widget-header"
         >
-          <h3 className="widget-title">Polls</h3>
+          <h3 className="widget-title">
+            {communityContext
+              ? t('rail.communityPolls', { community: communityKind })
+              : t('rail.polls')}
+          </h3>
+          <span>{displayPolls.length}</span>
         </div>
         <div className="widget-body">
-          {!polls.length && (
-            <div className="widget-item-meta">
-              {loadingFollowed ? 'Loading polls...' : 'No polls from your communities yet.'}
-            </div>
-          )}
-          {polls.length > 0 && currentPoll && (
+          {displayPolls.length > 0 && currentPoll && (
             <div
               className="widget-list poll-slide"
-              aria-label="Community polls"
+              aria-label={t('rail.communityPolls', { community: communityKind })}
               style={{ gap: '10px' }}
               key={currentPoll.id}
             >
@@ -324,34 +953,31 @@ export default function RightRail({ userData }: RightRailProps) {
                 <div className="widget-item-meta">{renderPollMeta(currentPoll)}</div>
                 {!userData?.user_id && (
                   <div className="widget-item-meta" style={{ color: '#b91c1c' }}>
-                    Log in or sign up to vote in polls.
+                    {t('rail.logInToVote')}
                   </div>
                 )}
-                {currentPoll.pollOptions && currentPoll.pollOptions.length > 0 ? (
-                  <div className="widget-poll-options" role="group" aria-label="Poll options">
+                {(!pollResponses[currentPoll.id] || currentPoll.allowMultipleChoices) && !currentPoll.closed && currentPoll.pollOptions && currentPoll.pollOptions.length > 0 ? (
+                  <div className="widget-poll-options" role="group" aria-label={t('rail.pollOptions')}>
                     {currentPoll.pollOptions.map((opt, idx) => {
-                      const chosen = pollResponses[currentPoll.id];
-                      const isSelected = chosen === opt;
                       return (
                         <button
                           key={idx}
                           type="button"
-                          className={`poll-option-button${isSelected ? ' selected' : ''}`}
+                          className="poll-option-button"
                           onClick={() => handleVote(opt)}
                           disabled={!userData?.user_id}
                           style={{ width: '100%', textAlign: 'left', justifyContent: 'space-between' }}
                         >
-                          <span>{opt}</span>
-                          {isSelected && <span>✓</span>}
+                          <span>{localizePollOption(currentPoll.id, opt, t)}</span>
                         </button>
                       );
                     })}
                   </div>
-                ) : (
-                  <div className="widget-item-meta">This poll has no options configured.</div>
-                )}
+                ) : !pollResponses[currentPoll.id] && !currentPoll.closed ? (
+                  <div className="widget-item-meta">{t('rail.noPollOptions')}</div>
+                ) : null}
                 {pollMessage && <div className="widget-item-meta">{pollMessage}</div>}
-                {pollResponses[currentPoll.id] && currentPoll.showResults && (
+                {(pollResponses[currentPoll.id] || currentPoll.closed) && (
                   <div className="poll-results">
                     {(currentPoll.pollOptions || []).map((opt, idx) => {
                       const pollTotal = pollTallies[currentPoll.id] || {};
@@ -360,25 +986,27 @@ export default function RightRail({ userData }: RightRailProps) {
                       const percent = totalVotes ? Math.round((votes / totalVotes) * 100) : 0;
                       return (
                         <div key={idx} className="poll-result-row">
-                          <div className="poll-result-label">{opt}</div>
+                          <div className="poll-result-label">{localizePollOption(currentPoll.id, opt, t)}</div>
                           <div className="poll-result-bar">
                             <div className="poll-result-fill" style={{ width: `${percent}%` }} />
                           </div>
-                          <div className="poll-result-meta">{votes} vote{votes === 1 ? '' : 's'} • {percent}%</div>
+                          <div className="poll-result-meta">
+                            {votes === 1 ? t('rail.vote', { count: votes }) : t('rail.votes', { count: votes })} • {percent}%
+                          </div>
                         </div>
                       );
                     })}
                     {!Object.values(pollTallies[currentPoll.id] || {}).length && (
-                      <div className="widget-item-meta">No votes recorded yet.</div>
+                      <div className="widget-item-meta">{t('rail.noVotes')}</div>
                     )}
                   </div>
                 )}
                 <div className="poll-nav" style={{ alignSelf: 'center' }}>
-                  <button type="button" onClick={goPrevPoll} disabled={polls.length <= 1} aria-label="Previous poll">
+                  <button type="button" onClick={goPrevPoll} disabled={displayPolls.length <= 1} aria-label={t('rail.previousPoll')}>
                     ‹
                   </button>
-                  <div className="poll-dots" aria-label="Poll pagination">
-                    {polls.map((_, idx) => (
+                  <div className="poll-dots" aria-label={t('rail.pollPagination')}>
+                    {displayPolls.map((_, idx) => (
                       <span
                         key={idx}
                         className={`poll-dot${idx === pollIndex ? ' active' : ''}`}
@@ -386,15 +1014,22 @@ export default function RightRail({ userData }: RightRailProps) {
                       />
                     ))}
                   </div>
-                  <button type="button" onClick={goNextPoll} disabled={polls.length <= 1} aria-label="Next poll">
+                  <button type="button" onClick={goNextPoll} disabled={displayPolls.length <= 1} aria-label={t('rail.nextPoll')}>
                     ›
                   </button>
                 </div>
               </div>
             </div>
           )}
+          {!currentPoll && (
+            <p className="community-rail-empty">
+              {t('rail.noPolls', { community: communityKind.toLowerCase() })}
+            </p>
+          )}
         </div>
       </section>
+      )}
+
     </div>
   );
 }

@@ -1,4 +1,10 @@
 <?php
+// Retired: onboarding is now handled by the authenticated wizard endpoint.
+header('Content-Type: application/json');
+http_response_code(410);
+echo json_encode(['error' => 'This registration endpoint has been retired. Use onboarding_wizard.php.']);
+exit;
+
 require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
@@ -15,8 +21,9 @@ $userId = isset($inputData['user_id']) ? normalizeId($inputData['user_id']) : nu
 $schoolName = isset($inputData['schoolName']) ? trim($inputData['schoolName']) : null;
 $startDate = isset($inputData['startDate']) ? $inputData['startDate'] : null;
 $endDate = isset($inputData['endDate']) ? $inputData['endDate'] : null;
+$devMode = srp_is_dev_mode();
 
-if (!$userId || !$schoolName || !$startDate || !$endDate) {
+if (!$userId || (!$devMode && (!$schoolName || !$startDate || !$endDate))) {
     http_response_code(400);
     echo json_encode(['error' => 'Missing required fields']);
     exit;
@@ -36,9 +43,15 @@ try {
         exit;
     }
 
-    if (!$user['is_verified']) {
+    if (!$devMode && !$user['is_verified']) {
         http_response_code(403);
         echo json_encode(['error' => 'User not verified']);
+        exit;
+    }
+
+    if ($devMode && (!$schoolName || !$startDate || !$endDate)) {
+        http_response_code(200);
+        echo json_encode(['message' => 'Registration completed (dev mode).', 'dev_mode' => true]);
         exit;
     }
 
@@ -94,5 +107,5 @@ try {
     echo json_encode(['message' => 'Registration completed successfully']);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }

@@ -1,7 +1,9 @@
 <?php
 // fetch_following_status.php
 
-ini_set('display_errors', 1);
+require_once __DIR__ . '/cors.php';
+
+ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
 header('Content-Type: application/json');
@@ -27,6 +29,6 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }
 ?>

@@ -1,5 +1,7 @@
 <?php
+require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -25,8 +27,11 @@ try {
             t.upvotes,
             t.downvotes,
             COALESCE(tv.vote_type, '') AS user_vote,
+            f.name AS forum_name,
             u.first_name,
             u.last_name,
+            u.verified AS author_verified,
+            ac.logo_path AS ambassador_logo_path,
             c.name AS community_name,
             c.community_type,
             c.id AS community_id,
@@ -35,6 +40,11 @@ try {
         INNER JOIN forums f ON t.forum_id = f.forum_id
         INNER JOIN communities c ON f.community_id = c.id
         INNER JOIN users u ON t.user_id = u.user_id
+        LEFT JOIN ambassadors a
+               ON a.user_id = t.user_id
+              AND a.community_id = f.community_id
+        LEFT JOIN communities ac
+               ON ac.id = a.community_id
         LEFT JOIN thread_votes tv
                ON tv.thread_id = t.thread_id
               AND tv.user_id = :viewer_id
@@ -47,9 +57,10 @@ try {
         ':viewer_id' => $viewerId
     ]);
     $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $threads = srp_attach_tags_to_threads($db, $threads);
 
     echo json_encode(['success' => true, 'threads' => $threads]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }

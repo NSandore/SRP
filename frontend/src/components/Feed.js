@@ -1,33 +1,82 @@
 // src/components/Feed.js
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import DOMPurify from 'dompurify'; 
 import {
-  FaArrowAltCircleUp,
-  FaRegArrowAltCircleUp,
-  FaArrowAltCircleDown,
-  FaRegArrowAltCircleDown,
-  FaMedal,
-  FaLock
+  FaLock,
+  FaFilter
 } from 'react-icons/fa';
+import {
+  ArrowUpRight,
+  BadgeDollarSign,
+  Bookmark,
+  BookOpenText,
+  CalendarClock,
+  CalendarDays,
+  ChevronDown,
+  Compass,
+  GraduationCap,
+  LibraryBig,
+  MoreVertical,
+  Search,
+  Users,
+} from 'lucide-react';
 
 import ForumCard from './ForumCard'; // Adjust path if ForumCard is located elsewhere
 import ThreadCard from './ThreadCard';
 import CommunityRequestModal from './CommunityRequestModal';
 import FloatingComposer from './FloatingComposer';
 import ModalOverlay from './ModalOverlay';
+import PageNavigator, { clampPage } from './PageNavigator';
+import buildUploadSrc from '../utils/uploads';
 import ReportModal from './ReportModal';
+import TagPicker from './TagPicker';
+import useTagOptions from '../hooks/useTagOptions';
+import { mapTagNamesToSlugs } from '../utils/tagUtils';
+import { IMAGE_LAYOUTS, normalizeImageLayout } from '../utils/imageLayout';
+import { FORUM_TITLE_MAX_LENGTH } from '../utils/contentLimits';
+import { isSuperAdmin } from '../constants/roles';
+import { useLanguage } from '../i18n/LanguageContext';
 import './LockedFeature.css';
 import './CreationModal.css';
+import './HomeDashboard.css';
+import './InfoKnowledgeBases.css';
 
 const ALL_TOPICS_VALUE = 'all';
-const BASE_TOPIC_OPTIONS = [
-  { value: 'admissions', label: 'Admissions' },
-  { value: 'academics', label: 'Academics' },
-  { value: 'campus-life', label: 'Campus Life' },
-];
+const COMMUNITY_KINDS = new Set(['university', 'group']);
+const COMMUNITY_SCOPES = new Set(['all', 'followed', 'unfollowed']);
+const COMMUNITY_SORTS = new Set(['popularity', 'alpha']);
+const MOBILE_FUNDING_QUERY = '(max-width: 720px)';
+
+const isMobileFundingViewport = () => (
+  typeof window !== 'undefined'
+  && typeof window.matchMedia === 'function'
+  && window.matchMedia(MOBILE_FUNDING_QUERY).matches
+);
+
+const parseCommunityPage = (value) => {
+  const rawValue = String(value ?? '');
+  if (!/^\d+$/.test(rawValue)) return 1;
+  const parsed = Number(rawValue);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+};
+
+const readCommunityUrlState = (params) => {
+  const rawKind = (params.get('kind') || '').toLowerCase();
+  const rawScope = (params.get('scope') || '').toLowerCase();
+  const rawSort = (params.get('sort') || '').toLowerCase();
+  const scope = COMMUNITY_SCOPES.has(rawScope) ? rawScope : 'all';
+
+  return {
+    kind: COMMUNITY_KINDS.has(rawKind) ? rawKind : 'university',
+    scope,
+    filter: scope === 'all' ? 'All' : scope.charAt(0).toUpperCase() + scope.slice(1),
+    sort: COMMUNITY_SORTS.has(rawSort) ? rawSort : 'popularity',
+    query: params.get('query') ?? '',
+    page: parseCommunityPage(params.get('page')),
+  };
+};
 
 const normalizeTopicValue = (value) => {
   if (!value) return '';
@@ -53,6 +102,7 @@ const extractForumTopicsFromForum = (forum) => {
   const candidates = [forum.topics, forum.topic, forum.category, forum.categories, forum.tags];
   const collected = [];
 
+
   candidates.forEach((candidate) => {
     if (Array.isArray(candidate)) {
       candidate.forEach((item) => {
@@ -73,26 +123,78 @@ const extractForumTopicsFromForum = (forum) => {
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
-function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAuth }) {
+const formatSavedAt = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
+const summarizeContent = (value = '', maxLength = 200) => {
+  const plain = stripHtml(value);
+  if (!plain) return '';
+  if (plain.length <= maxLength) return plain;
+  return `${plain.slice(0, maxLength).trim()}...`;
+};
+
+const summarizeWithEllipsis = (value = '', maxLength = 200) => {
+  const summary = summarizeContent(value, maxLength);
+  if (!summary) return '';
+  return summary.endsWith('...') ? summary : `${summary}...`;
+};
+
+const SAVED_CARD_MAX_CHARS = 50;
+
+const normalizeDisplayId = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/^["']+|["']+$/g, '')
+    .replace(/^#/, '');
+
+function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterests = [], onRequireAuth }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { language, locale, t } = useLanguage();
+  const { tags: tagOptions } = useTagOptions();
+  const initialCommunityUrlStateRef = useRef(null);
+  if (initialCommunityUrlStateRef.current === null) {
+    initialCommunityUrlStateRef.current = readCommunityUrlState(searchParams);
+  }
+  const initialCommunityUrlState = initialCommunityUrlStateRef.current;
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted", "mostRecent"
   const [selectedTopics, setSelectedTopics] = useState([ALL_TOPICS_VALUE]);
   const [isTopicDropdownOpen, setIsTopicDropdownOpen] = useState(false);
-  const [communityFilter, setCommunityFilter] = useState('All'); // Options: "All", "Followed", "Unfollowed"
-  const [selectedCommunityTab, setSelectedCommunityTab] = useState("university");
-  const [communitySort, setCommunitySort] = useState('popularity'); // 'popularity' | 'alpha'
+  const [communityFilter, setCommunityFilter] = useState(initialCommunityUrlState.filter); // Options: "All", "Followed", "Unfollowed"
+  const [selectedCommunityTab, setSelectedCommunityTab] = useState(initialCommunityUrlState.kind);
+  const [communitySort, setCommunitySort] = useState(initialCommunityUrlState.sort); // 'popularity' | 'alpha'
+  const [showCommunityFilters, setShowCommunityFilters] = useState(false);
   const [feedSort, setFeedSort] = useState('recent'); // 'recent' | 'trending'
+  const [showHomeFilters, setShowHomeFilters] = useState(false);
 
   const [followedCommunities, setFollowedCommunities] = useState([]);
-  const [isLoadingFollowed, setIsLoadingFollowed] = useState(false);
-
   const [allCommunities, setAllCommunities] = useState([]);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialCommunityUrlState.page);
   const [totalPages, setTotalPages] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [totalCommunityCount, setTotalCommunityCount] = useState(0);
+  const [searchTerm, setSearchTerm] = useState(initialCommunityUrlState.query);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialCommunityUrlState.query);
+  const communityRequestIdRef = useRef(0);
+  const communityViewStateRef = useRef(null);
+  communityViewStateRef.current = {
+    kind: selectedCommunityTab,
+    filter: communityFilter,
+    sort: communitySort,
+    query: searchTerm,
+    page: currentPage,
+  };
 
   const [forums, setForums] = useState([]);
   const [isLoadingForums, setIsLoadingForums] = useState(false);
@@ -100,17 +202,66 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   const [showCreateForumModal, setShowCreateForumModal] = useState(false);
   const [newForumName, setNewForumName] = useState('');
   const [newForumDescription, setNewForumDescription] = useState('');
+  const [newForumTags, setNewForumTags] = useState([]);
+  const [newForumBannerFile, setNewForumBannerFile] = useState(null);
+  const [newForumBannerPreview, setNewForumBannerPreview] = useState('');
+  const [newForumImageLayout, setNewForumImageLayout] = useState('banner');
   const [isCreatingForum, setIsCreatingForum] = useState(false);
 
   const [editForumId, setEditForumId] = useState(null);
   const [editForumName, setEditForumName] = useState('');
   const [editForumDescription, setEditForumDescription] = useState('');
+  const [editForumTags, setEditForumTags] = useState([]);
+  const [editForumBannerFile, setEditForumBannerFile] = useState(null);
+  const [editForumBannerPreview, setEditForumBannerPreview] = useState('');
+  const [editForumImageLayout, setEditForumImageLayout] = useState('banner');
   const [isEditingForum, setIsEditingForum] = useState(false);
 
   const [notification, setNotification] = useState(null);
-  const [showFundingModal, setShowFundingModal] = useState(false);
   const [reportTarget, setReportTarget] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  useEffect(() => {
+    if (!notification) return undefined;
+    const timeoutId = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notification]);
+
+  useEffect(() => {
+    if (!newForumBannerFile) {
+      setNewForumBannerPreview('');
+      return undefined;
+    }
+    const previewUrl = URL.createObjectURL(newForumBannerFile);
+    setNewForumBannerPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [newForumBannerFile]);
+
+  useEffect(() => {
+    if (!editForumBannerFile) return undefined;
+    const previewUrl = URL.createObjectURL(editForumBannerFile);
+    setEditForumBannerPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [editForumBannerFile]);
+
+  const notificationNode = notification ? (
+    <div className={`notification ${notification.type}`}>
+      {notification.message}
+      <button
+        className="notification-close"
+        onClick={() => setNotification(null)}
+      >
+        X
+      </button>
+    </div>
+  ) : null;
+
+  const withNotification = (content) => (
+    <>
+      {content}
+      {notificationNode}
+    </>
+  );
 
   // For 3-dot menu
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -139,24 +290,184 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   const [savedForums, setSavedForums] = useState([]);
   const [savedThreads, setSavedThreads] = useState([]);
   const [savedPosts, setSavedPosts] = useState([]);
+  const [savedSearch, setSavedSearch] = useState('');
+  const [openSavedMenu, setOpenSavedMenu] = useState(null);
+  const [infoKnowledgeBaseNodes, setInfoKnowledgeBaseNodes] = useState([]);
+  const [isLoadingInfoKnowledgeBase, setIsLoadingInfoKnowledgeBase] = useState(true);
+  const [hasLoadedInfoKnowledgeBase, setHasLoadedInfoKnowledgeBase] = useState(false);
+  const [infoKnowledgeBaseError, setInfoKnowledgeBaseError] = useState('');
+  const [fundingArticleGroups, setFundingArticleGroups] = useState([]);
+  const [fundingArticleCount, setFundingArticleCount] = useState(0);
+  const [isLoadingFundingArticles, setIsLoadingFundingArticles] = useState(false);
+  const [fundingArticlesError, setFundingArticlesError] = useState('');
+  const [fundingArticleSearch, setFundingArticleSearch] = useState('');
+  const [fundingGroupExpansion, setFundingGroupExpansion] = useState({});
+  const [isMobileFundingLayout, setIsMobileFundingLayout] = useState(isMobileFundingViewport);
   // Track which saved tab is active
   const [savedTab, setSavedTab] = useState('forums'); // 'forums' | 'threads' | 'posts'
-
   const [feedThreads, setFeedThreads] = useState([]);
+  const [feedForums, setFeedForums] = useState([]);
+  const [yourFeedView, setYourFeedView] = useState('forums'); // 'forums' | 'threads'
+  const [exploreView, setExploreView] = useState('forums'); // 'forums' | 'threads'
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
+  const [exploreTags, setExploreTags] = useState([]);
+  const [exploreForums, setExploreForums] = useState([]);
+  const [exploreThreads, setExploreThreads] = useState([]);
+  const [isLoadingExplore, setIsLoadingExplore] = useState(false);
+  const [isExploreDropdownOpen, setIsExploreDropdownOpen] = useState(false);
   const topicDropdownRef = useRef(null);
-  const isSuperAdmin = userData?.role_id === 1;
+  const exploreDropdownRef = useRef(null);
+  const feedSegmentRef = useRef(null);
+  const feedContentRef = useRef(null);
+  const exploreContentRef = useRef(null);
+  const communityTypeRef = useRef(null);
+  const communityFilterRef = useRef(null);
+  const homeReadingRoomRef = useRef(null);
+  const savedSegmentRef = useRef(null);
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const INFO_COMMUNITY_ID = 'c57b7fd6c45b9d57b';
+
+  useEffect(() => {
+    if (!openSavedMenu) return undefined;
+    const handlePointerDown = (event) => {
+      if (!event.target.closest('.saved-card__menu')) {
+        setOpenSavedMenu(null);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [openSavedMenu]);
+
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  }, [searchParams]);
+
+  const skipUrlSyncRef = useRef(false);
+
+  const safeSetSearchParams = useCallback(
+    (nextParams, options) => {
+      try {
+        const normalizedNextParams = new URLSearchParams(nextParams);
+        const nextString = normalizedNextParams.toString();
+        const currentString = searchParamsRef.current.toString();
+        if (nextString === currentString) return;
+        // Keep same-tick updates from cloning a stale URL snapshot while the
+        // router is still committing the previous navigation.
+        searchParamsRef.current = normalizedNextParams;
+        setSearchParams(normalizedNextParams, options);
+      } catch (err) {
+        console.error('Error updating URL params:', err);
+      }
+    },
+    [setSearchParams]
+  );
 
   useEffect(() => {
     console.log("Active Section:", activeSection);
   }, [activeSection]);
 
+  const updateSegmentIndicator = useCallback((ref) => {
+    const container = ref?.current;
+    if (!container) return;
+    const activeChip = container.querySelector('.chip.active');
+    if (!activeChip) return;
+    const containerRect = container.getBoundingClientRect();
+    const chipRect = activeChip.getBoundingClientRect();
+    const left = Math.max(chipRect.left - containerRect.left, 0);
+    const width = chipRect.width;
+    container.style.setProperty('--seg-left', `${left}px`);
+    container.style.setProperty('--seg-width', `${width}px`);
+  }, []);
+
+  const scheduleSegmentUpdate = useCallback((ref) => {
+    const run = () => updateSegmentIndicator(ref);
+    const raf1 = requestAnimationFrame(run);
+    const raf2 = requestAnimationFrame(run);
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [updateSegmentIndicator]);
+
   useEffect(() => {
-    if (activeSection === 'funding') {
-      setShowFundingModal(true);
+    return scheduleSegmentUpdate(feedSegmentRef);
+  }, [activeFeed, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    if (activeSection !== 'home') return undefined;
+    if (activeFeed === 'yourFeed') {
+      return scheduleSegmentUpdate(feedContentRef);
     }
-  }, [activeSection]);
+    if (activeFeed === 'explore') {
+      return scheduleSegmentUpdate(exploreContentRef);
+    }
+    return undefined;
+  }, [activeSection, activeFeed, yourFeedView, exploreView, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate(communityTypeRef);
+  }, [selectedCommunityTab, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate(communityFilterRef);
+  }, [communityFilter, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate(savedSegmentRef);
+  }, [savedTab, savedForums.length, savedThreads.length, savedPosts.length, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    return scheduleSegmentUpdate(feedSegmentRef);
+  }, [activeSection, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    if (activeSection === 'communities') {
+      const cleanupType = scheduleSegmentUpdate(communityTypeRef);
+      const cleanupFilter = scheduleSegmentUpdate(communityFilterRef);
+      return () => {
+        if (cleanupType) cleanupType();
+        if (cleanupFilter) cleanupFilter();
+      };
+    }
+    if (activeSection === 'saved') {
+      return scheduleSegmentUpdate(savedSegmentRef);
+    }
+  }, [activeSection, showCommunityFilters, scheduleSegmentUpdate]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      updateSegmentIndicator(feedSegmentRef);
+      updateSegmentIndicator(feedContentRef);
+      updateSegmentIndicator(exploreContentRef);
+      updateSegmentIndicator(communityTypeRef);
+      updateSegmentIndicator(communityFilterRef);
+      updateSegmentIndicator(savedSegmentRef);
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateSegmentIndicator]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(MOBILE_FUNDING_QUERY);
+    const handleFundingLayoutChange = (event) => {
+      setIsMobileFundingLayout(event.matches);
+    };
+
+    setIsMobileFundingLayout(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleFundingLayoutChange);
+      return () => mediaQuery.removeEventListener('change', handleFundingLayoutChange);
+    }
+
+    mediaQuery.addListener(handleFundingLayoutChange);
+    return () => mediaQuery.removeListener(handleFundingLayoutChange);
+  }, []);
 
   useEffect(() => {
     if (userData) {
@@ -169,18 +480,11 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   useEffect(() => {
     if (showRequestModal && userData) {
       fetchAdminCommunities();
-      if (userData.role_id === 1) {
+      if (isSuperAdminUser) {
         fetchAllCommunitiesSimple();
       }
     }
   }, [showRequestModal, userData]);
-
-  const handleDismissFundingModal = () => setShowFundingModal(false);
-
-  const handleFundingNavigateHome = () => {
-    setShowFundingModal(false);
-    navigate('/home');
-  };
 
   const handleOpenReport = (target) => {
     if (!userData) {
@@ -276,22 +580,59 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
         .then((response) => {
           if (response.data.success) {
             setFeedThreads(response.data.threads);
+            setFeedForums(response.data.forums || []);
           } else {
             console.error("Error fetching feed:", response.data.error);
+            setFeedForums([]);
           }
         })
         .catch((error) => {
           console.error("Error fetching feed:", error);
+          setFeedForums([]);
         })
         .finally(() => {
           setIsLoadingFeed(false);
         });
     }
   };
+  const hasInterests = Array.isArray(userInterests) && userInterests.length > 0;
   useEffect(() => {
     fetchFeedThreads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feedSort]);
+
+  const fetchExplore = () => {
+    if (activeSection !== 'home' || activeFeed !== 'explore') return;
+    setIsLoadingExplore(true);
+    const params = new URLSearchParams();
+    if (exploreTags.length) {
+      params.set('tags', exploreTags.join(','));
+    }
+    axios
+      .get(`/api/fetch_explore.php?${params.toString()}`)
+      .then((resp) => {
+        if (resp.data.success) {
+          setExploreForums(resp.data.forums || []);
+          setExploreThreads(resp.data.threads || []);
+        } else {
+          setExploreForums([]);
+          setExploreThreads([]);
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching explore data:', error);
+        setExploreForums([]);
+        setExploreThreads([]);
+      })
+      .finally(() => {
+        setIsLoadingExplore(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchExplore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, activeFeed, exploreTags]);
 
   // ------------- SAVED ITEMS -------------
   const fetchSavedForums = async () => {
@@ -355,7 +696,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
       type: selectedCommunityTab === 'group' ? 'group' : 'university',
       parent_community_id: ''
     }));
-    if (userData.role_id === 1 && allCommunitiesSimple.length === 0) {
+    if (isSuperAdminUser && allCommunitiesSimple.length === 0) {
       fetchAllCommunitiesSimple();
     }
     setShowRequestModal(true);
@@ -377,21 +718,66 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
       if (resp.data.success) {
         // Re-fetch saved forums so the UI updates
         await fetchSavedForums();
-        alert(isAlreadySaved ? 'Forum unsaved!' : 'Forum saved!');
+        setNotification({ type: 'success', message: isAlreadySaved ? 'Forum unsaved!' : 'Forum saved!' });
       } else {
-        alert('Error: ' + (resp.data.error || 'Unknown error.'));
+        setNotification({ type: 'error', message: resp.data.error || 'Unknown error.' });
       }
     } catch (error) {
       console.error('Error saving/unsaving forum:', error);
-      alert('An error occurred while saving/unsaving the forum.');
+      setNotification({ type: 'error', message: 'An error occurred while saving/unsaving the forum.' });
     }
     setOpenMenuId(null);
+  };
+
+  const handleUnsaveThread = async (threadId) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    try {
+      const resp = await axios.post(
+        '/api/unsave_thread.php',
+        { user_id: userData.user_id, thread_id: threadId },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        await fetchSavedThreads();
+        setNotification({ type: 'success', message: 'Thread unsaved!' });
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Unable to unsave thread.' });
+      }
+    } catch (error) {
+      console.error('Error unsaving thread:', error);
+      setNotification({ type: 'error', message: 'An error occurred while unsaving the thread.' });
+    }
+  };
+
+  const handleUnsavePost = async (postId) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    try {
+      const resp = await axios.post(
+        '/api/unsave_post.php',
+        { user_id: userData.user_id, post_id: postId },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        await fetchSavedPosts();
+        setNotification({ type: 'success', message: 'Comment unsaved!' });
+      } else {
+        setNotification({ type: 'error', message: resp.data.error || 'Unable to unsave comment.' });
+      }
+    } catch (error) {
+      console.error('Error unsaving post:', error);
+      setNotification({ type: 'error', message: 'An error occurred while unsaving the comment.' });
+    }
   };
 
   // ------------- COMMUNITIES -------------
   const fetchFollowedCommunities = async () => {
     if (!userData) return;
-    setIsLoadingFollowed(true);
     try {
       const response = await axios.get(
         `/api/followed_communities.php?user_id=${userData.user_id}`
@@ -400,8 +786,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     } catch (error) {
       console.error('Error fetching followed communities:', error);
       setFollowedCommunities([]);
-    } finally {
-      setIsLoadingFollowed(false);
     }
   };
 
@@ -443,7 +827,9 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     }
   };
 
-  const fetchAllCommunitiesData = async (page = 1, term = '') => {
+  const fetchAllCommunitiesData = useCallback(async (page = 1, term = '') => {
+    const requestId = communityRequestIdRef.current + 1;
+    communityRequestIdRef.current = requestId;
     setIsLoadingAll(true);
     try {
       // Decide the endpoint by selectedCommunityTab
@@ -451,24 +837,54 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
         selectedCommunityTab === "university"
           ? "/api/fetch_all_university_data.php"
           : "/api/fetch_all_group_data.php";
+      const scopeValue =
+        communityFilter === 'Followed'
+          ? 'followed'
+          : communityFilter === 'Unfollowed'
+            ? 'unfollowed'
+            : 'all';
       const params = new URLSearchParams();
       params.append('page', String(page));
       params.append('search', term);
+      params.append('scope', scopeValue);
+      params.append('sort', communitySort || 'popularity');
       if (userData?.user_id) {
         params.append('user_id', String(userData.user_id));
       }
       const response = await axios.get(`${endpoint}?${params.toString()}`);
-      const communities = response.data.communities;
-      setAllCommunities(Array.isArray(communities) ? communities : []);
-      setTotalPages(response.data.total_pages || 1);
+      if (requestId !== communityRequestIdRef.current) return;
+
+      const communities = Array.isArray(response.data.communities) ? response.data.communities : [];
+      const parsedTotal = Number(response.data.total_count);
+      const nextTotal = Number.isFinite(parsedTotal) && parsedTotal >= 0
+        ? parsedTotal
+        : communities.length;
+      const nextTotalPages = Math.max(1, Number(response.data.total_pages) || 1);
+
+      setTotalCommunityCount(nextTotal);
+      setTotalPages(nextTotalPages);
+
+      if (page > nextTotalPages) {
+        setAllCommunities([]);
+        const correctedParams = new URLSearchParams(searchParamsRef.current);
+        correctedParams.set('page', String(nextTotalPages));
+        safeSetSearchParams(correctedParams, { replace: true });
+        return;
+      }
+
+      setAllCommunities(communities);
     } catch (error) {
+      if (requestId !== communityRequestIdRef.current) return;
       console.error('Error fetching all communities:', error);
       setAllCommunities([]);
+      setTotalCommunityCount(0);
       setTotalPages(1);
     } finally {
-      setIsLoadingAll(false);
+      if (requestId === communityRequestIdRef.current) {
+        setIsLoadingAll(false);
+      }
     }
-  };
+  }, [selectedCommunityTab, communityFilter, communitySort, userData?.user_id, safeSetSearchParams]);
 
   // ------------- FORUMS -------------
   const fetchForums = async (communityId) => {
@@ -476,6 +892,9 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     try {
       const params = new URLSearchParams();
       params.append('community_id', String(communityId));
+      if (String(communityId) === INFO_COMMUNITY_ID) {
+        params.append('lang', language);
+      }
       if (userData?.user_id) {
         params.append('user_id', String(userData.user_id));
       }
@@ -494,6 +913,46 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
       setIsLoadingForums(false);
     }
   };
+
+  const fetchInfoKnowledgeBase = async () => {
+    setIsLoadingInfoKnowledgeBase(true);
+    setInfoKnowledgeBaseError('');
+    try {
+      const params = new URLSearchParams({ community_id: INFO_COMMUNITY_ID, lang: language });
+      const resp = await axios.get(`/api/fetch_knowledge_base_nodes.php?${params.toString()}`);
+      setInfoKnowledgeBaseNodes(resp.data.success && Array.isArray(resp.data.nodes)
+        ? resp.data.nodes
+        : []);
+    } catch (error) {
+      console.error('Error fetching Info Board knowledge base:', error);
+      setInfoKnowledgeBaseNodes([]);
+      setInfoKnowledgeBaseError('Unable to load the Information Board knowledge base.');
+    } finally {
+      setIsLoadingInfoKnowledgeBase(false);
+      setHasLoadedInfoKnowledgeBase(true);
+    }
+  };
+
+  const fetchFundingArticles = useCallback(async () => {
+    setIsLoadingFundingArticles(true);
+    setFundingArticlesError('');
+    try {
+      const params = new URLSearchParams({ lang: language });
+      const resp = await axios.get(`/api/fetch_funding_articles.php?${params.toString()}`);
+      const groups = resp.data.success && Array.isArray(resp.data.groups)
+        ? resp.data.groups
+        : [];
+      setFundingArticleGroups(groups);
+      setFundingArticleCount(Number(resp.data.article_count) || 0);
+    } catch (error) {
+      console.error('Error fetching funding articles:', error);
+      setFundingArticleGroups([]);
+      setFundingArticleCount(0);
+      setFundingArticlesError('Unable to load the funding guides right now.');
+    } finally {
+      setIsLoadingFundingArticles(false);
+    }
+  }, [language]);
 
   // Sorting helper for forums
   const sortItems = (items, criteria) => {
@@ -518,7 +977,12 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
 
   const topicOptions = useMemo(
     () => {
-      const optionMap = new Map(BASE_TOPIC_OPTIONS.map((opt) => [opt.value, opt.label]));
+      const optionMap = new Map(
+        (tagOptions || []).map((opt) => [
+          normalizeTopicValue(opt.slug || opt.name),
+          opt.name
+        ])
+      );
 
       forums.forEach((forum) => {
         const forumTopics = extractForumTopicsFromForum(forum);
@@ -531,11 +995,11 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
 
       return Array.from(optionMap, ([value, label]) => ({ value, label }));
     },
-    [forums]
+    [forums, tagOptions]
   );
 
   const topicOptionsWithAll = useMemo(
-    () => [{ value: ALL_TOPICS_VALUE, label: 'All topics' }, ...topicOptions],
+    () => [{ value: ALL_TOPICS_VALUE, label: 'All tags' }, ...topicOptions],
     [topicOptions]
   );
 
@@ -564,7 +1028,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     }
 
     setSelectedTopics(normalized);
-    setSearchParams(params);
+    safeSetSearchParams(params);
   };
 
   const handleTopicToggle = (value) => {
@@ -586,6 +1050,30 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     if (!selectedTopics.length) return;
     updateTopicSelection([ALL_TOPICS_VALUE]);
   };
+
+  const clearExploreTags = () => {
+    setExploreTags([]);
+  };
+
+  // tag click handlers removed; tags are display-only
+
+  const exploreTagOptions = useMemo(
+    () => (tagOptions || [])
+      .map((opt) => ({ value: opt.slug, label: opt.name }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
+    [tagOptions]
+  );
+
+  const exploreSelectedLabels = useMemo(() => {
+    if (!exploreTags.length) return t('home.allTags');
+    if (exploreTags.length > 1) {
+      return `${exploreTags.length} ${t('home.tags').toLocaleLowerCase(locale)}`;
+    }
+    const labels = exploreTags.map(
+      (slug) => exploreTagOptions.find((opt) => opt.value === slug)?.label || slug
+    );
+    return labels.join(', ');
+  }, [exploreTags, exploreTagOptions, locale, t]);
 
   // Forum upvote/downvote
   const handleVoteClick = async (forumId, voteType) => {
@@ -619,21 +1107,15 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   const handleDownvoteClick = (forumId) => handleVoteClick(forumId, "down");
 
   // ------------- INITIAL HOOKS -------------
-  // When the user goes to "communities"
   useEffect(() => {
-    if (activeSection === 'communities' && userData) {
+    if ((activeSection === 'home' || activeSection === 'communities') && userData) {
       fetchFollowedCommunities();
     }
-    if (activeSection === 'communities') {
-      fetchAllCommunitiesData(1, '');
-      setCurrentPage(1);
-      setSearchTerm('');
-    }
     if (activeSection === 'info') {
-      // Fetch forums for the info board community
-      fetchForums(INFO_COMMUNITY_ID);
-      // Also fetch saved forums so we know what's saved
-      fetchSavedForums();
+      fetchInfoKnowledgeBase();
+    }
+    if (activeSection === 'funding') {
+      fetchFundingArticles();
     }
     if (activeSection === 'saved' && userData) {
       fetchSavedForums();
@@ -641,44 +1123,62 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
       fetchSavedPosts();
       setSavedTab('forums');
     }
-  }, [activeSection, userData, selectedCommunityTab]);
+  }, [activeSection, userData, language, fetchFundingArticles]);
 
-  // Searching communities (debounce approach)
+  // Debounce only typed searches. URL-driven query changes (refresh or
+  // Back/Forward) update both values below and can load immediately.
   useEffect(() => {
-    const debounce = setTimeout(() => {
-      if (activeSection === 'communities') {
-        fetchAllCommunitiesData(1, searchTerm);
-        setCurrentPage(1);
-      }
-    }, 300);
-    return () => clearTimeout(debounce);
-  }, [searchTerm, activeSection, selectedCommunityTab]);
+    if (activeSection !== 'communities' || searchTerm === debouncedSearchTerm) {
+      return undefined;
+    }
+    const debounce = window.setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => window.clearTimeout(debounce);
+  }, [activeSection, searchTerm, debouncedSearchTerm]);
 
-  // ---------------- URL SYNC (Communities only; visual state only) ----------------
-  // Initialize local UI state from URL params on mount or when URL changes
+  // ---------------- URL SYNC (Communities only) ----------------
+  // URL navigation is authoritative. This includes refreshes and browser
+  // Back/Forward, so restore the complete request tuple together.
   useEffect(() => {
     if (activeSection !== 'communities') return;
-    const kind = (searchParams.get('kind') || '').toLowerCase();
-    const scope = (searchParams.get('scope') || '').toLowerCase();
-    const query = searchParams.get('query') ?? '';
+    const nextUrlState = readCommunityUrlState(searchParams);
+    const currentViewState = communityViewStateRef.current;
 
-    if (kind === 'university' || kind === 'group') {
-      if (selectedCommunityTab !== kind) setSelectedCommunityTab(kind);
+    let didUpdate = false;
+    if (currentViewState.kind !== nextUrlState.kind) {
+      setSelectedCommunityTab(nextUrlState.kind);
+      didUpdate = true;
     }
-    if (['all', 'followed', 'unfollowed'].includes(scope)) {
-      const scopeToState = scope === 'all' ? 'All' : scope.charAt(0).toUpperCase() + scope.slice(1);
-      if (communityFilter !== scopeToState) setCommunityFilter(scopeToState);
+    if (currentViewState.filter !== nextUrlState.filter) {
+      setCommunityFilter(nextUrlState.filter);
+      didUpdate = true;
     }
-    if (typeof query === 'string' && searchTerm !== query) {
-      setSearchTerm(query);
+    if (currentViewState.sort !== nextUrlState.sort) {
+      setCommunitySort(nextUrlState.sort);
+      didUpdate = true;
     }
-    // We intentionally do not trigger backend calls here. Existing effects handle fetching.
+    if (currentViewState.query !== nextUrlState.query) {
+      setSearchTerm(nextUrlState.query);
+      setDebouncedSearchTerm(nextUrlState.query);
+      didUpdate = true;
+    }
+    if (currentViewState.page !== nextUrlState.page) {
+      setCurrentPage(nextUrlState.page);
+      didUpdate = true;
+    }
+    if (didUpdate) {
+      skipUrlSyncRef.current = true;
+    }
   }, [activeSection, searchParams]);
 
-  // Push UI state to URL params when it changes (no backend calls triggered by this directly)
+  // Local filter/search changes replace the current history entry. Explicit
+  // page navigation uses a push in handleCommunityPageChange below.
   useEffect(() => {
     if (activeSection !== 'communities') return;
-    const params = new URLSearchParams(searchParams);
+    if (skipUrlSyncRef.current) {
+      skipUrlSyncRef.current = false;
+      return;
+    }
+    const params = new URLSearchParams(searchParamsRef.current);
 
     let changed = false;
     const kindParam = selectedCommunityTab; // 'university' | 'group'
@@ -687,6 +1187,9 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     const scopeParam = (communityFilter || 'All').toLowerCase(); // 'all' | 'followed' | 'unfollowed'
     if ((params.get('scope') || '') !== scopeParam) { params.set('scope', scopeParam); changed = true; }
 
+    const sortParam = COMMUNITY_SORTS.has(communitySort) ? communitySort : 'popularity';
+    if ((params.get('sort') || '') !== sortParam) { params.set('sort', sortParam); changed = true; }
+
     const queryParam = searchTerm || '';
     const existingQuery = params.get('query') || '';
     if (existingQuery !== queryParam) {
@@ -694,8 +1197,57 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
       changed = true;
     }
 
-    if (changed) setSearchParams(params, { replace: true });
-  }, [selectedCommunityTab, communityFilter, searchTerm, activeSection]);
+    const pageParam = String(parseCommunityPage(currentPage));
+    if ((params.get('page') || '') !== pageParam) { params.set('page', pageParam); changed = true; }
+
+    if (changed) safeSetSearchParams(params, { replace: true });
+  }, [selectedCommunityTab, communityFilter, communitySort, searchTerm, currentPage, activeSection, safeSetSearchParams]);
+
+  // A single effect owns normal community-list requests. Waiting until URL
+  // and local state agree prevents a refresh or history navigation from
+  // issuing an intermediate request with stale filters or page 1.
+  useEffect(() => {
+    // Invalidate any response belonging to the previous request tuple now,
+    // including during the search debounce window.
+    communityRequestIdRef.current += 1;
+
+    if (activeSection !== 'communities' || searchTerm !== debouncedSearchTerm) {
+      return undefined;
+    }
+
+    const urlState = readCommunityUrlState(searchParams);
+    const stateScope = (communityFilter || 'All').toLowerCase();
+    const urlMatchesState =
+      urlState.kind === selectedCommunityTab
+      && urlState.scope === stateScope
+      && urlState.sort === communitySort
+      && urlState.query === searchTerm
+      && urlState.page === currentPage;
+
+    if (!urlMatchesState) return undefined;
+
+    // Scheduling the request lets the StrictMode effect cleanup cancel its
+    // development-only first pass instead of sending the same request twice.
+    const requestTimer = window.setTimeout(() => {
+      fetchAllCommunitiesData(currentPage, debouncedSearchTerm);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(requestTimer);
+      communityRequestIdRef.current += 1;
+    };
+  }, [
+    activeSection,
+    searchParams,
+    selectedCommunityTab,
+    communityFilter,
+    communitySort,
+    currentPage,
+    searchTerm,
+    debouncedSearchTerm,
+    userData?.user_id,
+    fetchAllCommunitiesData,
+  ]);
 
   // Sync topic filter from URL when on Info board
   useEffect(() => {
@@ -743,20 +1295,54 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     };
   }, [isTopicDropdownOpen]);
 
-  // Pagination controls
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      const newPage = currentPage + 1;
-      setCurrentPage(newPage);
-      fetchAllCommunitiesData(newPage, searchTerm);
-    }
+  // Close explore dropdown when clicking outside
+  useEffect(() => {
+    if (!isExploreDropdownOpen) return undefined;
+    const handleClickOutside = (event) => {
+      if (exploreDropdownRef.current && !exploreDropdownRef.current.contains(event.target)) {
+        setIsExploreDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isExploreDropdownOpen]);
+
+  const handleCommunitySearchChange = (value) => {
+    if (value === searchTerm) return;
+    setSearchTerm(value);
+    setCurrentPage(1);
   };
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      const newPage = currentPage - 1;
-      setCurrentPage(newPage);
-      fetchAllCommunitiesData(newPage, searchTerm);
-    }
+
+  const handleCommunityTabChange = (nextTab) => {
+    if (nextTab === selectedCommunityTab) return;
+    setSelectedCommunityTab(nextTab);
+    setCurrentPage(1);
+  };
+
+  const handleCommunityFilterChange = (nextFilter) => {
+    if (nextFilter === communityFilter) return;
+    setCommunityFilter(nextFilter);
+    setCurrentPage(1);
+  };
+
+  const handleCommunitySortChange = (nextSort) => {
+    if (nextSort === communitySort) return;
+    setCommunitySort(nextSort);
+    setCurrentPage(1);
+  };
+
+  // Page jumps get their own history entries. URL hydration and the sole
+  // request effect above take care of updating state and loading the page.
+  const handleCommunityPageChange = (requestedPage) => {
+    const nextPage = clampPage(requestedPage, totalPages, currentPage);
+    if (isLoadingAll || nextPage === currentPage) return;
+    const params = new URLSearchParams(searchParamsRef.current);
+    params.set('page', String(nextPage));
+    safeSetSearchParams(params);
   };
 
   // Follow/unfollow community
@@ -782,7 +1368,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   // ------------- CREATE FORUM -------------
   const handleCreateForumSubmit = async (e) => {
     e.preventDefault();
-    if (!isSuperAdmin) {
+    if (!isSuperAdminUser) {
       setNotification({ type: 'error', message: 'Only super admins can create forums.' });
       return;
     }
@@ -790,14 +1376,23 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     // Info board community id (fixed)
     const infoCommunityId = 'c57b7fd6c45b9d57b';
     try {
-      const resp = await axios.post('/api/create_forum.php', {
-        community_id: infoCommunityId,
-        name: newForumName,
-        description: newForumDescription
-      });
+      const payload = new FormData();
+      payload.append('community_id', infoCommunityId);
+      payload.append('name', newForumName);
+      payload.append('description', newForumDescription);
+      payload.append('tags', JSON.stringify(newForumTags));
+      payload.append('image_layout', newForumImageLayout);
+      if (newForumBannerFile) {
+        payload.append('banner', newForumBannerFile);
+      }
+      const resp = await axios.post('/api/create_forum.php', payload);
       if (resp.data.success) {
         setNewForumName('');
         setNewForumDescription('');
+        setNewForumTags([]);
+        setNewForumBannerFile(null);
+        setNewForumBannerPreview('');
+        setNewForumImageLayout('banner');
         setShowCreateForumModal(false);
         fetchForums(infoCommunityId);
         setNotification({ type: 'success', message: 'Forum created successfully!' });
@@ -816,14 +1411,22 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     setShowCreateForumModal(false);
     setNewForumName('');
     setNewForumDescription('');
+    setNewForumTags([]);
+    setNewForumBannerFile(null);
+    setNewForumBannerPreview('');
+    setNewForumImageLayout('banner');
     setIsCreatingForum(false);
   };
 
   // ------------- EDIT FORUM -------------
   const startEditingForum = (forum) => {
     setEditForumId(forum.forum_id);
-    setEditForumName(forum.name);
-    setEditForumDescription(forum.description || '');
+    setEditForumName(forum.original_name ?? forum.name ?? '');
+    setEditForumDescription(forum.original_description ?? forum.description ?? '');
+    setEditForumTags(mapTagNamesToSlugs(forum.tags || [], tagOptions));
+    setEditForumBannerFile(null);
+    setEditForumBannerPreview(buildUploadSrc(forum.banner_path || '/uploads/banners/DefaultBanner.jpeg'));
+    setEditForumImageLayout(normalizeImageLayout(forum.image_layout));
     setIsEditingForum(true);
   };
 
@@ -831,17 +1434,26 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     setEditForumId(null);
     setEditForumName('');
     setEditForumDescription('');
+    setEditForumTags([]);
+    setEditForumBannerFile(null);
+    setEditForumBannerPreview('');
+    setEditForumImageLayout('banner');
     setIsEditingForum(false);
   };
 
   const handleEditForumSubmit = async (e) => {
     e.preventDefault();
     try {
-      const resp = await axios.post('/api/edit_forum.php', {
-        forum_id: editForumId,
-        name: editForumName,
-        description: editForumDescription
-      });
+      const payload = new FormData();
+      payload.append('forum_id', editForumId);
+      payload.append('name', editForumName);
+      payload.append('description', editForumDescription);
+      payload.append('tags', JSON.stringify(editForumTags));
+      payload.append('image_layout', editForumImageLayout);
+      if (editForumBannerFile) {
+        payload.append('banner', editForumBannerFile);
+      }
+      const resp = await axios.post('/api/edit_forum.php', payload);
       if (resp.data.success) {
         fetchForums(INFO_COMMUNITY_ID);
         setNotification({ type: 'success', message: 'Forum updated successfully.' });
@@ -895,7 +1507,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
 
     setIsSubmittingRequest(true);
     try {
-      const endpoint = isSuperAdmin ? '/api/create_community.php' : '/api/request_community.php';
+      const endpoint = isSuperAdminUser ? '/api/create_community.php' : '/api/request_community.php';
       const payload = {
         ...requestData,
         type: isSubCommunity ? 'sub_community' : requestData.type,
@@ -980,16 +1592,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
         return !isCommunityFollowed(community);
       }
       return true;
-    })
-    .sort((a, b) => {
-      const sortMode = communitySort || 'popularity';
-      if (sortMode === 'alpha') {
-        return a.name.localeCompare(b.name);
-      }
-      // popularity / fallback: sort by followers descending
-      const aFollowers = Number(a.followers_count || 0);
-      const bFollowers = Number(b.followers_count || 0);
-      return bFollowers - aFollowers;
     });
 
   // Clear filters helper (for empty state action)
@@ -1016,168 +1618,615 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
     if (!tab) {
       const params = new URLSearchParams(searchParams);
       params.set('tab', userData ? 'feed' : 'explore');
-      setSearchParams(params, { replace: true });
+      safeSetSearchParams(params, { replace: true });
     }
-  }, [activeSection, searchParams, activeFeed, setActiveFeed, setSearchParams]);
+  }, [activeSection, searchParams, activeFeed, setActiveFeed, safeSetSearchParams]);
+
+  const hasFeedForums = feedForums.length > 0;
+  const hasFeedThreads = feedThreads.length > 0;
+  const isFeedEmpty = !hasFeedForums && !hasFeedThreads;
+  const isFeedSelectionEmpty = yourFeedView === 'forums' ? !hasFeedForums : !hasFeedThreads;
+
+  const hasExploreForums = exploreForums.length > 0;
+  const hasExploreThreads = exploreThreads.length > 0;
+  const isExploreEmpty = !hasExploreForums && !hasExploreThreads;
+  const isExploreSelectionEmpty = exploreView === 'forums' ? !hasExploreForums : !hasExploreThreads;
 
   // ------------- RENDER LOGIC -------------
   // HOME SECTION
   if (activeSection === 'home') {
-    return (
-      <main>
-        {reportModal}
-        <div className="feed-container">
-          {/* Hero */}
-          <div style={{ marginBottom: '0.5rem' }}>
-            <h1 className="section-title" style={{ marginBottom: 0 }}>
-              {activeFeed === 'yourFeed' ? 'Your Feed' : 'Explore'}
-            </h1>
-          </div>
-          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
-            Welcome back, {userData?.first_name ? `${userData.first_name}` : 'there'}!
-          </p>
-          <div className="section-controls">
-            <span className="sort-pill">Feed</span>
-            <div className="chips-row">
-              <button
-                type="button"
-                className={`chip your-feed-chip ${activeFeed === 'yourFeed' ? 'active' : ''} ${!userData ? 'chip-locked' : ''}`}
-                onClick={() => {
-                  if (!userData) {
-                    onRequireAuth?.();
-                    return;
-                  }
-                  if (activeFeed !== 'yourFeed') {
-                    setActiveFeed('yourFeed');
-                  }
-                  const params = new URLSearchParams(searchParams);
-                  if (params.get('tab') !== 'feed') {
-                    params.set('tab', 'feed');
-                    setSearchParams(params);
-                  }
-                }}
-                aria-disabled={!userData}
-                title={!userData ? 'Log in to access Your Feed' : 'View Your Feed'}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  {!userData && <FaLock size={12} />}
-                  Your Feed
-                </span>
-              </button>
-              <button
-                type="button"
-                className={`chip ${activeFeed === 'explore' ? 'active' : ''}`}
-                onClick={() => {
-                  if (activeFeed !== 'explore') {
-                    setActiveFeed('explore');
-                  }
-                  const params = new URLSearchParams(searchParams);
-                  if (params.get('tab') !== 'explore') {
-                    params.set('tab', 'explore');
-                    setSearchParams(params);
-                  }
-                }}
-              >
-                Explore
-              </button>
-            </div>
-          </div>
+    const homeDateLabel = new Intl.DateTimeFormat(locale, {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    }).format(new Date());
+    const homeVisibleCount =
+      activeFeed === 'yourFeed'
+        ? (yourFeedView === 'forums' ? feedForums.length : feedThreads.length)
+        : (exploreView === 'forums' ? exploreForums.length : exploreThreads.length);
+    const homeVisibleLabel =
+      (activeFeed === 'yourFeed' ? yourFeedView : exploreView) === 'forums'
+        ? t('home.forums')
+        : t('home.threads');
+    const homeViewDescription =
+      activeFeed === 'yourFeed'
+        ? t('home.feedDescription')
+        : t('home.exploreDescription');
+    const homeResultsMotionKey =
+      activeFeed === 'yourFeed'
+        ? `feed-${yourFeedView}-${feedSort}`
+        : `explore-${exploreView}-${exploreTags.join('-') || 'all'}`;
+    const homePathways = [
+      {
+        to: '/info',
+        eyebrow: t('home.researchAnswers'),
+        title: t('nav.infoBoard'),
+        description: t('home.infoDescription'),
+        Icon: BookOpenText,
+        tone: 'info',
+      },
+      {
+        to: '/communities',
+        eyebrow: t('home.findCircle'),
+        title: t('nav.communities'),
+        description: t('home.communitiesDescription'),
+        Icon: Users,
+        tone: 'communities',
+      },
+      {
+        to: '/events-feed',
+        eyebrow: t('home.communityAgenda'),
+        title: t('nav.events'),
+        description: t('home.eventsDescription'),
+        Icon: CalendarDays,
+        tone: 'events',
+      },
+      userData
+        ? {
+            to: '/saved',
+            eyebrow: t('home.yourCollection'),
+            title: t('home.savedReading'),
+            description: t('home.savedDescription'),
+            Icon: Bookmark,
+            tone: 'saved',
+          }
+        : {
+            to: '/signup',
+            eyebrow: t('home.joinCommons'),
+            title: t('home.createProfile'),
+            description: t('home.profileDescription'),
+            Icon: LibraryBig,
+            tone: 'profile',
+          },
+    ];
+    const setHomeTab = (nextTab) => {
+      if (nextTab === 'feed' && !userData) {
+        onRequireAuth?.();
+        return;
+      }
+      const params = new URLSearchParams(searchParams);
+      if (params.get('tab') !== nextTab) {
+        params.set('tab', nextTab);
+        safeSetSearchParams(params);
+      }
+    };
 
-          {activeFeed === 'yourFeed' && userData ? (
-            <>
-              <div className="feed-controls" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px', gap: '8px' }}>
-                <label htmlFor="feed-sort" className="muted" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  Sort:
+    return withNotification(
+      <main className="home-dashboard">
+        {reportModal}
+        <section className="home-hero" aria-labelledby="home-dashboard-title">
+          <div className="home-hero-copy">
+            <p className="home-kicker">
+              <span>{t('nav.academicCommons')}</span>
+              <span aria-hidden="true">•</span>
+              {homeDateLabel}
+            </p>
+            <h1 id="home-dashboard-title">
+              {userData?.first_name
+                ? <>{t('home.welcomeBack')} <em>{userData.first_name}</em>.</>
+                : <>{t('home.thoughtfulPlaceStart')} <em>{t('home.thoughtfulPlaceEmphasis')}</em>.</>}
+            </h1>
+            <p className="home-hero-description">
+              {t('home.heroDescription')}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="home-button home-button-primary home-hero-cta"
+            onClick={() => {
+              setHomeTab('explore');
+              const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+              homeReadingRoomRef.current?.scrollIntoView({
+                behavior: prefersReducedMotion ? 'auto' : 'smooth',
+                block: 'start',
+              });
+            }}
+          >
+            <Compass size={17} aria-hidden="true" />
+            {t('home.explore')}
+            <ArrowUpRight className="home-hero-cta-arrow" size={16} aria-hidden="true" />
+          </button>
+        </section>
+
+        <nav className="home-pathways" aria-label={t('home.dashboardShortcuts')}>
+          {homePathways.map(({ to, eyebrow, title, description, Icon, tone }) => (
+            <Link
+              key={to}
+              to={to}
+              className={`home-pathway-card home-pathway-card--${tone}`}
+              data-tour={tone === 'communities' ? 'communities' : undefined}
+            >
+              <span className="home-pathway-icon" aria-hidden="true">
+                <Icon size={19} />
+              </span>
+              <span className="home-pathway-copy">
+                <small>{eyebrow}</small>
+                <strong>{title}</strong>
+                <span>{description}</span>
+              </span>
+              <ArrowUpRight className="home-pathway-arrow" size={17} aria-hidden="true" />
+            </Link>
+          ))}
+        </nav>
+
+        <section className="home-reading-room" aria-labelledby="home-reading-room-title" ref={homeReadingRoomRef}>
+          <header className="home-reading-room-header">
+            <div>
+              <p className="home-section-kicker">{t('home.discussionIndex')}</p>
+              <h2 id="home-reading-room-title">
+                {activeFeed === 'yourFeed' ? t('home.yourReadingRoom') : t('home.exploreCommons')}
+              </h2>
+              <p>{homeViewDescription}</p>
+            </div>
+            <div className="home-entry-count" aria-live="polite">
+              <strong
+                key={`${homeVisibleLabel}-${homeVisibleCount}`}
+                className="home-entry-count-value"
+              >
+                {homeVisibleCount}
+              </strong>
+              <span>{t('home.inView', { label: homeVisibleLabel })}</span>
+            </div>
+          </header>
+
+          <div className="section-controls home-controls filter-toolbar filter-toolbar--filter-first">
+            <div className="control-group">
+              <div
+                ref={feedSegmentRef}
+                className="chips-row segmented-control"
+                style={{ '--seg-count': 2, '--seg-index': activeFeed === 'yourFeed' ? 0 : 1 }}
+              >
+                <button
+                  type="button"
+                  className={`chip your-feed-chip ${activeFeed === 'yourFeed' ? 'active' : ''} ${!userData ? 'chip-locked' : ''}`}
+                  onClick={() => setHomeTab('feed')}
+                  aria-disabled={!userData}
+                  title={!userData ? t('home.logInForFeed') : t('home.viewFeed')}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    {!userData && <FaLock size={12} />}
+                    {t('home.yourFeed')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${activeFeed === 'explore' ? 'active' : ''}`}
+                  onClick={() => setHomeTab('explore')}
+                >
+                  {t('home.explore')}
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="home-filter-trigger mobile-only"
+              onClick={() => setShowHomeFilters((prev) => !prev)}
+              aria-expanded={showHomeFilters}
+              aria-controls="home-filter-panel"
+              aria-label={showHomeFilters ? t('home.closeFilters') : t('home.openFilters')}
+            >
+              <FaFilter aria-hidden="true" />
+            </button>
+            <div
+              id="home-filter-panel"
+              className={`home-filter-panel ${showHomeFilters ? 'open' : ''}`}
+            >
+              <div className="control-group home-content-control" aria-label={t('home.content')}>
+                <span className="sort-pill">{t('home.content')}</span>
+                {activeFeed === 'yourFeed' ? (
+                  <div
+                    ref={feedContentRef}
+                    className="chips-row segmented-control"
+                    style={{ '--seg-count': 2, '--seg-index': yourFeedView === 'forums' ? 0 : 1 }}
+                  >
+                    <button
+                      type="button"
+                      className={`chip ${yourFeedView === 'forums' ? 'active' : ''}`}
+                      onClick={() => setYourFeedView('forums')}
+                    >
+                      {t('home.forumsTitle')}
+                    </button>
+                    <button
+                      type="button"
+                      className={`chip ${yourFeedView === 'threads' ? 'active' : ''}`}
+                      onClick={() => setYourFeedView('threads')}
+                    >
+                      {t('home.threadsTitle')}
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    ref={exploreContentRef}
+                    className="chips-row segmented-control"
+                    style={{ '--seg-count': 2, '--seg-index': exploreView === 'forums' ? 0 : 1 }}
+                  >
+                    <button
+                      type="button"
+                      className={`chip ${exploreView === 'forums' ? 'active' : ''}`}
+                      onClick={() => setExploreView('forums')}
+                    >
+                      {t('home.forumsTitle')}
+                    </button>
+                    <button
+                      type="button"
+                      className={`chip ${exploreView === 'threads' ? 'active' : ''}`}
+                      onClick={() => setExploreView('threads')}
+                    >
+                      {t('home.threadsTitle')}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {activeFeed === 'explore' && (
+                <div className="control-group topic-multi-select-wrapper">
+                  <span className="sort-pill">{t('home.tags')}</span>
+                  <div className="topic-dropdown" ref={exploreDropdownRef}>
+                    <button
+                      type="button"
+                      className={`topic-dropdown-toggle${isExploreDropdownOpen ? ' open' : ''}`}
+                      onClick={() => setIsExploreDropdownOpen((open) => !open)}
+                      aria-haspopup="listbox"
+                      aria-expanded={isExploreDropdownOpen}
+                    >
+                      <span className="topic-dropdown-label">{exploreSelectedLabels}</span>
+                    </button>
+                    {isExploreDropdownOpen && (
+                      <div
+                        className="topic-dropdown-menu explore-tags-menu"
+                        role="listbox"
+                        aria-multiselectable="true"
+                      >
+                        {exploreTagOptions.map((tagOption) => {
+                          const checked = exploreTags.includes(tagOption.value);
+                          return (
+                            <label key={tagOption.value} className="topic-dropdown-option">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setExploreTags((prev) =>
+                                    prev.includes(tagOption.value)
+                                      ? prev.filter((t) => t !== tagOption.value)
+                                      : [...prev, tagOption.value]
+                                  );
+                                }}
+                              />
+                              <span>{tagOption.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="topic-selection-meta">
+                    <button
+                      type="button"
+                      className="clear-topics-button"
+                      onClick={clearExploreTags}
+                      disabled={exploreTags.length === 0}
+                    >
+                      {t('home.clear')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {activeFeed === 'yourFeed' && (
+                <div className="control-group home-sort-control">
+                  <label htmlFor="feed-sort" className="sort-pill">
+                    {t('home.sort')}
+                  </label>
                   <select
                     id="feed-sort"
+                    className="sort-select"
                     value={feedSort}
                     onChange={(e) => setFeedSort(e.target.value)}
                   >
-                    <option value="recent">Most Recent</option>
-                    <option value="trending">Trending</option>
+                    <option value="recent">{t('home.mostRecent')}</option>
+                    <option value="trending">{t('home.trending')}</option>
                   </select>
-                </label>
-              </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div key={homeResultsMotionKey} className="home-results-stage">
+          {activeFeed === 'yourFeed' && userData ? (
+            <>
               {isLoadingFeed ? (
-                <p>Loading feed...</p>
-              ) : feedThreads.length === 0 ? (
+                <div className="home-loading-state" aria-label={t('home.loadingFeed')}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              ) : isFeedEmpty ? (
                 <div className="empty-feed-card">
-                  <p style={{ marginBottom: '8px', fontWeight: 600 }}>Your feed is currently empty.</p>
-                  <p className="muted" style={{ marginBottom: '12px' }}>
-                    Follow some of our most popular or recommended communities to see fresh threads here.
+                  <LibraryBig size={24} aria-hidden="true" />
+                  <h3>{t('home.readingRoomReady')}</h3>
+                  <p className="muted">
+                    {hasInterests
+                      ? t('home.followOrReturn')
+                      : t('home.followOrInterests')}
                   </p>
-                  <button
-                    type="button"
-                    className="pill-button"
-                    onClick={() => {
-                      navigate('/communities');
-                    }}
-                  >
-                    Browse communities
-                  </button>
+                  {!hasInterests && (
+                    <button
+                      type="button"
+                      className="pill-button"
+                      onClick={() => {
+                        navigate('/interest-selection');
+                      }}
+                    >
+                      {t('home.chooseInterests')}
+                    </button>
+                  )}
+                </div>
+              ) : isFeedSelectionEmpty ? (
+                <div className="empty-feed-card">
+                  <BookOpenText size={24} aria-hidden="true" />
+                  <h3>
+                    {t('home.noItemsYet', {
+                      label: yourFeedView === 'forums' ? t('home.forums') : t('home.threads'),
+                    })}
+                  </h3>
+                  <p className="muted">
+                    {t('home.switchToSeeMore', {
+                      label: yourFeedView === 'forums' ? t('home.threadsTitle') : t('home.forumsTitle'),
+                    })}
+                  </p>
                 </div>
               ) : (
-                feedThreads.map((thread) => (
-                  <ThreadCard
-                    key={thread.thread_id}
-                    thread={thread}
-                    userData={userData}
-                    onUpvote={handleThreadUpvoteClick}
-                    onDownvote={handleThreadDownvoteClick}
-                    onReport={() =>
-                      handleOpenReport({
-                        id: thread.thread_id,
-                        type: 'thread',
-                        label: thread.title || 'thread',
-                        context: stripHtml(thread.title || ''),
-                      })
-                    }
-                  />
-                ))
+                <>
+                  {yourFeedView === 'forums' && hasFeedForums && (
+                    <div className="home-discussion-list">
+                      <div className="forum-list">
+                        {feedForums.map((forum) => (
+                          <ForumCard
+                            key={forum.forum_id}
+                            forum={forum}
+                            userData={userData}
+                            openMenuId={openMenuId}
+                            toggleMenu={toggleMenu}
+                            onReport={(f) =>
+                              handleOpenReport({
+                                id: f.forum_id,
+                                type: 'forum',
+                                label: f.original_name ?? f.name ?? 'forum',
+                                context: stripHtml(f.original_description ?? f.description ?? f.original_name ?? f.name ?? '').slice(0, 200),
+                              })
+                            }
+                            handleSaveForum={handleSaveForum}
+                            handleDeleteForum={handleDeleteForum}
+                            handleUpvoteClick={handleUpvoteClick}
+                            handleDownvoteClick={handleDownvoteClick}
+                            startEditingForum={startEditingForum}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {yourFeedView === 'threads' && hasFeedThreads && (
+                    <div className="home-discussion-list home-thread-list">
+                      {feedThreads.map((thread) => (
+                        <ThreadCard
+                          key={thread.thread_id}
+                          thread={thread}
+                          userData={userData}
+                          onUpvote={handleThreadUpvoteClick}
+                          onDownvote={handleThreadDownvoteClick}
+                          onReport={() =>
+                            handleOpenReport({
+                              id: thread.thread_id,
+                              type: 'thread',
+                              label: thread.original_title ?? thread.title ?? 'thread',
+                              context: stripHtml(thread.original_title ?? thread.title ?? ''),
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </>
           ) : activeFeed === 'explore' ? (
-            // DUMMY Explore content
-            <div className="explore-dummy">
-              <p>This is some dummy explore content!</p>
-              {/* Additional dummy content here */}
+            <div className="explore-panel">
+              {isLoadingExplore ? (
+                <div className="home-loading-state" aria-label={t('home.loadingExplore')}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              ) : isExploreEmpty ? (
+                <div className="empty-feed-card">
+                  <Compass size={24} aria-hidden="true" />
+                  <h3>{t('home.noDiscussionMatch')}</h3>
+                  <p className="muted">
+                    {t('home.clearOrTags')}
+                  </p>
+                  <button type="button" className="pill-button" onClick={clearExploreTags}>
+                    {t('home.resetFilters')}
+                  </button>
+                </div>
+              ) : isExploreSelectionEmpty ? (
+                <div className="empty-feed-card">
+                  <BookOpenText size={24} aria-hidden="true" />
+                  <h3>
+                    {t('home.noItemsFound', {
+                      label: exploreView === 'forums' ? t('home.forums') : t('home.threads'),
+                    })}
+                  </h3>
+                  <p className="muted">
+                    {t('home.switchOrAdjust', {
+                      label: exploreView === 'forums' ? t('home.threadsTitle') : t('home.forumsTitle'),
+                    })}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {exploreView === 'forums' && hasExploreForums && (
+                    <div className="home-discussion-list">
+                      <div className="forum-list">
+                        {exploreForums.map((forum) => (
+                          <ForumCard
+                            key={forum.forum_id}
+                            forum={forum}
+                            userData={userData}
+                            openMenuId={openMenuId}
+                            toggleMenu={toggleMenu}
+                            onReport={(f) =>
+                              handleOpenReport({
+                                id: f.forum_id,
+                                type: 'forum',
+                                label: f.original_name ?? f.name ?? 'forum',
+                                context: stripHtml(f.original_description ?? f.description ?? f.original_name ?? f.name ?? '').slice(0, 200),
+                              })
+                            }
+                            handleSaveForum={handleSaveForum}
+                            handleDeleteForum={handleDeleteForum}
+                            handleUpvoteClick={handleUpvoteClick}
+                            handleDownvoteClick={handleDownvoteClick}
+                            startEditingForum={startEditingForum}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {exploreView === 'threads' && hasExploreThreads && (
+                    <div className="home-discussion-list home-thread-list">
+                      {exploreThreads.map((thread) => (
+                        <ThreadCard
+                          key={thread.thread_id}
+                          thread={thread}
+                          userData={userData}
+                          onUpvote={handleThreadUpvoteClick}
+                          onDownvote={handleThreadDownvoteClick}
+                          onReport={() =>
+                            handleOpenReport({
+                              id: thread.thread_id,
+                              type: 'thread',
+                              label: thread.original_title ?? thread.title ?? 'thread',
+                              context: stripHtml(thread.original_title ?? thread.title ?? ''),
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           ) : (
-            <div className="locked-feature-card" style={{ textAlign: 'center' }}>
-              <p>Your Feed is available once you create an account or log in.</p>
-              <button className="pill-button" onClick={() => navigate('/signup')}>
-                Create Account
+            <div className="empty-feed-card">
+              <LibraryBig size={24} aria-hidden="true" />
+              <h3>{t('home.feedAfterJoin')}</h3>
+              <p>{t('home.signInPersonalized')}</p>
+              <button className="pill-button" type="button" onClick={() => navigate('/signup')}>
+                {t('home.createAccount')}
               </button>
             </div>
           )}
-        </div>
+          </div>
+        </section>
       </main>
     );
   }
 
   // COMMUNITIES SECTION
   if (activeSection === 'communities') {
-    return (
-      <main>
+    return withNotification(
+      <main className="scholarly-page scholarly-communities-page">
         {reportModal}
-        <div className="feed-container">
-          <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Communities</h1>
-          {/* Top control bar: tabs + scope + search + action (sticky under header) */}
-          <div className="section-controls section-controls-sticky">
-            <div className="community-controls">
-              <div className="control-group">
-                <span className="sort-pill">Type</span>
-                <div className="chips-row">
+        <div className="feed-container scholarly-page-panel">
+          <header className="scholarly-page-header">
+            <div>
+              <p className="scholarly-page-kicker">Find your circle</p>
+              <h1>Communities</h1>
+              <p>Discover university and group spaces organized around shared experience.</p>
+            </div>
+            <div className="scholarly-page-count" aria-live="polite">
+              <strong>
+                {isLoadingAll ? '—' : totalCommunityCount.toLocaleString(locale)}
+              </strong>
+              <span>{selectedCommunityTab === 'group' ? 'groups' : 'universities'} in view</span>
+            </div>
+          </header>
+          <div className="section-controls section-controls-sticky scholarly-controls community-controls filter-toolbar filter-toolbar--search-first">
+            <div className="community-controls__primary">
+              <label className="community-search-field" htmlFor="community-search">
+                <Search size={17} aria-hidden="true" />
+                <span className="sr-only">Search communities</span>
+                <input
+                  id="community-search"
+                  type="search"
+                  placeholder="Search universities and groups"
+                  value={searchTerm}
+                  onChange={(e) => handleCommunitySearchChange(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="community-filter-trigger mobile-only"
+                onClick={() => setShowCommunityFilters((prev) => !prev)}
+                aria-expanded={showCommunityFilters}
+                aria-controls="community-filter-panel"
+                aria-label="Open community filters and sort"
+              >
+                <FaFilter aria-hidden="true" />
+              </button>
+              {selectedCommunityTab === 'group' && (
+                <div className="control-action">
                   <button
                     type="button"
-                    onClick={() => setSelectedCommunityTab('university')}
+                    className="pill-button community-request-button toolbar-primary-action"
+                    onClick={openRequestCommunityModal}
+                    aria-disabled={!userData}
+                  >
+                    {isSuperAdminUser ? '+ Create Group' : '+ Request Group'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div
+              id="community-filter-panel"
+              className={`community-filter-panel community-controls__secondary ${showCommunityFilters ? 'open' : ''}`}
+            >
+              <div className="control-group">
+                <span className="sort-pill">Type</span>
+                <div
+                  ref={communityTypeRef}
+                  className="chips-row segmented-control"
+                  style={{ '--seg-count': 2, '--seg-index': selectedCommunityTab === 'university' ? 0 : 1 }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleCommunityTabChange('university')}
                     className={`chip ${selectedCommunityTab === 'university' ? 'active' : ''}`}
                   >
                     Universities
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSelectedCommunityTab('group')}
+                    onClick={() => handleCommunityTabChange('group')}
                     className={`chip ${selectedCommunityTab === 'group' ? 'active' : ''}`}
                   >
                     Groups
@@ -1186,84 +2235,53 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
               </div>
 
               <div className="control-group">
-                <span className="sort-pill">Filter</span>
-                <div className="chips-row">
+                <span className="sort-pill">Following</span>
+                <div
+                  ref={communityFilterRef}
+                  className="chips-row segmented-control"
+                  style={{
+                    '--seg-count': 3,
+                    '--seg-index':
+                      communityFilter === 'All' ? 0 : communityFilter === 'Followed' ? 1 : 2
+                  }}
+                >
                   <button
                     type="button"
                     className={`chip ${communityFilter === 'All' ? 'active' : ''}`}
-                    onClick={() => setCommunityFilter('All')}
+                    onClick={() => handleCommunityFilterChange('All')}
                   >
                     All
                   </button>
                   <button
                     type="button"
                     className={`chip ${communityFilter === 'Followed' ? 'active' : ''}`}
-                    onClick={() => setCommunityFilter('Followed')}
+                    onClick={() => handleCommunityFilterChange('Followed')}
                   >
                     Followed
                   </button>
                   <button
                     type="button"
                     className={`chip ${communityFilter === 'Unfollowed' ? 'active' : ''}`}
-                    onClick={() => setCommunityFilter('Unfollowed')}
+                    onClick={() => handleCommunityFilterChange('Unfollowed')}
                   >
                     Unfollowed
                   </button>
                 </div>
               </div>
-
-              {selectedCommunityTab === 'group' && (
-                <div className="control-action">
-                  <button
-                    type="button"
-                    className="pill-button community-request-button"
-                    onClick={openRequestCommunityModal}
-                    aria-disabled={!userData}
-                  >
-                    {isSuperAdmin ? '+ Create Group' : '+ Request Group'}
-                  </button>
-                </div>
-              )}
-              {selectedCommunityTab === 'university' && (
-                <div className="control-action">
-                  <button
-                    type="button"
-                    className="pill-button community-request-button"
-                    onClick={openRequestCommunityModal}
-                    aria-disabled={!userData}
-                  >
-                    + Request University
-                  </button>
-                </div>
-              )}
-
-              <div className="control-search">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-                  <input
-                    id="community-search"
-                    type="text"
-                    placeholder="Search universities, groups…"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pill-search"
-                    style={{ minWidth: '220px', flex: 1 }}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <label htmlFor="community-sort" className="sort-pill" style={{ margin: 0 }}>
-                      Sort
-                    </label>
-                    <select
-                      id="community-sort"
-                      value={communitySort}
-                      onChange={(e) => setCommunitySort(e.target.value)}
-                      className="sort-select"
-                    aria-label="Sort communities"
-                  >
-                    <option value="popularity">Most Followers</option>
-                    <option value="alpha">A-Z</option>
-                  </select>
-                </div>
-              </div>
+              <div className="control-group community-sort-group">
+                <label htmlFor="community-sort" className="sort-pill">
+                  Sort
+                </label>
+                <select
+                  id="community-sort"
+                  value={communitySort}
+                  onChange={(e) => handleCommunitySortChange(e.target.value)}
+                  className="sort-select"
+                  aria-label="Sort communities"
+                >
+                  <option value="popularity">Most Followers</option>
+                  <option value="alpha">A-Z</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1288,10 +2306,29 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
               <div className="community-list space-y-3">
                 {filteredCommunities.map((community) => {
                   const isFollowed = isCommunityFollowed(community);
-                  const logoSrc =
-                    community.logo_path && community.logo_path.startsWith('/')
-                      ? community.logo_path
-                      : `/uploads/logos/${community.logo_path || 'default-logo.png'}`;
+                  const universityFallbackLogo = buildUploadSrc('/uploads/logos/School Image.png');
+                  const defaultCommunityLogo = buildUploadSrc('/uploads/logos/default-logo.png');
+                  const fallbackLogo =
+                    selectedCommunityTab === 'university'
+                      ? universityFallbackLogo
+                      : defaultCommunityLogo;
+                  // The API resolves the best available logo into
+                  // selected_logo_url: a verified local upload first, then a
+                  // licensed remote logo. Prefer it, and treat the seeded
+                  // default-logo.png as no logo rather than a real image.
+                  const selectedLogo =
+                    typeof community.selected_logo_url === 'string'
+                      ? community.selected_logo_url.trim()
+                      : '';
+                  const normalizedLogoPath =
+                    typeof community.logo_path === 'string' ? community.logo_path.trim() : '';
+                  const isPlaceholderLogoPath =
+                    /(^|\/)default-logo\.png$/i.test(normalizedLogoPath);
+                  const logoSrc = selectedLogo
+                    ? buildUploadSrc(selectedLogo)
+                    : normalizedLogoPath && !isPlaceholderLogoPath
+                      ? buildUploadSrc(normalizedLogoPath)
+                      : fallbackLogo;
                   return (
                     <div
                       key={community.community_id}
@@ -1302,6 +2339,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                         alt={`${community.name} Logo`}
                         className="community-row-logo"
                         loading="lazy"
+                        onError={(e) => {
+                          const fallback = selectedCommunityTab === 'university'
+                            ? universityFallbackLogo
+                            : defaultCommunityLogo;
+                          if (e.currentTarget.src !== fallback) {
+                            e.currentTarget.src = fallback;
+                          }
+                        }}
                       />
                       <div className="community-row-content">
                         <div className="community-row-header">
@@ -1321,7 +2366,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                           {community.location && (
                             <span className="community-location">{community.location}</span>
                           )}
-                          <span className="followers-count" style={{ marginLeft: community.location ? 12 : 0 }}>
+                          <span className="followers-count">
                             Followers: {community.followers_count || 0}
                           </span>
                           {typeof community.following_count !== 'undefined' && (
@@ -1340,6 +2385,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                           )}
                         </div>
                       </div>
+                      {/*
                       <div className="community-row-actions">
                         <button
                           type="button"
@@ -1360,6 +2406,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                           </span>
                         </button>
                       </div>
+                      */}
                     </div>
                   );
                 })}
@@ -1375,26 +2422,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
               </div>
             )}
 
-            {/* Pagination */}
-            <div className="pagination-controls">
-              <button
-                onClick={handlePrevPage}
-                disabled={currentPage === 1}
-                className="pagination-button"
-              >
-                Last
-              </button>
-              <span className="pagination-info">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-                className="pagination-button"
-              >
-                Next
-              </button>
-            </div>
+            <PageNavigator
+              page={currentPage}
+              totalPages={totalPages}
+              onPageChange={handleCommunityPageChange}
+              disabled={isLoadingAll}
+              className="community-page-navigator"
+              ariaLabel={`${selectedCommunityTab === 'group' ? 'Group' : 'University'} community pages`}
+            />
           </div>
         </div>
         {showRequestModal && (
@@ -1406,18 +2441,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
             setFormData={setRequestData}
             isSubmitting={isSubmittingRequest}
             title={
-              isSuperAdmin && selectedCommunityTab === 'group'
+              isSuperAdminUser && selectedCommunityTab === 'group'
                 ? 'Create Group'
                 : 'Request New Community'
             }
-            submitLabel={isSuperAdmin && selectedCommunityTab === 'group' ? 'Create' : 'Submit'}
+            submitLabel={isSuperAdminUser && selectedCommunityTab === 'group' ? 'Create' : 'Submit'}
             lockType={false}
-            allowSubCommunity={isSuperAdmin || adminCommunities.length > 0}
+            allowSubCommunity={isSuperAdminUser || adminCommunities.length > 0}
             parentCommunities={
-              isSuperAdmin ? allCommunitiesSimple : adminCommunities
+              isSuperAdminUser ? allCommunitiesSimple : adminCommunities
             }
             isLoadingParents={
-              isSuperAdmin ? isLoadingAllParents : isLoadingAdminCommunities
+              isSuperAdminUser ? isLoadingAllParents : isLoadingAdminCommunities
             }
           />
         )}
@@ -1429,7 +2464,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
   if (activeSection === 'info') {
     const isAllTopicsSelected = selectedTopics.includes(ALL_TOPICS_VALUE) || !selectedTopics.length;
     const selectedTopicLabels = isAllTopicsSelected
-      ? 'All topics'
+      ? 'All tags'
       : selectedTopics
           .map((topic) => {
             const match = topicOptionsWithAll.find((opt) => opt.value === topic);
@@ -1437,94 +2472,146 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
           })
           .join(', ');
 
-    return (
-      <main>
-        {reportModal}
-        <div className="feed-container">
-          <div
-            className="feed-header"
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              borderBottom: 'none',
-              marginBottom: '0.5rem',
-            }}
-          >
-            <h1 className="section-title" style={{ margin: 0 }}>Info Board</h1>
-          </div>
+    if (
+      isLoadingInfoKnowledgeBase ||
+      hasLoadedInfoKnowledgeBase ||
+      infoKnowledgeBaseNodes.length > 0 ||
+      infoKnowledgeBaseError
+    ) {
+      return withNotification(
+        <main className="scholarly-page scholarly-info-page info-kb-page">
+          {reportModal}
+          <div className="feed-container scholarly-page-panel">
+            <header className="scholarly-page-header">
+              <div>
+                <p className="scholarly-page-kicker">Student knowledge base</p>
+                <h1>Info Board</h1>
+                <p>Choose a starting point, then follow its sections to focused student guides.</p>
+              </div>
+              <div className="scholarly-page-count" aria-live="polite">
+                <strong>{isLoadingInfoKnowledgeBase ? '—' : infoKnowledgeBaseNodes.length}</strong>
+                <span>starting points</span>
+              </div>
+            </header>
 
-          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
-            Welcome back, {userData?.first_name ? `${userData.first_name}` : 'there'}!
-          </p>
+            {isLoadingInfoKnowledgeBase ? (
+              <div className="info-board-state" role="status">Loading knowledge base…</div>
+            ) : infoKnowledgeBaseError ? (
+              <div className="info-board-state">{infoKnowledgeBaseError}</div>
+            ) : (
+              <div className="info-kb-root-grid">
+                {infoKnowledgeBaseNodes.map((node, index) => (
+                  <Link
+                    key={node.thread_id}
+                    className="info-kb-root-card"
+                    to={`/info/forum/${node.forum_id}/thread/${node.thread_id}`}
+                  >
+                    <div className="info-kb-root-card__number">{String(index + 1).padStart(2, '0')}</div>
+                    <div className="info-kb-root-card__body">
+                      <span>Student guide</span>
+                      <h2>{node.title}</h2>
+                      {node.excerpt && <p>{node.excerpt}</p>}
+                      <small>{node.child_count} {node.child_count === 1 ? 'section' : 'sections'}</small>
+                    </div>
+                    <ArrowUpRight size={20} aria-hidden="true" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </main>
+      );
+    }
+
+    return withNotification(
+      <main className="scholarly-page scholarly-info-page">
+        {reportModal}
+        <div className="feed-container scholarly-page-panel">
+          <header className="scholarly-page-header">
+            <div>
+              <p className="scholarly-page-kicker">Research & answers</p>
+              <h1>Info Board</h1>
+              <p>Questions, guides, and community knowledge organized for careful reading.</p>
+            </div>
+            <div className="scholarly-page-count" aria-live="polite">
+              <strong>{isLoadingForums ? '—' : filteredForums.length}</strong>
+              <span>forums in view</span>
+            </div>
+          </header>
 
           {/* Controls: Sort pill + topic chips */}
-          <div className="section-controls info-controls">
-            <span className="sort-pill">Sort</span>
-            <label htmlFor="sort-by" className="sr-only">Sort by</label>
-            <select
-              id="sort-by"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="sort-select"
+          <div className="section-controls info-controls section-controls-sticky scholarly-controls filter-toolbar filter-toolbar--filter-first">
+            <div
+              id="info-filter-panel"
+              className="info-filter-panel control-group"
             >
-              <option value="mostRecent">Most Recent</option>
-              <option value="popularity">Popularity</option>
-              <option value="mostUpvoted">Most Upvoted</option>
-            </select>
-
-            <span className="sort-pill">Topics</span>
-            <div className="topic-multi-select-wrapper">
-              <div className="topic-dropdown" ref={topicDropdownRef}>
-                <button
-                  type="button"
-                  className={`topic-dropdown-toggle${isTopicDropdownOpen ? ' open' : ''}`}
-                  onClick={() => setIsTopicDropdownOpen((open) => !open)}
-                  aria-haspopup="listbox"
-                  aria-expanded={isTopicDropdownOpen}
-                >
-                  <span className="topic-dropdown-label">{selectedTopicLabels}</span>
-                </button>
-                {isTopicDropdownOpen && (
-                  <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
-                    {topicOptionsWithAll.map((topicOption) => {
-                      const checked =
-                        selectedTopics.includes(topicOption.value) ||
-                        (isAllTopicsSelected && topicOption.value === ALL_TOPICS_VALUE);
-                      return (
-                        <label key={topicOption.value} className="topic-dropdown-option">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => handleTopicToggle(topicOption.value)}
-                          />
-                          <span>{topicOption.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              <div className="topic-selection-meta">
-                <button
-                  type="button"
-                  className="clear-topics-button"
-                  onClick={clearTopicFilter}
-                  disabled={isAllTopicsSelected}
-                >
-                  Clear
-                </button>
+              <span className="sort-pill">Tags</span>
+              <div className="topic-multi-select-wrapper">
+                <div className="topic-dropdown" ref={topicDropdownRef}>
+                  <button
+                    type="button"
+                    className={`topic-dropdown-toggle${isTopicDropdownOpen ? ' open' : ''}`}
+                    onClick={() => setIsTopicDropdownOpen((open) => !open)}
+                    aria-haspopup="listbox"
+                    aria-expanded={isTopicDropdownOpen}
+                  >
+                    <span className="topic-dropdown-label">{selectedTopicLabels}</span>
+                  </button>
+                  {isTopicDropdownOpen && (
+                    <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
+                      {topicOptionsWithAll.map((topicOption) => {
+                        const checked =
+                          selectedTopics.includes(topicOption.value) ||
+                          (isAllTopicsSelected && topicOption.value === ALL_TOPICS_VALUE);
+                        return (
+                          <label key={topicOption.value} className="topic-dropdown-option">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => handleTopicToggle(topicOption.value)}
+                            />
+                            <span>{topicOption.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="topic-selection-meta">
+                  <button
+                    type="button"
+                    className="clear-topics-button"
+                    onClick={clearTopicFilter}
+                    disabled={isAllTopicsSelected}
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
             </div>
+            <div className="control-group info-sort-group">
+              <label htmlFor="sort-by" className="sort-pill">Sort</label>
+              <select
+                id="sort-by"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="sort-select"
+              >
+                <option value="mostRecent">Most Recent</option>
+                <option value="popularity">Popularity</option>
+                <option value="mostUpvoted">Most Upvoted</option>
+              </select>
+            </div>
 
-            {isSuperAdmin && (
+            {isSuperAdminUser && (
               <div className="control-action">
                 <button
                   type="button"
                   className="pill-button community-request-button"
                   onClick={() => setShowCreateForumModal(true)}
                 >
-                  + New Forum
+                  <span className="mobile-only">+</span>
+                  <span className="desktop-only">+ New Forum</span>
                 </button>
               </div>
             )}
@@ -1535,83 +2622,155 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
             <ModalOverlay
               isOpen={showCreateForumModal}
               onClose={handleDismissCreateForumModal}
+              contentClassName="community-form-overlay"
             >
               <div className="creation-modal">
-                <div className="creation-modal__form">
-                  <div className="creation-modal__header">
-                    <div>
-                      <p className="creation-modal__meta">Info Board</p>
-                      <h3 className="creation-modal__title">Create a new forum</h3>
-                      <p className="creation-modal__sub">
-                        Titles and descriptions should help members instantly know if they&apos;re in the right place.
-                      </p>
-                      <ul className="creation-points">
-                        <li>Give it a concise, action-oriented name</li>
-                        <li>Share what belongs here and what does not</li>
-                        <li>Invite members to add context in every thread</li>
-                      </ul>
-                    </div>
+                <header className="creation-modal__header">
+                  <p className="creation-modal__meta">Info Board</p>
+                  <h3 className="creation-modal__title">New forum</h3>
+                  <p className="creation-modal__sub">
+                    A clear name and description help members instantly know if they&apos;re in the right place.
+                  </p>
+                </header>
+                <form className="creation-fields" onSubmit={handleCreateForumSubmit}>
+                  <div className="creation-field">
+                    <label htmlFor="forum-name">
+                      Name
+                      <span className="creation-optional">
+                        {newForumName.length} / {FORUM_TITLE_MAX_LENGTH}
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      id="forum-name"
+                      value={newForumName}
+                      placeholder="e.g. Financial aid questions"
+                      onChange={(e) => setNewForumName(e.target.value)}
+                      maxLength={FORUM_TITLE_MAX_LENGTH}
+                      required
+                    />
                   </div>
-                  <form className="creation-fields" onSubmit={handleCreateForumSubmit}>
-                    <div className="creation-field">
-                      <label htmlFor="forum-name">Forum name</label>
+                  <div className="creation-field">
+                    <label htmlFor="forum-description">Description</label>
+                    <textarea
+                      id="forum-description"
+                      value={newForumDescription}
+                      placeholder="What belongs here, and what doesn't?"
+                      onChange={(e) => setNewForumDescription(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="creation-field">
+                    <TagPicker
+                      label="Tags"
+                      options={tagOptions}
+                      value={newForumTags}
+                      onChange={setNewForumTags}
+                      max={5}
+                      helperText="Choose up to 5 tags that describe this forum."
+                    />
+                  </div>
+                  <div className="creation-field creation-media">
+                    <label htmlFor="forum-banner">
+                      Forum image <span className="creation-optional">optional</span>
+                    </label>
+                    <div className="creation-media__row">
                       <input
-                        type="text"
-                        id="forum-name"
-                        value={newForumName}
-                        onChange={(e) => setNewForumName(e.target.value)}
-                        required
+                        type="file"
+                        id="forum-banner"
+                        accept="image/png, image/jpeg"
+                        onChange={(e) => setNewForumBannerFile(e.target.files?.[0] || null)}
                       />
+                      <div className="creation-layout-toggle" role="radiogroup" aria-label="Image display">
+                        <button
+                          type="button"
+                          className={newForumImageLayout === IMAGE_LAYOUTS.BANNER ? 'active' : ''}
+                          aria-pressed={newForumImageLayout === IMAGE_LAYOUTS.BANNER}
+                          onClick={() => setNewForumImageLayout(IMAGE_LAYOUTS.BANNER)}
+                        >
+                          Banner
+                        </button>
+                        <button
+                          type="button"
+                          className={newForumImageLayout === IMAGE_LAYOUTS.RIGHT ? 'active' : ''}
+                          aria-pressed={newForumImageLayout === IMAGE_LAYOUTS.RIGHT}
+                          onClick={() => setNewForumImageLayout(IMAGE_LAYOUTS.RIGHT)}
+                        >
+                          Right aligned
+                        </button>
+                        <button
+                          type="button"
+                          className={newForumImageLayout === IMAGE_LAYOUTS.FULL ? 'active' : ''}
+                          aria-pressed={newForumImageLayout === IMAGE_LAYOUTS.FULL}
+                          onClick={() => setNewForumImageLayout(IMAGE_LAYOUTS.FULL)}
+                        >
+                          Full size
+                        </button>
+                      </div>
                     </div>
-                    <div className="creation-field">
-                      <label htmlFor="forum-description">Description</label>
-                      <textarea
-                        id="forum-description"
-                        value={newForumDescription}
-                        onChange={(e) => setNewForumDescription(e.target.value)}
-                        required
+                    {newForumBannerPreview && (
+                      <img
+                        src={newForumBannerPreview}
+                        alt="Preview"
+                        className={`creation-media__preview creation-media__preview--${normalizeImageLayout(newForumImageLayout)}`}
                       />
-                    </div>
-                    <div className="creation-actions">
-                      <button
-                        type="button"
-                        className="creation-ghost"
-                        onClick={handleDismissCreateForumModal}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="creation-primary"
-                        disabled={isCreatingForum}
-                      >
-                        {isCreatingForum ? 'Creating...' : 'Create forum'}
-                      </button>
-                    </div>
-                  </form>
-                </div>
+                    )}
+                  </div>
+                  <div className="creation-actions">
+                    <button
+                      type="button"
+                      className="creation-ghost"
+                      onClick={handleDismissCreateForumModal}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="creation-primary"
+                      disabled={isCreatingForum}
+                    >
+                      {isCreatingForum ? 'Creating…' : 'Create forum'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </ModalOverlay>
           )}
 
           {/* EDIT FORUM MODAL */}
           {isEditingForum && (
-            <div className="modal-overlay">
-              <div className="modal-content">
-                <h3>Edit Forum</h3>
-                <form onSubmit={handleEditForumSubmit}>
-                  <div className="form-group">
-                    <label htmlFor="edit-forum-name">Forum Name:</label>
+            <ModalOverlay
+              isOpen={isEditingForum}
+              onClose={cancelEditingForum}
+              contentClassName="community-form-overlay"
+            >
+              <div className="creation-modal">
+                <header className="creation-modal__header">
+                  <p className="creation-modal__meta">Info Board</p>
+                  <h3 className="creation-modal__title">Edit forum</h3>
+                  <p className="creation-modal__sub">
+                    Update the name, description, tags, or image for this forum.
+                  </p>
+                </header>
+                <form className="creation-fields" onSubmit={handleEditForumSubmit}>
+                  <div className="creation-field">
+                    <label htmlFor="edit-forum-name">
+                      Name
+                      <span className="creation-optional">
+                        {editForumName.length} / {FORUM_TITLE_MAX_LENGTH}
+                      </span>
+                    </label>
                     <input
                       type="text"
                       id="edit-forum-name"
                       value={editForumName}
                       onChange={(e) => setEditForumName(e.target.value)}
+                      maxLength={FORUM_TITLE_MAX_LENGTH}
                       required
                     />
                   </div>
-                  <div className="form-group">
-                    <label htmlFor="edit-forum-description">Description:</label>
+                  <div className="creation-field">
+                    <label htmlFor="edit-forum-description">Description</label>
                     <textarea
                       id="edit-forum-description"
                       value={editForumDescription}
@@ -1619,22 +2778,81 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                       required
                     />
                   </div>
-                  <div className="form-actions">
-                    <button type="submit">Save</button>
-                    <button type="button" onClick={cancelEditingForum}>
+                  <div className="creation-field">
+                    <TagPicker
+                      label="Tags"
+                      options={tagOptions}
+                      value={editForumTags}
+                      onChange={setEditForumTags}
+                      max={5}
+                      helperText="Update the tags for this forum."
+                    />
+                  </div>
+                  <div className="creation-field creation-media">
+                    <label htmlFor="edit-forum-banner">
+                      Forum image <span className="creation-optional">optional</span>
+                    </label>
+                    <div className="creation-media__row">
+                      <input
+                        type="file"
+                        id="edit-forum-banner"
+                        accept="image/png, image/jpeg"
+                        onChange={(e) => setEditForumBannerFile(e.target.files?.[0] || null)}
+                      />
+                      <div className="creation-layout-toggle" role="radiogroup" aria-label="Image display">
+                        <button
+                          type="button"
+                          className={editForumImageLayout === IMAGE_LAYOUTS.BANNER ? 'active' : ''}
+                          aria-pressed={editForumImageLayout === IMAGE_LAYOUTS.BANNER}
+                          onClick={() => setEditForumImageLayout(IMAGE_LAYOUTS.BANNER)}
+                        >
+                          Banner
+                        </button>
+                        <button
+                          type="button"
+                          className={editForumImageLayout === IMAGE_LAYOUTS.RIGHT ? 'active' : ''}
+                          aria-pressed={editForumImageLayout === IMAGE_LAYOUTS.RIGHT}
+                          onClick={() => setEditForumImageLayout(IMAGE_LAYOUTS.RIGHT)}
+                        >
+                          Right aligned
+                        </button>
+                        <button
+                          type="button"
+                          className={editForumImageLayout === IMAGE_LAYOUTS.FULL ? 'active' : ''}
+                          aria-pressed={editForumImageLayout === IMAGE_LAYOUTS.FULL}
+                          onClick={() => setEditForumImageLayout(IMAGE_LAYOUTS.FULL)}
+                        >
+                          Full size
+                        </button>
+                      </div>
+                    </div>
+                    {editForumBannerPreview && (
+                      <img
+                        src={editForumBannerPreview}
+                        alt="Preview"
+                        className={`creation-media__preview creation-media__preview--${normalizeImageLayout(editForumImageLayout)}`}
+                      />
+                    )}
+                  </div>
+                  <div className="creation-actions">
+                    <button type="button" className="creation-ghost" onClick={cancelEditingForum}>
                       Cancel
+                    </button>
+                    <button type="submit" className="creation-primary">
+                      Save changes
                     </button>
                   </div>
                 </form>
               </div>
-            </div>
+            </ModalOverlay>
           )}
 
-          <h2 className="forum-title" style={{ marginTop: '8px' }}>Forums</h2>
           {isLoadingForums ? (
-            <p>Loading forums...</p>
+            <div className="info-board-state" role="status">Loading forums…</div>
           ) : filteredForums.length === 0 ? (
-            <p>{isAllTopicsSelected ? 'No forums available.' : 'No forums match these topics.'}</p>
+            <div className="info-board-state">
+              {isAllTopicsSelected ? 'No forums available.' : 'No forums match these tags.'}
+            </div>
           ) : (
             <div className="forum-list">
               {filteredForums.map((forum) => (
@@ -1649,8 +2867,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
                     handleOpenReport({
                       id: f.forum_id,
                       type: 'forum',
-                      label: f.name || 'forum',
-                      context: stripHtml(f.description || f.name || '').slice(0, 200),
+                      label: f.original_name ?? f.name ?? 'forum',
+                      context: stripHtml(f.original_description ?? f.description ?? f.original_name ?? f.name ?? '').slice(0, 200),
                     })
                   }
                   handleSaveForum={handleSaveForum}
@@ -1664,7 +2882,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
           )}
         </div>
         {/* FAB visible on Home (Your Feed + Explore) for super admins or ambassadors */}
-        {activeSection === 'home' && userData && (Number(userData.role_id) === 1 || Number(userData.is_ambassador) === 1) && (
+        {activeSection === 'home' && userData && (isSuperAdminUser || Number(userData.is_ambassador) === 1) && (
           <FloatingComposer
             communities={[...followedCommunities, ...allCommunities]}
           />
@@ -1675,191 +2893,545 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
 
   // FUNDING SECTION
   if (activeSection === 'funding') {
-    return (
-      <main>
+    const normalizedFundingSearch = fundingArticleSearch.trim().toLowerCase();
+    const visibleFundingGroups = fundingArticleGroups
+      .map((group) => {
+        if (!normalizedFundingSearch) return group;
+        const groupMatches = [group.title, group.description]
+          .some((value) => String(value || '').toLowerCase().includes(normalizedFundingSearch));
+        return {
+          ...group,
+          articles: groupMatches
+            ? group.articles
+            : group.articles.filter((article) => (
+                [article.title, article.excerpt, article.content_kind]
+                  .some((value) => String(value || '').toLowerCase().includes(normalizedFundingSearch))
+              )),
+        };
+      })
+      .filter((group) => Array.isArray(group.articles) && group.articles.length > 0);
+    const visibleFundingArticleCount = visibleFundingGroups.reduce(
+      (total, group) => total + group.articles.length,
+      0
+    );
+    const fundingDiscussionArticle = fundingArticleGroups
+      .flatMap((group) => group.articles || [])
+      .find((article) => article.content_kind === 'megathread');
+    const fundingDiscussionPath = fundingDiscussionArticle
+      ? `/info/forum/${fundingDiscussionArticle.forum_id}/thread/${fundingDiscussionArticle.thread_id}`
+      : '/info';
+    const fundingPlans = [
+      {
+        title: 'Curated opportunities',
+        description: 'A searchable catalog of scholarships and funding sources.',
+        Icon: BadgeDollarSign,
+      },
+      {
+        title: 'Eligibility & deadlines',
+        description: 'Clear requirements, important dates, and school-based filters.',
+        Icon: CalendarClock,
+      },
+      {
+        title: 'Saved funding plans',
+        description: 'A personal place to track opportunities and future reminders.',
+        Icon: GraduationCap,
+      },
+    ];
+
+    return withNotification(
+      <main className="scholarly-page scholarly-funding-page">
         {reportModal}
-        <div className="feed-container">
-          <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Funding</h1>
-          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
-            We&apos;re crafting a richer funding experience. Stay tuned!
-          </p>
-        </div>
-        <ModalOverlay
-          isOpen={showFundingModal}
-          onClose={handleDismissFundingModal}
-          showCloseButton={false}
-        >
-          <div className="locked-feature-wrapper">
-            <div className="locked-feature-card coming-soon-card">
-              <div className="locked-icon-circle">
-                <FaMedal />
-              </div>
-              <p className="locked-chip">Funding lab</p>
-              <h2>Funding hub is coming soon</h2>
-              <p>
-                We&apos;re building curated scholarship tracking, mentor tips, and deadline reminders
-                so you can secure the support you need faster.
-              </p>
-              <div className="coming-soon-actions">
-                <button className="primary" onClick={handleFundingNavigateHome}>
-                  Go back home
-                </button>
-              </div>
+        <section className="scholarly-funding-hero" aria-labelledby="funding-title">
+          <div>
+            <p className="scholarly-page-kicker">Funding archive</p>
+            <h1 id="funding-title">A clearer path through education funding.</h1>
+            <p>
+              Read practical funding guides from the Information Board here. Scholarship
+              opportunity records and deadline tools are still being developed.
+            </p>
+            <div className="scholarly-page-actions">
+              <a className="home-button home-button-primary" href="#funding-guides">
+                Browse funding guides
+                <ArrowUpRight size={16} aria-hidden="true" />
+              </a>
+              <Link className="home-button scholarly-quiet-button" to="/info">
+                Open the Info Board
+              </Link>
             </div>
           </div>
-        </ModalOverlay>
+          <span className="scholarly-status-badge">
+            {isLoadingFundingArticles ? 'Loading guides' : `${fundingArticleCount} guides live`}
+          </span>
+        </section>
+
+        <section
+          className="scholarly-funding-library"
+          id="funding-guides"
+          aria-labelledby="funding-guides-title"
+        >
+          <header>
+            <div>
+              <p className="scholarly-page-kicker">Information Board collection</p>
+              <h2 id="funding-guides-title">Funding guides</h2>
+              <p>These links open the original articles, so guidance stays synchronized across the site.</p>
+            </div>
+            <div className="scholarly-funding-library__tools">
+              <span aria-live="polite">
+                {isLoadingFundingArticles ? 'Loading…' : `${visibleFundingArticleCount} of ${fundingArticleCount}`}
+              </span>
+              <label htmlFor="funding-guide-search">
+                <Search size={16} aria-hidden="true" />
+                <span className="sr-only">Search funding guides</span>
+                <input
+                  id="funding-guide-search"
+                  type="search"
+                  value={fundingArticleSearch}
+                  onChange={(event) => setFundingArticleSearch(event.target.value)}
+                  placeholder="Search funding guides"
+                />
+              </label>
+            </div>
+          </header>
+
+          {isLoadingFundingArticles ? (
+            <div className="scholarly-funding-library__state" role="status">Loading funding guides…</div>
+          ) : fundingArticlesError ? (
+            <div className="scholarly-funding-library__state">
+              <p>{fundingArticlesError}</p>
+              <Link to="/info">Browse the Information Board</Link>
+            </div>
+          ) : visibleFundingGroups.length === 0 ? (
+            <div className="scholarly-funding-library__state">
+              No funding guides match “{fundingArticleSearch.trim()}”.
+            </div>
+          ) : (
+            <div className="scholarly-funding-groups">
+              {visibleFundingGroups.map((group, groupIndex) => {
+                const articleListId = `funding-group-${groupIndex}-articles`;
+                const isExpanded = fundingGroupExpansion[group.key]
+                  ?? (!isMobileFundingLayout || Boolean(normalizedFundingSearch));
+
+                return (
+                  <section className="scholarly-funding-group" key={group.key}>
+                    <button
+                      type="button"
+                      className="scholarly-funding-group__toggle"
+                      aria-expanded={isExpanded}
+                      aria-controls={articleListId}
+                      onClick={() => setFundingGroupExpansion((current) => ({
+                        ...current,
+                        [group.key]: !isExpanded,
+                      }))}
+                    >
+                      <span className="scholarly-funding-group__heading">
+                        <span className="scholarly-funding-icon" aria-hidden="true">
+                          <BookOpenText size={19} />
+                        </span>
+                        <span>
+                          <span
+                            className="scholarly-funding-group__title"
+                            role="heading"
+                            aria-level="3"
+                          >
+                            {group.title}
+                          </span>
+                          <span className="scholarly-funding-group__description">
+                            {group.description}
+                          </span>
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={`scholarly-funding-group__chevron${isExpanded ? ' is-expanded' : ''}`}
+                        size={19}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {isExpanded && (
+                      <div className="scholarly-funding-article-list" id={articleListId}>
+                        {group.articles.map((article) => (
+                          <Link
+                            className="scholarly-funding-article"
+                            key={article.thread_id}
+                            to={`/info/forum/${article.forum_id}/thread/${article.thread_id}`}
+                          >
+                            <div>
+                              <span>{article.content_kind === 'megathread' ? 'Community Q&A' : 'Guide'}</span>
+                              <h4>{article.title}</h4>
+                              {article.excerpt && <p>{article.excerpt}</p>}
+                            </div>
+                            <ArrowUpRight size={18} aria-hidden="true" />
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="scholarly-funding-plan" aria-labelledby="funding-plan-title">
+          <header>
+            <div>
+              <p className="scholarly-page-kicker">Coming next</p>
+              <h2 id="funding-plan-title">Planned funding tools</h2>
+            </div>
+            <span>Guides are live; opportunity data is planned</span>
+          </header>
+          <div className="scholarly-funding-grid">
+            {fundingPlans.map(({ title, description, Icon }) => (
+              <article key={title}>
+                <span className="scholarly-funding-icon" aria-hidden="true">
+                  <Icon size={20} />
+                </span>
+                <h3>{title}</h3>
+                <p>{description}</p>
+                <small>Planned</small>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <aside className="scholarly-page-note">
+          <BookOpenText size={19} aria-hidden="true" />
+          <div>
+            <strong>Need help applying a guide to your situation?</strong>
+            <p>
+              Use the Financial Aid Questions Megathread for general discussion, then confirm
+              account-specific answers with your school’s financial aid office.
+            </p>
+          </div>
+          <Link
+            to={fundingDiscussionPath}
+            aria-label="Open the Financial Aid Questions Megathread"
+          >
+            <ArrowUpRight size={18} />
+          </Link>
+        </aside>
       </main>
     );
   }
 
   // SAVED SECTION
   if (activeSection === 'saved' && userData) {
-    return (
-      <main>
+    const savedMetrics = [
+      { key: 'forums', label: 'Forums', count: savedForums.length },
+      { key: 'threads', label: 'Threads', count: savedThreads.length },
+      { key: 'posts', label: 'Comments', count: savedPosts.length },
+    ];
+    const activeCount =
+      savedTab === 'forums'
+        ? savedForums.length
+        : savedTab === 'threads'
+          ? savedThreads.length
+          : savedPosts.length;
+    const savedQuery = savedSearch.trim().toLowerCase();
+    const matchesSavedQuery = (...values) =>
+      !savedQuery ||
+      values
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(savedQuery);
+    const filteredSavedForums = savedForums.filter((forum) =>
+      matchesSavedQuery(forum.name, forum.description, forum.community_name)
+    );
+    const filteredSavedThreads = savedThreads.filter((thread) =>
+      matchesSavedQuery(thread.title, thread.first_post_content, thread.forum_name)
+    );
+    const filteredSavedPosts = savedPosts.filter((post) =>
+      matchesSavedQuery(post.content, post.original_post_content, post.thread_title, post.forum_name)
+    );
+    const activeResults =
+      savedTab === 'forums'
+        ? filteredSavedForums
+        : savedTab === 'threads'
+          ? filteredSavedThreads
+          : filteredSavedPosts;
+
+    return withNotification(
+      <main className="scholarly-page scholarly-saved-page">
         {reportModal}
-        <div className="feed-container">
-          <h1 className="section-title" style={{ marginBottom: '0.5rem' }}>Saved</h1>
-          <p style={{ marginTop: 0, color: 'var(--muted-text)' }}>
-            Curate your favorites across forums, threads, and posts.
-          </p>
-          <div className="section-controls">
-            <span className="sort-pill">View</span>
-            <div className="chips-row">
-              <button
-                type="button"
-                className={`chip ${savedTab === 'forums' ? 'active' : ''}`}
-                onClick={() => setSavedTab('forums')}
-              >
-                Forums
-              </button>
-              <button
-                type="button"
-                className={`chip ${savedTab === 'threads' ? 'active' : ''}`}
-                onClick={() => setSavedTab('threads')}
-              >
-                Threads
-              </button>
-              <button
-                type="button"
-                className={`chip ${savedTab === 'posts' ? 'active' : ''}`}
-                onClick={() => setSavedTab('posts')}
-              >
-                Posts
-              </button>
+        <div className="feed-container scholarly-page-panel saved-page-panel">
+          <header className="scholarly-page-header saved-page-header">
+            <div>
+              <p className="scholarly-page-kicker">Reading library</p>
+              <h1>Saved</h1>
+              <p>Return to the forums, threads, and comments you kept for later.</p>
             </div>
+            <div className="scholarly-page-count saved-active-count" aria-live="polite">
+              <strong>{activeResults.length}</strong>
+              <span>saved {savedTab === 'posts' ? 'comments' : savedTab} in view</span>
+            </div>
+          </header>
+
+          <div className="saved-section saved-page-body">
+            <div className="saved-library-controls section-controls scholarly-controls filter-toolbar filter-toolbar--filter-first">
+              <div
+                ref={savedSegmentRef}
+                className="saved-metrics admin-review__filters chips-row segmented-control"
+                style={{
+                  '--seg-count': savedMetrics.length,
+                  '--seg-index': savedMetrics.findIndex((metric) => metric.key === savedTab)
+                }}
+                role="tablist"
+                aria-label="Saved content types"
+              >
+                {savedMetrics.map((metric) => (
+                  <button
+                    key={metric.key}
+                    type="button"
+                    className={`chip saved-metric ${savedTab === metric.key ? 'active' : ''}`}
+                    onClick={() => {
+                      setSavedTab(metric.key);
+                      setOpenSavedMenu(null);
+                    }}
+                    role="tab"
+                    aria-selected={savedTab === metric.key}
+                  >
+                    <span className="saved-metric__label">{metric.label}</span>
+                    <span className="saved-metric__value">{metric.count}</span>
+                  </button>
+                ))}
+              </div>
+
+              <label className="saved-search">
+                <Search size={17} aria-hidden="true" />
+                <span className="sr-only">Search saved items</span>
+                <input
+                  type="search"
+                  value={savedSearch}
+                  onChange={(event) => {
+                    setSavedSearch(event.target.value);
+                    setOpenSavedMenu(null);
+                  }}
+                  placeholder={`Search saved ${savedTab === 'posts' ? 'comments' : savedTab}`}
+                />
+                {savedQuery && <span>{activeResults.length} found</span>}
+              </label>
+            </div>
+
+            {activeCount === 0 && (
+              <div className="saved-empty">
+                <h3>No saved {savedTab === 'posts' ? 'comments' : savedTab} yet</h3>
+                <p>Save content from menus to build your quick-access library.</p>
+              </div>
+            )}
+
+            {activeCount > 0 && activeResults.length === 0 && (
+              <div className="saved-empty saved-search-empty">
+                <h3>No matching saved items</h3>
+                <p>Try a title, community, forum, or phrase from the content.</p>
+              </div>
+            )}
+
+            {savedTab === 'forums' && filteredSavedForums.length > 0 && (
+              <div className="saved-grid">
+                {filteredSavedForums.map((f) => {
+                  const menuKey = `forum-${f.forum_id}`;
+                  return (
+                  <article key={f.forum_id} className="saved-card">
+                    <div className="saved-card__meta">
+                      <span className="saved-card__type">Forum</span>
+                      {f.saved_at && <span className="saved-card__time">Saved {formatSavedAt(f.saved_at)}</span>}
+                    </div>
+                    <div className="saved-card__crumbs">
+                      <span>{f.community_name || 'Community'}</span>
+                      <div className="saved-card__menu">
+                          <button
+                            type="button"
+                            className="saved-card__menu-trigger"
+                            onClick={() => setOpenSavedMenu(openSavedMenu === menuKey ? null : menuKey)}
+                            aria-label={`Actions for ${f.name}`}
+                            aria-expanded={openSavedMenu === menuKey}
+                          >
+                            <MoreVertical size={17} aria-hidden="true" />
+                          </button>
+                          {openSavedMenu === menuKey && (
+                            <div className="dropdown-menu saved-card__menu-popover">
+                              <button
+                                type="button"
+                                className="dropdown-item"
+                                onClick={() => {
+                                  handleSaveForum(f.forum_id, true);
+                                  setOpenSavedMenu(null);
+                                }}
+                              >
+                                Unsave
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                    <Link className="saved-card__title" to={`/info/forum/${f.forum_id}`}>
+                      <h3>{f.name}</h3>
+                    </Link>
+                    <p className="saved-card__text">
+                      {summarizeWithEllipsis(f.description || '', SAVED_CARD_MAX_CHARS) || 'No description provided...'}
+                    </p>
+                  </article>
+                  );
+                })}
+              </div>
+            )}
+
+            {savedTab === 'threads' && filteredSavedThreads.length > 0 && (
+              <div className="saved-grid">
+                {filteredSavedThreads.map((t) => {
+                  const menuKey = `thread-${t.thread_id}`;
+                  return (
+                  <article key={t.thread_id} className="saved-card">
+                    <div className="saved-card__meta">
+                      <span className="saved-card__type">Thread</span>
+                      {t.saved_at && <span className="saved-card__time">Saved {formatSavedAt(t.saved_at)}</span>}
+                    </div>
+                    <div className="saved-card__crumbs">
+                      <span>Info Board</span>
+                      <span className="saved-card__crumb-sep">/</span>
+                      <span>{t.forum_name || 'Forum'}</span>
+                      <span className="saved-card__crumb-sep">/</span>
+                      <div className="saved-card__menu">
+                          <button
+                            type="button"
+                            className="saved-card__menu-trigger"
+                            onClick={() => setOpenSavedMenu(openSavedMenu === menuKey ? null : menuKey)}
+                            aria-label={`Actions for ${t.title || 'saved thread'}`}
+                            aria-expanded={openSavedMenu === menuKey}
+                          >
+                            <MoreVertical size={17} aria-hidden="true" />
+                          </button>
+                          {openSavedMenu === menuKey && (
+                            <div className="dropdown-menu saved-card__menu-popover">
+                              <button
+                                type="button"
+                                className="dropdown-item"
+                                onClick={() => {
+                                  handleUnsaveThread(t.thread_id);
+                                  setOpenSavedMenu(null);
+                                }}
+                              >
+                                Unsave
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                    <Link className="saved-card__title" to={`/info/forum/${t.forum_id || 0}/thread/${t.thread_id}`}>
+                      <h3>{t.title || 'Untitled thread'}</h3>
+                    </Link>
+                    <p className="saved-card__text">
+                      {summarizeWithEllipsis(t.first_post_content || '', SAVED_CARD_MAX_CHARS) || 'No thread preview available...'}
+                    </p>
+                  </article>
+                  );
+                })}
+              </div>
+            )}
+
+            {savedTab === 'posts' && filteredSavedPosts.length > 0 && (
+              <div className="saved-grid">
+                {filteredSavedPosts.map((p) => (
+                  <article
+                    key={p.post_id}
+                    className={`saved-card saved-card--post ${Number(p.verified) === 1 ? 'saved-card--verified' : ''}`}
+                  >
+                    {(() => {
+                      const normalizedPostId = normalizeDisplayId(p.post_id);
+                      const postTarget =
+                        p.thread_id && normalizedPostId
+                          ? `/info/forum/${p.forum_id || 0}/thread/${p.thread_id}?post_id=${encodeURIComponent(normalizedPostId)}#post-${encodeURIComponent(normalizedPostId)}`
+                          : '';
+                      return (
+                        <>
+                    <div className="saved-card__meta">
+                      <span className="saved-card__type">Comment</span>
+                      {p.saved_at && <span className="saved-card__time">Saved {formatSavedAt(p.saved_at)}</span>}
+                    </div>
+                    {Number(p.verified) === 1 && (
+                      <span className="saved-card__verified">Verified Answer</span>
+                    )}
+                    <div className="saved-card__crumbs">
+                      <span>Info Board</span>
+                      <span className="saved-card__crumb-sep">/</span>
+                      <span>{p.forum_name || 'Forum'}</span>
+                      {p.thread_title && (
+                        <>
+                          <span className="saved-card__crumb-sep">/</span>
+                          <span
+                            className="saved-card__crumb-truncate"
+                            title={p.thread_title}
+                          >
+                            {summarizeWithEllipsis(p.thread_title, SAVED_CARD_MAX_CHARS)}
+                          </span>
+                        </>
+                      )}
+                      <div className="saved-card__menu">
+                          <button
+                            type="button"
+                            className="saved-card__menu-trigger"
+                            onClick={() => {
+                              const menuKey = `post-${p.post_id}`;
+                              setOpenSavedMenu(openSavedMenu === menuKey ? null : menuKey);
+                            }}
+                            aria-label="Actions for saved comment"
+                            aria-expanded={openSavedMenu === `post-${p.post_id}`}
+                          >
+                            <MoreVertical size={17} aria-hidden="true" />
+                          </button>
+                          {openSavedMenu === `post-${p.post_id}` && (
+                            <div className="dropdown-menu saved-card__menu-popover">
+                              <button
+                                type="button"
+                                className="dropdown-item"
+                                onClick={() => {
+                                  handleUnsavePost(p.post_id);
+                                  setOpenSavedMenu(null);
+                                }}
+                              >
+                                Unsave
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                    {(() => {
+                      const originalPostText = stripHtml(p.original_post_content || '');
+                      const headingText = summarizeWithEllipsis(originalPostText, SAVED_CARD_MAX_CHARS)
+                        || summarizeWithEllipsis(p.thread_title || '', SAVED_CARD_MAX_CHARS)
+                        || 'Saved Comment';
+                      const headingTitle = originalPostText || p.thread_title || 'Saved Comment';
+
+                      return (
+                        <h3 className="saved-card__heading" title={headingTitle}>
+                          {postTarget ? (
+                            <Link className="saved-card__thread-link" to={postTarget}>
+                              {headingText}
+                            </Link>
+                          ) : (
+                            headingText
+                          )}
+                        </h3>
+                      );
+                    })()}
+                    <p className="saved-card__text">
+                      {summarizeWithEllipsis(p.content, SAVED_CARD_MAX_CHARS) || 'No preview available...'}
+                    </p>
+                        </>
+                      );
+                    })()}
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
-
-          {/* Show relevant list based on savedTab */}
-          {savedTab === 'forums' && (
-            <>
-              {savedForums.length === 0 ? (
-                <p>You have no saved forums.</p>
-              ) : (
-                savedForums.map((f) => (
-                  <div key={f.forum_id} className="forum-card card-lift">
-                    <Link
-                      to={`/info/forum/${f.forum_id}`}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
-                      <h4>{f.name}</h4>
-                      <p>{f.description}</p>
-                    </Link>
-                    <button
-                      style={{
-                        backgroundColor: '#ccc',
-                        color: '#333',
-                        border: 'none',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => handleSaveForum(f.forum_id, true)} // 'true' => unsave
-                    >
-                      Unsave
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
-
-          {savedTab === 'threads' && (
-            <>
-              {savedThreads.length === 0 ? (
-                <p>You have no saved threads.</p>
-              ) : (
-                savedThreads.map((t) => (
-                  <div key={t.thread_id} className="forum-card card-lift">
-                    <Link
-                      to={`/info/forum/0/thread/${t.thread_id}`}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
-                      <h4>{t.title}</h4>
-                    </Link>
-                    <button
-                      style={{
-                        backgroundColor: '#ccc',
-                        color: '#333',
-                        border: 'none',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        // Example: /api/unsave_thread.php
-                        alert(`Unsave thread: ${t.thread_id}`);
-                      }}
-                    >
-                      Unsave
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
-
-          {savedTab === 'posts' && (
-            <>
-              {savedPosts.length === 0 ? (
-                <p>You have no saved posts.</p>
-              ) : (
-                savedPosts.map((p) => (
-                  <div key={p.post_id} className="forum-card card-lift">
-                    <h4>Post #{p.post_id}</h4>
-                    <div
-                      dangerouslySetInnerHTML={{
-                        __html: DOMPurify ? DOMPurify.sanitize(p.content) : p.content
-                      }}
-                    />
-                    <br />
-                    <button
-                      style={{
-                        backgroundColor: '#ccc',
-                        color: '#333',
-                        border: 'none',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        // Example: /api/unsave_post.php
-                        alert(`Unsave post: ${p.post_id}`);
-                      }}
-                    >
-                      Unsave
-                    </button>
-                  </div>
-                ))
-              )}
-            </>
-          )}
         </div>
       </main>
     );
   }
 
   // If none of the above sections match, display fallback content (e.g., "connections", etc.)
-  return (
+  return withNotification(
     <main>
       {reportModal}
       {['home', 'connections', 'funding'].includes(activeSection) &&
@@ -1874,19 +3446,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, onRequireAut
           </div>
         ))
       }
-
-      {/* Notification */}
-      {notification && (
-        <div className={`notification ${notification.type}`}>
-          {notification.message}
-          <button
-            className="notification-close"
-            onClick={() => setNotification(null)}
-          >
-            X
-          </button>
-        </div>
-      )}
     </main>
   );
 }

@@ -1,16 +1,20 @@
 <?php
 // fetch_feed.php
 
-session_start();
 header('Content-Type: application/json');
 require_once '../db_connection.php';
+require_once __DIR__ . '/../session_bootstrap.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
-if (!isset($_GET['user_id'])) {
-    echo json_encode(["success" => false, "error" => "Missing user_id"]);
+startSession();
+
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(["success" => false, "error" => "Authentication required."]);
     exit;
 }
 
-$user_id = normalizeId($_GET['user_id']);
+$user_id = normalizeId($_SESSION['user_id']);
 $sort = isset($_GET['sort']) ? strtolower(trim($_GET['sort'])) : 'recent';
 if (!in_array($sort, ['recent', 'trending'], true)) {
     $sort = 'recent';
@@ -18,6 +22,7 @@ if (!in_array($sort, ['recent', 'trending'], true)) {
 
 try {
     $db = getDB();
+    srp_ensure_tag_tables($db);
 
     // Helpers
     $tableExists = function (PDO $db, string $tableName): bool {
@@ -71,7 +76,7 @@ try {
         $conditions[] = "t.user_id IN ({$placeholders['user']})";
     }
     if (!empty($placeholders['tag'])) {
-        $conditions[] = "tt.tag_id IN ({$placeholders['tag']})";
+        $conditions[] = "(tt.tag_id IN ({$placeholders['tag']}) OR ft.tag_id IN ({$placeholders['tag']}))";
     }
 
     if (empty($conditions)) {
@@ -91,6 +96,7 @@ try {
         INNER JOIN forums f ON t.forum_id = f.forum_id
         INNER JOIN communities c ON f.community_id = c.id
         LEFT JOIN thread_tags tt ON tt.thread_id = t.thread_id
+        LEFT JOIN forum_tags ft ON ft.forum_id = f.forum_id
         WHERE {$whereClause}
           AND t.is_hidden = 0
           AND f.is_hidden = 0
@@ -102,6 +108,8 @@ try {
           COALESCE(tv.vote_type, '') AS user_vote,
           u.first_name, 
           u.last_name,
+          u.verified AS author_verified,
+          ac.logo_path AS ambassador_logo_path,
           c.name AS community_name,
           c.community_type,
           c.id AS community_id
@@ -116,6 +124,11 @@ try {
           ON f.community_id = c.id
         INNER JOIN users u
           ON t.user_id = u.user_id
+        LEFT JOIN ambassadors a
+               ON a.user_id = t.user_id
+              AND a.community_id = c.id
+        LEFT JOIN communities ac
+               ON ac.id = a.community_id
         {$orderClause}
     ";
 
@@ -125,9 +138,42 @@ try {
     }
     $stmt->execute();
     $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $threads = srp_attach_tags_to_threads($db, $threads);
 
-    echo json_encode(["success" => true, "threads" => $threads]);
+    $forums = [];
+    if (!empty($placeholders['tag'])) {
+        $forumQuery = "
+            SELECT 
+                f.forum_id,
+                f.community_id,
+                f.name,
+                f.description,
+                f.created_at,
+                COUNT(t.thread_id) AS thread_count,
+                (SELECT COUNT(*) FROM forum_votes WHERE forum_id = f.forum_id AND vote_type = 'up') AS upvotes,
+                (SELECT COUNT(*) FROM forum_votes WHERE forum_id = f.forum_id AND vote_type = 'down') AS downvotes
+            FROM forums f
+            LEFT JOIN threads t ON f.forum_id = t.forum_id
+            LEFT JOIN forum_tags ft ON ft.forum_id = f.forum_id
+            WHERE f.is_hidden = 0
+              AND ft.tag_id IN ({$placeholders['tag']})
+            GROUP BY f.forum_id, f.community_id, f.name, f.description, f.created_at
+            ORDER BY COALESCE(f.last_activity_at, f.created_at) DESC
+            LIMIT 20
+        ";
+        $forumStmt = $db->prepare($forumQuery);
+        foreach ($params as $key => $value) {
+            if (strpos($key, ':tg') === 0) {
+                $forumStmt->bindValue($key, $value);
+            }
+        }
+        $forumStmt->execute();
+        $forums = $forumStmt->fetchAll(PDO::FETCH_ASSOC);
+        $forums = srp_attach_tags_to_forums($db, $forums);
+    }
+
+    echo json_encode(["success" => true, "threads" => $threads, "forums" => $forums]);
 } catch (PDOException $e) {
-    echo json_encode(["success" => false, "error" => "Database error: " . $e->getMessage()]);
+    echo json_encode(["success" => false, "error" => "Database error: "]);
 }
 ?>

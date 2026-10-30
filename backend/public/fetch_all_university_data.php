@@ -1,5 +1,7 @@
 <?php
+require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/institution_data/PublicProjection.php';
 
 header('Content-Type: application/json');
 
@@ -7,63 +9,106 @@ $user_id = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : null;
 $isGuest = $user_id === null;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$limit = 10; // Number of communities per page
+$scope = isset($_GET['scope']) ? strtolower(trim((string)$_GET['scope'])) : 'all';
+if (!in_array($scope, ['all', 'followed', 'unfollowed'], true)) {
+    $scope = 'all';
+}
+$sort = isset($_GET['sort']) ? strtolower(trim((string)$_GET['sort'])) : 'popularity';
+if (!in_array($sort, ['popularity', 'alpha'], true)) {
+    $sort = 'popularity';
+}
+$communityType = isset($_GET['community_type']) ? strtolower(trim((string)$_GET['community_type'])) : 'university';
+if (!in_array($communityType, ['university', 'group'], true)) {
+    $communityType = 'university';
+}
+$limit = 24;
+$page = max(1, $page);
 $offset = ($page - 1) * $limit;
 
 $db = getDB();
 
 try {
-    // Create or replace the view to include community_type
-    $db->exec("
-        CREATE OR REPLACE VIEW all_community_data AS
-        SELECT 
-            c.id AS community_id, 
-            c.community_type,  -- Include community_type
-            c.parent_community_id,
-            c.name, 
-            c.location, 
-            c.tagline, 
-            c.logo_path, 
-            COUNT(fc.user_id) AS followers_count
-        FROM communities c
-        LEFT JOIN followed_communities fc ON fc.community_id = c.id
-        GROUP BY c.id, c.community_type, c.parent_community_id, c.name, c.location, c.tagline, c.logo_path
-    ");
+    $publicProjection = SrpInstitutionPublicProjection::selectList(
+        $db,
+        'c',
+        ['id' => 'community_id']
+    );
+    $directoryPredicate = SrpInstitutionPublicProjection::directoryUniversityPredicate(
+        $db,
+        'c',
+        $search !== ''
+    );
 
-    // Prepare the main query with search, filtering by community_type = 'university', and pagination
     if ($isGuest) {
         $query = "
-            SELECT 
-                aud.*, 
+            SELECT
+                {$publicProjection},
+                (
+                    SELECT COUNT(*)
+                    FROM followed_communities follower_count
+                    WHERE follower_count.community_id = c.id
+                ) AS followers_count,
                 0 AS is_followed
-            FROM all_community_data aud
-            WHERE aud.community_type = 'university'
+            FROM communities c
+            WHERE c.community_type = :community_type
+              AND {$directoryPredicate}
         ";
-        $params = [];
+        $params = [':community_type' => $communityType];
+        if ($scope === 'followed') {
+            // Guests cannot follow communities. Keep the response and its
+            // total aligned with the client-side Followed view.
+            $query .= " AND 1 = 0";
+        }
     } else {
         $query = "
-            SELECT 
-                aud.*, 
+            SELECT
+                {$publicProjection},
+                (
+                    SELECT COUNT(*)
+                    FROM followed_communities follower_count
+                    WHERE follower_count.community_id = c.id
+                ) AS followers_count,
                 CASE WHEN fc.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_followed
-            FROM all_community_data aud
+            FROM communities c
             LEFT JOIN followed_communities fc 
-                ON aud.community_id = fc.community_id AND fc.user_id = :user_id
-            WHERE aud.community_type = 'university'
+                ON c.id = fc.community_id AND fc.user_id = :user_id
+            WHERE c.community_type = :community_type
+              AND ({$directoryPredicate} OR fc.user_id IS NOT NULL)
         ";
-        $params = [':user_id' => $user_id];
+        $params = [':user_id' => $user_id, ':community_type' => $communityType];
+
+        if ($scope === 'followed') {
+            $query .= " AND fc.user_id IS NOT NULL";
+        } elseif ($scope === 'unfollowed') {
+            $query .= " AND fc.user_id IS NULL";
+        }
     }
 
-    // Add search condition if a search term is provided
     if ($search !== '') {
-        $query .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search)";
+        $searchConditions = [
+            'c.name LIKE :search',
+            'c.location LIKE :search',
+            'c.tagline LIKE :search',
+            "(c.aliases IS NOT NULL AND JSON_SEARCH(c.aliases, 'one', :search_exact) IS NOT NULL)",
+        ];
+        foreach (['official_name', 'city', 'state', 'normalized_domain'] as $optionalSearchColumn) {
+            if (SrpInstitutionPublicProjection::hasColumn($db, $optionalSearchColumn)) {
+                $searchConditions[] = "c.`{$optionalSearchColumn}` LIKE :search";
+            }
+        }
+        $query .= ' AND (' . implode(' OR ', $searchConditions) . ')';
         $params[':search'] = '%' . $search . '%';
+        $params[':search_exact'] = $search;
     }
 
-    $query .= " ORDER BY aud.name ASC LIMIT :limit OFFSET :offset";
+    $orderBy = $sort === 'alpha'
+        ? " ORDER BY c.name ASC"
+        : " ORDER BY followers_count DESC, c.name ASC";
+
+    $query .= $orderBy . " LIMIT :limit OFFSET :offset";
 
     $stmt = $db->prepare($query);
 
-    // Bind the parameters (note: :limit and :offset are bound separately below)
     foreach ($params as $key => &$val) {
         $stmt->bindParam($key, $val, PDO::PARAM_STR);
     }
@@ -73,39 +118,55 @@ try {
     $stmt->execute();
     $communities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Ensure $communities is an array
     if (!is_array($communities)) {
         $communities = [];
     }
 
-    // Get total count for pagination (only universities)
     $countQuery = "
         SELECT COUNT(*) as total
-        FROM all_community_data aud
-        WHERE aud.community_type = 'university'
+        FROM communities c
+        " . ($isGuest ? "" : "LEFT JOIN followed_communities fc ON c.id = fc.community_id AND fc.user_id = :user_id") . "
+        WHERE c.community_type = :community_type
+          AND " . ($isGuest ? $directoryPredicate : "({$directoryPredicate} OR fc.user_id IS NOT NULL)") . "
     ";
+    if ($isGuest && $scope === 'followed') {
+        $countQuery .= " AND 1 = 0";
+    } elseif (!$isGuest) {
+        if ($scope === 'followed') {
+            $countQuery .= " AND fc.user_id IS NOT NULL";
+        } elseif ($scope === 'unfollowed') {
+            $countQuery .= " AND fc.user_id IS NULL";
+        }
+    }
     if ($search !== '') {
-        $countQuery .= " AND (aud.name LIKE :search OR aud.location LIKE :search OR aud.tagline LIKE :search)";
+        $countQuery .= ' AND (' . implode(' OR ', $searchConditions) . ')';
     }
 
     $countStmt = $db->prepare($countQuery);
+    $countStmt->bindValue(':community_type', $communityType, PDO::PARAM_STR);
+    if (!$isGuest) {
+        $countStmt->bindValue(':user_id', $user_id, PDO::PARAM_STR);
+    }
     if ($search !== '') {
         $countStmt->bindValue(':search', '%' . $search . '%', PDO::PARAM_STR);
+        $countStmt->bindValue(':search_exact', $search, PDO::PARAM_STR);
     }
     $countStmt->execute();
     $totalResult = $countStmt->fetch(PDO::FETCH_ASSOC);
     $totalCommunities = $totalResult ? (int)$totalResult['total'] : 0;
-    $totalPages = ceil($totalCommunities / $limit);
+    $totalPages = max(1, (int)ceil($totalCommunities / $limit));
 
     $response = [
         'communities' => $communities,
+        'total_count' => $totalCommunities,
         'total_pages' => $totalPages,
-        'current_page' => $page
+        'current_page' => $page,
+        'per_page' => $limit
     ];
 
     echo json_encode($response);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

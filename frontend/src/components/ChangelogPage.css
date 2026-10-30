@@ -1,0 +1,60 @@
+/*
+ * Additions only. The page's width, header, typography, and section rhythm all
+ * come from LegalPage.css so the Changelog, Privacy Policy, and Terms of
+ * Service read as one set of documents.
+ */
+
+.changelog-page .changelog-entry {
+  padding-top: 22px;
+  border-top: 1px solid var(--card-border, #DCE7F5);
+}
+
+/* The first entry sits directly under the page header, which already provides
+   its own separation. */
+.changelog-page .changelog-entry:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.changelog-entry__emoji {
+  margin-right: 8px;
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+/* Needs to outrank `.legal-page__section p`, which would otherwise give this
+   line full body-copy size and colour. */
+.changelog-page .changelog-entry__meta {
+  margin: 0 0 10px;
+  color: var(--muted-text, #667895);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.changelog-entry__body > :first-child {
+  margin-top: 0;
+}
+
+.changelog-entry__body ul,
+.changelog-entry__body ol {
+  padding-left: 1.25rem;
+}
+
+.changelog-entry__body li {
+  margin-bottom: 6px;
+  line-height: 1.65;
+}
+
+.changelog-entry__body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+.changelog-entry__body a {
+  color: var(--link-color, #2F80ED);
+}
+
+[data-theme='dark'] .changelog-page .changelog-entry {
+  border-top-color: rgba(148, 163, 184, 0.25);
+}

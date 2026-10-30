@@ -1,7 +1,12 @@
 <?php
-session_start();
-
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/sanitize.php';
+require_once __DIR__ . '/../includes/content_limits.php';
+require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -15,15 +20,37 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
 $role_id_session = (int)$_SESSION['role_id'];
 $user_id_session = normalizeId($_SESSION['user_id']);
 
-// 3) Decode JSON
+// 3) Decode JSON or accept multipart form data
 $data = json_decode(file_get_contents('php://input'), true);
-$forum_id = normalizeId($data['forum_id'] ?? '');
-$new_name = trim($data['name'] ?? '');
-$new_desc = trim($data['description'] ?? '');
+$usingForm = !empty($_POST) || !empty($_FILES);
+$forum_id = normalizeId($usingForm ? ($_POST['forum_id'] ?? '') : ($data['forum_id'] ?? ''));
+$new_name = srp_sanitize_plain($usingForm ? ($_POST['name'] ?? '') : ($data['name'] ?? ''));
+$new_desc = srp_sanitize_plain($usingForm ? ($_POST['description'] ?? '') : ($data['description'] ?? ''), 2000);
+$tagsRaw = $usingForm ? ($_POST['tags'] ?? null) : ($data['tags'] ?? null);
+$tagsProvided = $tagsRaw !== null;
+if (is_string($tagsRaw)) {
+    $decodedTags = json_decode($tagsRaw, true);
+    $tags = is_array($decodedTags) ? $decodedTags : [];
+} elseif (is_array($tagsRaw)) {
+    $tags = $tagsRaw;
+} else {
+    $tags = [];
+}
+
+$imageLayoutRaw = strtolower(trim((string)($usingForm ? ($_POST['image_layout'] ?? '') : ($data['image_layout'] ?? ''))));
+if ($imageLayoutRaw === 'left') {
+    $imageLayoutRaw = 'right';
+}
+$imageLayout = in_array($imageLayoutRaw, ['right', 'banner', 'full'], true) ? $imageLayoutRaw : null;
 
 if ($forum_id === '' || $new_name === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid forum_id or missing name.']);
+    exit;
+}
+if (srp_content_text_length($new_name) > SRP_FORUM_TITLE_MAX_LENGTH) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Forum names must be 100 characters or fewer.']);
     exit;
 }
 
@@ -42,31 +69,68 @@ try {
 
     $community_id = $forum['community_id'];
 
-    // Permission: super admins OR ambassadors for the community
-    if ($role_id_session !== 1) {
-        $ambStmt = $db->prepare("SELECT 1 FROM ambassadors WHERE user_id = :uid AND community_id = :cid");
-        $ambStmt->execute([
-            ':uid' => $user_id_session,
-            ':cid' => $community_id,
-        ]);
-        if (!$ambStmt->fetchColumn()) {
-            http_response_code(403);
-            echo json_encode(['error' => 'No permission to edit forums.']);
+    if (!canManageForums($user_id_session, $role_id_session, $community_id, $db)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Verify your email and use an admin account to edit forums.']);
+        exit;
+    }
+
+    $bannerPath = null;
+    $bannerUploadDir = __DIR__ . '/../../uploads/banners/';
+    if (isset($_FILES['banner']) && $_FILES['banner']['error'] === UPLOAD_ERR_OK) {
+        $allowedTypes = ['image/jpeg', 'image/png'];
+        $bannerMimeType = mime_content_type($_FILES['banner']['tmp_name']);
+        if (!in_array($bannerMimeType, $allowedTypes, true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid banner file type. Only JPEG and PNG allowed.']);
             exit;
         }
+        if (!is_dir($bannerUploadDir) || !is_writable($bannerUploadDir)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Banner upload directory is not writable.']);
+            exit;
+        }
+        $bannerExtension = pathinfo($_FILES['banner']['name'], PATHINFO_EXTENSION);
+        $bannerFilename = 'forum_' . $forum_id . '_' . time() . '.' . $bannerExtension;
+        $bannerDestination = $bannerUploadDir . $bannerFilename;
+        if (move_uploaded_file($_FILES['banner']['tmp_name'], $bannerDestination)) {
+            $bannerPath = '/uploads/banners/' . $bannerFilename;
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => 'Banner upload failed.']);
+            exit;
+        }
+    } elseif (isset($_FILES['banner'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Banner upload error.']);
+        exit;
     }
 
     // 4) Perform the update
-    $stmt = $db->prepare("
-        UPDATE forums
-        SET name = :name, description = :desc
-        WHERE forum_id = :forum_id
-    ");
-    $stmt->execute([
-        ':name' => $new_name,
-        ':desc' => $new_desc,
-        ':forum_id' => $forum_id,
-    ]);
+    $query = "UPDATE forums SET name = :name, description = :desc";
+    if ($bannerPath !== null) {
+        $query .= ", banner_path = :banner_path";
+    }
+    if ($imageLayout !== null) {
+        $query .= ", image_layout = :image_layout";
+    }
+    $query .= " WHERE forum_id = :forum_id";
+    $stmt = $db->prepare($query);
+    $stmt->bindValue(':name', $new_name);
+    $stmt->bindValue(':desc', $new_desc);
+    $stmt->bindValue(':forum_id', $forum_id);
+    if ($bannerPath !== null) {
+        $stmt->bindValue(':banner_path', $bannerPath);
+    }
+    if ($imageLayout !== null) {
+        $stmt->bindValue(':image_layout', $imageLayout);
+    }
+    $stmt->execute();
+
+    if ($tagsProvided) {
+        $tagIds = srp_resolve_tag_ids($db, $tags);
+        srp_sync_tag_mappings($db, 'forum_tags', 'forum_id', $forum_id, $tagIds);
+    }
 
     if ($stmt->rowCount() > 0) {
         echo json_encode(['success' => true, 'message' => 'Forum updated successfully.']);
@@ -79,5 +143,5 @@ try {
     }
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }

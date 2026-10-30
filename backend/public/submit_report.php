@@ -1,6 +1,10 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../reporting_utils.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 header('Content-Type: application/json');
 
@@ -22,7 +26,10 @@ $reasonCode = isset($input['reason_code']) ? strtolower(trim($input['reason_code
 $reasonText = isset($input['reason_text']) ? trim($input['reason_text']) : '';
 $details = sanitizeDetails($input['details'] ?? '');
 
-$allowedTypes = ['forum', 'thread', 'post', 'comment', 'announcement', 'event', 'user'];
+$allowedTypes = [
+    'forum', 'thread', 'post', 'comment', 'announcement', 'event', 'user',
+    'reel', 'reel_comment',
+];
 if (!in_array($itemType, $allowedTypes, true) || $itemId === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid item type or missing item id.']);
@@ -41,8 +48,34 @@ $reporterId = normalizeId($_SESSION['user_id']);
 try {
     $db = getDB();
     ensureReportsTable($db);
+    srp_rate_limit_enforce(
+        $db,
+        'report:' . $reporterId . ':' . srp_client_ip(),
+        10,
+        3600,
+        'Too many reports submitted. Please wait before trying again.'
+    );
 
     $context = getReportContext($db, $itemType, $itemId);
+    $duplicateStmt = $db->prepare("
+        SELECT report_id
+        FROM reports
+        WHERE item_type = :type
+          AND item_id = :item_id
+          AND reported_by = :reported_by
+          AND status = 'pending'
+        LIMIT 1
+    ");
+    $duplicateStmt->execute([
+        ':type' => $itemType,
+        ':item_id' => $itemId,
+        ':reported_by' => $reporterId,
+    ]);
+    if ($duplicateStmt->fetchColumn()) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'You have already reported this item.']);
+        exit;
+    }
     $reportId = generateUniqueId($db, 'reports');
 
     // Determine severity from reason code
@@ -83,16 +116,11 @@ try {
         ':context' => $context['item_context'] ?? '',
     ]);
 
-    // Auto-hide logic: high/critical or >=3 distinct reporters
-    $hide = ($severity === 'high' || $severity === 'critical');
-    if (!$hide) {
-        $countStmt = $db->prepare("SELECT COUNT(DISTINCT reported_by) FROM reports WHERE item_type = :type AND item_id = :item_id");
-        $countStmt->execute([':type' => $itemType, ':item_id' => $itemId]);
-        $reporterCount = (int)$countStmt->fetchColumn();
-        if ($reporterCount >= 3) {
-            $hide = true;
-        }
-    }
+    // A single reporter must never be able to hide content by choosing a
+    // severe reason. Require corroboration from three distinct accounts.
+    $countStmt = $db->prepare("SELECT COUNT(DISTINCT reported_by) FROM reports WHERE item_type = :type AND item_id = :item_id AND status = 'pending'");
+    $countStmt->execute([':type' => $itemType, ':item_id' => $itemId]);
+    $hide = (int)$countStmt->fetchColumn() >= 3;
     if ($hide) {
         setItemHidden($db, $itemType, $itemId, true);
     }
@@ -104,12 +132,12 @@ try {
         $ambStmt->execute([':cid' => $context['community_id']]);
         $ambRecipients = $ambStmt->fetchAll(PDO::FETCH_COLUMN);
     }
-    $superAdminStmt = $db->query("
+    $superAdminStmt = $db->prepare("
         SELECT u.user_id
         FROM users u
-        LEFT JOIN roles r ON r.role_id = u.role_id
-        WHERE u.role_id = 1 OR r.role_name = 'super_admin'
+        WHERE u.role_id = :super_admin_role_id
     ");
+    $superAdminStmt->execute([':super_admin_role_id' => ROLE_SUPER_ADMIN]);
     $superAdmins = $superAdminStmt->fetchAll(PDO::FETCH_COLUMN);
 
     $recipients = $ambRecipients;
@@ -132,7 +160,7 @@ try {
 
     if (!empty($recipients)) {
         $communityName = htmlspecialchars($context['community_name'] ?? 'this community', ENT_QUOTES, 'UTF-8');
-        $isComment = $rawType === 'comment';
+        $isComment = in_array($rawType, ['comment', 'reel_comment'], true);
         $itemLabel = $isComment ? 'comment' : $itemType;
         $message = "A {$itemLabel} was reported in {$communityName}. <a href=\"/reports\">Review in Reported Items</a>";
         sendReportNotifications($db, $recipients, $reporterId, $message);
@@ -145,8 +173,9 @@ try {
     ]);
 } catch (InvalidArgumentException $e) {
     http_response_code(404);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    error_log('[SRP] submit_report failed: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Unable to submit report']);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }

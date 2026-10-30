@@ -1,6 +1,7 @@
 <?php
 // fetch_sessions.php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
@@ -36,11 +37,14 @@ try {
     $currentId = session_id();
     $enriched = array_map(function($row) use ($currentId) {
         $row['current'] = $row['session_id'] === $currentId;
+        // Never expose a bearer PHP session identifier to browser JavaScript.
+        // A one-way reference is sufficient for the revoke action.
+        $row['session_id'] = hash('sha256', $row['session_id']);
         return $row;
     }, $sessions);
 
     echo json_encode(['success' => true, 'sessions' => $enriched]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }

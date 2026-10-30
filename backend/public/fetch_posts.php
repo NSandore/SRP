@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/info_board_translations.php';
 header('Content-Type: application/json');
 
 // Validate that thread_id is provided
@@ -22,6 +23,7 @@ try {
         SELECT 
             p.post_id,
             p.thread_id,
+            f.community_id AS forum_community_id,
             p.user_id,
             p.content,
             p.created_at,
@@ -31,19 +33,34 @@ try {
             p.verified,
             p.verified_by,
             p.verified_at,
+            p.updated_by,
             v.vote_type AS user_vote,
             u.first_name,
             u.last_name,
             u.avatar_path,
+            u.headline,
+            u.verified AS author_verified,
+            ac.logo_path AS ambassador_logo_path,
+            ub.first_name AS updated_by_first_name,
+            ub.last_name AS updated_by_last_name,
+            ub.avatar_path AS updated_by_avatar_path,
             CASE 
               WHEN c.user_id1 IS NOT NULL THEN 1 
               ELSE 0 
             END AS is_connection
         FROM posts p
+        JOIN threads t ON t.thread_id = p.thread_id
+        JOIN forums f ON f.forum_id = t.forum_id
         LEFT JOIN post_votes v
                ON p.post_id = v.post_id
               AND v.user_id = :user_id
         LEFT JOIN users u ON u.user_id = p.user_id
+        LEFT JOIN ambassadors a
+               ON a.user_id = p.user_id
+              AND a.community_id = f.community_id
+        LEFT JOIN communities ac
+               ON ac.id = a.community_id
+        LEFT JOIN users ub ON ub.user_id = p.updated_by
         LEFT JOIN connections c 
                ON c.status = 'accepted'
               AND (
@@ -63,11 +80,23 @@ try {
     // Normalize avatar paths
     foreach ($posts as &$p) {
         $p['avatar_path'] = appendAvatarPath($p['avatar_path'] ?? null);
+        $p['updated_by_avatar_path'] = appendAvatarPath($p['updated_by_avatar_path'] ?? null);
+    }
+    unset($p);
+
+    if ($posts && srp_is_info_board_community($posts[0]['forum_community_id'] ?? '')) {
+        $posts = srp_translate_info_board_rows(
+            $db,
+            $posts,
+            'post',
+            'post_id',
+            ['content']
+        );
     }
 
     echo json_encode($posts);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

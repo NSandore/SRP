@@ -26,7 +26,7 @@ try {
 
     $mg->messages()->send($domain, [
         'from' => "$name <$email>",
-        'to' => 'n.sandore5140@gmail.com',
+        'to' => getenv('SUPPORT_EMAIL') ?: 'support@thestudentsphere.com',
         'subject' => 'StudentSphere Feedback',
         'text' => "Feedback from $name <$email>:\n\n$message"
     ]);
@@ -34,6 +34,6 @@ try {
     echo json_encode(['success' => true, 'message' => 'Feedback sent']);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Mailgun error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Mailgun error: ']);
 }
 ?>

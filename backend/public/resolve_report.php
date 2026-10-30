@@ -1,6 +1,10 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../reporting_utils.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/reels.php';
 
 header('Content-Type: application/json');
 
@@ -72,15 +76,8 @@ try {
     $db = getDB();
     ensureReportsTable($db);
 
-    // Determine if super admin (role_name or legacy role_id=1)
-    $roleStmt = $db->prepare("
-        SELECT CASE WHEN r.role_name = 'super_admin' OR :rid = 1 THEN 1 ELSE 0 END AS is_super
-        FROM roles r
-        WHERE r.role_id = :rid
-        LIMIT 1
-    ");
-    $roleStmt->execute([':rid' => $roleId]);
-    $isSuperAdmin = (bool)$roleStmt->fetchColumn() || $roleId === 1;
+    // Determine if super admin
+    $isSuperAdmin = isSuperAdmin($roleId);
 
     $stmt = $db->prepare("SELECT * FROM reports WHERE report_id = :rid");
     $stmt->execute([':rid' => $reportId]);
@@ -92,18 +89,11 @@ try {
         exit;
     }
 
-    // Permission: super admins or ambassadors for this community
-    if (!$isSuperAdmin) {
-        $permStmt = $db->prepare("SELECT 1 FROM ambassadors WHERE user_id = :uid AND community_id = :cid");
-        $permStmt->execute([
-            ':uid' => $userId,
-            ':cid' => $report['community_id'],
-        ]);
-        if (!$permStmt->fetchColumn()) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'You are not allowed to resolve this report.']);
-            exit;
-        }
+    // Permission: super admins or community moderators/admins for this community.
+    if (!$isSuperAdmin && !canModerateCommunityContent($userId, $roleId, normalizeId($report['community_id'] ?? ''), $db)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'You are not allowed to resolve this report.']);
+        exit;
     }
 
     $notifyReporter = function(string $status) use ($db, $report, $userId) {
@@ -203,6 +193,7 @@ try {
     // Removal flow
     $db->beginTransaction();
 
+    $removedReelId = null;
     switch ($report['item_type']) {
         case 'post':
         case 'comment':
@@ -219,6 +210,57 @@ try {
             break;
         case 'event':
             setItemHidden($db, 'event', $report['item_id'], true);
+            break;
+        case 'reel':
+            $removeReel = $db->prepare("
+                UPDATE reels
+                SET deleted_at = NOW(),
+                    is_hidden = 1,
+                    is_intro = 0,
+                    is_featured = 0,
+                    featured_at = NULL,
+                    featured_by = NULL,
+                    video_path = NULL,
+                    thumbnail_path = NULL,
+                    file_size = 0
+                WHERE reel_id = :reel_id
+            ");
+            $removeReel->execute([':reel_id' => $report['item_id']]);
+            $db->prepare('DELETE FROM user_intro_reels WHERE reel_id = :reel_id')
+                ->execute([':reel_id' => $report['item_id']]);
+            $db->prepare("
+                UPDATE reel_upload_sessions
+                SET status = 'cancelled',
+                    error_message = 'The Reel was removed by moderation.',
+                    completed_at = NOW()
+                WHERE reel_id = :reel_id
+                  AND status IN ('uploading', 'assembling', 'queued', 'processing')
+            ")->execute([':reel_id' => $report['item_id']]);
+            $removedReelId = $report['item_id'];
+            break;
+        case 'reel_comment':
+            $commentReelStmt = $db->prepare("
+                SELECT reel_id
+                FROM reel_comments
+                WHERE reel_comment_id = :comment_id
+                LIMIT 1
+            ");
+            $commentReelStmt->execute([':comment_id' => $report['item_id']]);
+            $commentReelId = $commentReelStmt->fetchColumn();
+            $removeComment = $db->prepare("
+                UPDATE reel_comments
+                SET deleted_at = NOW(), is_hidden = 1, body = ''
+                WHERE reel_comment_id = :comment_id
+                  AND deleted_at IS NULL
+            ");
+            $removeComment->execute([':comment_id' => $report['item_id']]);
+            if ($commentReelId && $removeComment->rowCount() === 1) {
+                $db->prepare("
+                    UPDATE reels
+                    SET comment_count = GREATEST(comment_count - 1, 0)
+                    WHERE reel_id = :reel_id
+                ")->execute([':reel_id' => $commentReelId]);
+            }
             break;
         case 'user':
             // No destructive action for user profiles yet
@@ -242,6 +284,16 @@ try {
     ]);
 
     $db->commit();
+    if ($removedReelId !== null) {
+        srp_reel_cleanup_public($removedReelId);
+        $runtimeStmt = $db->prepare("
+            SELECT upload_id FROM reel_upload_sessions WHERE reel_id = :reel_id
+        ");
+        $runtimeStmt->execute([':reel_id' => $removedReelId]);
+        foreach ($runtimeStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $uploadId) {
+            srp_reel_cleanup_runtime((string)$uploadId);
+        }
+    }
     $notifyReporter('resolved');
     $notifyReportee('Your content was removed for violating our community guidelines.');
     echo json_encode(['success' => true, 'status' => 'removed']);
@@ -250,11 +302,12 @@ try {
         $db->rollBack();
     }
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    error_log('[SRP] resolve_report failed: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Unable to resolve report']);
 } catch (PDOException $e) {
     if ($db->inTransaction()) {
         $db->rollBack();
     }
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }

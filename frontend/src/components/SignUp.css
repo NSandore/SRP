@@ -1,17 +1,18 @@
 .signup-container {
   max-width: 500px;
   margin: 2rem auto;
-  background: #fff;
+  background: var(--card-background);
   padding: 2rem;
   border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  border: 1px solid var(--card-border);
+  box-shadow: 0 12px 30px rgba(38, 82, 132, 0.08);
+  font-family: var(--font-family);
 }
 
 .signup-container h2 {
   text-align: center;
   margin-bottom: 2rem;
-  color: #0077B5;
+  color: #2F80ED;
   font-size: 1.8rem;
   font-weight: 600;
 }
@@ -24,26 +25,26 @@
 
 .signup-container label {
   font-weight: 600;
-  color: #555;
+  color: var(--text-color);
   margin-bottom: 0.5rem;
 }
 
 .signup-container input, .signup-container select {
   padding: 0.75rem 1rem;
   font-size: 1rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 5px;
   outline: none;
   transition: border-color 0.3s ease;
 }
 
 .signup-container input:focus, .signup-container select:focus {
-  border-color: #0077B5;
-  box-shadow: 0 0 0 3px rgba(0, 119, 181, 0.2);
+  border-color: #2F80ED;
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.16);
 }
 
 .signup-container button {
-  background: #0077B5;
+  background: #2F80ED;
   color: white;
   padding: 0.75rem;
   font-size: 1rem;
@@ -56,7 +57,7 @@
 }
 
 .signup-container button:hover {
-  background: #005f8d;
+  background: #1D5FC4;
 }
 
 .form-step {
@@ -78,7 +79,7 @@
 .school-search {
   padding: 0.75rem;
   font-size: 1rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 5px;
   margin-bottom: 1rem;
 }
@@ -90,8 +91,8 @@
 }
 
 .school-card {
-  background: #f9f9f9;
-  border: 2px solid transparent;
+  background: var(--light-background);
+  border: 2px solid var(--card-border);
   border-radius: 10px;
   padding: 1.5rem;
   text-align: center;
@@ -103,13 +104,13 @@
 }
 
 .school-card:hover {
-  background: #fff;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  background: var(--card-background);
+  box-shadow: 0 8px 20px rgba(38, 82, 132, 0.1);
 }
 
 .school-card.selected {
-  border: 2px solid #0077B5;
-  background: #eef9ff;
+  border: 2px solid #2F80ED;
+  background: #EDF5FF;
 }
 
 /* Updated Logo Styles */
@@ -118,26 +119,26 @@
   height: 120px;          /* Fixed height for uniformity */
   object-fit: contain;    /* Maintain aspect ratio */
   border-radius: 10px;    /* Rounded edges for uniform look */
-  background: #fff;       /* Fallback background */
+  background: var(--card-background); /* Fallback background */
   margin-bottom: 1rem;
 }
 
 .school-name {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #333;
+  color: var(--text-color);
   margin: 0.5rem 0;
 }
 
 .school-tagline {
   font-size: 0.9rem;
-  color: #555;
+  color: var(--subtext-color);
   margin: 0;
 }
 
 .no-results {
   margin-top: 1rem;
-  color: #999;
+  color: var(--subtext-color);
   font-style: italic;
 }
 

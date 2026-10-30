@@ -27,7 +27,8 @@
 }
 
 .request-actions button:first-child {
-  background-color: #28a745;
+  /* #28A745 put white text at 3.13:1. */
+  background-color: #15803D;
   color: #fff;
 }
 

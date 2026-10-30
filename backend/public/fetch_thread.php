@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../tag_helpers.php';
+require_once __DIR__ . '/../includes/info_board_translations.php';
 
 header('Content-Type: application/json');
 
@@ -18,30 +20,108 @@ try {
         SELECT 
             t.thread_id, 
             t.forum_id, 
+            t.parent_thread_id,
             t.user_id, 
-            t.title, 
-            t.created_at, 
+            u.first_name,
+            u.last_name,
+            u.avatar_path AS creator_avatar_path,
+            u.verified AS author_verified,
+            ac.logo_path AS ambassador_logo_path,
+            t.title,
+            t.content_kind,
+            t.sort_order,
+            t.is_locked,
+            t.image_path,
+            t.image_layout,
+            t.created_at,
+            t.updated_at,
+            t.updated_by,
+            ub.first_name AS updated_by_first_name,
+            ub.last_name AS updated_by_last_name,
             t.upvotes, 
             t.downvotes,
             f.name AS forum_name,
+            f.community_id,
+            f.is_system_container,
+            c.name AS community_name,
+            c.parent_community_id,
+            c.community_type,
+            pt.title AS parent_thread_title,
             (SELECT vote_type FROM thread_votes WHERE thread_id = t.thread_id AND user_id = :user_id) AS user_vote
         FROM threads t
+        JOIN users u ON u.user_id = t.user_id
         JOIN forums f ON t.forum_id = f.forum_id
+        JOIN communities c ON f.community_id = c.id
+        LEFT JOIN ambassadors a
+               ON a.user_id = t.user_id
+              AND a.community_id = f.community_id
+        LEFT JOIN communities ac
+               ON ac.id = a.community_id
+        LEFT JOIN users ub ON ub.user_id = t.updated_by
+        LEFT JOIN threads pt ON pt.thread_id = t.parent_thread_id
         WHERE t.thread_id = :thread_id
           AND t.is_hidden = 0
-          AND f.is_hidden = 0
+          AND (f.is_hidden = 0 OR f.is_system_container = 1)
     ");
     $stmt->execute([':thread_id' => $thread_id, ':user_id' => $user_id]);
     $thread = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($thread) {
-        echo json_encode($thread);
+        $thread['creator_avatar_path'] = appendAvatarPath($thread['creator_avatar_path'] ?? null);
+        if (srp_is_info_board_community($thread['community_id'] ?? '')) {
+            $translatedThread = srp_translate_info_board_rows(
+                $db,
+                [$thread],
+                'thread',
+                'thread_id',
+                ['title']
+            );
+            $thread = $translatedThread[0] ?? $thread;
+
+            if (!empty($thread['parent_thread_id']) && !empty($thread['parent_thread_title'])) {
+                $translatedParent = srp_translate_info_board_rows(
+                    $db,
+                    [[
+                        'thread_id' => $thread['parent_thread_id'],
+                        'title' => $thread['parent_thread_title'],
+                    ]],
+                    'thread',
+                    'thread_id',
+                    ['title']
+                );
+                if (isset($translatedParent[0])) {
+                    $thread['original_parent_thread_title'] = $translatedParent[0]['original_title']
+                        ?? $thread['parent_thread_title'];
+                    $thread['parent_thread_title'] = $translatedParent[0]['title']
+                        ?? $thread['parent_thread_title'];
+                }
+            }
+
+            $translatedForum = srp_translate_info_board_rows(
+                $db,
+                [[
+                    'forum_id' => $thread['forum_id'],
+                    'name' => $thread['forum_name'],
+                ]],
+                'forum',
+                'forum_id',
+                ['name']
+            );
+            if (isset($translatedForum[0])) {
+                $thread['original_forum_name'] = $translatedForum[0]['original_name'] ?? $thread['forum_name'];
+                $thread['forum_name'] = $translatedForum[0]['name'] ?? $thread['forum_name'];
+                $thread['is_translated'] = (bool)($thread['is_translated'] ?? false)
+                    || (bool)($translatedForum[0]['is_translated'] ?? false);
+            }
+        }
+        $withTags = srp_attach_tags_to_threads($db, [$thread]);
+        echo json_encode($withTags[0]);
     } else {
         http_response_code(404);
         echo json_encode(['error' => 'Thread not found']);
     }
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

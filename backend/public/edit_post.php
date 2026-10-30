@@ -8,14 +8,14 @@
 // user input using HTMLPurifier and updates the database.
 // -------------------------------------------------------------
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+require_once __DIR__ . '/../session_bootstrap.php';
 
-session_start();
-
+startSession();
 require_once __DIR__ . '/../db_connection.php';
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/sanitize.php';
+require_once __DIR__ . '/../includes/content_limits.php';
 
 header('Content-Type: application/json');
 
@@ -27,7 +27,6 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id'])) {
 
 $user_id_session = normalizeId($_SESSION['user_id']);
 $role_id_session = (int) $_SESSION['role_id'];
-$is_ambassador = isset($_SESSION['is_ambassador']) && (int) $_SESSION['is_ambassador'] === 1;
 
 $data = json_decode(file_get_contents('php://input'), true);
 
@@ -40,10 +39,26 @@ if ($post_id === '' || $new_content === '') {
     exit;
 }
 
+$clean_html = srp_sanitize_html($new_content);
+if (srp_post_exceeds_limit($clean_html)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Posts must be 10,000 characters or fewer.']);
+    exit;
+}
+
 try {
     $db = getDB();
 
-    $stmt = $db->prepare("SELECT user_id FROM posts WHERE post_id = :post_id");
+    // Resolve the community that owns this post so moderation is scoped
+    // correctly (an ambassador of one community must not edit posts in another).
+    $stmt = $db->prepare("
+        SELECT p.user_id, f.community_id
+        FROM posts p
+        JOIN threads t ON t.thread_id = p.thread_id
+        JOIN forums f ON f.forum_id = t.forum_id
+        WHERE p.post_id = :post_id
+        LIMIT 1
+    ");
     $stmt->execute([':post_id' => $post_id]);
     $postRow = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -53,29 +68,22 @@ try {
         exit;
     }
 
-    if ($role_id_session !== 1 && !$is_ambassador && $postRow['user_id'] !== $user_id_session) {
+    $isOwner = normalizeId($postRow['user_id']) === $user_id_session;
+    $communityId = normalizeId($postRow['community_id'] ?? '');
+    if (!$isOwner && !canModerateCommunityContent($user_id_session, $role_id_session, $communityId, $db)) {
         http_response_code(403);
         echo json_encode(['error' => 'You do not have permission to edit this post.']);
         exit;
     }
 
-    $config = HTMLPurifier_Config::createDefault();
-    $cacheDir = __DIR__ . '/../htmlpurifier-cache';
-    if (!file_exists($cacheDir) && !mkdir($cacheDir, 0755, true)) {
-        throw new Exception('Failed to create HTMLPurifier cache directory.');
-    }
-    $config->set('Cache.SerializerPath', $cacheDir);
-    $purifier = new HTMLPurifier($config);
-
-    $clean_html = $purifier->purify($new_content);
-
     $update = $db->prepare("
         UPDATE posts
-        SET content = :content, updated_at = NOW()
+        SET content = :content, updated_at = NOW(), updated_by = :updated_by
         WHERE post_id = :post_id
     ");
     $update->execute([
         ':content' => $clean_html,
+        ':updated_by' => $user_id_session,
         ':post_id' => $post_id
     ]);
 
@@ -86,9 +94,9 @@ try {
     }
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Server error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Server error: ']);
 }
 ?>

@@ -2,9 +2,19 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link as RouterLink } from "react-router-dom";
 import axios from "axios";
-import { FaLock } from "react-icons/fa";
+import { FaLock, FaEllipsisV, FaSearch } from "react-icons/fa";
 import "./UniversityProfile.css";
 import ModalOverlay from "./ModalOverlay";
+import ReportModal from "./ReportModal";
+import { buildAvatarSrc } from "../utils/avatar";
+import buildUploadSrc from "../utils/uploads";
+import { getAdjustedColor, getHighestContrastColor, getReadableTextColor } from "../utils/color";
+import { isSuperAdmin } from "../constants/roles";
+import RightRail from "../widgets/RightRail";
+import useCommunityAccent from "../hooks/useCommunityAccent";
+import { THREAD_TITLE_MAX_LENGTH } from "../utils/contentLimits";
+import ReelGrid from "./ReelGrid";
+import { REELS_ENABLED } from "../constants/features";
 
 function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNotificationsRefresh }) {
   const { id } = useParams(); // community id
@@ -13,7 +23,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Edit mode state (only available if userData.role_id === 3)
+  // Edit mode state (only available to super admins or community admins)
   const [isEditing, setIsEditing] = useState(false);
 
   // Editable fields state
@@ -41,12 +51,18 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   const [isFollowing, setIsFollowing] = useState(false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [subgroupSearch, setSubgroupSearch] = useState('');
+  const [questionSearch, setQuestionSearch] = useState('');
   const [questions, setQuestions] = useState([]);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [questionTitle, setQuestionTitle] = useState('');
   const [questionBody, setQuestionBody] = useState('');
   const [isSubmittingQuestion, setIsSubmittingQuestion] = useState(false);
   const [answerDrafts, setAnswerDrafts] = useState({});
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [postsError, setPostsError] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [openPostsMenuId, setOpenPostsMenuId] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -67,24 +83,155 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   const [isCreatingSub, setIsCreatingSub] = useState(false);
   const [createSubStatus, setCreateSubStatus] = useState('');
   const [childFollowBusy, setChildFollowBusy] = useState({});
+  const [pinnedItems, setPinnedItems] = useState([]);
+  const [isLoadingPinned, setIsLoadingPinned] = useState(false);
+  const [pinnedError, setPinnedError] = useState('');
+  const [unpinBusy, setUnpinBusy] = useState({});
+  const [openPinnedMenuId, setOpenPinnedMenuId] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [ambassadorEligibility, setAmbassadorEligibility] = useState({ can_apply: false, reason: null });
+  const [isApplyingAmbassador, setIsApplyingAmbassador] = useState(false);
+  const [showAmbassadorApplication, setShowAmbassadorApplication] = useState(false);
+  const [ambassadorMotivation, setAmbassadorMotivation] = useState('');
+  const [ambassadorConnectionConfirmed, setAmbassadorConnectionConfirmed] = useState(false);
+  const [ambassadorApplicationError, setAmbassadorApplicationError] = useState('');
   const hasSubcommunities = subcommunities.length > 0;
 
-  const canViewAmbassadors = Boolean(userData);
+  useCommunityAccent(university?.primary_color, university?.secondary_color);
+
   const isAmbassador =
     Boolean(userData) &&
     ambassadors.some((a) => String(a.user_id || a.id) === String(userData.user_id));
   const currentAmbassador = ambassadors.find((a) => String(a.user_id) === String(userData?.user_id));
-  const viewerRole = (currentAmbassador?.role || '').toLowerCase() || 'viewer';
-  const isSuperAdmin = Number(userData?.role_id) === 1;
+  const viewerRole = (currentAmbassador?.community_role || '').toLowerCase() || 'viewer';
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const isCommunityAdmin = viewerRole === 'admin';
-  const canEditCommunity = Boolean(userData) && (isSuperAdmin || isCommunityAdmin);
-  const canRemoveAmbassador = Boolean(userData) && (isSuperAdmin || isCommunityAdmin);
-  const canApplyForAmbassador = Boolean(userData) && ambassadorsLoaded && !isAmbassador;
+  const canEditCommunity = Boolean(userData) && (isSuperAdminUser || isCommunityAdmin);
+  const canRemoveAmbassador = Boolean(userData) && (isSuperAdminUser || isCommunityAdmin);
+  const canApplyForAmbassador =
+    Boolean(userData) &&
+    ambassadorsLoaded &&
+    !isAmbassador &&
+    Boolean(ambassadorEligibility?.can_apply);
+  const canPinToOverview = Array.isArray(userData?.ambassador_communities)
+    && userData.ambassador_communities.some((c) => String(c?.community_id ?? c?.id ?? '') === String(id));
+  const canUnpinFromCommunity = Array.isArray(userData?.ambassador_communities)
+    && userData.ambassador_communities.some((c) => String(c?.community_id ?? c?.id ?? '') === String(id));
 
   const getInitials = (firstName = '', lastName = '') => {
     const first = firstName.trim().charAt(0);
     const last = lastName.trim().charAt(0);
     return `${first}${last}`.toUpperCase() || 'A';
+  };
+
+  const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const timeAgo = (dateStr) => {
+    if (!dateStr) return '';
+    const iso = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+    const parsed = new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+    const ts = parsed.getTime();
+    if (Number.isNaN(ts)) return '';
+    const seconds = Math.floor((Date.now() - ts) / 1000);
+    if (seconds < 0) return 'just now';
+    if (seconds < 3600) {
+      const mins = Math.max(1, Math.floor(seconds / 60));
+      return `${mins} minute${mins > 1 ? 's' : ''} ago`;
+    }
+    if (seconds < 86400) {
+      const hours = Math.max(1, Math.round(seconds / 3600));
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    }
+    const intervals = [
+      { label: 'year', secs: 31536000 },
+      { label: 'month', secs: 2592000 },
+      { label: 'week', secs: 604800 },
+      { label: 'day', secs: 86400 },
+    ];
+    for (const it of intervals) {
+      const count = Math.floor(seconds / it.secs);
+      if (count >= 1) return `${count} ${it.label}${count > 1 ? 's' : ''} ago`;
+    }
+    return 'just now';
+  };
+
+  const formatShortDate = (dateStr) => {
+    if (!dateStr) return '';
+    const parsed = new Date(dateStr);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: '2-digit',
+    });
+  };
+
+  const handleOpenReport = (target) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    if (!target || !target.id || !target.type) return;
+    setReportTarget({
+      ...target,
+      label: target.label || target.type,
+      context: target.context ? target.context.trim() : '',
+    });
+  };
+
+  const handleSubmitReport = async ({ reasonCode, reasonText, details }) => {
+    if (!reportTarget) return;
+    setIsSubmittingReport(true);
+    try {
+      const resp = await axios.post(
+        '/api/submit_report.php',
+        {
+          item_type: reportTarget.type,
+          item_id: reportTarget.id,
+          reason_code: reasonCode,
+          reason_text: reasonText,
+          details,
+        },
+        { withCredentials: true }
+      );
+      if (resp.data.success) {
+        setStatusMessage('Report submitted.');
+        setReportTarget(null);
+      } else {
+        setStatusMessage(resp.data.error || 'Unable to submit report.');
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setStatusMessage('An error occurred while submitting the report.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  const handleSavePinnedItem = async (item) => {
+    if (!userData) {
+      onRequireAuth?.();
+      return;
+    }
+    const isThread = item?.item_type === 'thread';
+    const payload = isThread
+      ? { user_id: userData.user_id, thread_id: item.thread_id || item.item_id }
+      : { user_id: userData.user_id, forum_id: item.forum_id || item.item_id };
+    const url = isThread ? '/api/save_thread.php' : '/api/save_forum.php';
+    try {
+      const resp = await axios.post(url, payload, { withCredentials: true });
+      if (resp.data.success) {
+        setStatusMessage(isThread ? 'Thread saved.' : 'Forum saved.');
+      } else {
+        setStatusMessage(resp.data.error || 'Unable to save.');
+      }
+    } catch (error) {
+      console.error('Error saving pinned item:', error);
+      setStatusMessage('An error occurred while saving.');
+    } finally {
+      setOpenPinnedMenuId(null);
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -108,8 +255,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
           setEditTagline(response.data.university.tagline || "");
           setEditLocation(response.data.university.location || "");
           setEditWebsite(response.data.university.website || "");
-          setEditPrimaryColor(response.data.university.primary_color || "#0077B5");
-          setEditSecondaryColor(response.data.university.secondary_color || "#005f8d");
+          setEditPrimaryColor(response.data.university.primary_color || "#2F80ED");
+          setEditSecondaryColor(response.data.university.secondary_color || "#1D5FC4");
         } else {
           setError(response.data.error);
         }
@@ -149,6 +296,52 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     fetchAmbassadors();
   }, [id]);
 
+  useEffect(() => {
+    const handleOpenAmbassadors = (event) => {
+      if (String(event?.detail?.communityId || '') !== String(id) || !userData) return;
+      setShowAmbassadorOverlay(true);
+      setMenuOpenFor(null);
+      fetchAmbassadors();
+    };
+    window.addEventListener('openCommunityAmbassadors', handleOpenAmbassadors);
+    return () => window.removeEventListener('openCommunityAmbassadors', handleOpenAmbassadors);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, userData?.user_id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEligibility = async () => {
+      if (!userData?.user_id) {
+        if (isMounted) {
+          setAmbassadorEligibility({ can_apply: false, reason: 'login_required' });
+        }
+        return;
+      }
+      try {
+        const res = await axios.get('/api/fetch_ambassador_eligibility.php', {
+          params: { community_id: id },
+          withCredentials: true,
+        });
+        if (!isMounted) return;
+        if (res.data?.success) {
+          setAmbassadorEligibility({
+            can_apply: Boolean(res.data.can_apply),
+            reason: res.data.reason || null,
+          });
+        } else {
+          setAmbassadorEligibility({ can_apply: false, reason: 'unknown' });
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setAmbassadorEligibility({ can_apply: false, reason: 'unknown' });
+      }
+    };
+    fetchEligibility();
+    return () => {
+      isMounted = false;
+    };
+  }, [id, userData?.user_id, ambassadorsLoaded, isAmbassador]);
+
   // --------------------------------------------------------------------------
   // Fetch connections (who the current user follows and who follows them)
   // --------------------------------------------------------------------------
@@ -185,8 +378,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
       setEditTagline(university.tagline || "");
       setEditLocation(university.location || "");
       setEditWebsite(university.website || "");
-      setEditPrimaryColor(university.primary_color || "#0077B5");
-      setEditSecondaryColor(university.secondary_color || "#005f8d");
+      setEditPrimaryColor(university.primary_color || "#2F80ED");
+      setEditSecondaryColor(university.secondary_color || "#1D5FC4");
       setNewLogoFile(null);
       setNewBannerFile(null);
       setEditStatus('');
@@ -219,6 +412,20 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, userData]);
 
+  useEffect(() => {
+    if (!openPinnedMenuId) return undefined;
+    const handleClickOutside = (event) => {
+      if (event.target.closest('.pinned-menu-container')) return;
+      setOpenPinnedMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [openPinnedMenuId]);
+
   // --------------------------------------------------------------------------
   // Sub-communities: load and manage follows
   // --------------------------------------------------------------------------
@@ -250,6 +457,167 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     loadSubcommunities();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, userData?.user_id]);
+
+  useEffect(() => {
+    const fetchPinnedItems = async () => {
+      setIsLoadingPinned(true);
+      setPinnedError('');
+      try {
+        const res = await axios.get(`/api/fetch_pinned_items.php?community_id=${id}`);
+        if (res.data.success) {
+          setPinnedItems(Array.isArray(res.data.items) ? res.data.items : []);
+        } else {
+          setPinnedItems([]);
+          setPinnedError(res.data.error || 'Unable to load pinned items.');
+        }
+      } catch (err) {
+        setPinnedItems([]);
+        setPinnedError('Unable to load pinned items.');
+      } finally {
+        setIsLoadingPinned(false);
+      }
+    };
+
+    fetchPinnedItems();
+  }, [id]);
+
+  const handleUnpin = async (pinId) => {
+    if (!canUnpinFromCommunity || !pinId) return;
+    setOpenPinnedMenuId(null);
+    setUnpinBusy((prev) => ({ ...prev, [pinId]: true }));
+    try {
+      const res = await axios.post(
+        '/api/unpin_from_community.php',
+        { pin_id: pinId },
+        { withCredentials: true }
+      );
+      if (res.data.success) {
+        setPinnedItems((prev) => prev.filter((item) => String(item.pin_id) !== String(pinId)));
+      } else {
+        alert(res.data.error || 'Unable to un-pin this item.');
+      }
+    } catch (err) {
+      alert('Unable to un-pin this item.');
+    } finally {
+      setUnpinBusy((prev) => {
+        const next = { ...prev };
+        delete next[pinId];
+        return next;
+      });
+    }
+  };
+
+  const refreshUniversityPosts = async () => {
+    setPostsLoading(true);
+    setPostsError(null);
+    try {
+      const forumsRes = await axios.get(`/api/fetch_forums.php?community_id=${id}`);
+      const forumsList = Array.isArray(forumsRes.data?.forums)
+        ? forumsRes.data.forums
+        : Array.isArray(forumsRes.data)
+        ? forumsRes.data
+        : [];
+      if (!forumsList.length) {
+        setPosts([]);
+        return;
+      }
+
+      const threadsPromises = forumsList.map(async (forum) => {
+        const tRes = await axios.get(
+          `/api/fetch_threads.php?forum_id=${forum.forum_id}&user_id=${userData?.user_id || ''}`
+        );
+        const threads = Array.isArray(tRes.data) ? tRes.data : [];
+        return threads.map((t) => ({ ...t, forum_name: forum.name }));
+      });
+      const threadGroups = await Promise.all(threadsPromises);
+      const allThreads = threadGroups.flat();
+      allThreads.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setPosts(allThreads);
+    } catch (err) {
+      setPostsError('Unable to load posts.');
+      setPosts([]);
+    } finally {
+      setPostsLoading(false);
+    }
+  };
+
+  const handlePinThreadToOverview = async (thread) => {
+    if (!canPinToOverview) return;
+    try {
+      const res = await axios.post(
+        '/api/pin_to_community.php',
+        {
+          community_id: id,
+          item_id: thread.thread_id,
+          item_type: 'thread',
+        },
+        { withCredentials: true }
+      );
+      if (!res.data.success) {
+        alert(res.data.error || 'Unable to pin thread.');
+        return;
+      }
+      const pinnedRes = await axios.get(`/api/fetch_pinned_items.php?community_id=${id}`);
+      if (pinnedRes.data.success) {
+        setPinnedItems(Array.isArray(pinnedRes.data.items) ? pinnedRes.data.items : []);
+      }
+      setOpenPostsMenuId(null);
+    } catch (err) {
+      alert('Unable to pin thread.');
+    }
+  };
+
+  const handleEditThreadFromPosts = async (thread) => {
+    const canManage = isSuperAdminUser || isCommunityAdmin || String(thread.user_id) === String(userData?.user_id);
+    if (!canManage) return;
+    const nextTitle = window.prompt('Edit thread title:', thread.title || '');
+    if (nextTitle === null) return;
+    const trimmed = nextTitle.trim();
+    if (!trimmed) {
+      alert('Title cannot be empty.');
+      return;
+    }
+    if (trimmed.length > THREAD_TITLE_MAX_LENGTH) {
+      alert(`Thread titles must be ${THREAD_TITLE_MAX_LENGTH} characters or fewer.`);
+      return;
+    }
+    try {
+      const res = await axios.post(
+        '/api/edit_thread.php',
+        { thread_id: thread.thread_id, new_title: trimmed },
+        { withCredentials: true }
+      );
+      if (!res.data.success) {
+        alert(res.data.error || 'Unable to edit thread.');
+        return;
+      }
+      await refreshUniversityPosts();
+      setOpenPostsMenuId(null);
+    } catch (err) {
+      alert('Unable to edit thread.');
+    }
+  };
+
+  const handleDeleteThreadFromPosts = async (thread) => {
+    const canManage = isSuperAdminUser || isCommunityAdmin || String(thread.user_id) === String(userData?.user_id);
+    if (!canManage) return;
+    if (!window.confirm('Delete this thread? This cannot be undone.')) return;
+    try {
+      const res = await axios.post(
+        '/api/delete_thread.php',
+        { thread_id: thread.thread_id },
+        { withCredentials: true }
+      );
+      if (!res.data.success) {
+        alert(res.data.error || 'Unable to delete thread.');
+        return;
+      }
+      await refreshUniversityPosts();
+      setOpenPostsMenuId(null);
+    } catch (err) {
+      alert('Unable to delete thread.');
+    }
+  };
 
   const handleChildFollowToggle = async (communityId, isFollowingNow) => {
     if (!userData) {
@@ -408,8 +776,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     if (university) {
       setCreateSubData((prev) => ({
         ...prev,
-        primary_color: prev.primary_color || university.primary_color || '#0077B5',
-        secondary_color: prev.secondary_color || university.secondary_color || '#005f8d'
+        primary_color: prev.primary_color || university.primary_color || '#2F80ED',
+        secondary_color: prev.secondary_color || university.secondary_color || '#1D5FC4'
       }));
     }
   }, [university]);
@@ -427,8 +795,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
         ...createSubData,
         type: 'group',
         parent_community_id: id,
-        primary_color: createSubData.primary_color || university?.primary_color || '#0077B5',
-        secondary_color: createSubData.secondary_color || university?.secondary_color || '#005f8d'
+        primary_color: createSubData.primary_color || university?.primary_color || '#2F80ED',
+        secondary_color: createSubData.secondary_color || university?.secondary_color || '#1D5FC4'
       };
       const res = await axios.post('/api/create_community.php', payload, { withCredentials: true });
       if (res.data.success) {
@@ -439,8 +807,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
           tagline: '',
           location: '',
           website: '',
-          primary_color: university?.primary_color || '#0077B5',
-          secondary_color: university?.secondary_color || '#005f8d'
+          primary_color: university?.primary_color || '#2F80ED',
+          secondary_color: university?.secondary_color || '#1D5FC4'
         });
         loadSubcommunities();
       } else {
@@ -483,8 +851,19 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
         withCredentials: true,
         headers: { "Content-Type": "multipart/form-data" },
       });
-      if (response.data.success) {
-        const updated = response.data.university || response.data.group || response.data.community || null;
+      const payload = (() => {
+        if (typeof response.data === 'string') {
+          try {
+            return JSON.parse(response.data);
+          } catch {
+            return {};
+          }
+        }
+        return response.data || {};
+      })();
+
+      if (payload.success) {
+        const updated = payload.university || payload.group || payload.community || null;
         if (updated) {
           setUniversity(updated);
         }
@@ -493,7 +872,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
         setNewBannerFile(null);
         setEditStatus('Community updated successfully.');
       } else {
-        setEditStatus(response.data.error || "Error updating community.");
+        setEditStatus(payload.error || "Error updating community.");
       }
     } catch (error) {
       console.error("Error updating university:", error);
@@ -535,6 +914,59 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
     }
   };
 
+  const closeAmbassadorApplication = () => {
+    if (isApplyingAmbassador) return;
+    setShowAmbassadorApplication(false);
+    setAmbassadorApplicationError('');
+  };
+
+  const handleApplyAmbassador = async (event) => {
+    event.preventDefault();
+    if (!canApplyForAmbassador || !userData?.user_id) return;
+
+    const motivationMessage = ambassadorMotivation.trim();
+    if (!motivationMessage) {
+      setAmbassadorApplicationError('Please include a short motivation message.');
+      return;
+    }
+    if (!ambassadorConnectionConfirmed) {
+      setAmbassadorApplicationError('Please confirm your connection to this university.');
+      return;
+    }
+
+    setAmbassadorApplicationError('');
+    setIsApplyingAmbassador(true);
+    try {
+      const res = await axios.post(
+        '/api/apply_ambassador.php',
+        {
+          community_id: id,
+          motivation_message: motivationMessage.trim(),
+          connection_confirmed: true,
+        },
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        setStatusMessage(
+          res.data.message ||
+          'Application sent. Review typically takes 12-48 hours. You can keep using the platform in the meantime.'
+        );
+        setAmbassadorEligibility({ can_apply: false, reason: 'pending_application' });
+        setShowAmbassadorApplication(false);
+        setAmbassadorMotivation('');
+        setAmbassadorConnectionConfirmed(false);
+      } else {
+        setAmbassadorApplicationError(res.data?.error || 'Unable to submit ambassador application.');
+      }
+    } catch (err) {
+      setAmbassadorApplicationError(
+        err?.response?.data?.error || 'Unable to submit ambassador application.'
+      );
+    } finally {
+      setIsApplyingAmbassador(false);
+    }
+  };
+
   const handlePromoteAdmin = async (email, userIdOverride = null) => {
     try {
       const response = await axios.post(
@@ -554,7 +986,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   };
 
   const handleRemoveAmbassador = async (amb) => {
-    if (!canRemoveAmbassador || String(amb.role).toLowerCase() === 'admin') return;
+    if (!canRemoveAmbassador || String(amb.community_role).toLowerCase() === 'admin') return;
     const reason = window.prompt('Are you sure you want to revoke their access? Provide a reason (optional):', '');
     if (reason === null) return;
     try {
@@ -573,36 +1005,95 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
   if (error) return <p>{error}</p>;
   if (!university) return <p>No university found.</p>;
 
-  const universityLogo =
-    university.logo_path && university.logo_path.startsWith('/')
-      ? university.logo_path
-      : `/uploads/logos/${university.logo_path || 'default-logo.png'}`;
+  const universityLogoFallback = buildUploadSrc('/uploads/logos/School Image.png');
+  const normalizedUniversityLogoPath =
+    typeof university.logo_path === 'string' ? university.logo_path.trim() : '';
+  const universityLogo = normalizedUniversityLogoPath
+    ? buildUploadSrc(
+        normalizedUniversityLogoPath.startsWith('/')
+          ? normalizedUniversityLogoPath
+          : `/uploads/logos/${normalizedUniversityLogoPath}`
+      )
+    : universityLogoFallback;
   const subCommunityCount = Number(university.child_count || 0);
+  const primaryColor = university.primary_color || "#2F80ED";
+  const secondaryColor = university.secondary_color || "#1D5FC4";
+  const gradientLight = getAdjustedColor(primaryColor, 1.12);
+  const gradientDark = getAdjustedColor(primaryColor, 0.85);
+  const pillTextColor = getReadableTextColor(primaryColor);
+  const secondaryPillTextColor = getReadableTextColor(secondaryColor);
+  const lightThemeAccent = getHighestContrastColor([primaryColor, secondaryColor], '#FFFFFF') || primaryColor;
+  const darkThemeAccent = getHighestContrastColor([primaryColor, secondaryColor], '#08152B') || primaryColor;
+  const subgroupQuery = subgroupSearch.trim().toLowerCase();
+  const questionQuery = questionSearch.trim().toLowerCase();
+  const visibleSubcommunities = subgroupQuery
+    ? subcommunities.filter((child) => (
+        [child.name, child.tagline, child.location, child.community_type]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(subgroupQuery))
+      ))
+    : subcommunities;
+  const visibleQuestions = questionQuery
+    ? questions.filter((question) => (
+        [
+          question.title,
+          question.body,
+          question.asker_first_name,
+          question.asker_last_name,
+          ...(Array.isArray(question.answers)
+            ? question.answers.flatMap((answer) => [answer.body, answer.first_name, answer.last_name])
+            : []),
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(questionQuery))
+      ))
+    : questions;
 
   return (
-    <div className="profile-container" style={{
-      "--primary-color": university.primary_color || "#0077B5",
-      "--secondary-color": university.secondary_color || "#005f8d",
-    }}>
+    <div
+      className="profile-container community-profile"
+      style={{
+        "--community-accent": primaryColor,
+        "--community-accent-secondary": secondaryColor,
+        "--community-accent-light-theme": lightThemeAccent,
+        "--community-accent-dark-theme": darkThemeAccent,
+        "--community-on-accent": pillTextColor,
+        "--community-on-accent-secondary": secondaryPillTextColor,
+        ...(gradientLight ? { "--gradient-secondary-light": gradientLight } : {}),
+        ...(gradientDark ? { "--gradient-secondary-dark": gradientDark } : {})
+      }}
+    >
       <section className="profile-main">
         {/* HERO CARD */}
         <div className="hero-card community-hero">
           <div className="hero-banner">
-            <img src={university.banner_path || "/uploads/banners/DefaultBanner.jpeg"} alt="University Banner" />
+            <img
+              src={buildUploadSrc(university.banner_path || "/uploads/banners/DefaultBanner.jpeg")}
+              alt="University Banner"
+            />
           </div>
           <div className="hero-content">
             <div className="hero-left">
               <RouterLink to={`/university/${id}`} className="community-hero-logo-wrap">
                 <img
-                  src={universityLogo || "/uploads/logos/default-logo.png"}
+                  src={universityLogo}
                   alt="University Logo"
                   className="community-hero-logo"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== universityLogoFallback) {
+                      e.currentTarget.src = universityLogoFallback;
+                    }
+                  }}
                 />
               </RouterLink>
               <div className="hero-text">
                 <h1 className="hero-title">{university.name}</h1>
                 {university.tagline && <p className="hero-sub">{university.tagline}</p>}
                 {university.location && <p className="hero-sub">{university.location}</p>}
+                <p className="hero-sub hero-sub-row">
+                  <span>{followersCount} follower{followersCount === 1 ? '' : 's'}</span>
+                  <span>{subCommunityCount} {subCommunityCount === 1 ? 'sub-community' : 'sub-communities'}</span>
+                </p>
               </div>
             </div>
             <div className="hero-right hero-actions">
@@ -619,19 +1110,13 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                   {isTogglingFollow ? 'Updating…' : isFollowing ? 'Unfollow' : 'Follow'}
                 </span>
               </button>
-              <p className="muted" style={{ marginTop: 6, textAlign: 'right' }}>
-                {followersCount} follower{followersCount === 1 ? '' : 's'}
-              </p>
-              <p className="muted" style={{ margin: '4px 0 0 0', textAlign: 'right' }}>
-                {subCommunityCount} sub-community{subCommunityCount === 1 ? '' : 'ies'}
-              </p>
               {canEditCommunity && (
                 <button
                   type="button"
                   className="pill-button secondary"
                   onClick={handleToggleEdit}
                 >
-                  Edit Community
+                  Edit
                 </button>
               )}
             </div>
@@ -655,28 +1140,237 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
             )}
             <button
               type="button"
-              className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
-              onClick={() => setActiveTab('posts')}
-            >
-              Posts
-            </button>
-            <button
-              type="button"
               className={`tab-link ${activeTab === 'qa' ? 'active' : ''}`}
               onClick={() => setActiveTab('qa')}
             >
               Q+A
             </button>
+            {REELS_ENABLED && <button
+              type="button"
+              className={`tab-link ${activeTab === 'reels' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reels')}
+            >
+              Reels
+            </button>}
+            <button
+              type="button"
+              className={`tab-link community-mobile-tab ${activeTab === 'events' ? 'active' : ''}`}
+              onClick={() => setActiveTab('events')}
+            >
+              Events
+            </button>
+            <button
+              type="button"
+              className={`tab-link community-mobile-tab ${activeTab === 'polls' ? 'active' : ''}`}
+              onClick={() => setActiveTab('polls')}
+            >
+              Polls
+            </button>
+            <button
+              type="button"
+              className={`tab-link community-mobile-tab ${activeTab === 'contact' ? 'active' : ''}`}
+              onClick={() => setActiveTab('contact')}
+            >
+              Contact
+            </button>
+            <button
+              type="button"
+              className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('posts')}
+            >
+              Pinned Topics
+            </button>
           </div>
         </div>
 
-        {/* Below hero: two-column split — main content + right cards */}
-        <div className={`profile-split ${activeTab === 'qa' ? 'fullwidth' : ''}`}>
+        <div className="community-profile-content">
           <div className="split-main">
-            {activeTab === 'overview' && null}
+            {activeTab === 'overview' && (
+              <div className="content-card community-overview-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Overview</h3>
+                    <p className="muted">About {university.name}.</p>
+                  </div>
+                </div>
+                {university.tagline ? (
+                  <p className="community-overview__lead">{university.tagline}</p>
+                ) : (
+                  <p className="muted">This university has not added an introduction yet.</p>
+                )}
+                <dl className="community-overview__facts">
+                  <div>
+                    <dt>Type</dt>
+                    <dd>University</dd>
+                  </div>
+                  {university.location && (
+                    <div>
+                      <dt>Location</dt>
+                      <dd>{university.location}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>Community</dt>
+                    <dd>{followersCount} follower{followersCount === 1 ? '' : 's'}</dd>
+                  </div>
+                  {subcommunities.length > 0 && (
+                    <div>
+                      <dt>Sub-Groups</dt>
+                      <dd>{subcommunities.length}</dd>
+                    </div>
+                  )}
+                  {university.website && (
+                    <div>
+                      <dt>Website</dt>
+                      <dd>
+                        <a href={university.website} target="_blank" rel="noreferrer">
+                          Visit website
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
+
+            {REELS_ENABLED && activeTab === 'reels' && (
+              <ReelGrid
+                communityId={communityId}
+                isOwner={isFollowing || canEditCommunity || canPinToOverview}
+                showCreate={Boolean(userData) && (isFollowing || canEditCommunity || canPinToOverview)}
+                title={`${university.name} Reels`}
+                description={`Short videos shared with the ${university.name} community.`}
+                emptyLabel="No community reels have been shared yet."
+              />
+            )}
+
+            {activeTab === 'posts' && (
+              <div className="content-card community-pinned-card">
+                <div className="qa-header">
+                  <div>
+                    <h3>Pinned Topics</h3>
+                    <p className="muted">Ambassador-picked threads and forums for {university.name}.</p>
+                  </div>
+                </div>
+                {isLoadingPinned ? (
+                  <p>Loading pinned items...</p>
+                ) : pinnedError ? (
+                  <p>{pinnedError}</p>
+                ) : pinnedItems.length === 0 ? (
+                  <div className="community-launch-empty">
+                    <p className="community-launch-empty__eyebrow">A fresh community</p>
+                    <h4>Help start the first conversation</h4>
+                    <p>No topics have been pinned yet. Ask a useful question and give the next member something to join.</p>
+                    <button
+                      type="button"
+                      className="pill-button"
+                      onClick={() => {
+                        if (!userData) {
+                          onRequireAuth?.();
+                          return;
+                        }
+                        setActiveTab('qa');
+                        setShowQuestionModal(true);
+                      }}
+                    >
+                      Ask the first question
+                    </button>
+                  </div>
+                ) : (
+                  <div className="posts-list pinned-topic-list">
+                    {pinnedItems.map((item) => {
+                      const isThread = item.item_type === 'thread';
+                      const threadId = item.thread_id || item.item_id;
+                      const forumId = item.forum_id;
+                      const href = isThread
+                        ? `/info/forum/${forumId}/thread/${threadId}`
+                        : `/info/forum/${forumId}`;
+                      const canShowPinnedMenu = Boolean(userData);
+                      return (
+                        <article
+                          key={item.pin_id || `${item.item_type}:${item.item_id}`}
+                          className={`forum-card pinned-topic-card pinned-topic-card--${isThread ? 'thread' : 'forum'}`}
+                        >
+                          {canShowPinnedMenu ? (
+                            <div className="pinned-menu-container" style={{ position: 'absolute', right: 10, top: 10, zIndex: 10000 }}>
+                              <button
+                                type="button"
+                                className="kebab-button"
+                                aria-haspopup="menu"
+                                aria-expanded={openPinnedMenuId === item.pin_id}
+                                onClick={() =>
+                                  setOpenPinnedMenuId((prev) => (prev === item.pin_id ? null : item.pin_id))
+                                }
+                              >
+                                <FaEllipsisV />
+                              </button>
+                              {openPinnedMenuId === item.pin_id && (
+                                <div className="dropdown-menu" style={{ position: 'absolute', right: 0, top: 26, zIndex: 10001 }}>
+                                  {canUnpinFromCommunity && item.pin_id ? (
+                                    <button
+                                      type="button"
+                                      className="dropdown-item"
+                                      onClick={() => handleUnpin(item.pin_id)}
+                                      disabled={Boolean(unpinBusy[item.pin_id])}
+                                    >
+                                      {unpinBusy[item.pin_id] ? 'Un-pinning...' : 'Un-pin from Community'}
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={() => handleSavePinnedItem(item)}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={() => {
+                                      const targetId = isThread ? threadId : forumId;
+                                      handleOpenReport({
+                                        id: targetId,
+                                        type: isThread ? 'thread' : 'forum',
+                                        label: item.title || (isThread ? 'thread' : 'forum'),
+                                        context: stripHtml(item.description || item.title || '').slice(0, 200),
+                                      });
+                                      setOpenPinnedMenuId(null);
+                                    }}
+                                  >
+                                    Report
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+                          <div className="meta-row" style={{ marginBottom: '4px' }}>
+                            <span className="meta-quiet">{isThread ? 'Thread' : 'Forum'}</span>
+                            <span className="middot">·</span>
+                            <span className="meta-quiet">Pinned {timeAgo(item.pinned_at)}</span>
+                          </div>
+                          <h4 style={{ margin: 0 }}>
+                            <RouterLink to={href} style={{ textDecoration: 'none', color: 'inherit' }}>
+                              {item.title}
+                            </RouterLink>
+                          </h4>
+                          {isThread && item.forum_name ? (
+                            <p className="pinned-topic-card__context">{item.forum_name}</p>
+                          ) : item.description ? (
+                            <p className="pinned-topic-card__summary">
+                              {stripHtml(item.description).slice(0, 180)}
+                              {stripHtml(item.description).length > 180 ? '…' : ''}
+                            </p>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeTab === 'subgroups' && (
-              <div className="content-card">
+              <div className="content-card community-subgroups-card">
                 <div className="qa-header">
                   <div>
                     <h3>Sub-Groups</h3>
@@ -698,12 +1392,28 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                           tagline: '',
                           location: '',
                           website: '',
-                          primary_color: university?.primary_color || '#0077B5',
-                          secondary_color: university?.secondary_color || '#005f8d'
+                          primary_color: university?.primary_color || '#2F80ED',
+                          secondary_color: university?.secondary_color || '#1D5FC4'
                         });
                       }}
                     >
                       Create sub-community
+                    </button>
+                  )}
+                </div>
+
+                <div className="community-tab-search">
+                  <FaSearch aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={subgroupSearch}
+                    onChange={(event) => setSubgroupSearch(event.target.value)}
+                    placeholder="Search sub-groups"
+                    aria-label="Search sub-groups"
+                  />
+                  {subgroupSearch && (
+                    <button type="button" onClick={() => setSubgroupSearch('')} aria-label="Clear sub-group search">
+                      ×
                     </button>
                   )}
                 </div>
@@ -714,27 +1424,30 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                   <p>{subcommunitiesError}</p>
                 ) : subcommunities.length === 0 ? (
                   <p className="muted">No sub-groups yet.</p>
+                ) : visibleSubcommunities.length === 0 ? (
+                  <p className="community-tab-empty">No sub-groups match “{subgroupSearch}”.</p>
                 ) : (
-                  <div className="community-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {subcommunities.map((child) => {
+                  <div className="community-list community-subgroup-list">
+                    {visibleSubcommunities.map((child) => {
                       const isFollowingChild =
                         child.is_following === true ||
                         child.is_following === 1 ||
                         child.is_following === '1';
-                      const logoSrc =
-                        child.logo_path && child.logo_path.startsWith('/')
-                          ? child.logo_path
-                          : `/uploads/logos/${child.logo_path || 'default-logo.png'}`;
+                      const logoSrc = buildUploadSrc(child.logo_path || '/uploads/logos/School Image.png');
                       return (
                         <div
                           key={child.community_id}
-                          className={`community-row-card${isFollowingChild ? ' followed' : ''}`}
+                          className={`community-row-card community-subgroup-card${isFollowingChild ? ' followed' : ''}`}
                         >
                           <img
                             src={logoSrc}
                             alt={`${child.name} Logo`}
                             className="community-row-logo"
                             loading="lazy"
+                            onError={(event) => {
+                              event.currentTarget.onerror = null;
+                              event.currentTarget.src = buildUploadSrc('/uploads/logos/School Image.png');
+                            }}
                           />
                           <div className="community-row-content">
                             <div className="community-row-header">
@@ -746,7 +1459,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                                   <span className="truncate-38ch">{child.name}</span>
                                 </RouterLink>
                               </h4>
-                              <span className="pill-button secondary" style={{ padding: '4px 10px' }}>
+                              <span className="community-subgroup-type">
                                 {child.community_type === 'group' ? 'Group' : 'University'}
                               </span>
                             </div>
@@ -757,11 +1470,8 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                               {child.location && (
                                 <span className="community-location">{child.location}</span>
                               )}
-                              <span
-                                className="followers-count"
-                                style={{ marginLeft: child.location ? 12 : 0 }}
-                              >
-                                Followers: {child.followers_count || 0}
+                              <span className="followers-count">
+                                {child.followers_count || 0} follower{Number(child.followers_count || 0) === 1 ? '' : 's'}
                               </span>
                             </div>
                           </div>
@@ -792,24 +1502,129 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
               </div>
             )}
 
-            {activeTab === 'posts' && (
+            {false && activeTab === 'posts' && (
               <div className="content-card">
-                <div className="posts-placeholder">
-                  <p>Posts will appear here.</p>
+                <div className="qa-header">
+                  <div>
+                    <h3>Recent Topics</h3>
+                    <p className="muted">Recent conversations from {university.name}.</p>
+                  </div>
+                </div>
+                <div className="posts-list">
+                  {postsLoading ? (
+                    <p>Loading posts...</p>
+                  ) : postsError ? (
+                    <p>{postsError}</p>
+                  ) : posts.length === 0 ? (
+                    <p>No posts yet.</p>
+                  ) : (
+                    posts.map((p) => (
+                      <div key={p.thread_id} className="forum-card card-lift" style={{ marginBottom: '12px', position: 'relative' }}>
+                        {(() => {
+                          const canManageThread =
+                            isSuperAdminUser || isCommunityAdmin || String(p.user_id) === String(userData?.user_id);
+                          const canShowPostsMenu = Boolean(userData) && (canPinToOverview || canManageThread);
+                          if (!canShowPostsMenu) return null;
+                          return (
+                          <div style={{ position: 'absolute', right: 10, top: 10 }}>
+                            <button
+                              type="button"
+                              className="kebab-button"
+                              aria-haspopup="menu"
+                              aria-expanded={openPostsMenuId === p.thread_id}
+                              onClick={() =>
+                                setOpenPostsMenuId((prev) => (prev === p.thread_id ? null : p.thread_id))
+                              }
+                            >
+                              <FaEllipsisV />
+                            </button>
+                            {openPostsMenuId === p.thread_id && (
+                              <div className="dropdown-menu" style={{ position: 'absolute', right: 0, top: 26, zIndex: 10 }}>
+                                {canPinToOverview && (
+                                  <button
+                                    type="button"
+                                    className="dropdown-item"
+                                    onClick={() => handlePinThreadToOverview(p)}
+                                  >
+                                    Pin to Pinned Topics
+                                  </button>
+                                )}
+                                {canManageThread && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="dropdown-item"
+                                      onClick={() => handleEditThreadFromPosts(p)}
+                                    >
+                                      Edit Thread
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="dropdown-item"
+                                      onClick={() => handleDeleteThreadFromPosts(p)}
+                                    >
+                                      Delete Thread
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          );
+                        })()}
+                        <div className="meta-row" style={{ marginBottom: '4px' }}>
+                          <span className="meta-quiet">{p.forum_name || 'Forum'}</span>
+                          <span className="middot">·</span>
+                          <span className="meta-quiet">{timeAgo(p.created_at)}</span>
+                        </div>
+                        <h4 style={{ margin: 0 }}>
+                          <a
+                            href={`/info/forum/${p.forum_id}/thread/${p.thread_id}`}
+                            style={{ textDecoration: 'none', color: 'inherit' }}
+                          >
+                            {p.title}
+                          </a>
+                        </h4>
+                        <p className="muted" style={{ marginTop: 4 }}>
+                          {p.first_name} {p.last_name ? `${p.last_name[0]}.` : ''}
+                        </p>
+                        {p.updated_by && p.updated_by_first_name && (
+                          <p className="muted" style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>Last Edited on {formatShortDate(p.updated_at)} by</span>
+                            <img
+                              src={buildAvatarSrc(p.updated_by_avatar_path)}
+                              alt={`${p.updated_by_first_name} ${p.updated_by_last_name || ''}`}
+                              style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }}
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = buildAvatarSrc(null);
+                              }}
+                            />
+                            <span>{p.updated_by_first_name} {p.updated_by_last_name || ''}</span>
+                          </p>
+                        )}
+                        <div className="meta-row" style={{ gap: '8px', flexWrap: 'wrap' }}>
+                          <span className="meta-quiet">{p.upvotes || 0} upvotes</span>
+                          <span className="meta-quiet">{p.downvotes || 0} downvotes</span>
+                          <span className="meta-quiet">{p.post_count || 0} posts</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
 
             {activeTab === 'qa' && (
-              <div className="content-card">
+              <div className="content-card community-qa-card">
                 <div className="qa-header">
                   <div>
-                    <h3>University Q+A</h3>
-                    <p className="muted">Submit a question for ambassadors. Approved items appear for everyone.</p>
+                    <h3>Questions &amp; answers</h3>
+                    <p className="muted">Ask {university.name} ambassadors and browse verified community guidance.</p>
                   </div>
                   <button
                     type="button"
-                    className="pill-button"
+                    className="pill-button community-qa-ask"
                     onClick={() => {
                       if (!userData) {
                         onRequireAuth?.();
@@ -821,33 +1636,59 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                     Ask a question
                   </button>
                 </div>
+                <div className="community-tab-search">
+                  <FaSearch aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={questionSearch}
+                    onChange={(event) => setQuestionSearch(event.target.value)}
+                    placeholder="Search questions and answers"
+                    aria-label="Search questions and answers"
+                  />
+                  {questionSearch && (
+                    <button type="button" onClick={() => setQuestionSearch('')} aria-label="Clear Q and A search">
+                      ×
+                    </button>
+                  )}
+                </div>
 
                 <div className="qa-list">
                   {isLoadingQuestions ? (
                     <p>Loading questions...</p>
                   ) : questions.length === 0 ? (
-                    <p>No questions yet.</p>
+                    <div className="community-launch-empty community-launch-empty--compact">
+                      <p className="community-launch-empty__eyebrow">Be the first</p>
+                      <h4>What would help someone at this university?</h4>
+                      <p>Ask the first question. An ambassador can review it and add a trusted answer for everyone who joins next.</p>
+                    </div>
+                  ) : visibleQuestions.length === 0 ? (
+                    <p className="community-tab-empty">No questions match “{questionSearch}”.</p>
                   ) : (
-                    questions.map((q) => {
+                    visibleQuestions.map((q) => {
                       const isPending = q.status === 'pending';
+                      const questionId = q.question_id || q.id;
                       return (
-                        <div key={q.id} className="qa-item">
+                        <article key={questionId} className="qa-item community-qa-item">
                           <div className="qa-item-header">
-                            <div>
+                            <div className="community-qa-item__heading">
+                              <div className="community-qa-item__eyebrow">
+                                <span>Question</span>
+                                {isPending && <span className="community-qa-status">Pending review</span>}
+                              </div>
                               <h4>{q.title}</h4>
-                              <p className="muted">
+                              <p className="community-qa-item__byline">
                                 Asked by {q.asker_first_name} {q.asker_last_name}
-                                {isPending && ' · Pending approval'}
+                                {q.created_at ? ` · ${timeAgo(q.created_at)}` : ''}
                               </p>
                             </div>
                             {isAmbassador && isPending && (
-                              <div className="qa-actions">
+                              <div className="qa-actions community-qa-moderation">
                                 <button
                                   type="button"
                                   className="pill-button secondary"
-                                  onClick={() => handleApproveQuestion(q.id)}
+                                  onClick={() => handleApproveQuestion(questionId)}
                                 >
-                                  Add to Q+A list
+                                  Approve
                                 </button>
                                 <button
                                   type="button"
@@ -855,7 +1696,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                                   onClick={() => {
                                     const reason = window.prompt('Provide a justification for declining:');
                                     if (!reason) return;
-                                    handleRejectQuestion(q.id, reason);
+                                    handleRejectQuestion(questionId, reason);
                                   }}
                                 >
                                   Decline
@@ -863,18 +1704,21 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                               </div>
                             )}
                           </div>
-                          <p style={{ marginTop: 6 }}>{q.body}</p>
+                          <p className="community-qa-item__question">{q.body}</p>
 
                           <div className="qa-answers">
                             {q.answers && q.answers.length > 0 ? (
                               q.answers.map((a) => (
-                                <div key={a.id} className="qa-answer">
-                                  <strong>{a.first_name} {a.last_name}</strong>
+                                <div key={a.answer_id || a.id} className="qa-answer community-qa-answer">
+                                  <div className="community-qa-answer__meta">
+                                    <span>Ambassador answer</span>
+                                    <strong>{a.first_name} {a.last_name}</strong>
+                                  </div>
                                   <p>{a.body}</p>
                                 </div>
                               ))
                             ) : (
-                              <p className="muted">No answers yet.</p>
+                              <p className="community-qa-unanswered">Awaiting an ambassador response.</p>
                             )}
                           </div>
 
@@ -882,105 +1726,52 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                             <div className="qa-answer-form">
                               <textarea
                                 placeholder="Write an answer..."
-                                value={answerDrafts[q.id] || ''}
+                                value={answerDrafts[questionId] || ''}
                                 onChange={(e) =>
-                                  setAnswerDrafts((prev) => ({ ...prev, [q.id]: e.target.value }))
+                                  setAnswerDrafts((prev) => ({ ...prev, [questionId]: e.target.value }))
                                 }
                               />
                               <div className="qa-actions">
                                 <button
                                   type="button"
                                   className="pill-button secondary"
-                                  onClick={() => handleSubmitAnswer(q.id)}
+                                  onClick={() => handleSubmitAnswer(questionId)}
                                 >
                                   Post answer
                                 </button>
                               </div>
                             </div>
                           )}
-                        </div>
+                        </article>
                       );
                     })
                   )}
                 </div>
               </div>
             )}
+            {['contact', 'events', 'polls'].includes(activeTab) && (
+              <div className="content-card community-mobile-context community-embedded-tab-card" role="tabpanel">
+                <RightRail
+                  userData={userData}
+                  communityContext={{ id: communityId, type: 'university' }}
+                  section={activeTab}
+                  embedded
+                />
+              </div>
+            )}
           </div>
-          {activeTab !== 'qa' && (
-          <aside className="split-aside">
-            <div className="info-card">
-              <h3>Ambassadors</h3>
-              {ambassadors.length ? (
-                <div className="avatar-stack" style={{ marginBottom: 8 }}>
-                  {ambassadors.slice(0, 6).map((a) => {
-                    const initials = getInitials(a.first_name, a.last_name);
-                    const key = a.user_id || a.id || initials;
-                    return a.avatar_path ? (
-                      <img
-                        key={key}
-                        className="avatar"
-                        src={a.avatar_path}
-                        alt={`${a.first_name} ${a.last_name}`}
-                      />
-                    ) : (
-                      <div key={key} className="avatar avatar-initial" aria-label={`${a.first_name} ${a.last_name}`}>
-                        {initials}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="muted" style={{ marginBottom: 8 }}>
-                  No current ambassadors.
-                </p>
-              )}
-              <button
-                className={`pill-button ${!canViewAmbassadors ? 'locked' : ''}`}
-                type="button"
-                onClick={() => {
-                  if (!canViewAmbassadors) {
-                    onRequireAuth?.();
-                    return;
-                  }
-                  setShowAmbassadorOverlay(true);
-                  fetchAmbassadors();
-                  setMenuOpenFor(null);
-                }}
-                aria-disabled={!canViewAmbassadors}
-                title={!canViewAmbassadors ? 'Log in to view ambassadors' : 'View ambassadors'}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  {!canViewAmbassadors && <FaLock size={12} />}
-                  View all
-                </span>
-              </button>
-            </div>
-            <div className="info-card">
-              <h3>Contact Us</h3>
-              {university.website ? (
-                <p style={{ margin: 0 }}>
-                  <a href={university.website} target="_blank" rel="noopener noreferrer">{university.website}</a>
-                </p>
-              ) : null}
-              {university.contact_email || university.email ? (
-                <p className="muted" style={{ margin: '6px 0 0 0' }}>{university.contact_email || university.email}</p>
-              ) : (
-                <p className="muted" style={{ margin: 0 }}>No contact info provided.</p>
-              )}
-            </div>
-          </aside>
-          )}
         </div>
       </section>
 
       <ModalOverlay
         isOpen={isEditing}
+        contentClassName="community-form-overlay community-form-overlay--edit"
         onClose={() => {
           setIsEditing(false);
           setEditStatus('');
         }}
       >
-        <div className="content-card">
+        <div className="content-card community-form-dialog">
           <div className="qa-header">
             <div>
               <h3>Edit Community</h3>
@@ -1021,14 +1812,14 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
             <input
               id="edit-primary-color"
               type="color"
-              value={editPrimaryColor || "#0077B5"}
+              value={editPrimaryColor || "#2F80ED"}
               onChange={(e) => setEditPrimaryColor(e.target.value)}
             />
             <label className="qa-label" htmlFor="edit-secondary-color">Secondary Color</label>
             <input
               id="edit-secondary-color"
               type="color"
-              value={editSecondaryColor || "#005f8d"}
+              value={editSecondaryColor || "#1D5FC4"}
               onChange={(e) => setEditSecondaryColor(e.target.value)}
             />
             <label className="qa-label" htmlFor="edit-logo">Logo</label>
@@ -1071,12 +1862,13 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
 
       <ModalOverlay
         isOpen={showCreateSubModal}
+        contentClassName="community-form-overlay community-form-overlay--subcommunity"
         onClose={() => {
           setShowCreateSubModal(false);
           setCreateSubStatus('');
         }}
       >
-        <div className="content-card">
+        <div className="content-card community-form-dialog">
           <div className="qa-header">
             <div>
               <h3>Create sub-community</h3>
@@ -1119,14 +1911,14 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
             <input
               id="sub-primary-color"
               type="color"
-              value={createSubData.primary_color || '#0077B5'}
+              value={createSubData.primary_color || '#2F80ED'}
               onChange={(e) => handleSubFieldChange('primary_color', e.target.value)}
             />
             <label className="qa-label" htmlFor="sub-secondary-color">Secondary Color</label>
             <input
               id="sub-secondary-color"
               type="color"
-              value={createSubData.secondary_color || '#005f8d'}
+              value={createSubData.secondary_color || '#1D5FC4'}
               onChange={(e) => handleSubFieldChange('secondary_color', e.target.value)}
             />
             <div className="qa-actions">
@@ -1156,26 +1948,42 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
         </div>
       </ModalOverlay>
 
-      {/* Ambassador Overlay */}
-      {showAmbassadorOverlay && userData && (
-        <div className="overlay">
-          <div className="overlay-content">
+      <ModalOverlay
+        isOpen={showAmbassadorOverlay && Boolean(userData)}
+        contentClassName="ambassador-directory-overlay"
+        onClose={() => {
+          setShowAmbassadorOverlay(false);
+          setMenuOpenFor(null);
+        }}
+      >
+          <div className="ambassador-directory-dialog">
             <div className="qa-header">
               <div>
                 <h2>Ambassador List</h2>
                 <p className="muted">
-                  Ambassador status is earned by applying and verifying your school affiliation. Admins can only promote existing ambassadors.
+                  Ambassador status is reserved for verified staff members (and super admins). Admins can only promote existing ambassadors.
                 </p>
+                {ambassadorEligibility?.reason === 'staff_verification_required' && (
+                  <p className="muted">
+                    Want to become an ambassador? Complete staff verification for this university first.
+                  </p>
+                )}
+                {ambassadorEligibility?.reason === 'pending_application' && (
+                  <p className="ambassador-application-pending" role="status">
+                    Your ambassador application is pending review.
+                  </p>
+                )}
               </div>
               {canApplyForAmbassador && (
                 <button
                   type="button"
-                  className="pill-button"
-                  onClick={() =>
-                    alert('Ambassador applications will guide you through school verification. This flow is coming soon.')
-                  }
+                  className="pill-button ambassador-application-trigger"
+                  onClick={() => {
+                    setAmbassadorApplicationError('');
+                    setShowAmbassadorApplication(true);
+                  }}
                 >
-                  Apply to be an Ambassador
+                  Apply to be an ambassador
                 </button>
               )}
             </div>
@@ -1192,11 +2000,11 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                   const avatarKey = amb.user_id || amb.id || initials;
                   const isOnline = Number(amb.show_online ?? 1) === 1 && Boolean(amb.is_online);
                   const avatarNode = amb.avatar_path ? (
-                            <img
-                              src={amb.avatar_path}
-                              alt={`${amb.first_name} ${amb.last_name}`}
-                              className="ambassador-avatar"
-                            />
+                    <img
+                      src={buildAvatarSrc(amb.avatar_path)}
+                      alt={`${amb.first_name} ${amb.last_name}`}
+                      className="ambassador-avatar"
+                    />
                   ) : (
                     <div
                       className="ambassador-avatar ambassador-avatar--initial"
@@ -1257,7 +2065,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                               <button
                                 type="button"
                                 className="menu-item"
-                                disabled={!canEditCommunity || String(amb.role).toLowerCase() === 'admin'}
+                                disabled={!canEditCommunity || String(amb.community_role).toLowerCase() === 'admin'}
                                 onClick={() => {
                                   setMenuOpenFor(null);
                                   handlePromoteAdmin(amb.email, amb.user_id);
@@ -1268,7 +2076,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                               <button
                                 type="button"
                                 className="menu-item"
-                                disabled={!canRemoveAmbassador || String(amb.role).toLowerCase() === 'admin'}
+                                disabled={!canRemoveAmbassador || String(amb.community_role).toLowerCase() === 'admin'}
                                 onClick={() => {
                                   setMenuOpenFor(null);
                                   handleRemoveAmbassador(amb);
@@ -1285,24 +2093,106 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                 })}
               </ul>
             )}
-            <button onClick={() => {
-              setShowAmbassadorOverlay(false);
-              setMenuOpenFor(null);
-            }}>
-              Close
-            </button>
           </div>
+      </ModalOverlay>
+
+      <ModalOverlay
+        isOpen={showAmbassadorApplication && canApplyForAmbassador}
+        contentClassName="ambassador-application-overlay"
+        onClose={closeAmbassadorApplication}
+      >
+        <div className="ambassador-application-dialog">
+          <header className="ambassador-application-header">
+            <p className="ambassador-application-kicker">Verified staff application</p>
+            <h2>Represent {university?.name || 'your university'}</h2>
+            <p>
+              Tell the community team how you plan to welcome students, answer questions,
+              and share reliable campus information.
+            </p>
+          </header>
+
+          <div className="ambassador-application-eligibility" aria-label="Eligibility confirmed">
+            <span>Verified staff</span>
+            <span>University connection confirmed</span>
+            <span>Ready for review</span>
+          </div>
+
+          <form className="ambassador-application-form" onSubmit={handleApplyAmbassador}>
+            <div className="ambassador-application-field">
+              <div className="ambassador-application-label-row">
+                <label htmlFor="ambassador-motivation">
+                  Why would you like to be an ambassador?
+                </label>
+                <span>{ambassadorMotivation.length}/1000</span>
+              </div>
+              <p id="ambassador-motivation-help">
+                Share your role, how you support students, and what you can contribute.
+              </p>
+              <textarea
+                id="ambassador-motivation"
+                value={ambassadorMotivation}
+                onChange={(event) => setAmbassadorMotivation(event.target.value)}
+                aria-describedby="ambassador-motivation-help"
+                placeholder="I work with students as…"
+                maxLength={1000}
+                required
+                disabled={isApplyingAmbassador}
+              />
+            </div>
+
+            <label className="ambassador-application-confirmation">
+              <input
+                type="checkbox"
+                checked={ambassadorConnectionConfirmed}
+                onChange={(event) => setAmbassadorConnectionConfirmed(event.target.checked)}
+                disabled={isApplyingAmbassador}
+              />
+              <span>
+                I confirm that I currently work with {university?.name || 'this university'} and
+                that the university information in my profile is accurate.
+              </span>
+            </label>
+
+            {ambassadorApplicationError && (
+              <p className="ambassador-application-error" role="alert">
+                {ambassadorApplicationError}
+              </p>
+            )}
+
+            <div className="ambassador-application-actions">
+              <button
+                type="button"
+                className="pill-button secondary"
+                onClick={closeAmbassadorApplication}
+                disabled={isApplyingAmbassador}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="pill-button"
+                disabled={
+                  isApplyingAmbassador ||
+                  !ambassadorMotivation.trim() ||
+                  !ambassadorConnectionConfirmed
+                }
+              >
+                {isApplyingAmbassador ? 'Submitting…' : 'Submit application'}
+              </button>
+            </div>
+          </form>
         </div>
-      )}
+      </ModalOverlay>
 
       <ModalOverlay
         isOpen={showQuestionModal}
+        contentClassName="community-form-overlay community-form-overlay--question"
         onClose={() => {
           setShowQuestionModal(false);
           setStatusMessage('');
         }}
       >
-        <div className="content-card">
+        <div className="content-card community-form-dialog">
           <div className="qa-header">
             <div>
               <h3>Ask a question</h3>
@@ -1359,6 +2249,14 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
           </form>
         </div>
       </ModalOverlay>
+
+      <ReportModal
+        isOpen={!!reportTarget}
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+        onSubmit={handleSubmitReport}
+        submitting={isSubmittingReport}
+      />
     </div>
   );
 }

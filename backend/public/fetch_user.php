@@ -1,16 +1,19 @@
 <?php
 // fetch_user.php
 
-session_start();
+require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/../session_bootstrap.php';
 
-// Enable error reporting for debugging (disable in production)
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
+startSession();
 header('Content-Type: application/json');
 
 // Include your database connection function
 require_once __DIR__ . '/../db_connection.php';
+
+if (srp_is_dev_mode()) {
+    ini_set('display_errors', 0);
+    error_reporting(E_ALL);
+}
 
 // Check that a user_id is provided
 if (!isset($_GET['user_id'])) {
@@ -80,6 +83,10 @@ try {
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.last_seen_at')) AS last_seen_at,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.allow_messages_from')) AS allow_messages_from,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_votes')) AS notify_votes,
+            JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_replies')) AS notify_replies,
+            JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_events')) AS notify_events,
+            JSON_UNQUOTE(JSON_EXTRACT(extras, '$.two_factor_enabled')) AS two_factor_enabled,
+            JSON_UNQUOTE(JSON_EXTRACT(extras, '$.auto_join_campus')) AS auto_join_campus,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.default_feed')) AS default_feed_json,
             default_feed,
             show_email,
@@ -96,6 +103,10 @@ try {
     $last_seen_at = $settings['last_seen_at'] ?? null;
     $allow_messages_from = $settings['allow_messages_from'] ?? 'everyone';
     $notify_votes = isset($settings['notify_votes']) ? (int)$settings['notify_votes'] : 1;
+    $notify_replies = isset($settings['notify_replies']) ? (int)$settings['notify_replies'] : 1;
+    $notify_events = isset($settings['notify_events']) ? (int)$settings['notify_events'] : 1;
+    $two_factor_enabled = isset($settings['two_factor_enabled']) ? (int)filter_var($settings['two_factor_enabled'], FILTER_VALIDATE_BOOLEAN) : 0;
+    $auto_join_campus = isset($settings['auto_join_campus']) ? (int)filter_var($settings['auto_join_campus'], FILTER_VALIDATE_BOOLEAN) : 1;
     $default_feed = $settings['default_feed'] ?? ($settings['default_feed_json'] ?? null);
     $show_email = isset($settings['show_email']) ? (int)$settings['show_email'] : 0; // 0=hidden,1=connections,2=everyone
     $discoverable = isset($settings['discoverable']) ? (int)$settings['discoverable'] : 2;
@@ -114,10 +125,18 @@ try {
     $user['is_online'] = $show_online ? $isOnline : false;
     $user['allow_messages_from'] = $allow_messages_from;
     $user['notify_votes'] = $notify_votes;
+    $user['notify_replies'] = $notify_replies;
+    $user['notify_events'] = $notify_events;
+    $user['two_factor_enabled'] = $two_factor_enabled;
+    $user['auto_join_campus'] = $auto_join_campus;
     $user['default_feed'] = $default_feed;
     $user['show_email'] = $show_email;
     $user['discoverable'] = $discoverable;
     $user['session_timeout_minutes'] = $session_timeout_minutes;
+
+    $ambStmt = $db->prepare("SELECT community_id FROM ambassadors WHERE user_id = :uid");
+    $ambStmt->execute([':uid' => $user_id]);
+    $user['community_ambassador_of'] = $ambStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 
     $viewer_id = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
     $isOwnProfile = $viewer_id === $user_id;
@@ -130,10 +149,11 @@ try {
         $isConnected = $cstmt->fetchColumn() > 0;
     }
 
-    // Decode JSON field (community_ambassador_of) if it's not null
-    if (!empty($user['community_ambassador_of'])) {
-        $user['community_ambassador_of'] = json_decode($user['community_ambassador_of'], true);
-    } else {
+    // Normalize ambassador communities to array
+    if (is_string($user['community_ambassador_of']) && $user['community_ambassador_of'] !== '') {
+        $decoded = json_decode($user['community_ambassador_of'], true);
+        $user['community_ambassador_of'] = is_array($decoded) ? $decoded : [];
+    } elseif (!is_array($user['community_ambassador_of'])) {
         $user['community_ambassador_of'] = [];
     }
 
@@ -154,15 +174,29 @@ try {
         if (isset($user['email'])) {
             $canViewEmail = false;
         }
-        if (isset($user['phone'])) {
-            $user['phone'] = null;
-        }
     }
 
     if (!$canViewEmail) {
         $user['email'] = null;
     }
     $user['email_visible'] = $canViewEmail ? 1 : 0;
+
+    // Phone has no independent visibility preference of its own (unlike
+    // email's show_email setting), so it defaults to owner-only.
+    $user['phone'] = $isOwnProfile ? ($user['phone'] ?? null) : null;
+
+    // These are account-security/settings metadata, not public profile
+    // data — only the profile owner should see them. (allow_messages_from
+    // stays public: the profile view uses it to decide whether to show a
+    // "Message" button for other users.)
+    if (!$isOwnProfile) {
+        unset(
+            $user['role_id'],
+            $user['login_count'],
+            $user['two_factor_enabled'],
+            $user['session_timeout_minutes']
+        );
+    }
 
     // Normalize media paths
     $user['avatar_path'] = appendAvatarPath($user['avatar_path'] ?? null);
@@ -175,17 +209,19 @@ try {
     ]);
 
 } catch (PDOException $e) {
+    error_log('[SRP] fetch_user db error: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error'   => 'Database error: ' . $e->getMessage()
+        'error'   => 'Database error.'
     ]);
     exit;
 } catch (Exception $e) {
+    error_log('[SRP] fetch_user error: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error'   => 'Server error: ' . $e->getMessage()
+        'error'   => 'Server error.'
     ]);
     exit;
 }

@@ -1,5 +1,13 @@
 <?php
+// Retired: this legacy flow bypassed the verified onboarding pipeline. Keep a
+// stable response for old clients without permitting account creation.
+header('Content-Type: application/json');
+http_response_code(410);
+echo json_encode(['error' => 'This registration endpoint has been retired. Use init_register.php.']);
+exit;
+
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
 
 header('Content-Type: application/json');
 
@@ -55,7 +63,7 @@ if (isset($inputData['action']) && $inputData['action'] === 'updateInterests') {
         echo json_encode(['message' => 'Followed communities updated successfully.']);
     } catch (PDOException $e) {
         http_response_code(500);
-        echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        echo json_encode(['error' => 'Database error: ']);
     }
 
     exit;
@@ -88,14 +96,14 @@ try {
     $user_id = generateUniqueId($db, 'users');
 
     // Insert user
-    // role_id = 2 as default (e.g. prospective student)
+    // role_id = ROLE_MEMBER (1) as default for new users
     $stmt = $db->prepare(
         "INSERT INTO users (user_id, role_id, first_name, last_name, email, phone, password_hash, education_status, is_over_18, is_public)
         VALUES (:user_id, :role_id, :first_name, :last_name, :email, :phone, :password_hash, :education_status, :is_over_18, :is_public)"
     );
     $stmt->execute([
         ':user_id' => $user_id,
-        ':role_id' => 2,
+        ':role_id' => ROLE_MEMBER,
         ':first_name' => $firstName,
         ':last_name' => $lastName,
         ':email' => $email,
@@ -152,6 +160,6 @@ try {
     echo json_encode(['message' => 'User registered successfully', 'user_id' => $user_id]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

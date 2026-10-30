@@ -1,5 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../db_connection.php';
@@ -7,6 +8,7 @@ require_once __DIR__ . '/../db_connection.php';
 if (isset($_SESSION['user_id'])) {
     $userId = normalizeId($_SESSION['user_id']);
     $allowMessagesFrom = 'everyone';
+    $ambassadorCommunities = [];
     $sessionId = session_id();
     $userAgent = substr($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown device', 0, 255);
     $ipAddress = substr(
@@ -38,7 +40,13 @@ if (isset($_SESSION['user_id'])) {
 
         // Validate current session is not revoked and not expired
         $sessionCheck = $db->prepare("
-            SELECT last_active_at, revoked_at FROM user_sessions WHERE session_id = :sid AND user_id = :uid LIMIT 1
+            SELECT
+                last_active_at,
+                revoked_at,
+                TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS inactive_seconds
+            FROM user_sessions
+            WHERE session_id = :sid AND user_id = :uid
+            LIMIT 1
         ");
         $sessionCheck->execute([':sid' => $sessionId, ':uid' => $userId]);
         $sessionRow = $sessionCheck->fetch(PDO::FETCH_ASSOC);
@@ -49,8 +57,8 @@ if (isset($_SESSION['user_id'])) {
                 echo json_encode(["loggedIn" => false]);
                 exit;
             }
-            $lastActiveTs = strtotime($sessionRow['last_active_at']);
-            if ($lastActiveTs !== false && ($now - $lastActiveTs) > ($sessionTimeoutMinutes * 60)) {
+            $inactiveSeconds = (int)($sessionRow['inactive_seconds'] ?? 0);
+            if ($inactiveSeconds > ($sessionTimeoutMinutes * 60)) {
                 // Expire session
                 $expireStmt = $db->prepare("UPDATE user_sessions SET revoked_at = NOW() WHERE session_id = :sid AND user_id = :uid");
                 $expireStmt->execute([':sid' => $sessionId, ':uid' => $userId]);
@@ -91,6 +99,44 @@ if (isset($_SESSION['user_id'])) {
         ");
         $dmStmt->execute([':uid' => $userId]);
         $allowMessagesFrom = $dmStmt->fetchColumn() ?: 'everyone';
+
+        // Always derive ambassador communities from DB so role changes reflect immediately.
+        $ambStmt = $db->prepare("
+            SELECT
+                a.community_id,
+                COALESCE(MAX(c.name), '') AS name,
+                MIN(a.community_role) AS community_role
+            FROM ambassadors a
+            LEFT JOIN communities c
+                ON c.id = a.community_id
+            WHERE a.user_id = :uid
+            GROUP BY a.community_id
+            ORDER BY name ASC
+        ");
+        $ambStmt->execute([':uid' => $userId]);
+        $ambassadorCommunities = $ambStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $_SESSION['is_ambassador'] = count($ambassadorCommunities) > 0 ? 1 : 0;
+
+        // Recompute admin communities too so UI that depends on
+        // admin_community_ids reflects role changes without a fresh login.
+        $adminStmt = $db->prepare("SELECT community_id FROM ambassadors WHERE user_id = :uid AND community_role = 'admin'");
+        $adminStmt->execute([':uid' => $userId]);
+        $_SESSION['admin_community_ids'] = $adminStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+        $userMetaStmt = $db->prepare("
+            SELECT role_id, is_verified, verified, verified_community_id, education_status, recent_university_id
+            FROM users
+            WHERE user_id = :uid
+            LIMIT 1
+        ");
+        $userMetaStmt->execute([':uid' => $userId]);
+        $userMeta = $userMetaStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $_SESSION['role_id'] = (int)($userMeta['role_id'] ?? $_SESSION['role_id'] ?? 0);
+        $_SESSION['is_verified'] = (int)($userMeta['is_verified'] ?? 0);
+        $_SESSION['verified'] = (int)($userMeta['verified'] ?? 0);
+        $_SESSION['verified_community_id'] = $userMeta['verified_community_id'] ?? null;
+        $_SESSION['education_status'] = $userMeta['education_status'] ?? ($_SESSION['education_status'] ?? 'Prospect');
+        $_SESSION['recent_university_id'] = $userMeta['recent_university_id'] ?? ($_SESSION['recent_university_id'] ?? null);
     } catch (PDOException $e) {
         error_log('Unable to update presence: ' . $e->getMessage());
     }
@@ -105,6 +151,12 @@ if (isset($_SESSION['user_id'])) {
             "role_id" => $_SESSION['role_id'],
             "avatar_path" => appendAvatarPath($_SESSION['avatar_path'] ?? null),
             "is_ambassador" => $_SESSION['is_ambassador'],
+            "is_verified" => (int)($_SESSION['is_verified'] ?? 0),
+            "verified" => (int)($_SESSION['verified'] ?? 0),
+            "verified_community_id" => $_SESSION['verified_community_id'] ?? null,
+            "education_status" => $_SESSION['education_status'] ?? 'Prospect',
+            "recent_university_id" => $_SESSION['recent_university_id'] ?? null,
+            "ambassador_communities" => $ambassadorCommunities,
             "login_count" => $_SESSION['login_count'],
             "is_public" => $_SESSION['is_public'],
             "admin_community_ids" => $_SESSION['admin_community_ids'] ?? [],

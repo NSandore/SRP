@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
@@ -11,6 +12,6 @@ try {
     echo json_encode($communities);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

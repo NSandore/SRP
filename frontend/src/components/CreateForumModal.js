@@ -2,6 +2,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
+import { FORUM_TITLE_MAX_LENGTH } from '../utils/contentLimits';
 import './CreateForumModal.css'; // Ensure you create corresponding CSS for styling
 
 function CreateForumModal({ isVisible, onClose, onSubmit, formData, setFormData, isCreating }) {
@@ -28,6 +29,7 @@ function CreateForumModal({ isVisible, onClose, onSubmit, formData, setFormData,
               name="name"
               value={formData.name}
               onChange={handleChange}
+              maxLength={FORUM_TITLE_MAX_LENGTH}
               required
             />
           </div>

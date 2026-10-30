@@ -1,204 +1,374 @@
 <?php
-// update_university.php
 
-// Enable error reporting for debugging (disable in production)
-ini_set('display_errors', 1);
+declare(strict_types=1);
+
+require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/institution_data/AdminReview.php';
+require_once __DIR__ . '/../includes/institution_data/PublicProjection.php';
+require_once __DIR__ . '/../session_bootstrap.php';
+
+ini_set('display_errors', '0');
 error_reporting(E_ALL);
-
 header('Content-Type: application/json');
 
-// Include the database connection
-require_once __DIR__ . '/../db_connection.php';
+startSession();
 
-session_start();
-
-// Only allow POST requests
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'error' => 'Invalid request method.']);
+/**
+ * @param array<string, mixed> $payload
+ */
+function srp_university_json(array $payload, int $status = 200): never
+{
+    http_response_code($status);
+    echo json_encode($payload);
     exit;
 }
 
-// Helper function to retrieve and trim POST values
-function getPostValue($key, $default = null) {
-    return isset($_POST[$key]) ? trim($_POST[$key]) : $default;
-}
-
-// Retrieve and validate required fields
-$community_id = isset($_POST['community_id']) ? normalizeId($_POST['community_id']) : '';
-if ($community_id === '') {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Invalid or missing community_id.']);
-    exit;
-}
-
-$name = getPostValue('name');
-if (!$name) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'University name is required.']);
-    exit;
-}
-
-$tagline        = getPostValue('tagline');
-$location       = getPostValue('location');
-$website        = getPostValue('website');
-$primary_color  = getPostValue('primary_color', '#0077B5');
-$secondary_color = getPostValue('secondary_color', '#005f8d');
-
-// Get a database connection
-$db = getDB();
-
-// Permission: super admin (role_id=1) OR ambassador admin for this community
-$sessionUserId = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
-$sessionRoleId = isset($_SESSION['role_id']) ? (int)$_SESSION['role_id'] : null;
-if (!$sessionUserId) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Not authenticated.']);
-    exit;
-}
-
-if ($sessionRoleId !== 1) {
-    $permStmt = $db->prepare("
-        SELECT role FROM ambassadors
-        WHERE community_id = :cid AND user_id = :uid
-        LIMIT 1
-    ");
-    $permStmt->execute([':cid' => $community_id, ':uid' => $sessionUserId]);
-    $role = $permStmt->fetchColumn();
-    if ($role !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => 'No permission to update this community.']);
-        exit;
+/**
+ * @return list<string>|null
+ */
+function srp_university_aliases(mixed $raw): ?array
+{
+    if ($raw === null || $raw === '') {
+        return null;
     }
-}
-
-// Define upload directories (adjust these paths according to your folder structure)
-$logoUploadDir = __DIR__ . '/../../uploads/logos/';
-$bannerUploadDir = __DIR__ . '/../../uploads/banners/';
-
-// Initialize variables to hold new file paths (if provided)
-$newLogoPath = null;
-$newBannerPath = null;
-
-// Process logo file upload if provided
-if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
-    // Validate file type (allow JPEG, PNG, GIF)
-    $allowedLogoTypes = ['image/jpeg', 'image/png', 'image/gif'];
-    $logoMimeType = mime_content_type($_FILES['logo']['tmp_name']);
-    if (!in_array($logoMimeType, $allowedLogoTypes)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Invalid logo file type.']);
-        exit;
+    if (is_string($raw)) {
+        $trimmed = trim($raw);
+        if ($trimmed === '') {
+            return null;
+        }
+        if (str_starts_with($trimmed, '[')) {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                $raw = $decoded;
+            } else {
+                throw new InvalidArgumentException('Aliases must be a valid JSON list or comma-separated text.');
+            }
+        } else {
+            $raw = preg_split('/\s*,\s*/', $trimmed) ?: [];
+        }
+    }
+    if (!is_array($raw)) {
+        throw new InvalidArgumentException('Aliases must be a list.');
     }
 
-    // Ensure the logo upload directory exists and is writable
-    if (!is_dir($logoUploadDir) || !is_writable($logoUploadDir)) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Logo upload directory is not writable.']);
-        exit;
+    $aliases = [];
+    $seen = [];
+    foreach ($raw as $alias) {
+        if (is_array($alias) || is_object($alias) || is_resource($alias)) {
+            throw new InvalidArgumentException('Each alias must be plain text.');
+        }
+        $alias = trim((string)$alias);
+        if ($alias === '') {
+            continue;
+        }
+        if (strlen($alias) > 255) {
+            throw new InvalidArgumentException('Aliases must be 255 characters or fewer.');
+        }
+        $identity = mb_strtolower($alias, 'UTF-8');
+        if (!isset($seen[$identity])) {
+            $seen[$identity] = true;
+            $aliases[] = $alias;
+        }
+        if (count($aliases) >= 50) {
+            break;
+        }
+    }
+    return $aliases ?: null;
+}
+
+/**
+ * Validate and move one optional community image.
+ *
+ * @param array<string, string> $allowedMimeToExtension
+ * @return array{public_path: string, disk_path: string}|null
+ */
+function srp_university_upload(
+    string $inputName,
+    string $communityId,
+    string $prefix,
+    string $directory,
+    array $allowedMimeToExtension,
+    int $maximumBytes
+): ?array {
+    if (!isset($_FILES[$inputName])) {
+        return null;
+    }
+    $file = $_FILES[$inputName];
+    $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($error === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($error !== UPLOAD_ERR_OK) {
+        throw new InvalidArgumentException("The {$inputName} upload did not complete.");
+    }
+    $size = (int)($file['size'] ?? 0);
+    if ($size < 1 || $size > $maximumBytes) {
+        throw new InvalidArgumentException(
+            sprintf(
+                'The %s must be between 1 byte and %d MB.',
+                $inputName,
+                (int)ceil($maximumBytes / 1_048_576)
+            )
+        );
+    }
+    $temporaryPath = (string)($file['tmp_name'] ?? '');
+    if ($temporaryPath === '' || !is_uploaded_file($temporaryPath)) {
+        throw new InvalidArgumentException("The {$inputName} upload is invalid.");
+    }
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mimeType = (string)$finfo->file($temporaryPath);
+    $extension = $allowedMimeToExtension[$mimeType] ?? null;
+    if ($extension === null) {
+        throw new InvalidArgumentException("The {$inputName} file type is not supported.");
+    }
+    if (!is_dir($directory) || !is_writable($directory)) {
+        throw new RuntimeException("The {$inputName} upload directory is unavailable.");
     }
 
-    // Generate a unique filename for the logo
-    $logoExtension = pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION);
-    $logoFilename = 'logo_' . $community_id . '_' . time() . '.' . $logoExtension;
-    $logoDestination = $logoUploadDir . $logoFilename;
-
-    if (move_uploaded_file($_FILES['logo']['tmp_name'], $logoDestination)) {
-        $newLogoPath = '/uploads/logos/' . $logoFilename;
-        // (Optional) Delete the previous logo file if needed.
-    } else {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Logo upload failed.']);
-        exit;
+    $filename = sprintf(
+        '%s_%s_%s.%s',
+        $prefix,
+        preg_replace('/[^A-Za-z0-9_-]/', '', $communityId),
+        bin2hex(random_bytes(10)),
+        $extension
+    );
+    $diskPath = rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
+    if (!move_uploaded_file($temporaryPath, $diskPath)) {
+        throw new RuntimeException("The {$inputName} upload could not be stored.");
     }
+    @chmod($diskPath, 0644);
+    return [
+        'public_path' => "/uploads/{$prefix}s/{$filename}",
+        'disk_path' => $diskPath,
+    ];
 }
 
-// Process banner file upload if provided
-if (isset($_FILES['banner']) && $_FILES['banner']['error'] === UPLOAD_ERR_OK) {
-    // Validate file type (allow only JPEG and PNG)
-    $allowedBannerTypes = ['image/jpeg', 'image/png'];
-    $bannerMimeType = mime_content_type($_FILES['banner']['tmp_name']);
-    if (!in_array($bannerMimeType, $allowedBannerTypes)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Invalid banner file type. Only JPEG and PNG allowed.']);
-        exit;
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+    srp_university_json(['success' => false, 'error' => 'POST is required.'], 405);
+}
+
+$sessionUserId = normalizeId($_SESSION['user_id'] ?? '');
+$sessionRoleId = isset($_SESSION['role_id']) ? (int)$_SESSION['role_id'] : 0;
+if ($sessionUserId === '') {
+    srp_university_json(['success' => false, 'error' => 'Not authenticated.'], 401);
+}
+
+$communityId = normalizeId($_POST['community_id'] ?? '');
+if ($communityId === '') {
+    srp_university_json(
+        ['success' => false, 'error' => 'A valid community_id is required.'],
+        400
+    );
+}
+
+try {
+    $db = getDB();
+    if (!canEditCommunitySettings(
+        $sessionUserId,
+        $sessionRoleId,
+        $communityId,
+        $db
+    )) {
+        srp_university_json(
+            ['success' => false, 'error' => 'No permission to update this community.'],
+            403
+        );
     }
 
-    // Ensure the banner upload directory exists and is writable
-    if (!is_dir($bannerUploadDir) || !is_writable($bannerUploadDir)) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Banner upload directory is not writable.']);
-        exit;
+    $targetStatement = $db->prepare(
+        'SELECT id, community_type FROM communities WHERE id = :id LIMIT 1'
+    );
+    $targetStatement->execute([':id' => $communityId]);
+    $target = $targetStatement->fetch(PDO::FETCH_ASSOC);
+    if (!$target) {
+        srp_university_json(['success' => false, 'error' => 'Community not found.'], 404);
     }
 
-    // Generate a unique filename for the banner
-    $bannerExtension = pathinfo($_FILES['banner']['name'], PATHINFO_EXTENSION);
-    $bannerFilename = 'banner_' . $community_id . '_' . time() . '.' . $bannerExtension;
-    $bannerDestination = $bannerUploadDir . $bannerFilename;
-
-    if (move_uploaded_file($_FILES['banner']['tmp_name'], $bannerDestination)) {
-        $newBannerPath = '/uploads/banners/' . $bannerFilename;
-        // (Optional) Delete the previous banner file if needed.
-    } else {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Banner upload failed.']);
-        exit;
+    $limits = [
+        'name' => 100,
+        'tagline' => 150,
+        'location' => 255,
+        'website' => 255,
+        'phone' => 50,
+    ];
+    $changes = [];
+    $manualValues = [];
+    foreach ($limits as $field => $maximumBytes) {
+        if (!array_key_exists($field, $_POST)) {
+            continue;
+        }
+        $value = trim((string)$_POST[$field]);
+        if ($field === 'name' && $value === '') {
+            throw new InvalidArgumentException('University or group name cannot be empty.');
+        }
+        if (strlen($value) > $maximumBytes) {
+            throw new InvalidArgumentException(
+                sprintf('%s must be %d characters or fewer.', ucfirst($field), $maximumBytes)
+            );
+        }
+        $value = $value !== '' ? $value : null;
+        $changes[$field] = $value;
+        $manualValues[$field] = $value;
     }
+
+    foreach (['primary_color', 'secondary_color'] as $field) {
+        if (!array_key_exists($field, $_POST)) {
+            continue;
+        }
+        $rawColor = trim((string)$_POST[$field]);
+        if ($rawColor === '') {
+            $changes[$field] = null;
+            $manualValues[$field] = null;
+            continue;
+        }
+        $normalizedColor = SrpInstitutionColor::normalize($rawColor);
+        if ($normalizedColor === null) {
+            throw new InvalidArgumentException(
+                sprintf('%s must be a supported CSS color.', humanizeColorField($field))
+            );
+        }
+        $changes[$field] = $normalizedColor;
+        $manualValues[$field] = $normalizedColor;
+    }
+
+    if (array_key_exists('aliases', $_POST)) {
+        $aliases = srp_university_aliases($_POST['aliases']);
+        $changes['aliases'] = $aliases === null
+            ? null
+            : json_encode(
+                $aliases,
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
+        $manualValues['aliases'] = $aliases;
+    }
+
+    $movedFiles = [];
+    try {
+        $logo = srp_university_upload(
+            'logo',
+            $communityId,
+            'logo',
+            __DIR__ . '/../../uploads/logos',
+            [
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/gif' => 'gif',
+                'image/webp' => 'webp',
+            ],
+            5 * 1_048_576
+        );
+        if ($logo !== null) {
+            $changes['logo_path'] = $logo['public_path'];
+            $manualValues['logo_path'] = $logo['public_path'];
+            $movedFiles[] = $logo['disk_path'];
+        }
+        $banner = srp_university_upload(
+            'banner',
+            $communityId,
+            'banner',
+            __DIR__ . '/../../uploads/banners',
+            [
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+            ],
+            10 * 1_048_576
+        );
+        if ($banner !== null) {
+            $changes['banner_path'] = $banner['public_path'];
+            $manualValues['banner_path'] = $banner['public_path'];
+            $movedFiles[] = $banner['disk_path'];
+        }
+
+        if ($changes === []) {
+            throw new InvalidArgumentException('No university or group fields were submitted.');
+        }
+
+        $db->beginTransaction();
+        $set = [];
+        $params = [':community_id' => $communityId];
+        foreach ($changes as $field => $value) {
+            $set[] = "`{$field}` = :{$field}";
+            $params[":{$field}"] = $value;
+        }
+        $set[] = 'updated_at = CURRENT_TIMESTAMP';
+        $updateStatement = $db->prepare(
+            'UPDATE communities SET ' . implode(', ', $set) . ' WHERE id = :community_id'
+        );
+        $updateStatement->execute($params);
+
+        if (
+            ($target['community_type'] ?? '') === 'university'
+            && SrpInstitutionPublicProjection::hasColumn($db, 'manual_overrides_json')
+        ) {
+            $reviewService = new SrpInstitutionAdminReview($db);
+            $reviewService->recordManualEdits(
+                $communityId,
+                $manualValues,
+                $sessionUserId
+            );
+        }
+        $db->commit();
+    } catch (Throwable $error) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        foreach ($movedFiles as $movedFile) {
+            if (is_string($movedFile) && is_file($movedFile)) {
+                @unlink($movedFile);
+            }
+        }
+        throw $error;
+    }
+
+    try {
+        $auditStatement = $db->prepare(
+            'INSERT INTO audit_logs (id, user_id, action, timestamp)
+             VALUES (:id, :user_id, :action, NOW())'
+        );
+        $auditStatement->execute([
+            ':id' => 'a' . bin2hex(random_bytes(15)),
+            ':user_id' => $sessionUserId,
+            ':action' => sprintf('community_settings_updated:%s', $communityId),
+        ]);
+    } catch (Throwable $auditError) {
+        error_log('[update_university] audit failed: ' . $auditError->getMessage());
+    }
+
+    $projection = SrpInstitutionPublicProjection::selectList($db, 'c');
+    $selectStatement = $db->prepare(
+        "SELECT {$projection} FROM communities c WHERE c.id = :id LIMIT 1"
+    );
+    $selectStatement->execute([':id' => $communityId]);
+    srp_university_json([
+        'success' => true,
+        'university' => $selectStatement->fetch(PDO::FETCH_ASSOC),
+    ]);
+} catch (InvalidArgumentException | LengthException $error) {
+    srp_university_json(['success' => false, 'error' => $error->getMessage()], 400);
+} catch (PDOException $error) {
+    error_log('[update_university] database error: ' . $error->getMessage());
+    if ((string)$error->getCode() === '23000') {
+        srp_university_json(
+            ['success' => false, 'error' => 'That name or value is already in use.'],
+            409
+        );
+    }
+    srp_university_json(['success' => false, 'error' => 'Unable to update this community.'], 500);
+} catch (RuntimeException $error) {
+    error_log('[update_university] unavailable: ' . $error->getMessage());
+    srp_university_json(['success' => false, 'error' => 'Community updates are temporarily unavailable.'], 503);
+} catch (Throwable $error) {
+    error_log('[update_university] failed: ' . $error->getMessage());
+    srp_university_json(['success' => false, 'error' => 'Unable to update this community.'], 500);
 }
 
-// Build the UPDATE query
-$query = "UPDATE communities 
-          SET name = :name, 
-              tagline = :tagline, 
-              location = :location, 
-              website = :website, 
-              primary_color = :primary_color, 
-              secondary_color = :secondary_color";
-
-if ($newLogoPath !== null) {
-    $query .= ", logo_path = :logo_path";
+/**
+ * Human-readable color field label for validation errors.
+ */
+function humanizeColorField(string $field): string
+{
+    return ucfirst(str_replace('_', ' ', $field));
 }
-
-if ($newBannerPath !== null) {
-    $query .= ", banner_path = :banner_path";
-}
-
-$query .= " WHERE id = :community_id";
-
-$stmt = $db->prepare($query);
-if (!$stmt) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . implode(" - ", $db->errorInfo())]);
-    exit;
-}
-
-// Bind parameters
-$stmt->bindParam(':name', $name);
-$stmt->bindParam(':tagline', $tagline);
-$stmt->bindParam(':location', $location);
-$stmt->bindParam(':website', $website);
-$stmt->bindParam(':primary_color', $primary_color);
-$stmt->bindParam(':secondary_color', $secondary_color);
-if ($newLogoPath !== null) {
-    $stmt->bindParam(':logo_path', $newLogoPath);
-}
-if ($newBannerPath !== null) {
-    $stmt->bindParam(':banner_path', $newBannerPath);
-}
-$stmt->bindParam(':community_id', $community_id, PDO::PARAM_STR);
-
-// Execute the query and return the updated university data
-if ($stmt->execute()) {
-    // Fetch the updated record
-    $selectStmt = $db->prepare("SELECT * FROM communities WHERE id = :community_id");
-    $selectStmt->execute([':community_id' => $community_id]);
-    $updatedUniversity = $selectStmt->fetch(PDO::FETCH_ASSOC);
-    echo json_encode(['success' => true, 'university' => $updatedUniversity]);
-} else {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Update failed: ' . implode(" - ", $stmt->errorInfo())]);
-}
-
-$stmt->closeCursor();
-$db = null;
-?>

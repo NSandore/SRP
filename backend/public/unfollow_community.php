@@ -1,17 +1,31 @@
 <?php
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
+require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    exit;
+}
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
+}
+
 // Decode JSON input
 $data = json_decode(file_get_contents('php://input'), true);
-if (!$data || !isset($data['user_id']) || !isset($data['community_id'])) {
+if (!$data || !isset($data['community_id'])) {
     http_response_code(400);
     echo json_encode(['error' => 'user_id and community_id are required']);
     exit;
 }
 
-$user_id = normalizeId($data['user_id']);
+$user_id = normalizeId($_SESSION['user_id']);
 $community_id = normalizeId($data['community_id']);
 
 $db = getDB();
@@ -34,6 +48,6 @@ try {
     }
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

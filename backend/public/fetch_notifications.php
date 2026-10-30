@@ -1,6 +1,10 @@
 <?php
-session_start();
+require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 header('Content-Type: application/json');
 
@@ -22,7 +26,7 @@ if ($sessionUserId === '') {
 $requestedUserId = isset($_GET['user_id']) ? normalizeId($_GET['user_id']) : $sessionUserId;
 if ($requestedUserId !== $sessionUserId) {
     // Allow super admins to fetch other users' notifications
-    if ($sessionRoleId !== 1) {
+    if (!isSuperAdmin($sessionRoleId)) {
         http_response_code(403);
         echo json_encode(['error' => 'Unauthorized']);
         exit;
@@ -41,6 +45,7 @@ try {
                n.is_read,
                n.created_at,
                n.actor_user_id,
+               n.reference_id,
                u.avatar_path,
                u.first_name,
                u.last_name
@@ -60,6 +65,6 @@ try {
     echo json_encode(['success' => true, 'notifications' => $notifications]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

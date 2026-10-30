@@ -1,19 +1,31 @@
 <?php
 // add_follow_notification.php
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
+require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../db_connection.php';
 
-if (!isset($_POST['follower_id']) || !isset($_POST['followed_id'])) {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
+    exit;
+}
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+    exit;
+}
+
+if (!isset($_POST['followed_id'])) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Missing follower_id or followed_id']);
     exit;
 }
 
-$follower_id = normalizeId($_POST['follower_id']);
+$follower_id = normalizeId($_SESSION['user_id']);
 $followed_id = normalizeId($_POST['followed_id']);
 
 try {
@@ -44,6 +56,6 @@ try {
     }
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }
 ?>

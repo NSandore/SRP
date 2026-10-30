@@ -1,14 +1,13 @@
+/* Component-local defaults only. The theme tokens App.css owns
+ * (--primary-color, --secondary-color, --text-color, --subtext-color,
+ * --background-color, --light-background) are deliberately not redefined here:
+ * a bare :root ties with [data-theme="dark"] on specificity and, loading later
+ * in the bundle, would pin them to their light values in dark mode too. */
 :root {
-  --primary-color: #0077B5; /* Default primary color */
-  --secondary-color: #005f8d; /* Default secondary color */
-  --text-color: #333;
-  --subtext-color: #777;
   /*--background-color: #fff;*/
-  --light-background: #f7f7f7;
   --border-radius: 8px;
   --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   --transition-speed: 0.3s;
-  --font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
 .group-profile {
@@ -109,21 +108,45 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .group-profile {
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
   .group-banner {
-    height: 200px;
+    height: 170px;
   }
   .group-logo {
-    width: 100px;
-    height: 100px;
+    width: 92px;
+    height: 92px;
+    border-width: 3px;
   }
   .group-name {
-    font-size: 2rem;
+    font-size: 1.6rem;
   }
   .group-tagline {
     font-size: 1rem;
+    margin: 0.35rem 0;
   }
   .group-location {
     font-size: 0.9rem;
+    margin: 0.25rem 0;
+  }
+  .group-info {
+    padding: 1rem 1.25rem 1.25rem;
+    text-align: left;
+    border-radius: 0;
+  }
+  .group-info a,
+  .edit-group-button {
+    width: 100%;
+    text-align: center;
+  }
+  .group-info a {
+    margin-top: 1rem;
+  }
+  .edit-group-button {
+    margin-top: 0.75rem;
   }
 }
 
@@ -194,6 +217,7 @@
 
 .ambassador-info {
   flex: 1;
+  min-width: 0;
 }
 
 .ambassador-name {
@@ -206,6 +230,9 @@
   font-size: 0.9rem;
   color: #777;
   margin: 0.25rem 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ambassador-actions {
@@ -268,4 +295,112 @@
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid #ddd;
+}
+
+.community-knowledge-base-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.knowledge-base-header {
+  align-items: flex-start;
+}
+
+.knowledge-base-kicker {
+  margin: 0 0 0.3rem;
+  color: var(--primary-color, #176b87);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.knowledge-base-count {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #176b87) 26%, transparent);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  color: var(--primary-color, #176b87);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.knowledge-base-search {
+  max-width: 34rem;
+}
+
+.knowledge-base-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.knowledge-base-entry {
+  border: 1px solid var(--border-color, #dfe5ea);
+  border-left: 4px solid var(--primary-color, #176b87);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  background: var(--card-bg, #fff);
+}
+
+.knowledge-base-entry--megathread {
+  border-left-color: var(--secondary-color, #64ccc5);
+  background: color-mix(in srgb, var(--secondary-color, #64ccc5) 7%, var(--card-bg, #fff));
+}
+
+.knowledge-base-entry__meta {
+  display: flex;
+  gap: 0.4rem;
+  color: var(--muted-text, #66717c);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+
+.knowledge-base-entry h4 {
+  margin: 0.35rem 0 0.45rem;
+  font-size: 1.05rem;
+}
+
+.knowledge-base-entry h4 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.knowledge-base-entry h4 a:hover {
+  color: var(--primary-color, #176b87);
+  text-decoration: underline;
+}
+
+.knowledge-base-entry > p {
+  margin: 0;
+  color: var(--muted-text, #59636e);
+  line-height: 1.55;
+}
+
+.knowledge-base-entry__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.knowledge-base-entry__tags span {
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  background: color-mix(in srgb, var(--primary-color, #176b87) 10%, transparent);
+  color: var(--primary-color, #176b87);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+@media (max-width: 640px) {
+  .knowledge-base-header {
+    display: grid;
+    gap: 0.7rem;
+  }
+
+  .knowledge-base-count {
+    justify-self: start;
+  }
 }

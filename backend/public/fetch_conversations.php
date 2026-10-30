@@ -1,15 +1,19 @@
 <?php
 require_once __DIR__ . '/cors.php';
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 header('Content-Type: application/json');
 
-if (!isset($_GET['user_id'])) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'user_id is required']);
+// The actor is always the authenticated session's own user — a caller must
+// never be able to list another user's conversation previews by passing a
+// different user_id.
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'You must be logged in.']);
     exit;
 }
-$user_id = normalizeId($_GET['user_id']);
+$user_id = normalizeId($_SESSION['user_id']);
 
 try {
     $db = getDB();
@@ -39,6 +43,6 @@ try {
     echo json_encode(['success' => true, 'conversations' => $conversations]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
 }
 ?>

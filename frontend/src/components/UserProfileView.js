@@ -5,9 +5,18 @@ import axios from "axios";
 import { useParams, Link as RouterLink } from "react-router-dom";
 import "./ProfileView.css";
 import DOMPurify from "dompurify";
-import { FaCheckCircle, FaEllipsisV } from "react-icons/fa";
+import { FaEllipsisV } from "react-icons/fa";
+import { BadgeCheck } from "lucide-react";
 import useOnClickOutside from "../hooks/useOnClickOutside";
 import ThreadCard from "./ThreadCard";
+import { buildAvatarSrc } from "../utils/avatar";
+import buildUploadSrc from "../utils/uploads";
+import { usePublishProfileContact } from "../context/ProfileContactContext";
+import ReelGrid, { IntroReelCard } from "./ReelGrid";
+import { REELS_ENABLED } from "../constants/features";
+
+const getAmbassadorCommunityId = (community) =>
+  String(community?.community_id ?? community?.id ?? community ?? "").trim();
 
 function UserProfileView({ userData, onFollowNotification, onNotificationsRefresh }) {
   const { user_id } = useParams();
@@ -26,6 +35,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadingFollowStatus, setLoadingFollowStatus] = useState(true);
   const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [messageRestriction, setMessageRestriction] = useState("");
 
   const [openMenu, setOpenMenu] = useState(false);
@@ -51,6 +61,10 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const [threadsLoading, setThreadsLoading] = useState(false);
   const [threadsError, setThreadsError] = useState(null);
   const [hasLoadedThreads, setHasLoadedThreads] = useState(false);
+  const [userReplies, setUserReplies] = useState([]);
+  const [repliesLoading, setRepliesLoading] = useState(false);
+  const [repliesError, setRepliesError] = useState(null);
+  const [hasLoadedReplies, setHasLoadedReplies] = useState(false);
 
   useEffect(() => {
     if (!userData) {
@@ -68,6 +82,9 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
     setUserThreads([]);
     setHasLoadedThreads(false);
     setThreadsError(null);
+    setUserReplies([]);
+    setHasLoadedReplies(false);
+    setRepliesError(null);
   }, [user_id, userData?.user_id]);
 
   // Fetch user profile
@@ -102,6 +119,9 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
               if (!Array.isArray(communityIds)) {
                 communityIds = [communityIds];
               }
+              communityIds = communityIds
+                .map(getAmbassadorCommunityId)
+                .filter(Boolean);
               console.log("Detected ambassador communities:", communityIds);
               setAmbassadorCommunities(communityIds);
               fetchCommunityLogos(communityIds);
@@ -203,6 +223,22 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
     };
 
     fetchFollowerCount();
+  }, [user_id]);
+
+  // Fetch following count
+  useEffect(() => {
+    const fetchFollowingCount = async () => {
+      try {
+        const res = await axios.get(`/api/fetch_following_count.php?user_id=${user_id}`);
+        if (res.data.success) {
+          setFollowingCount(res.data.following_count);
+        }
+      } catch (err) {
+        console.error("Error fetching following count:", err);
+      }
+    };
+
+    fetchFollowingCount();
   }, [user_id]);
 
   // Fetch experience & education
@@ -353,7 +389,9 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
 
     console.log("Fetching logos for ambassador communities:", communityIds);
 
-    for (let communityId of communityIds) {
+    for (let community of communityIds) {
+      const communityId = getAmbassadorCommunityId(community);
+      if (!communityId) continue;
       console.log(`Fetching community data for community_id: ${communityId}`);
       try {
         const response = await axios.get(`/api/fetch_community.php?community_id=${communityId}`);
@@ -396,11 +434,84 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
     }
   };
 
+  const fetchProfileReplies = async () => {
+    setRepliesLoading(true);
+    setRepliesError(null);
+    try {
+      let url = `/api/fetch_user_replies.php?user_id=${user_id}`;
+      if (userData?.user_id) {
+        url += `&viewer_id=${userData.user_id}`;
+      }
+      const res = await axios.get(url, { withCredentials: true });
+      if (res.data.success) {
+        setUserReplies(res.data.replies || []);
+      } else {
+        setRepliesError(res.data.error || "Unable to load replies.");
+      }
+    } catch (error) {
+      console.error("Error fetching profile replies:", error);
+      setRepliesError("Unable to load replies.");
+    } finally {
+      setRepliesLoading(false);
+      setHasLoadedReplies(true);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === "posts" && !hasLoadedThreads) {
       fetchProfileThreads();
     }
-  }, [activeTab, hasLoadedThreads, user_id, userData?.user_id]);
+    if (activeTab === "replies" && !hasLoadedReplies) {
+      fetchProfileReplies();
+    }
+  }, [activeTab, hasLoadedThreads, hasLoadedReplies, user_id, userData?.user_id]);
+
+  const isOwnProfile = userData && Number(userData.user_id) === Number(user_id);
+  const isConnected = connectionStatus === "accepted";
+  const contactVisibilityRaw = profile?.show_email;
+  const contactVisibility = Number(
+    contactVisibilityRaw === true ? 2 : contactVisibilityRaw || 0
+  ); // 0 hidden, 1 connections, 2 everyone
+  const emailVisibleFlag =
+    profile?.email_visible === true ||
+    profile?.email_visible === "1" ||
+    Number(profile?.email_visible) === 1;
+  const contactEmail = profile?.email || "";
+  const viewerCanSeeEmail =
+    isOwnProfile ||
+    emailVisibleFlag ||
+    contactVisibility === 2 ||
+    (contactVisibility === 1 && isConnected);
+  const canDisplayEmailValue = viewerCanSeeEmail && Boolean(contactEmail);
+
+  usePublishProfileContact(() => {
+    if (!profile) return null;
+    if (viewerCanSeeEmail) {
+      return canDisplayEmailValue ? (
+        <a className="contact-email" href={`mailto:${contactEmail}`}>
+          {contactEmail}
+        </a>
+      ) : (
+        <p className="muted">No email provided.</p>
+      );
+    }
+    if (isOwnProfile) {
+      return contactVisibility === 1 ? (
+        <p className="muted">
+          Only your connections can view this email. Change it in Account Settings to share more widely.
+        </p>
+      ) : (
+        <p className="muted">
+          Your email is hidden. Switch to &quot;Connections only&quot; or &quot;Everyone&quot; in Account Settings to share it.
+        </p>
+      );
+    }
+    return contactVisibility === 1 ? (
+      <p className="muted">Only this user's connections can view their email.</p>
+    ) : (
+      <p className="muted">This user has chosen to hide their email.</p>
+    );
+  }, [profile, viewerCanSeeEmail, canDisplayEmailValue, isOwnProfile, contactVisibility, contactEmail]);
 
   if (!profile) return <p>Loading profile...</p>;
 
@@ -409,14 +520,13 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const displayAbout = profile.about || "No about information provided yet.";
   const displaySkills = profile.skills || "";
   const isDefaultAvatar = (profile.avatar_path || "").includes("DefaultAvatar.png");
-  const isOwnProfile = userData && Number(userData.user_id) === Number(user_id);
   const hasAcceptedConnection = connectionStatus === "accepted";
   const isPrivateProfile = Number(profile.is_public) === 0;
   const profileVisibility = profile.profile_visibility || "network";
   const isAmbassadorProfile = Number(profile.is_ambassador) === 1;
   const viewerCommunityId = userData?.recent_university_id;
   const ambassadorCommunityIds = Array.isArray(ambassadorCommunities)
-    ? ambassadorCommunities.map((c) => Number(c?.community_id ?? c?.id ?? c))
+    ? ambassadorCommunities.map((c) => Number(getAmbassadorCommunityId(c)))
     : [];
   const sharesAmbassadorCommunity =
     Boolean(viewerCommunityId) &&
@@ -434,33 +544,20 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const shouldBlurDetails = !userData || isRestrictedForPrivacy || isNetworkRestricted;
   const profileTabs = [
     { id: "about", label: "About" },
+    ...(REELS_ENABLED ? [{ id: "reels", label: "Reels" }] : []),
     { id: "posts", label: "Posts" },
+    { id: "replies", label: "Replies" },
   ];
+  const shouldRestrictActiveTab = shouldBlurDetails && activeTab !== "reels";
   // Presence temporarily disabled
   const showOnline = false;
   const isOnline = false;
   const onlineLabel = "";
   const allowMessagesFrom = String(profile?.allow_messages_from || profile?.allowMessagesFrom || "everyone").toLowerCase();
-  const isConnected = connectionStatus === "accepted";
   const sharesCommunity =
     profile?.recent_university_id &&
     userData?.recent_university_id &&
     String(profile.recent_university_id) === String(userData.recent_university_id);
-  const contactVisibilityRaw = profile?.show_email;
-  const contactVisibility = Number(
-    contactVisibilityRaw === true ? 2 : contactVisibilityRaw || 0
-  ); // 0 hidden, 1 connections, 2 everyone
-  const emailVisibleFlag =
-    profile?.email_visible === true ||
-    profile?.email_visible === "1" ||
-    Number(profile?.email_visible) === 1;
-  const contactEmail = profile?.email || "";
-  const viewerCanSeeEmail =
-    isOwnProfile ||
-    emailVisibleFlag ||
-    contactVisibility === 2 ||
-    (contactVisibility === 1 && isConnected);
-  const canDisplayEmailValue = viewerCanSeeEmail && Boolean(contactEmail);
   const canMessageUser = () => {
     if (!userData?.user_id) return false;
     if (allowMessagesFrom === "everyone") return true;
@@ -487,7 +584,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
       <div className="hero-card profile-hero-card">
         <div className="hero-banner">
           <img
-            src={profile.banner_path || "/uploads/banners/DefaultBanner.jpeg"}
+            src={buildUploadSrc(profile.banner_path || "/uploads/banners/DefaultBanner.jpeg")}
             alt="Profile Banner"
           />
         </div>
@@ -496,7 +593,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
             <div className="user-hero-logo-wrap">
               <div className="avatar-presence">
                 <img
-                  src={profile.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
+                  src={buildAvatarSrc(profile.avatar_path)}
                   alt={`${fullName} Avatar`}
                   className={`user-hero-logo ${isDefaultAvatar ? "user-hero-logo--default" : ""}`}
                 />
@@ -506,12 +603,21 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
             <div className="hero-text">
               <h1 className="hero-title">
                 {fullName}
-                {verified && (
-                  <FaCheckCircle
-                    className="verified-badge"
-                    style={{ pointerEvents: "auto" }}
-                    title={`Verified from ${verifiedCommunityName}`}
-                  />
+                {verified ? (
+                  <span
+                    className="profile-verification-status profile-verification-status--verified"
+                    title={`Verified from ${verifiedCommunityName || "this community"}`}
+                    aria-label={`Verified from ${verifiedCommunityName || "this community"}`}
+                  >
+                    <BadgeCheck size={19} strokeWidth={2.2} aria-hidden="true" />
+                  </span>
+                ) : (
+                  <span
+                    className="profile-verification-status profile-verification-status--unverified"
+                    title="Not verified"
+                  >
+                    Unverified
+                  </span>
                 )}
                 {onlineLabel && (
                   <span className={`online-status-text ${isOnline ? "online" : "offline"}`}>
@@ -520,14 +626,19 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                 )}
                 {/* Presence badge disabled for now */}
               </h1>
-              <p className="hero-sub">{displayHeadline}</p>
-              <p className="hero-sub">{followerCount} Followers</p>
+              <p className="hero-sub">
+                {displayHeadline}
+              </p>
+              <p className="hero-sub hero-sub-row">
+                <span>{followerCount} Followers</span>
+                <span>{followingCount} Following</span>
+              </p>
               {ambassadorCommunities.length > 0 && (
                 <div className="ambassador-logos">
                   {ambassadorCommunities.map((communityId) => (
                     <RouterLink key={communityId} to={`/university/${communityId}`}>
                       <img
-                        src={communityLogos[communityId] || "/uploads/logos/default-logo.png"}
+                        src={buildUploadSrc(communityLogos[communityId] || "/uploads/logos/DefaultGroup.png")}
                         alt="Ambassador Community"
                         className="community-logo"
                         title={`${communityNames[communityId] || "Unknown"} Ambassador`}
@@ -545,7 +656,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
           )}
           <div className="hero-right hero-actions">
             {userData && userData.user_id !== parseInt(user_id, 10) && (
-              <div className="profile-actions" style={{ position: "relative" }}>
+              <div className="profile-actions">
                 {connectionStatus === "accepted" ? (
                   <RouterLink
                     to={`/messages?user=${user_id}`}
@@ -569,33 +680,39 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                     Connect
                   </button>
                 )}
-                <FaEllipsisV
-                  className="menu-icon"
-                  onClick={() => setOpenMenu((prev) => !prev)}
-                  style={{ marginLeft: "8px" }}
-                />
-                {openMenu && (
-                  <div ref={menuRef} className="dropdown-menu" style={{ right: 0 }}>
-                    <button
-                      className="dropdown-item"
-                      onClick={handleFollowToggle}
-                      disabled={loadingFollowStatus}
-                    >
-                      {isFollowing ? "Unfollow" : "Follow"}
-                    </button>
-                    {connectionStatus === "accepted" && (
-                      <button className="dropdown-item" onClick={handleRemoveConnection}>
-                        Remove Connection
+                <div className="kebab-menu" ref={menuRef} style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    className="kebab-trigger"
+                    onClick={() => setOpenMenu((prev) => !prev)}
+                    aria-label="Profile actions"
+                    aria-expanded={openMenu}
+                  >
+                    <FaEllipsisV className="menu-icon" aria-hidden="true" />
+                  </button>
+                  {openMenu && (
+                    <div className="dropdown-menu" style={{ right: 0 }}>
+                      <button
+                        className="dropdown-item"
+                        onClick={handleFollowToggle}
+                        disabled={loadingFollowStatus}
+                      >
+                        {isFollowing ? "Unfollow" : "Follow"}
                       </button>
-                    )}
-                    <button
-                      className="dropdown-item"
-                      onClick={() => alert("Report/Block coming soon")}
-                    >
-                      Report or Block
-                    </button>
-                  </div>
-                )}
+                      {connectionStatus === "accepted" && (
+                        <button className="dropdown-item" onClick={handleRemoveConnection}>
+                          Remove Connection
+                        </button>
+                      )}
+                      <button
+                        className="dropdown-item"
+                        onClick={() => alert("Report/Block coming soon")}
+                      >
+                        Report or Block
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -607,7 +724,9 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
               type="button"
               className={`tab-link ${activeTab === tab.id ? "active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
-              disabled={shouldBlurDetails}
+              disabled={
+                shouldBlurDetails && !["about", "reels"].includes(tab.id)
+              }
             >
               {tab.label}
             </button>
@@ -615,8 +734,8 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
         </div>
       </div>
 
-      <div className="profile-detail-wrapper">
-        {shouldBlurDetails && (
+      <div className="profile-detail-wrapper community-profile">
+        {shouldRestrictActiveTab && (
           <div className="profile-detail-cta">
             <p>
               {isRestrictedForPrivacy
@@ -654,25 +773,41 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
           </div>
         )}
 
-        <div className={`profile-detail-sections ${shouldBlurDetails ? "restricted" : ""}`}>
-          {shouldBlurDetails && (
+        <div className="community-profile-content">
+        <div className={`profile-detail-sections split-main ${shouldRestrictActiveTab ? "restricted" : ""}`}>
+          {shouldRestrictActiveTab && (
             <div className="profile-detail-overlay" aria-hidden="true"></div>
           )}
 
           {activeTab === "about" && (
-            <div className="profile-grid">
-              <div className="profile-main">
-                <div className={`profile-section about-section ${shouldBlurDetails ? "restricted" : ""}`}>
-                  <h3>About</h3>
-                  <p>{DOMPurify.sanitize(displayAbout)}</p>
+            <>
+                <div className={`content-card about-section ${shouldBlurDetails ? "restricted" : ""}`}>
+                  <div className="qa-header">
+                    <div>
+                      <h3>About</h3>
+                      <p className="muted">Introduction and background.</p>
+                    </div>
+                  </div>
+                  {profile.about ? (
+                    <p className="community-overview__lead">{DOMPurify.sanitize(displayAbout)}</p>
+                  ) : (
+                    <p className="muted">No about information provided yet.</p>
+                  )}
                 </div>
 
-                <div className="profile-section">
-                  <h3>Experience</h3>
+                {REELS_ENABLED && <IntroReelCard profile={profile} isOwner={isOwnProfile} />}
+
+                <div className="content-card">
+                  <div className="qa-header">
+                    <div>
+                      <h3>Experience</h3>
+                      <p className="muted">Roles, work, and appointments.</p>
+                    </div>
+                  </div>
                   {loadingExp ? (
-                    <p>Loading experience...</p>
+                    <p className="muted">Loading experience...</p>
                   ) : errorExp ? (
-                    <p>{errorExp}</p>
+                    <p className="muted">{errorExp}</p>
                   ) : experience.length > 0 ? (
                     experience.map((exp, index) => (
                       <div key={index} className="experience-item">
@@ -702,16 +837,21 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                       </div>
                     ))
                   ) : (
-                    <p>No experience added yet.</p>
+                    <p className="muted">No experience added yet.</p>
                   )}
                 </div>
 
-                <div className="profile-section">
-                  <h3>Education</h3>
+                <div className="content-card">
+                  <div className="qa-header">
+                    <div>
+                      <h3>Education</h3>
+                      <p className="muted">Schools, programs, and achievements.</p>
+                    </div>
+                  </div>
                   {loadingEdu ? (
-                    <p>Loading education...</p>
+                    <p className="muted">Loading education...</p>
                   ) : errorEdu ? (
-                    <p>{errorEdu}</p>
+                    <p className="muted">{errorEdu}</p>
                   ) : education.length > 0 ? (
                     education.map((edu, index) => (
                       <div key={index} className="education-item">
@@ -741,12 +881,17 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                       </div>
                     ))
                   ) : (
-                    <p>No education details added yet.</p>
+                    <p className="muted">No education details added yet.</p>
                   )}
                 </div>
 
-                <div className="profile-section">
-                  <h3>Skills</h3>
+                <div className="content-card">
+                  <div className="qa-header">
+                    <div>
+                      <h3>Skills</h3>
+                      <p className="muted">Strengths and focus areas.</p>
+                    </div>
+                  </div>
                   {displaySkills ? (
                     <ul className="skills-list">
                       {displaySkills.split(",").map((skill, index) => (
@@ -756,49 +901,34 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                       ))}
                     </ul>
                   ) : (
-                    <p>No skills listed yet.</p>
+                    <p className="muted">No skills listed yet.</p>
                   )}
                 </div>
-              </div>
+            </>
+          )}
 
-              <aside className="profile-aside">
-                <div className="info-card">
-                  <h3>Contact Me</h3>
-                {viewerCanSeeEmail ? (
-                  canDisplayEmailValue ? (
-                    <a className="contact-email" href={`mailto:${contactEmail}`}>
-                      {contactEmail}
-                    </a>
-                  ) : (
-                    <p className="muted">No email provided.</p>
-                  )
-                ) : isOwnProfile ? (
-                  contactVisibility === 1 ? (
-                    <p className="muted">
-                      Only your connections can view this email. Change it in Account Settings to share more widely.
-                    </p>
-                  ) : (
-                    <p className="muted">
-                      Your email is hidden. Switch to &quot;Connections only&quot; or &quot;Everyone&quot; in Account Settings to share it.
-                    </p>
-                  )
-                ) : contactVisibility === 1 ? (
-                  <p className="muted">Only this user's connections can view their email.</p>
-                ) : (
-                  <p className="muted">This user has chosen to hide their email.</p>
-                )}
-              </div>
-              </aside>
-            </div>
+          {REELS_ENABLED && activeTab === "reels" && (
+            <ReelGrid
+              userId={user_id}
+              isOwner={isOwnProfile}
+              showCreate={isOwnProfile}
+              title={`${profile.first_name || "Creator"}’s Reels`}
+              description="Short videos shared across StudentSphere."
+            />
           )}
 
           {activeTab === "posts" && (
-            <div className="profile-section">
-              <h3>Posts</h3>
+            <div className="content-card">
+              <div className="qa-header">
+                <div>
+                  <h3>Posts</h3>
+                  <p className="muted">Threads started across StudentSphere.</p>
+                </div>
+              </div>
               {threadsLoading ? (
-                <p>Loading posts...</p>
+                <p className="muted">Loading posts...</p>
               ) : threadsError ? (
-                <p>{threadsError}</p>
+                <p className="muted">{threadsError}</p>
               ) : userThreads.length > 0 ? (
                 <div className="profile-thread-list">
                   {userThreads.map((thread) => (
@@ -806,10 +936,69 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                   ))}
                 </div>
               ) : (
-                <p>No posts yet.</p>
+                <p className="muted">No posts yet.</p>
               )}
             </div>
           )}
+
+          {activeTab === "replies" && (
+            <div className="content-card">
+              <div className="qa-header">
+                <div>
+                  <h3>Replies</h3>
+                  <p className="muted">Comments shared in community threads.</p>
+                </div>
+              </div>
+              {repliesLoading ? (
+                <p className="muted">Loading replies...</p>
+              ) : repliesError ? (
+                <p className="muted">{repliesError}</p>
+              ) : userReplies.length > 0 ? (
+                <div className="profile-replies-list">
+                  {userReplies.map((reply) => (
+                    <div key={reply.post_id} className="profile-reply-card">
+                      <div className="profile-reply-meta">
+                        <RouterLink
+                          to={`/info/forum/${reply.forum_id}/thread/${reply.thread_id}`}
+                          className="profile-reply-thread"
+                        >
+                          {reply.thread_title || "View thread"}
+                        </RouterLink>
+                        {reply.community_name && reply.community_id && reply.community_type && (
+                          <>
+                            <span className="breadcrumb-sep" aria-hidden="true">/</span>
+                            <RouterLink
+                              to={`/${reply.community_type}/${reply.community_id}`}
+                              className="profile-reply-community"
+                            >
+                              {reply.community_name}
+                            </RouterLink>
+                          </>
+                        )}
+                        {reply.created_at && (
+                          <>
+                            <span className="breadcrumb-sep" aria-hidden="true">/</span>
+                            <span className="meta-quiet">
+                              {new Date(reply.created_at).toLocaleDateString()}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div
+                        className="profile-reply-content"
+                        dangerouslySetInnerHTML={{
+                          __html: DOMPurify.sanitize(reply.content || ""),
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">No replies yet.</p>
+              )}
+            </div>
+          )}
+        </div>
         </div>
       </div>
     </div>

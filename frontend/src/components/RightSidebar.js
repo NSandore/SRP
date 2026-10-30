@@ -2,14 +2,50 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import RightRail from '../widgets/RightRail';
-import ThreadRightRail from './ThreadRightRail';
+import { useProfileContactRailContent } from '../context/ProfileContactContext';
+import { useLanguage } from '../i18n/LanguageContext';
+
+// Pages where the generic "Upcoming Events" / "Polls" widgets are allowed to show.
+// Everywhere else (including all "Your Commons" and "Manage" pages) hides them.
+const GENERIC_WIDGET_PATHS = ['/home', '/info', '/funding', '/communities'];
 
 function RightSidebar({ userData }) {
   const location = useLocation();
-  const isThreadView = /\/thread\//.test(location.pathname);
+  const { t } = useLanguage();
+  const pathname = location.pathname;
+  const isDonateRoute = pathname.startsWith('/donate');
+  const communityMatch = pathname.match(/^\/(university|group)\/([^/]+)/);
+  const communityContext = communityMatch
+    ? {
+        type: communityMatch[1],
+        id: decodeURIComponent(communityMatch[2]),
+      }
+    : null;
+  const profileContactContent = useProfileContactRailContent();
+  if (isDonateRoute) {
+    return null;
+  }
+  const isGenericWidgetPage = GENERIC_WIDGET_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
+  const hideGenericWidgets = !communityContext && !isGenericWidgetPage;
   return (
     <aside className="right-sidebar">
-      {isThreadView ? <ThreadRightRail /> : <RightRail userData={userData} />}
+      {profileContactContent && (
+        <section className="widget-card profile-contact-widget" aria-labelledby="profile-contact-rail-header">
+          <div id="profile-contact-rail-header" className="widget-header compact-widget-header">
+            <h3 className="widget-title">{t('rail.contactMe')}</h3>
+          </div>
+          <div className="widget-body community-contact-list">
+            {profileContactContent}
+          </div>
+        </section>
+      )}
+      <RightRail
+        userData={userData}
+        communityContext={communityContext}
+        hideGenericWidgets={hideGenericWidgets}
+      />
     </aside>
   );
 }

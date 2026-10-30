@@ -13,6 +13,13 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetMessage, setResetMessage] = useState('');
+  const [resetCodeSent, setResetCodeSent] = useState(false);
+  const [resetCode, setResetCode] = useState('');
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorMessage, setTwoFactorMessage] = useState('');
+  const [twoFactorError, setTwoFactorError] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(true);
 
   const handleLoginClick = async (e) => {
     e.preventDefault();
@@ -23,10 +30,22 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
     }
 
     try {
-      const response = await axios.post('/api/login_user.php', {
-        email,
-        password,
-      });
+      const response = await axios.post(
+        '/api/login_user.php',
+        {
+          email,
+          password,
+        },
+        { withCredentials: true }
+      );
+
+      if (response.data?.requires_two_factor) {
+        setRequiresTwoFactor(true);
+        setTwoFactorMessage(response.data.message || 'Enter the verification code sent to your email.');
+        setTwoFactorError('');
+        setError('');
+        return;
+      }
 
       if (response.data && response.data.success) {
         setError('');
@@ -35,14 +54,70 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
         setError(response.data.error || 'Login failed. Please try again.');
       }
     } catch (err) {
-      setError('Server error. Please try again later.');
+      const payload = err?.response?.data;
+      if (payload?.requires_two_factor) {
+        setRequiresTwoFactor(true);
+        setTwoFactorMessage(payload.message || 'Enter the verification code sent to your email.');
+        setTwoFactorError('');
+        setError('');
+        return;
+      }
+      setError(payload?.error || 'Server error. Please try again later.');
     }
   };
 
+  const handleVerifyTwoFactor = async (e) => {
+    e.preventDefault();
+    if (!twoFactorCode.trim()) {
+      setTwoFactorError('Enter the 6-digit code.');
+      return;
+    }
+    try {
+      const response = await axios.post(
+        '/api/verify_two_factor.php',
+        {
+          code: twoFactorCode.trim(),
+          remember_device: rememberDevice,
+        },
+        { withCredentials: true }
+      );
+      if (response.data?.success) {
+        setTwoFactorError('');
+        setTwoFactorMessage('');
+        onLogin(response.data.user);
+      } else {
+        setTwoFactorError(response.data?.error || 'Invalid code. Please try again.');
+      }
+    } catch (err) {
+      setTwoFactorError('Server error. Please try again.');
+    }
+  };
+
+  // Step 1: request an emailed reset code.
+  const handleRequestResetCode = async (e) => {
+    e.preventDefault();
+    if (!email) {
+      setResetMessage('Please enter your email.');
+      return;
+    }
+    try {
+      const response = await axios.post('/api/reset_password.php', { email });
+      if (response.data && response.data.success) {
+        setResetCodeSent(true);
+        setResetMessage(response.data.message || 'If that email is registered, a reset code has been sent.');
+      } else {
+        setResetMessage(response.data?.error || 'Unable to send a reset code.');
+      }
+    } catch (err) {
+      setResetMessage(err.response?.data?.error || 'Server error. Please try again later.');
+    }
+  };
+
+  // Step 2: submit the code plus the new password.
   const handleResetPassword = async (e) => {
     e.preventDefault();
 
-    if (!email || !newPassword || !confirmPassword) {
+    if (!email || !resetCode || !newPassword || !confirmPassword) {
       setResetMessage('Please fill out all fields.');
       return;
     }
@@ -52,15 +127,23 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
       return;
     }
 
+    if (newPassword.length < 8) {
+      setResetMessage('New password must be at least 8 characters.');
+      return;
+    }
+
     try {
       const response = await axios.post('/api/reset_password.php', {
         email,
+        code: resetCode.trim(),
         new_password: newPassword,
       });
 
       if (response.data && response.data.success) {
         setResetMessage('Password updated. You can now log in.');
         setShowReset(false);
+        setResetCodeSent(false);
+        setResetCode('');
         setPassword('');
         setNewPassword('');
         setConfirmPassword('');
@@ -68,7 +151,7 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
         setResetMessage(response.data.error || 'Failed to reset password.');
       }
     } catch (err) {
-      setResetMessage('Server error. Please try again later.');
+      setResetMessage(err.response?.data?.error || 'Server error. Please try again later.');
     }
   };
 
@@ -80,16 +163,16 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
       <div className="auth-content">
         <section className="auth-hero">
           <span className="auth-pill">StudentSphere community</span>
-          <h1>Unlock scholarships, mentors, and momentum.</h1>
+          <h1>Learn with people who share your questions.</h1>
           <p>
-            Your personalized home for funding alerts, ambassador insights, threads, and direct
-            messaging — tailored for students and counselors growing together.
+            Explore community discussions, university spaces, events, and verified perspectives
+            from students and representatives.
           </p>
           <ul className="auth-benefits">
             {[
-              'Save promising scholarships and revisit them anytime',
-              'Chat with mentors, classmates, and admissions coaches',
-              'Showcase your story with a profile recruiters love',
+              'Save useful discussions and return to them later',
+              'Follow university and interest-based communities',
+              'Build a profile and connect through shared interests',
             ].map((copy) => (
               <li key={copy}>
                 <FaCheckCircle />
@@ -107,41 +190,125 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
           <p>{showReset ? 'Choose a new password to regain access.' : 'Log in to continue your journey.'}</p>
 
           {showReset ? (
-            <form className="auth-form" onSubmit={handleResetPassword}>
+            <form className="auth-form" onSubmit={resetCodeSent ? handleResetPassword : handleRequestResetCode}>
               <label htmlFor="reset-email">Email</label>
               <input
                 type="email"
                 id="reset-email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={resetCodeSent}
                 required
               />
 
-              <label htmlFor="new-password">New password</label>
-              <input
-                type="password"
-                id="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-              />
+              {resetCodeSent && (
+                <>
+                  <label htmlFor="reset-code">Reset code</label>
+                  <p className="auth-helper">Enter the 6-digit code we emailed you.</p>
+                  <input
+                    type="text"
+                    id="reset-code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={resetCode}
+                    onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="6-digit code"
+                    required
+                  />
 
-              <label htmlFor="confirm-password">Confirm password</label>
-              <input
-                type="password"
-                id="confirm-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
+                  <label htmlFor="new-password">New password</label>
+                  <input
+                    type="password"
+                    id="new-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    minLength={8}
+                    required
+                  />
+
+                  <label htmlFor="confirm-password">Confirm password</label>
+                  <input
+                    type="password"
+                    id="confirm-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    minLength={8}
+                    required
+                  />
+                </>
+              )}
 
               {resetMessage && <p className="auth-error">{resetMessage}</p>}
 
               <button type="submit" className="auth-primary">
-                Update password
+                {resetCodeSent ? 'Update password' : 'Send reset code'}
               </button>
-              <button type="button" className="auth-link" onClick={() => setShowReset(false)}>
+              {resetCodeSent && (
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={handleRequestResetCode}
+                >
+                  Resend code
+                </button>
+              )}
+              <button
+                type="button"
+                className="auth-link"
+                onClick={() => {
+                  setShowReset(false);
+                  setResetCodeSent(false);
+                  setResetCode('');
+                  setResetMessage('');
+                }}
+              >
                 Never mind, take me back
+              </button>
+            </form>
+          ) : requiresTwoFactor ? (
+            <form className="auth-form" onSubmit={handleVerifyTwoFactor}>
+              <label htmlFor="two-factor-code">Verification code</label>
+              <p className="auth-helper">We sent a 6-digit code to your email.</p>
+              <input
+                type="text"
+                id="two-factor-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={twoFactorCode}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setTwoFactorCode(next);
+                }}
+                placeholder="6-digit code"
+                required
+              />
+              <label className="auth-remember">
+                <input
+                  type="checkbox"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                />
+                Remember this device
+              </label>
+
+              {twoFactorMessage && <p className="auth-success">{twoFactorMessage}</p>}
+              {twoFactorError && <p className="auth-error">{twoFactorError}</p>}
+
+              <button type="submit" className="auth-primary">
+                Verify
+              </button>
+              <button
+                type="button"
+                className="auth-link"
+                onClick={() => {
+                  setRequiresTwoFactor(false);
+                  setTwoFactorCode('');
+                  setTwoFactorMessage('');
+                  setTwoFactorError('');
+                  setRememberDevice(true);
+                }}
+              >
+                Back to login
               </button>
             </form>
           ) : (

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import './Connections.css';
+import { buildAvatarSrc } from '../utils/avatar';
 
 function Connections({ userData }) {
   const [following, setFollowing] = useState([]);
@@ -120,16 +121,18 @@ function Connections({ userData }) {
         <div className="connections-list">
           {activeTab === 'following' ? (
             following.length > 0 ? (
-              <ul>
+              <ul className="connections-grid">
                 {following.map((userId) => {
                   const user = userDetails[userId] || {};
                   return (
-                    <li key={userId}>
-                      <img
-                        src={user.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
-                        alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
-                        className="connection-avatar"
-                      />
+                    <li key={userId} className="connection-card">
+                      <div className="connection-avatar-wrap">
+                        <img
+                          src={buildAvatarSrc(user.avatar_path)}
+                          alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
+                          className="connection-avatar"
+                        />
+                      </div>
                       <div className="connection-info">
                         <p className="connection-name">
                           <Link to={`/user/${userId}`}>
@@ -156,16 +159,18 @@ function Connections({ userData }) {
             )
           ) : (
             followers.length > 0 ? (
-              <ul>
+              <ul className="connections-grid">
                 {followers.map((userId) => {
                   const user = userDetails[userId] || {};
                   return (
-                    <li key={userId}>
-                      <img
-                        src={user.avatar_path || "/uploads/avatars/DefaultAvatar.png"}
-                        alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
-                        className="connection-avatar"
-                      />
+                    <li key={userId} className="connection-card">
+                      <div className="connection-avatar-wrap">
+                        <img
+                          src={buildAvatarSrc(user.avatar_path)}
+                          alt={`${user.first_name || 'User'} ${user.last_name || ''}`}
+                          className="connection-avatar"
+                        />
+                      </div>
                       <div className="connection-info">
                         <p className="connection-name">
                           <Link to={`/user/${userId}`}>
@@ -174,9 +179,11 @@ function Connections({ userData }) {
                         </p>
                         <p className="connection-headline">{user.headline || 'No headline'}</p>
                       </div>
-                      <Link to={`/messages?user=${userId}`} className="message-button">
-                        Message
-                      </Link>
+                      <div className="connection-actions">
+                        <Link to={`/messages?user=${userId}`} className="message-button">
+                          Message
+                        </Link>
+                      </div>
                     </li>
                   );
                 })}

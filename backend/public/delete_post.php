@@ -1,7 +1,10 @@
 <?php
-session_start(); // To access session variables (like user_id, role_id)
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession(); // To access session variables (like user_id, role_id)
 
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 header('Content-Type: application/json');
 
@@ -48,8 +51,8 @@ try {
         exit;
     }
 
-    // 6. Check if session user is post owner OR role_id=1
-    if ($role_id_session !== 1 && $post['user_id'] != $user_id_session) {
+    // 6. Check if session user is post owner OR super admin
+    if (!isSuperAdmin($role_id_session) && $post['user_id'] != $user_id_session) {
         // No permission
         http_response_code(403); // Forbidden
         echo json_encode(['error' => 'You do not have permission to delete this post.']);
@@ -69,6 +72,6 @@ try {
     }
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database error: ']);
 }
 ?>

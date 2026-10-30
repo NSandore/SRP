@@ -1,10 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getApiBase } from '../utils/apiBase';
+import useTagOptions from '../hooks/useTagOptions';
+import TagPicker from './TagPicker';
+import { getRoleLabel, isSuperAdmin, isAdmin } from '../constants/roles';
+import { hasTestControls } from '../utils/testAccounts';
 import {
   FaBell,
   FaBullhorn,
   FaLock,
+  FaPlug,
   FaShieldAlt,
   FaUserCog,
   FaUsers,
@@ -25,6 +31,7 @@ const createDefaultSettings = () => ({
     mentions: true,
     replies: true,
     votes: true,
+    events: true,
     messages: true,
     communityAnnouncements: true,
     weeklyDigest: true,
@@ -65,24 +72,32 @@ const createDefaultSettings = () => ({
   },
 });
 
-const roleLabel = (roleId) => {
-  if (roleId >= 7) return 'Admin';
-  if (roleId >= 5) return 'Moderator';
-  if (roleId >= 3) return 'Staff';
-  return 'Member';
-};
-
-function AccountSettings({ userData }) {
+function AccountSettings({ userData, onInterestsUpdated }) {
   const roleId = Number(userData?.role_id || 0);
-  const isModerator = roleId >= 5;
-  const isAdmin = roleId >= 7;
+  const isAdminUser = isAdmin(roleId);
+  const isSuperAdminUser = isSuperAdmin(roleId);
+  const canSendTestEmail = isSuperAdminUser || hasTestControls(userData?.email);
   const [fetchedIsAmbassador, setFetchedIsAmbassador] = useState(Number(userData?.is_ambassador) === 1 ? 1 : 0);
   const isAmbassador = Number(fetchedIsAmbassador) === 1;
+  const canConnectZoom = isAmbassador || isAdminUser || isSuperAdminUser;
   const navigate = useNavigate();
+  const location = useLocation();
+  const apiBase = getApiBase();
 
   const [settings, setSettings] = useState(createDefaultSettings);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [status, setStatus] = useState('');
+  const { tags: tagOptions, loading: tagOptionsLoading } = useTagOptions();
+  const [tagInterests, setTagInterests] = useState([]);
+  const [isLoadingTags, setIsLoadingTags] = useState(false);
+  const [isSavingTags, setIsSavingTags] = useState(false);
+  const [zoomStatus, setZoomStatus] = useState({
+    loading: false,
+    connected: false,
+    email: '',
+    error: '',
+  });
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const statusTimerRef = useRef(null);
   const [showResetModal, setShowResetModal] = useState(false);
   const tabs = useMemo(() => {
@@ -92,20 +107,149 @@ function AccountSettings({ userData }) {
       { id: 'security', label: 'Security', icon: <FaShieldAlt size={16} /> },
       { id: 'feed', label: 'Feed', icon: <FaUsers size={16} /> },
       { id: 'community', label: 'Community', icon: <FaUniversity size={16} /> },
-      isModerator ? { id: 'moderation', label: 'Moderation', icon: <FaBullhorn size={16} /> } : null,
-      isAmbassador ? { id: 'ambassador', label: 'Ambassador', icon: <FaUsers size={16} /> } : null,
-      isAdmin ? { id: 'admin', label: 'Admin', icon: <FaLock size={16} /> } : null,
+      canConnectZoom ? { id: 'integrations', label: 'Integrations', icon: <FaPlug size={16} /> } : null,
+      isSuperAdminUser ? { id: 'moderation', label: 'Moderation preview', icon: <FaBullhorn size={16} /> } : null,
+      isSuperAdminUser ? { id: 'ambassador', label: 'Ambassador preview', icon: <FaUsers size={16} /> } : null,
+      isSuperAdminUser ? { id: 'admin', label: 'Admin preview', icon: <FaLock size={16} /> } : null,
       { id: 'sessions', label: 'Sessions', icon: <FaShieldAlt size={16} /> },
-      { id: 'data', label: 'Data', icon: <FaLock size={16} /> },
+      isSuperAdminUser ? { id: 'data', label: 'Data preview', icon: <FaLock size={16} /> } : null,
     ];
     return base.filter(Boolean);
-  }, [isModerator, isAmbassador, isAdmin]);
+  }, [isSuperAdminUser, canConnectZoom]);
   const [activeTab, setActiveTab] = useState('profile');
 
   const flashStatus = (message) => {
     setStatus(message);
     window.clearTimeout(statusTimerRef.current);
     statusTimerRef.current = window.setTimeout(() => setStatus(''), 1800);
+  };
+
+  const sendTestEmail = async () => {
+    if (isSendingTestEmail) return;
+    setIsSendingTestEmail(true);
+    try {
+      const res = await axios.post('/api/send_test_email.php', {}, { withCredentials: true });
+      if (res.data?.success) {
+        flashStatus(res.data?.message || 'Test email sent.');
+      } else {
+        flashStatus(res.data?.error || 'Unable to send test email.');
+      }
+    } catch (err) {
+      console.error('Error sending test email', err);
+      flashStatus('Unable to send test email.');
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
+  const loadTagInterests = useCallback(async () => {
+    if (!userData?.user_id) return;
+    setIsLoadingTags(true);
+    try {
+      const res = await axios.get(`/api/fetch_tag_interests.php?user_id=${userData.user_id}`, {
+        withCredentials: true,
+      });
+      if (res.data?.success) {
+        setTagInterests(Array.isArray(res.data.tags) ? res.data.tags : []);
+      }
+    } catch (err) {
+      console.error('Error loading tag interests', err);
+    } finally {
+      setIsLoadingTags(false);
+    }
+  }, [userData?.user_id]);
+
+  const saveTagInterests = useCallback(async () => {
+    if (!userData?.user_id || isSavingTags) return;
+    setIsSavingTags(true);
+    try {
+      const res = await axios.post('/api/update_tag_interests.php', {
+        user_id: userData.user_id,
+        tags: tagInterests,
+      }, {
+        withCredentials: true,
+      });
+      if (res.data?.success) {
+        flashStatus('Interests updated');
+        if (typeof onInterestsUpdated === 'function') {
+          onInterestsUpdated(userData.user_id);
+        }
+      } else {
+        flashStatus(res.data?.error || 'Unable to update interests.');
+      }
+    } catch (err) {
+      console.error('Error saving tag interests', err);
+      flashStatus('Unable to update interests.');
+    } finally {
+      setIsSavingTags(false);
+    }
+  }, [userData?.user_id, tagInterests, isSavingTags]);
+
+  const loadZoomStatus = useCallback(async () => {
+    if (!canConnectZoom) return;
+    setZoomStatus((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      const res = await axios.get('/api/zoom_status.php', { withCredentials: true });
+      if (res.data?.success) {
+        setZoomStatus({
+          loading: false,
+          connected: Boolean(res.data.connected),
+          email: res.data.zoom_email || '',
+          error: '',
+        });
+      } else {
+        setZoomStatus((prev) => ({
+          ...prev,
+          loading: false,
+          connected: false,
+          error: res.data?.error || 'Unable to load Zoom status.',
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading Zoom status', err);
+      setZoomStatus((prev) => ({
+        ...prev,
+        loading: false,
+        connected: false,
+        error: 'Unable to load Zoom status.',
+      }));
+    }
+  }, [canConnectZoom]);
+
+  const handleZoomConnect = () => {
+    const returnTo = typeof window !== 'undefined' ? window.location.origin : '';
+    const query = returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : '';
+    const authUrl = `${apiBase}/api/zoom_oauth_start.php${query}`;
+    window.location.href = authUrl;
+  };
+
+  const handleZoomDisconnect = async () => {
+    if (zoomStatus.loading) return;
+    setZoomStatus((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      const res = await axios.post('/api/zoom_disconnect.php', {}, { withCredentials: true });
+      if (res.data?.success) {
+        setZoomStatus({
+          loading: false,
+          connected: false,
+          email: '',
+          error: '',
+        });
+      } else {
+        setZoomStatus((prev) => ({
+          ...prev,
+          loading: false,
+          error: res.data?.error || 'Unable to disconnect Zoom.',
+        }));
+      }
+    } catch (err) {
+      console.error('Error disconnecting Zoom', err);
+      setZoomStatus((prev) => ({
+        ...prev,
+        loading: false,
+        error: 'Unable to disconnect Zoom.',
+      }));
+    }
   };
 
   useEffect(() => {
@@ -178,12 +322,48 @@ function AccountSettings({ userData }) {
               },
             }));
           }
+          if (typeof res.data.user.notify_replies !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              notifications: {
+                ...prev.notifications,
+                replies: Boolean(Number(res.data.user.notify_replies)),
+              },
+            }));
+          }
+          if (typeof res.data.user.notify_events !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              notifications: {
+                ...prev.notifications,
+                events: Boolean(Number(res.data.user.notify_events)),
+              },
+            }));
+          }
           if (typeof res.data.user.session_timeout_minutes !== 'undefined') {
             setSettings((prev) => ({
               ...prev,
               security: {
                 ...prev.security,
                 sessionTimeout: String(res.data.user.session_timeout_minutes),
+              },
+            }));
+          }
+          if (typeof res.data.user.two_factor_enabled !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              security: {
+                ...prev.security,
+                twoFactor: Boolean(Number(res.data.user.two_factor_enabled)),
+              },
+            }));
+          }
+          if (typeof res.data.user.auto_join_campus !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              community: {
+                ...prev.community,
+                autoJoinCampus: Boolean(Number(res.data.user.auto_join_campus)),
               },
             }));
           }
@@ -209,6 +389,40 @@ function AccountSettings({ userData }) {
     };
     fetchVisibility();
   }, [userData]);
+
+  useEffect(() => {
+    loadTagInterests();
+  }, [loadTagInterests]);
+
+  useEffect(() => {
+    if (canConnectZoom) {
+      loadZoomStatus();
+    }
+  }, [canConnectZoom, loadZoomStatus]);
+
+  useEffect(() => {
+    if (!location.search) return;
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    const zoom = params.get('zoom');
+    const zoomReason = params.get('reason');
+    if (tab && tabs.some((t) => t.id === tab)) {
+      setActiveTab(tab);
+    }
+    if (zoom === 'connected') {
+      flashStatus('Zoom connected.');
+    }
+    if (zoom === 'error') {
+      const reasonMap = {
+        missing_config: 'Zoom OAuth is not configured.',
+        access_denied: 'Only ambassadors and admins can connect Zoom.',
+        user_not_found: 'Unable to confirm your account.',
+        db_error: 'Unable to start Zoom connection.',
+      };
+      flashStatus(reasonMap[zoomReason] || 'Zoom connection failed.');
+    }
+    navigate('/settings', { replace: true });
+  }, [location.search, navigate, tabs]);
 
   useEffect(() => {
     // If no server value yet but a stored value exists, hydrate the dropdown
@@ -342,6 +556,38 @@ function AccountSettings({ userData }) {
     }
   };
 
+  const persistRepliesPref = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          notify_replies: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving reply notifications preference', err);
+    }
+  };
+
+  const persistEventsPref = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          notify_events: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving event notifications preference', err);
+    }
+  };
+
   const persistSessionTimeout = async (value) => {
     if (!userData?.user_id) return;
     try {
@@ -355,6 +601,38 @@ function AccountSettings({ userData }) {
       );
     } catch (err) {
       console.error('Error saving session timeout', err);
+    }
+  };
+
+  const persistTwoFactor = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          two_factor_enabled: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving two-factor setting', err);
+    }
+  };
+
+  const persistAutoJoinCampus = async (value) => {
+    if (!userData?.user_id) return;
+    try {
+      await axios.post(
+        '/api/update_account_settings.php',
+        {
+          user_id: userData.user_id,
+          auto_join_campus: value,
+        },
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error('Error saving auto-join campus setting', err);
     }
   };
 
@@ -388,8 +666,17 @@ function AccountSettings({ userData }) {
     if (section === 'security' && key === 'sessionTimeout') {
       persistSessionTimeout(value);
     }
+    if (section === 'security' && key === 'twoFactor') {
+      persistTwoFactor(value);
+    }
     if (section === 'notifications' && key === 'votes') {
       persistVotesPref(value);
+    }
+    if (section === 'notifications' && key === 'replies') {
+      persistRepliesPref(value);
+    }
+    if (section === 'notifications' && key === 'events') {
+      persistEventsPref(value);
     }
     if (section === 'feed' && key === 'defaultFeed') {
       try {
@@ -407,6 +694,9 @@ function AccountSettings({ userData }) {
           { withCredentials: true }
         ).catch((err) => console.error('Error saving default feed', err));
       }
+    }
+    if (section === 'community' && key === 'autoJoinCampus') {
+      persistAutoJoinCampus(value);
     }
     flashStatus('Saved');
   };
@@ -527,6 +817,34 @@ function AccountSettings({ userData }) {
     return { os, browser };
   };
 
+  const getBrowserKey = (ua) => {
+    const { browser } = parseUserAgent(ua);
+    const base = browser.split('/')[0] || browser;
+    return base.trim().toLowerCase() || 'unknown';
+  };
+
+  const filteredSessions = useMemo(() => {
+    const deduped = [];
+    const seen = new Map();
+    sessions.forEach((session) => {
+      const browserKey = getBrowserKey(session.user_agent);
+      const ipKey = (session.ip_address || '').trim().toLowerCase() || 'unknown';
+      const key = `${browserKey}::${ipKey}`;
+      if (!seen.has(key)) {
+        seen.set(key, deduped.length);
+        deduped.push(session);
+        return;
+      }
+      if (session.current) {
+        const index = seen.get(key);
+        if (index !== undefined && !deduped[index]?.current) {
+          deduped[index] = session;
+        }
+      }
+    });
+    return deduped;
+  }, [sessions]);
+
   const formatSessionMeta = (s) => {
     const last = s.last_active_at ? new Date(s.last_active_at) : null;
     const lastLabel = last ? last.toLocaleString() : 'Unknown';
@@ -544,7 +862,7 @@ function AccountSettings({ userData }) {
           <h1 className="settings-title">Account settings</h1>
           <div className="settings-meta">
             {userData?.email && <span className="settings-badge">{userData.email}</span>}
-            <span className="settings-badge">Access: {roleLabel(roleId)}</span>
+            <span className="settings-badge">Access: {getRoleLabel(roleId)}</span>
             {isAmbassador && <span className="settings-badge positive">Ambassador</span>}
           </div>
           <button
@@ -555,14 +873,14 @@ function AccountSettings({ userData }) {
             ← Back to home
           </button>
         </div>
-        <div className="settings-actions">
+        {isSuperAdminUser && <div className="settings-actions">
           <button type="button" className="pill-button" onClick={() => flashStatus('Saved')}>
             Save changes
           </button>
           <button type="button" className="pill-button secondary" onClick={confirmReset}>
             Reset defaults
           </button>
-        </div>
+        </div>}
       </div>
 
       {status && <div className="settings-status">{status}</div>}
@@ -585,94 +903,115 @@ function AccountSettings({ userData }) {
 
       <div className="settings-grid">
         {activeTab === 'profile' && (
-        <section className="settings-card">
-          <div className="settings-card-heading">
-            <div className="settings-card-eyebrow">
-              <FaUserCog size={16} /> Profile & identity
+        <>
+          <section className="settings-card">
+            <div className="settings-card-heading">
+              <div className="settings-card-eyebrow">
+                <FaUserCog size={16} /> Profile & identity
+              </div>
+              <p>How you appear across forums and threads.</p>
             </div>
-            <p>How you appear across forums and threads.</p>
-          </div>
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Profile visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Limit profile details to your campus network or followers.</p>
-            </div>
-            <select
-              value={settings.profile.profileVisibility}
-              onChange={(e) => updateSetting('profile', 'profileVisibility', e.target.value)}
-            >
-              <option
-                value="network"
-                disabled={!isAmbassador}
-                title={!isAmbassador ? 'This option is only available for group ambassadors' : undefined}
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-label">Profile visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
+                <p className="setting-help">Limit profile details to your campus network or followers.</p>
+              </div>
+              <select
+                value={settings.profile.profileVisibility}
+                onChange={(e) => updateSetting('profile', 'profileVisibility', e.target.value)}
               >
-                Group Members Only
-              </option>
-              <option value="followers">Followers only</option>
-              <option value="private">Private</option>
-            </select>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Direct messages <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Choose who can start conversations with you.</p>
+                <option
+                  value="network"
+                  disabled={!isAmbassador}
+                  title={!isAmbassador ? 'This option is only available for group ambassadors' : undefined}
+                >
+                  Group Members Only
+                </option>
+                <option value="followers">Followers only</option>
+                <option value="private">Private</option>
+              </select>
             </div>
-            <select
-              value={settings.profile.allowMessagesFrom}
-              onChange={(e) => updateSetting('profile', 'allowMessagesFrom', e.target.value)}
-            >
-              <option value="connections">Connections only</option>
-              <option value="community">Community only</option>
-              <option value="everyone">Everyone</option>
-            </select>
-          </div>
 
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Contact visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Choose who can see your email on your profile.</p>
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-label">Direct messages <span className="settings-badge live-badge">{liveBadge}</span></div>
+                <p className="setting-help">Choose who can start conversations with you.</p>
+              </div>
+              <select
+                value={settings.profile.allowMessagesFrom}
+                onChange={(e) => updateSetting('profile', 'allowMessagesFrom', e.target.value)}
+              >
+                <option value="connections">Connections only</option>
+                <option value="community">Community only</option>
+                <option value="everyone">Everyone</option>
+              </select>
             </div>
-            <select
-              value={settings.profile.showEmail}
-              onChange={(e) => updateSetting('profile', 'showEmail', e.target.value)}
-            >
-              <option value="hidden">Hidden</option>
-              <option value="connections">Connections only</option>
-              <option value="everyone">Everyone</option>
-            </select>
-          </div>
 
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Discoverability <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Allow others to find you in search and recommendations.</p>
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-label">Contact visibility <span className="settings-badge live-badge">{liveBadge}</span></div>
+                <p className="setting-help">Choose who can see your email on your profile.</p>
+              </div>
+              <select
+                value={settings.profile.showEmail}
+                onChange={(e) => updateSetting('profile', 'showEmail', e.target.value)}
+              >
+                <option value="hidden">Hidden</option>
+                <option value="connections">Connections only</option>
+                <option value="everyone">Everyone</option>
+              </select>
             </div>
-            <select
-              value={settings.profile.discoverable}
-              onChange={(e) => updateSetting('profile', 'discoverable', e.target.value)}
-            >
-              <option value="no_one">No one</option>
-              <option value="connections">Connections only</option>
-              <option value="everyone">Everyone</option>
-            </select>
-          </div>
 
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Dark mode <span className="settings-badge live-badge">{liveBadge}</span></div>
-              <p className="setting-help">Switch the app theme between light and dark.</p>
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-label">Discoverability <span className="settings-badge live-badge">{liveBadge}</span></div>
+                <p className="setting-help">Allow others to find you in search and recommendations.</p>
+              </div>
+              <select
+                value={settings.profile.discoverable}
+                onChange={(e) => updateSetting('profile', 'discoverable', e.target.value)}
+              >
+                <option value="no_one">No one</option>
+                <option value="connections">Connections only</option>
+                <option value="everyone">Everyone</option>
+              </select>
             </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={isDarkMode}
-                onChange={toggleDarkMode}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-        </section>
+          </section>
+
+          <section className="settings-card">
+            <div className="settings-card-heading">
+              <div className="settings-card-eyebrow">
+                <FaUsers size={16} /> Tag interests
+              </div>
+              <p>Update the topics that shape your feed recommendations.</p>
+            </div>
+            <div className="setting-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+              {isLoadingTags ? (
+                <span className="muted">Loading interests...</span>
+              ) : (
+                <TagPicker
+                  label="Interests"
+                  options={tagOptions}
+                  value={tagInterests}
+                  onChange={setTagInterests}
+                  max={8}
+                  helperText="Select up to 8 tags."
+                  disabled={tagOptionsLoading}
+                />
+              )}
+              <div className="settings-actions" style={{ justifyContent: 'flex-start', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  className="pill-button secondary small"
+                  onClick={saveTagInterests}
+                  disabled={isSavingTags || tagOptionsLoading || isLoadingTags}
+                >
+                  {isSavingTags ? 'Saving...' : 'Save interests'}
+                </button>
+              </div>
+            </div>
+          </section>
+        </>
         )}
 
         {activeTab === 'notifications' && (
@@ -683,9 +1022,9 @@ function AccountSettings({ userData }) {
             </div>
             <p>Stay on top of replies, messages, and campus news.</p>
           </div>
-          <div className="setting-row">
+          {isSuperAdminUser && <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Email updates</div>
+              <div className="setting-label">Email updates <span className="settings-badge hold-badge">On hold</span></div>
               <p className="setting-help">Security alerts and activity summaries.</p>
             </div>
             <label className="setting-toggle">
@@ -696,7 +1035,22 @@ function AccountSettings({ userData }) {
               />
               <span className="toggle-slider" />
             </label>
-          </div>
+          </div>}
+
+          {canSendTestEmail && <div className="setting-row">
+            <div className="setting-text">
+              <div className="setting-label">Send test email</div>
+              <p className="setting-help">Confirm MailerSend can reach your inbox.</p>
+            </div>
+            <button
+              type="button"
+              className="pill-button secondary small"
+              onClick={sendTestEmail}
+              disabled={isSendingTestEmail}
+            >
+              {isSendingTestEmail ? 'Sending...' : 'Send Test Email'}
+            </button>
+          </div>}
 
           <div className="setting-row">
             <div className="setting-text">
@@ -708,6 +1062,21 @@ function AccountSettings({ userData }) {
                 type="checkbox"
                 checked={settings.notifications.replies}
                 onChange={(e) => updateSetting('notifications', 'replies', e.target.checked)}
+              />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+
+          <div className="setting-row">
+            <div className="setting-text">
+              <div className="setting-label">Upcoming events <span className="settings-badge live-badge">{liveBadge}</span></div>
+              <p className="setting-help">Notify me about new events available to my account.</p>
+            </div>
+            <label className="setting-toggle">
+              <input
+                type="checkbox"
+                checked={settings.notifications.events}
+                onChange={(e) => updateSetting('notifications', 'events', e.target.checked)}
               />
               <span className="toggle-slider" />
             </label>
@@ -740,7 +1109,7 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Two-factor auth</div>
+              <div className="setting-label">Two-factor auth <span className="settings-badge live-badge">Live</span></div>
               <p className="setting-help">Add a code when signing in from new devices.</p>
             </div>
             <label className="setting-toggle">
@@ -753,9 +1122,9 @@ function AccountSettings({ userData }) {
             </label>
           </div>
 
-          <div className="setting-row">
+          {isSuperAdminUser && <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Login alerts</div>
+              <div className="setting-label">Login alerts <span className="settings-badge hold-badge">On hold</span></div>
               <p className="setting-help">Email me when a new device signs in.</p>
             </div>
             <label className="setting-toggle">
@@ -766,7 +1135,7 @@ function AccountSettings({ userData }) {
               />
               <span className="toggle-slider" />
             </label>
-          </div>
+          </div>}
 
           <div className="setting-row">
             <div className="setting-text">
@@ -821,7 +1190,7 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Auto-join campus groups</div>
+              <div className="setting-label">Auto-join campus groups <span className="settings-badge testing-badge">In testing</span></div>
               <p className="setting-help">Automatically accept invites from your university teams.</p>
             </div>
             <label className="setting-toggle">
@@ -833,25 +1202,52 @@ function AccountSettings({ userData }) {
               <span className="toggle-slider" />
             </label>
           </div>
-
-          <div className="setting-row">
-            <div className="setting-text">
-              <div className="setting-label">Allow invites</div>
-              <p className="setting-help">Let members invite you to closed forums.</p>
-            </div>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.community.allowInvites}
-                onChange={(e) => updateSetting('community', 'allowInvites', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
         </section>
         )}
 
-        {isModerator && activeTab === 'moderation' && (
+        {canConnectZoom && activeTab === 'integrations' && (
+        <section className="settings-card">
+          <div className="settings-card-heading">
+            <div className="settings-card-eyebrow">
+              <FaPlug size={16} /> Integrations
+            </div>
+            <p>Connect tools you use to host events and sessions.</p>
+          </div>
+          <div className="setting-row">
+            <div className="setting-text">
+              <div className="setting-label">Zoom</div>
+              <p className="setting-help">Link Zoom to schedule meeting links for events you host.</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {zoomStatus.loading ? (
+                <span className="settings-badge">Checking...</span>
+              ) : zoomStatus.connected ? (
+                <>
+                  <span className="settings-badge positive">
+                    {zoomStatus.email ? `Connected as ${zoomStatus.email}` : 'Connected'}
+                  </span>
+                  <button type="button" className="pill-button secondary small" onClick={handleZoomDisconnect}>
+                    Disconnect
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="pill-button" onClick={handleZoomConnect}>
+                  Connect Zoom
+                </button>
+              )}
+            </div>
+          </div>
+          {zoomStatus.error && (
+            <div className="setting-row">
+              <div className="setting-text">
+                <p className="setting-help" style={{ color: '#b91c1c' }}>{zoomStatus.error}</p>
+              </div>
+            </div>
+          )}
+        </section>
+        )}
+
+        {isSuperAdminUser && activeTab === 'moderation' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
@@ -906,7 +1302,7 @@ function AccountSettings({ userData }) {
           </section>
         )}
 
-        {isAmbassador && activeTab === 'ambassador' && (
+        {isSuperAdminUser && activeTab === 'ambassador' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
@@ -961,7 +1357,7 @@ function AccountSettings({ userData }) {
           </section>
         )}
 
-        {isAdmin && activeTab === 'admin' && (
+        {isSuperAdminUser && activeTab === 'admin' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
@@ -982,6 +1378,20 @@ function AccountSettings({ userData }) {
                 />
                 <span className="toggle-slider" />
               </label>
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-label">Verification submissions</div>
+                <p className="setting-help">Review student and staff proof uploads.</p>
+              </div>
+              <button
+                type="button"
+                className="pill-button secondary small"
+                onClick={() => navigate('/admin/verifications')}
+              >
+                Open review queue
+              </button>
             </div>
 
             <div className="setting-row">
@@ -1027,10 +1437,10 @@ function AccountSettings({ userData }) {
           <div className="session-list">
             {loadingSessions && <p>Loading sessions…</p>}
             {sessionsError && <p className="error-text">{sessionsError}</p>}
-            {!loadingSessions && !sessionsError && sessions.length === 0 && (
+            {!loadingSessions && !sessionsError && filteredSessions.length === 0 && (
               <p className="muted">No active sessions found.</p>
             )}
-            {!loadingSessions && !sessionsError && sessions.map((session) => (
+            {!loadingSessions && !sessionsError && filteredSessions.map((session) => (
               (() => {
                 const meta = formatSessionMeta(session);
                 return (
@@ -1060,7 +1470,7 @@ function AccountSettings({ userData }) {
         </section>
         )}
 
-        {activeTab === 'data' && (
+        {isSuperAdminUser && activeTab === 'data' && (
         <section className="settings-card full-span">
           <div className="settings-card-heading">
             <div className="settings-card-eyebrow">
@@ -1070,7 +1480,7 @@ function AccountSettings({ userData }) {
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Download data</div>
+              <div className="setting-label">Download data <span className="settings-badge hold-badge">On hold</span></div>
               <p className="setting-help">Export posts, messages, and connections as a zip.</p>
             </div>
             <button type="button" className="pill-button secondary small">

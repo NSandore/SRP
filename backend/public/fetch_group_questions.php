@@ -1,5 +1,6 @@
 <?php
 // fetch_group_questions.php
+require_once __DIR__ . '/cors.php';
 // Returns group questions filtered by viewer role (public, asker, or ambassador).
 
 require_once __DIR__ . '/../db_connection.php';
@@ -95,6 +96,6 @@ try {
     echo json_encode(['success' => true, 'questions' => $questions]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database error: ']);
     exit;
 }
