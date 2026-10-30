@@ -2,10 +2,11 @@
 require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/roles.php';
 
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id']) || $_SESSION['email'] !== 'n.sandore5140@gmail.com') {
+if (!isset($_SESSION['user_id']) || !isSuperAdmin((int)($_SESSION['role_id'] ?? 0))) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;

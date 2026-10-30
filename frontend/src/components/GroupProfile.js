@@ -8,12 +8,13 @@ import ModalOverlay from './ModalOverlay';
 import ReportModal from './ReportModal';
 import { buildAvatarSrc } from '../utils/avatar';
 import buildUploadSrc from '../utils/uploads';
-import { getAdjustedColor, getReadableTextColor } from '../utils/color';
+import { getAdjustedColor, getHighestContrastColor, getReadableTextColor } from '../utils/color';
 import { isSuperAdmin } from '../constants/roles';
 import RightRail from '../widgets/RightRail';
 import useCommunityAccent from '../hooks/useCommunityAccent';
 import { THREAD_TITLE_MAX_LENGTH } from '../utils/contentLimits';
 import ReelGrid from './ReelGrid';
+import { REELS_ENABLED } from '../constants/features';
 
 function GroupProfile({ userData, onRequireAuth }) {
   const { id } = useParams(); // group community id
@@ -66,7 +67,12 @@ function GroupProfile({ userData, onRequireAuth }) {
   const [loadingSubcommunities, setLoadingSubcommunities] = useState(false);
   const [subcommunitiesError, setSubcommunitiesError] = useState('');
   const [childFollowBusy, setChildFollowBusy] = useState({});
+  const [knowledgeBaseArticles, setKnowledgeBaseArticles] = useState([]);
+  const [knowledgeBaseLoading, setKnowledgeBaseLoading] = useState(false);
+  const [knowledgeBaseError, setKnowledgeBaseError] = useState('');
+  const [knowledgeBaseSearch, setKnowledgeBaseSearch] = useState('');
   const hasSubcommunities = subcommunities.length > 0;
+  const isKnowledgeBase = group?.content_mode === 'knowledge_base';
 
   useCommunityAccent(group?.primary_color, group?.secondary_color);
 
@@ -202,6 +208,7 @@ function GroupProfile({ userData, onRequireAuth }) {
         const response = await axios.get(`/api/fetch_group.php?${params.toString()}`);
         if (response.data.success) {
           setGroup(response.data.group);
+          setActiveTab(response.data.group.content_mode === 'knowledge_base' ? 'articles' : 'overview');
           setFollowersCount(response.data.group.followers_count || 0);
           setIsFollowing(Boolean(response.data.group.is_following));
           setEditName(response.data.group.name || '');
@@ -221,6 +228,42 @@ function GroupProfile({ userData, onRequireAuth }) {
     };
     fetchGroup();
   }, [id, userData?.user_id]);
+
+  useEffect(() => {
+    if (!isKnowledgeBase) {
+      setKnowledgeBaseArticles([]);
+      setKnowledgeBaseError('');
+      return;
+    }
+    let cancelled = false;
+    const loadKnowledgeBase = async () => {
+      setKnowledgeBaseLoading(true);
+      setKnowledgeBaseError('');
+      try {
+        const params = new URLSearchParams({ community_id: id });
+        if (userData?.user_id) params.append('user_id', userData.user_id);
+        const res = await axios.get(`/api/fetch_knowledge_base_articles.php?${params.toString()}`);
+        if (cancelled) return;
+        if (res.data.success) {
+          setKnowledgeBaseArticles(Array.isArray(res.data.articles) ? res.data.articles : []);
+        } else {
+          setKnowledgeBaseArticles([]);
+          setKnowledgeBaseError(res.data.error || 'Unable to load the knowledge base.');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setKnowledgeBaseArticles([]);
+          setKnowledgeBaseError('Unable to load the knowledge base.');
+        }
+      } finally {
+        if (!cancelled) setKnowledgeBaseLoading(false);
+      }
+    };
+    loadKnowledgeBase();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isKnowledgeBase, userData?.user_id]);
 
   const fetchAmbassadors = async (withSpinner = false) => {
     if (withSpinner) {
@@ -758,6 +801,9 @@ function GroupProfile({ userData, onRequireAuth }) {
   const gradientLight = getAdjustedColor(primaryColor, 1.12);
   const gradientDark = getAdjustedColor(primaryColor, 0.85);
   const pillTextColor = getReadableTextColor(primaryColor);
+  const secondaryPillTextColor = getReadableTextColor(secondaryColor);
+  const lightThemeAccent = getHighestContrastColor([primaryColor, secondaryColor], '#FFFFFF') || primaryColor;
+  const darkThemeAccent = getHighestContrastColor([primaryColor, secondaryColor], '#08152B') || primaryColor;
   const subgroupQuery = subgroupSearch.trim().toLowerCase();
   const questionQuery = questionSearch.trim().toLowerCase();
   const visibleSubcommunities = subgroupQuery
@@ -782,16 +828,27 @@ function GroupProfile({ userData, onRequireAuth }) {
           .some((value) => String(value).toLowerCase().includes(questionQuery))
       ))
     : questions;
+  const knowledgeBaseQuery = knowledgeBaseSearch.trim().toLowerCase();
+  const visibleKnowledgeBaseArticles = knowledgeBaseQuery
+    ? knowledgeBaseArticles.filter((article) => (
+        [article.title, article.excerpt, ...(article.tags || [])]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(knowledgeBaseQuery))
+      ))
+    : knowledgeBaseArticles;
 
   return (
     <div
       className="profile-container community-profile"
       style={{
-        '--primary-color': primaryColor,
-        '--secondary-color': secondaryColor,
+        '--community-accent': primaryColor,
+        '--community-accent-secondary': secondaryColor,
+        '--community-accent-light-theme': lightThemeAccent,
+        '--community-accent-dark-theme': darkThemeAccent,
+        '--community-on-accent': pillTextColor,
+        '--community-on-accent-secondary': secondaryPillTextColor,
         ...(gradientLight ? { '--gradient-secondary-light': gradientLight } : {}),
-        ...(gradientDark ? { '--gradient-secondary-dark': gradientDark } : {}),
-        ...(pillTextColor ? { '--pill-text-color': pillTextColor } : {})
+        ...(gradientDark ? { '--gradient-secondary-dark': gradientDark } : {})
       }}
     >
       <section className="profile-main">
@@ -867,7 +924,7 @@ function GroupProfile({ userData, onRequireAuth }) {
             >
               Overview
             </button>
-            {(hasSubcommunities || isLoggedIn) && (
+            {!isKnowledgeBase && (hasSubcommunities || isLoggedIn) && (
               <button
                 type="button"
                 className={`tab-link ${activeTab === 'subgroups' ? 'active' : ''}`}
@@ -876,53 +933,126 @@ function GroupProfile({ userData, onRequireAuth }) {
                 Sub-Groups
               </button>
             )}
-            <button
+            {!isKnowledgeBase && <button
               type="button"
               className={`tab-link ${activeTab === 'qa' ? 'active' : ''}`}
               onClick={() => setActiveTab('qa')}
             >
               Q+A
-            </button>
-            <button
+            </button>}
+            {REELS_ENABLED && !isKnowledgeBase && <button
               type="button"
               className={`tab-link ${activeTab === 'reels' ? 'active' : ''}`}
               onClick={() => setActiveTab('reels')}
             >
               Reels
-            </button>
-            <button
+            </button>}
+            {!isKnowledgeBase && <button
               type="button"
               className={`tab-link community-mobile-tab ${activeTab === 'events' ? 'active' : ''}`}
               onClick={() => setActiveTab('events')}
             >
               Events
-            </button>
-            <button
+            </button>}
+            {!isKnowledgeBase && <button
               type="button"
               className={`tab-link community-mobile-tab ${activeTab === 'polls' ? 'active' : ''}`}
               onClick={() => setActiveTab('polls')}
             >
               Polls
-            </button>
-            <button
+            </button>}
+            {!isKnowledgeBase && <button
               type="button"
               className={`tab-link community-mobile-tab ${activeTab === 'contact' ? 'active' : ''}`}
               onClick={() => setActiveTab('contact')}
             >
               Contact
-            </button>
-            <button
+            </button>}
+            {!isKnowledgeBase && <button
               type="button"
               className={`tab-link ${activeTab === 'posts' ? 'active' : ''}`}
               onClick={() => setActiveTab('posts')}
             >
               Pinned Topics
-            </button>
+            </button>}
+            {isKnowledgeBase && (
+              <button
+                type="button"
+                className={`tab-link ${activeTab === 'articles' ? 'active' : ''}`}
+                onClick={() => setActiveTab('articles')}
+              >
+                Articles
+              </button>
+            )}
           </div>
         </div>
 
         <div className="community-profile-content">
           <div className="split-main">
+            {activeTab === 'articles' && isKnowledgeBase && (
+              <div className="content-card community-knowledge-base-card">
+                <div className="qa-header knowledge-base-header">
+                  <div>
+                    <p className="knowledge-base-kicker">Information Board knowledge base</p>
+                    <h3>International students &amp; study abroad</h3>
+                    <p className="muted">
+                      Read the guides first, then use a megathread for questions and shared experience.
+                    </p>
+                  </div>
+                  <span className="knowledge-base-count">
+                    {knowledgeBaseLoading ? '—' : visibleKnowledgeBaseArticles.length} entries
+                  </span>
+                </div>
+                <label className="community-tab-search knowledge-base-search" htmlFor="knowledge-base-search">
+                  <FaSearch aria-hidden="true" />
+                  <span className="sr-only">Search knowledge base</span>
+                  <input
+                    id="knowledge-base-search"
+                    type="search"
+                    placeholder="Search articles and megathreads"
+                    value={knowledgeBaseSearch}
+                    onChange={(event) => setKnowledgeBaseSearch(event.target.value)}
+                  />
+                </label>
+                {knowledgeBaseLoading ? (
+                  <p>Loading knowledge base…</p>
+                ) : knowledgeBaseError ? (
+                  <p>{knowledgeBaseError}</p>
+                ) : visibleKnowledgeBaseArticles.length === 0 ? (
+                  <p className="muted">No knowledge base entries match your search.</p>
+                ) : (
+                  <div className="knowledge-base-list">
+                    {visibleKnowledgeBaseArticles.map((article) => {
+                      const isMegathread = article.content_kind === 'megathread';
+                      return (
+                        <article
+                          key={article.thread_id}
+                          className={`knowledge-base-entry knowledge-base-entry--${isMegathread ? 'megathread' : 'article'}`}
+                        >
+                          <div className="knowledge-base-entry__meta">
+                            <span>{isMegathread ? 'Questions megathread' : 'Knowledge base article'}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{isMegathread ? `${article.reply_count} replies` : 'Read-only guide'}</span>
+                          </div>
+                          <h4>
+                            <RouterLink to={`/info/forum/${article.forum_id}/thread/${article.thread_id}`}>
+                              {article.title}
+                            </RouterLink>
+                          </h4>
+                          {article.excerpt && <p>{article.excerpt}</p>}
+                          {Array.isArray(article.tags) && article.tags.length > 0 && (
+                            <div className="knowledge-base-entry__tags" aria-label="Topics">
+                              {article.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'overview' && (
               <div className="content-card community-overview-card">
                 <div className="qa-header">
@@ -971,7 +1101,7 @@ function GroupProfile({ userData, onRequireAuth }) {
               </div>
             )}
 
-            {activeTab === 'reels' && (
+            {REELS_ENABLED && activeTab === 'reels' && (
               <ReelGrid
                 communityId={communityId}
                 isOwner={isFollowing || canEditCommunity || canPinToOverview}
@@ -995,7 +1125,25 @@ function GroupProfile({ userData, onRequireAuth }) {
                 ) : pinnedError ? (
                   <p>{pinnedError}</p>
                 ) : pinnedItems.length === 0 ? (
-                  <p className="muted">No pinned threads or forums yet.</p>
+                  <div className="community-launch-empty">
+                    <p className="community-launch-empty__eyebrow">A fresh community</p>
+                    <h4>Help start the first conversation</h4>
+                    <p>No topics have been pinned yet. Ask a useful question and give the next member something to join.</p>
+                    <button
+                      type="button"
+                      className="pill-button"
+                      onClick={() => {
+                        if (!isLoggedIn) {
+                          onRequireAuth?.();
+                          return;
+                        }
+                        setActiveTab('qa');
+                        setShowQuestionModal(true);
+                      }}
+                    >
+                      Ask the first question
+                    </button>
+                  </div>
                 ) : (
                   <div className="posts-list pinned-topic-list">
                     {pinnedItems.map((item) => {
@@ -1350,7 +1498,11 @@ function GroupProfile({ userData, onRequireAuth }) {
                   {isLoadingQuestions ? (
                     <p>Loading questions...</p>
                   ) : questions.length === 0 ? (
-                    <p>No questions yet.</p>
+                    <div className="community-launch-empty community-launch-empty--compact">
+                      <p className="community-launch-empty__eyebrow">Be the first</p>
+                      <h4>What would help someone in this community?</h4>
+                      <p>Ask the first question. An ambassador can review it and add a trusted answer for everyone who joins next.</p>
+                    </div>
                   ) : visibleQuestions.length === 0 ? (
                     <p className="community-tab-empty">No questions match “{questionSearch}”.</p>
                   ) : (

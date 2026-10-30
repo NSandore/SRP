@@ -63,6 +63,7 @@ final class SrpInstitutionPublicProjection
         'logo_attribution',
         'logo_width',
         'logo_height',
+        'directory_visibility',
     ];
 
     /** @var array<string, array<string, bool>> */
@@ -132,6 +133,35 @@ final class SrpInstitutionPublicProjection
         return sprintf(
             "(%1\$s.`community_type` <> 'university' OR COALESCE(%1\$s.`pipeline_active`, 1) = 1)",
             $tableAlias
+        );
+    }
+
+    /**
+     * Filter used by public directory and search queries.
+     *
+     * Listed institutions appear in normal browsing. Search-only institutions
+     * are included only after the user supplies a search term. Archived
+     * institutions remain available through detail-by-ID endpoints so links
+     * and historical content continue to work.
+     */
+    public static function directoryUniversityPredicate(
+        PDO $db,
+        string $tableAlias = 'c',
+        bool $includeSearchOnly = false
+    ): string {
+        self::assertIdentifier($tableAlias);
+        if (!self::hasColumn($db, 'directory_visibility')) {
+            return self::activeUniversityPredicate($db, $tableAlias);
+        }
+
+        $allowed = $includeSearchOnly
+            ? "('listed', 'search_only')"
+            : "('listed')";
+        return sprintf(
+            "(%1\$s.`community_type` <> 'university'
+                OR COALESCE(NULLIF(%1\$s.`directory_visibility`, ''), 'listed') IN %2\$s)",
+            $tableAlias,
+            $allowed
         );
     }
 

@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   Check,
@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { isSuperAdmin } from '../constants/roles';
+import PageNavigator from './PageNavigator';
 import './InstitutionDataReview.css';
 
 const STATUS_OPTIONS = [
@@ -23,6 +24,17 @@ const STATUS_OPTIONS = [
   { value: 'refresh_requested', label: 'Refresh requested' },
   { value: 'all', label: 'All institutions' },
 ];
+
+const DEFAULT_STATUS = 'needs_review';
+const STATUS_VALUES = new Set(STATUS_OPTIONS.map((option) => option.value));
+const MAX_QUERY_LENGTH = 200;
+
+const parsePage = (value, fallback = 1) => {
+  const raw = String(value ?? '');
+  if (!/^[1-9]\d*$/.test(raw)) return fallback;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) ? parsed : fallback;
+};
 
 const EMPTY_OVERRIDE = {
   field: '',
@@ -100,10 +112,16 @@ const displayValue = (value) => {
 const isWebUrl = (value) => /^https?:\/\//i.test(String(value || ''));
 
 function InstitutionDataReview({ userData }) {
-  const [status, setStatus] = useState('needs_review');
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawStatus = searchParams.get('status');
+  const normalizedStatus = String(rawStatus || '').trim().toLowerCase();
+  const status = STATUS_VALUES.has(normalizedStatus) ? normalizedStatus : DEFAULT_STATUS;
+  const rawPage = searchParams.get('page');
+  const page = parsePage(rawPage, 1);
+  const rawQuery = searchParams.get('q');
+  const urlQuery = String(rawQuery || '').slice(0, MAX_QUERY_LENGTH);
+  const requestQuery = urlQuery.trim();
+  const [query, setQuery] = useState(urlQuery);
   const [reviews, setReviews] = useState([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, total_pages: 1 });
   const [expandedId, setExpandedId] = useState('');
@@ -120,13 +138,56 @@ function InstitutionDataReview({ userData }) {
   const [duplicateDrafts, setDuplicateDrafts] = useState({});
   const allowed = isSuperAdmin(userData?.role_id);
 
+  const updateReviewSearchParams = useCallback((updates, options = {}) => {
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams);
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === null || value === undefined || value === '') {
+          nextParams.delete(key);
+        } else {
+          nextParams.set(key, String(value));
+        }
+      });
+      return nextParams;
+    }, options);
+  }, [setSearchParams]);
+
+  // Invalid deep links must never reach the API. Replace the current history
+  // entry so Back does not revisit an unusable status or page.
   useEffect(() => {
+    const canonicalUpdates = {};
+    if (rawStatus !== null && rawStatus !== status) {
+      canonicalUpdates.status = status;
+    }
+    if (rawPage !== null && rawPage !== String(page)) {
+      canonicalUpdates.page = page;
+    }
+    if (rawQuery !== null && rawQuery !== urlQuery) {
+      canonicalUpdates.q = urlQuery || null;
+    }
+    if (Object.keys(canonicalUpdates).length > 0) {
+      updateReviewSearchParams(canonicalUpdates, { replace: true });
+    }
+  }, [page, rawPage, rawQuery, rawStatus, status, updateReviewSearchParams, urlQuery]);
+
+  // Back/Forward navigation is authoritative. Update the input immediately;
+  // requests already read their query directly from the same URL state.
+  useEffect(() => {
+    setQuery(urlQuery);
+  }, [urlQuery]);
+
+  useEffect(() => {
+    const nextQuery = query.trim().slice(0, MAX_QUERY_LENGTH);
+    if (nextQuery === requestQuery) return undefined;
+
     const timer = window.setTimeout(() => {
-      setDebouncedQuery(query.trim());
-      setPage(1);
+      updateReviewSearchParams(
+        { q: nextQuery || null, page: 1 },
+        { replace: true }
+      );
     }, 220);
     return () => window.clearTimeout(timer);
-  }, [query]);
+  }, [query, requestQuery, updateReviewSearchParams]);
 
   useEffect(() => {
     if (!allowed) return undefined;
@@ -140,7 +201,7 @@ function InstitutionDataReview({ userData }) {
         const response = await axios.get('/api/fetch_institution_reviews.php', {
           params: {
             status,
-            q: debouncedQuery,
+            q: requestQuery,
             page,
             limit: 30,
           },
@@ -148,12 +209,26 @@ function InstitutionDataReview({ userData }) {
           signal: controller.signal,
         });
         if (!mounted) return;
-        setReviews(Array.isArray(response.data?.reviews) ? response.data.reviews : []);
+        const totalPages = parsePage(response.data?.pagination?.total_pages, 1);
+        const reportedPage = parsePage(response.data?.pagination?.page, page);
+        const canonicalPage = Math.min(totalPages, reportedPage);
+
         setPagination({
           total: Number(response.data?.pagination?.total || 0),
-          page: Number(response.data?.pagination?.page || page),
-          total_pages: Math.max(1, Number(response.data?.pagination?.total_pages || 1)),
+          page: canonicalPage,
+          total_pages: totalPages,
         });
+
+        // The backend accepts every positive page, including pages beyond the
+        // filtered result set. Repair a hand-edited or now-stale URL and let the
+        // resulting URL change trigger one bounded refetch.
+        if (canonicalPage !== page) {
+          setReviews([]);
+          updateReviewSearchParams({ page: canonicalPage }, { replace: true });
+          return;
+        }
+
+        setReviews(Array.isArray(response.data?.reviews) ? response.data.reviews : []);
       } catch (requestError) {
         if (!mounted || requestError?.code === 'ERR_CANCELED') return;
         setReviews([]);
@@ -168,7 +243,7 @@ function InstitutionDataReview({ userData }) {
       mounted = false;
       controller.abort();
     };
-  }, [allowed, status, debouncedQuery, page, refreshKey]);
+  }, [allowed, status, requestQuery, page, refreshKey, updateReviewSearchParams]);
 
   const updateReview = (updated) => {
     if (!updated?.id) return;
@@ -300,10 +375,10 @@ function InstitutionDataReview({ userData }) {
   const emptyMessage = useMemo(() => {
     if (loading) return 'Loading institution records…';
     if (error) return error;
-    if (debouncedQuery) return 'No institution records match this search.';
+    if (requestQuery) return 'No institution records match this search.';
     if (status === 'needs_review') return 'No institution records currently need review.';
     return 'No institution records are in this view.';
-  }, [loading, error, debouncedQuery, status]);
+  }, [loading, error, requestQuery, status]);
 
   if (!userData) {
     return <div className="institution-review__gate">Log in to review institution data.</div>;
@@ -338,8 +413,9 @@ function InstitutionDataReview({ userData }) {
               className={status === option.value ? 'is-active' : ''}
               aria-pressed={status === option.value}
               onClick={() => {
-                setStatus(option.value);
-                setPage(1);
+                if (option.value !== status || page !== 1) {
+                  updateReviewSearchParams({ status: option.value, page: 1 });
+                }
               }}
             >
               {option.label}
@@ -353,6 +429,7 @@ function InstitutionDataReview({ userData }) {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            maxLength={MAX_QUERY_LENGTH}
             placeholder="Search school, state, or UNITID"
           />
         </label>
@@ -465,8 +542,25 @@ function InstitutionDataReview({ userData }) {
                         </strong>
                       </div>
                       <div>
-                        <span>Directory status</span>
+                        <span>Source status</span>
                         <strong>{review.is_active === false || Number(review.pipeline_active) === 0 ? 'Inactive' : 'Active'}</strong>
+                      </div>
+                      <div>
+                        <span>Directory visibility</span>
+                        <select
+                          className="institution-review__visibility-select"
+                          value={review.directory_visibility || 'listed'}
+                          disabled={busyAction !== ''}
+                          aria-label={`Directory visibility for ${review.name || review.official_name || 'institution'}`}
+                          onChange={(event) => runAction(review, 'set_directory_visibility', {
+                            value: event.target.value,
+                          })}
+                        >
+                          <option value="listed">Listed</option>
+                          <option value="search_only">Search only</option>
+                          <option value="archived">Archived</option>
+                        </select>
+                        {review.directory_visibility_manual ? <small>Manual</small> : null}
                       </div>
                       <div>
                         <span>Last seen</span>
@@ -845,23 +939,18 @@ function InstitutionDataReview({ userData }) {
       )}
 
       {pagination.total_pages > 1 ? (
-        <nav className="institution-review__pagination" aria-label="Institution review pages">
-          <button
-            type="button"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-          >
-            Previous
-          </button>
-          <span>Page {pagination.page} of {pagination.total_pages}</span>
-          <button
-            type="button"
-            disabled={page >= pagination.total_pages || loading}
-            onClick={() => setPage((current) => Math.min(pagination.total_pages, current + 1))}
-          >
-            Next
-          </button>
-        </nav>
+        <PageNavigator
+          page={page}
+          totalPages={pagination.total_pages}
+          onPageChange={(nextPage) => {
+            if (nextPage !== page) {
+              updateReviewSearchParams({ page: nextPage });
+            }
+          }}
+          disabled={loading}
+          className="institution-review__page-navigator"
+          ariaLabel="Institution review pages"
+        />
       ) : null}
     </section>
   );

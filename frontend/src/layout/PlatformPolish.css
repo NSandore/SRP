@@ -477,6 +477,10 @@
   transform-origin: top right;
 }
 
+.scholarly-shell .home-dashboard .topic-dropdown-menu {
+  overflow-y: auto;
+}
+
 .scholarly-shell :is(
   .dropdown-item,
   .submenu-item,
@@ -1027,8 +1031,20 @@
 .scholarly-shell .group-info a,
 .scholarly-shell .university-info a {
   border-radius: 9px;
-  background: var(--home-forest);
+  background: var(--community-accent, var(--home-forest));
+  color: var(--community-on-accent, #FFFFFF);
   transition: background-color 150ms ease, transform 140ms var(--home-ease-out);
+}
+
+.scholarly-shell .community-profile :is(.edit-group-button, .ambassador-button) {
+  border-color: var(--community-accent, var(--home-forest));
+  background: var(--community-accent, var(--home-forest));
+  color: var(--community-on-accent, #FFFFFF);
+}
+
+.scholarly-shell .community-profile :is(.group-info a, .university-info a, .edit-group-button, .ambassador-button):hover {
+  background: var(--community-accent-secondary, var(--home-forest-light));
+  color: var(--community-on-accent-secondary, #FFFFFF);
 }
 
 .scholarly-shell .group-info a:active,
@@ -1753,6 +1769,29 @@
   display: block;
   height: 2px;
   background: var(--home-forest);
+}
+
+/* Community colors stay visible on their own profile without becoming the
+ * foreground for regular reading text. Mix the accent toward each theme's
+ * ink color where it is used as text. */
+.scholarly-shell .community-profile .tab-link.active {
+  color: color-mix(in srgb, var(--community-accent, var(--home-forest)) 76%, var(--home-ink));
+}
+
+.scholarly-shell .community-profile .tab-link.active::after {
+  background: var(--community-accent, var(--home-forest));
+}
+
+.scholarly-shell .community-profile .hero-actions .pill-button:not(.secondary) {
+  border-color: var(--community-accent, var(--home-forest));
+  background: var(--community-accent, var(--home-forest));
+  color: var(--community-on-accent, #FFFFFF);
+}
+
+.scholarly-shell .community-profile .hero-actions .pill-button:not(.secondary):hover {
+  border-color: var(--community-accent-secondary, var(--home-forest-light));
+  background: var(--community-accent-secondary, var(--home-forest-light));
+  color: var(--community-on-accent-secondary, #FFFFFF);
 }
 
 .scholarly-shell :is(.profile-view, .community-profile) .tab-link:active {
@@ -2645,7 +2684,7 @@
 
 [data-theme='dark'] .scholarly-shell .scholarly-communities-page .scholarly-controls,
 [data-theme='dark'] .scholarly-shell .scholarly-communities-page .community-controls,
-[data-theme='dark'] .scholarly-shell .scholarly-communities-page .pagination-controls {
+[data-theme='dark'] .scholarly-shell .scholarly-communities-page .community-page-navigator {
   border-color: var(--home-line);
   background: rgba(9, 25, 48, 0.94);
 }
@@ -2761,6 +2800,14 @@
 
 [data-theme='dark'] .scholarly-shell :is(.profile-view, .community-profile) .tab-link.active::after {
   background: #72AEFA;
+}
+
+[data-theme='dark'] .scholarly-shell .community-profile .tab-link.active {
+  color: color-mix(in srgb, var(--community-accent, #72AEFA) 68%, #EAF2FF);
+}
+
+[data-theme='dark'] .scholarly-shell .community-profile .tab-link.active::after {
+  background: color-mix(in srgb, var(--community-accent, #72AEFA) 72%, #FFFFFF);
 }
 
 [data-theme='dark'] .scholarly-shell .notifications-dropdown {
@@ -5632,6 +5679,38 @@
   max-width: 100%;
 }
 
+/* The desktop Explore rail contains two peer groups. Keep them in the same
+ * grid row instead of allowing the full-width filter panel to wrap below the
+ * feed switcher. */
+@media (min-width: 1200px) {
+  .scholarly-shell .home-dashboard .home-controls {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    grid-template-rows: minmax(40px, auto);
+    align-items: center;
+    column-gap: 24px;
+    row-gap: 0;
+    flex-wrap: nowrap;
+  }
+
+  .scholarly-shell .home-dashboard .home-controls > .control-group:first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .scholarly-shell .home-dashboard .home-controls > .home-filter-panel {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    width: 100%;
+    margin-left: 0;
+    padding-left: 0;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+}
+
 /* Inset page bodies let their control rail bleed back to the panel edges. */
 .scholarly-shell :is(
   .forum-browse-controls,
@@ -5650,6 +5729,34 @@
   width: calc(100% + var(--control-rail-gutter) + var(--control-rail-gutter));
   max-width: none;
   margin-inline: calc(0px - var(--control-rail-gutter));
+}
+
+/* Keep a member's opening post and the reply controls in one continuous
+ * reading surface. Reference articles retain their distinct document styling. */
+.scholarly-shell .thread-view .post-card.original-post:not(.knowledge-base-original) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-theme='dark'] .scholarly-shell .thread-view .post-card.original-post:not(.knowledge-base-original) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.scholarly-shell .thread-view .reply-sort-controls {
+  min-height: 0;
+  margin: 0;
+  margin-inline: 0;
+  padding: 14px 0;
+  width: 100%;
+  max-width: 100%;
+  border: 0;
+  border-top: 1px solid var(--home-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .scholarly-shell :is(.admin-review__header, .reported-items__header) {
@@ -6645,6 +6752,8 @@
 .scholarly-shell .community-rail-ambassadors button {
   display: flex;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
   align-items: center;
   gap: 9px;
   padding: 7px;
@@ -6668,6 +6777,8 @@
 .scholarly-shell .community-rail-ambassadors span {
   display: flex;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   flex-direction: column;
 }
 
@@ -6683,6 +6794,9 @@
 }
 
 .scholarly-shell .community-rail-ambassadors small {
+  display: block;
+  width: 100%;
+  min-width: 0;
   margin-top: 2px;
   color: var(--home-ink-soft);
   font-size: 0.66rem;
@@ -7915,11 +8029,11 @@
   }
 
   .scholarly-shell .forum-browse-controls {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
   }
 
   .scholarly-shell .forum-browse-controls > .control-action {
-    grid-column: 1;
+    grid-column: 2;
   }
 }
 
@@ -8938,6 +9052,50 @@
   padding: 18px 2px 22px;
   color: var(--home-ink-soft);
   font-size: 0.8rem;
+}
+
+.scholarly-shell .community-launch-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 24px;
+  border: 1px dashed color-mix(in srgb, var(--home-forest-light) 52%, var(--home-line));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--home-forest-light) 6%, var(--home-paper-strong));
+}
+
+.scholarly-shell .community-launch-empty--compact {
+  padding: 20px;
+}
+
+.scholarly-shell .community-launch-empty__eyebrow {
+  margin: 0;
+  color: var(--home-forest);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.scholarly-shell .community-launch-empty :is(h3, h4, p) {
+  margin: 0;
+}
+
+.scholarly-shell .community-launch-empty :is(h3, h4) {
+  color: var(--home-ink);
+  font-size: 1.08rem;
+}
+
+.scholarly-shell .community-launch-empty > p:not(.community-launch-empty__eyebrow) {
+  max-width: 680px;
+  color: var(--home-ink-soft);
+  font-size: 0.84rem;
+  line-height: 1.58;
+}
+
+.scholarly-shell .community-launch-empty .pill-button {
+  margin-top: 3px;
 }
 
 /* Pinned material is a separated reading index, not a connected table. */
@@ -10345,6 +10503,181 @@
   height: auto;
   max-height: min(640px, 72vh);
   object-fit: contain;
+}
+
+/* Let each community feel owned by its accent without assigning that accent to
+   reading text. The theme ink remains responsible for text contrast. */
+.scholarly-shell .community-profile .community-hero {
+  border-color: var(--community-accent, var(--home-line));
+  border-color: color-mix(
+    in srgb,
+    var(--community-accent, var(--home-forest)) 42%,
+    var(--home-line)
+  );
+  box-shadow: 0 12px 30px color-mix(
+    in srgb,
+    var(--community-accent, var(--home-forest)) 16%,
+    transparent
+  );
+}
+
+.scholarly-shell .community-profile .hero-banner {
+  position: relative;
+  isolation: isolate;
+}
+
+.scholarly-shell .community-profile .hero-banner::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(
+    112deg,
+    color-mix(in srgb, var(--community-accent, var(--home-forest)) 44%, transparent),
+    color-mix(in srgb, var(--community-accent-secondary, var(--home-forest-light)) 20%, transparent)
+  );
+}
+
+.scholarly-shell .community-profile .hero-content {
+  border-top: 3px solid var(--community-accent, var(--home-forest));
+  background: color-mix(
+    in srgb,
+    var(--community-accent, var(--home-forest)) 5%,
+    var(--home-paper)
+  );
+}
+
+.scholarly-shell .community-profile .community-profile-content .content-card,
+.scholarly-shell .community-profile .community-context-rail--embedded .widget-card {
+  border-color: var(--community-accent, var(--home-line));
+  border-color: color-mix(
+    in srgb,
+    var(--community-accent, var(--home-forest)) 34%,
+    var(--home-line)
+  );
+  background: color-mix(
+    in srgb,
+    var(--community-accent, var(--home-forest)) 5%,
+    var(--scholarly-sidebar-surface)
+  ) !important;
+  box-shadow: inset 3px 0 0 color-mix(
+    in srgb,
+    var(--community-accent, var(--home-forest)) 72%,
+    transparent
+  );
+}
+
+.scholarly-shell .community-profile-content .content-card > .qa-header,
+.scholarly-shell .community-profile .community-context-rail--embedded .widget-header {
+  border-bottom-color: var(--community-accent, var(--home-line));
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--community-accent, var(--home-forest)) 40%,
+    var(--home-line)
+  );
+}
+
+.scholarly-shell .community-profile .community-subgroup-card {
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--community-accent, var(--home-forest)) 24%,
+    var(--home-line)
+  );
+}
+
+/* Existing profile controls use the shared Home accent token. Scope that token
+   to the community profile, selecting the primary or secondary brand color
+   with the strongest contrast for the current theme. */
+.scholarly-shell .community-profile {
+  --home-forest: var(--community-accent-light-theme, var(--community-accent, #2F80ED));
+  --home-forest-light: var(--community-accent-light-theme, var(--community-accent, #2F80ED));
+}
+
+[data-theme='dark'] .scholarly-shell .community-profile {
+  --home-forest: var(--community-accent-dark-theme, var(--community-accent, #72AEFA));
+  --home-forest-light: var(--community-accent-dark-theme, var(--community-accent, #72AEFA));
+}
+
+/* React icon glyphs follow currentColor. Apply the local community accent to
+   neutral interface icons, then preserve the readable foreground on filled
+   action buttons. Images and avatars are deliberately unaffected. */
+.scholarly-shell .community-profile svg {
+  color: var(--home-forest);
+}
+
+.scholarly-shell .community-profile :is(
+  .pill-button,
+  .follow-button,
+  .edit-group-button,
+  .edit-university-button,
+  .ambassador-button,
+  .community-request-button,
+  .hero-actions button,
+  .qa-form button,
+  .qa-answer-form button,
+  .community-row-actions button,
+  .dropdown-item
+) svg {
+  color: inherit;
+}
+
+/* Embedded Contact and Poll tabs have older component-level blue rules. Keep
+   their interactive information in the active community color instead. */
+.scholarly-shell .community-profile .community-contact-list :is(a, a strong) {
+  color: var(--home-forest) !important;
+}
+
+.scholarly-shell .community-profile .community-contact-list a:hover {
+  color: var(--home-forest-light) !important;
+}
+
+.scholarly-shell .community-profile .poll-option-button:is(.selected, :hover:not(:disabled)) {
+  border-color: var(--home-forest);
+  background: color-mix(in srgb, var(--home-forest) 9%, var(--home-paper-strong));
+  color: var(--home-forest);
+}
+
+.scholarly-shell .community-profile :is(
+  .poll-result-fill,
+  .compact-poll-widget .poll-result-fill
+) {
+  background: var(--home-forest);
+}
+
+/* Community rails live outside the profile element. Give only those rails the
+   same local Home tokens while this community is open. */
+.scholarly-shell.area-community.community-accent-active :is(
+  .left-sidebar,
+  .left-drawer,
+  .right-rail
+) {
+  --home-forest: var(--community-accent-light-theme, #2F80ED);
+  --home-forest-light: var(--community-accent-light-theme, #2F80ED);
+  --community-rail-on-accent: var(--community-on-accent-light-theme, #FFFFFF);
+}
+
+[data-theme='dark'] .scholarly-shell.area-community.community-accent-active :is(
+  .left-sidebar,
+  .left-drawer,
+  .right-rail
+) {
+  --home-forest: var(--community-accent-dark-theme, #72AEFA);
+  --home-forest-light: var(--community-accent-dark-theme, #72AEFA);
+  --community-rail-on-accent: var(--community-on-accent-dark-theme, #FFFFFF);
+}
+
+/* Left-sidebar item colors are inline defaults; override them only in the
+   community context so inactive icons participate in the brand treatment too. */
+.scholarly-shell.area-community.community-accent-active .left-sidebar .sidebar-link:not(.active) .sidebar-icon {
+  background: color-mix(in srgb, var(--home-forest) 14%, transparent) !important;
+  color: var(--home-forest) !important;
+}
+
+.scholarly-shell.area-community.community-accent-active .community-rail-view-all {
+  border-color: var(--home-forest) !important;
+  background: var(--home-forest) !important;
+  color: var(--community-rail-on-accent) !important;
 }
 
 @media (max-width: 640px) {

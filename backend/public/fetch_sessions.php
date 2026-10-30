@@ -37,6 +37,9 @@ try {
     $currentId = session_id();
     $enriched = array_map(function($row) use ($currentId) {
         $row['current'] = $row['session_id'] === $currentId;
+        // Never expose a bearer PHP session identifier to browser JavaScript.
+        // A one-way reference is sufficient for the revoke action.
+        $row['session_id'] = hash('sha256', $row['session_id']);
         return $row;
     }, $sessions);
 

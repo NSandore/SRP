@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
@@ -9,6 +11,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['error' => 'Method not allowed.']);
     exit;
 }
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
+}
 
 $inputData = json_decode(file_get_contents('php://input'), true);
 if (!is_array($inputData)) {
@@ -17,7 +24,7 @@ if (!is_array($inputData)) {
     exit;
 }
 
-$user_id = normalizeId($inputData['user_id'] ?? '');
+$user_id = normalizeId($_SESSION['user_id']);
 $tags = $inputData['tags'] ?? [];
 
 if ($user_id === '') {

@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import AppShell from '@/components/navigation/AppShell';
 import ReelGrid from '@/components/reels/ReelGrid';
+import { REELS_ENABLED } from '@/constants/features';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
@@ -99,7 +100,7 @@ type UploadAsset = {
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'subgroups', label: 'Sub-Groups' },
-  { key: 'reels', label: 'Reels' },
+  ...(REELS_ENABLED ? [{ key: 'reels', label: 'Reels' }] : []),
   { key: 'posts', label: 'Pinned Topics' },
   { key: 'qa', label: 'Q+A' },
 ] as const;
@@ -663,7 +664,7 @@ export default function UniversityProfileScreen() {
           </View>
         ) : null}
 
-        {activeTab === 'reels' ? (
+        {REELS_ENABLED && activeTab === 'reels' ? (
           <View style={styles.contentCard}>
             <ReelGrid communityId={communityId} title={`${university?.name || 'Community'} reels`} />
           </View>

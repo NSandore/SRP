@@ -3,7 +3,7 @@ require_once __DIR__ . '/cors.php';
 // fetch_subcommunities.php
 // Retrieve all child communities for a given parent community.
 
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
 header('Content-Type: application/json');
@@ -50,6 +50,11 @@ try {
             c.tagline,
             c.location,
             c.logo_path,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM forums kb
+                WHERE kb.community_id = c.id
+                  AND kb.is_system_container = 1
+            ) THEN 'knowledge_base' ELSE 'community' END AS content_mode,
             COUNT(fc.user_id) AS followers_count
             {$followSelect}
         FROM communities c

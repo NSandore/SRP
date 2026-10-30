@@ -19,3 +19,7 @@
 
 # Process row-level failures and refresh requests from the admin screen: daily.
 8 5 * * * cd /srv/studentsphere && /usr/bin/php backend/scripts/institution_data.php retry-failures --limit 500 >> /var/log/studentsphere/institution-data.log 2>&1
+
+# Recompute public directory tiers after source refreshes. Manual visibility
+# choices and institutions with attached activity are preserved.
+30 5 * * * cd /srv/studentsphere && /usr/bin/php backend/scripts/refresh_university_directory_visibility.php >> /var/log/studentsphere/institution-data.log 2>&1

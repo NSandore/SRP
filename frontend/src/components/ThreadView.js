@@ -444,6 +444,7 @@ function PostItem({
   handleUnverifyPost,
   canVerifyPosts,
   communityType,
+  repliesDisabled = false,
   onRequireAuth,
   onReport,
 }) {
@@ -820,15 +821,17 @@ function PostItem({
               <span className="vote-count">{post.downvotes}</span>
 
               {/* Reply Button */}
-              <button
-                type="button"
-                className="reply-button"
-                onClick={handleToggleReplyBox}
-                title="Reply"
-                aria-label="Reply"
-              >
-                <FiMessageCircle />
-              </button>
+              {!repliesDisabled && (
+                <button
+                  type="button"
+                  className="reply-button"
+                  onClick={handleToggleReplyBox}
+                  title="Reply"
+                  aria-label="Reply"
+                >
+                  <FiMessageCircle />
+                </button>
+              )}
               <span className="vote-count comment-count">{childReplyCount}</span>
     
               {/* Collapse/Expand Replies Button */}
@@ -869,7 +872,7 @@ function PostItem({
       </div>
   
       {/* Reply Form */}
-      {userData?.user_id && !isEditing && isReplyBoxOpen && (
+      {!repliesDisabled && userData?.user_id && !isEditing && isReplyBoxOpen && (
         <form onSubmit={handleReplySubmitLocal} className="reply-form">
           <textarea
             placeholder="Write your reply..."
@@ -922,6 +925,7 @@ function PostItem({
               handleUnverifyPost={handleUnverifyPost}
               canVerifyPosts={canVerifyPosts}
               communityType={communityType}
+              repliesDisabled={repliesDisabled}
               onRequireAuth={onRequireAuth}
               onReport={onReport}
             />
@@ -941,6 +945,8 @@ function ThreadView({ userData, onRequireAuth }) {
   const location = useLocation();
 
   const [threadData, setThreadData] = useState(null);
+  const [knowledgeBaseChildren, setKnowledgeBaseChildren] = useState([]);
+  const [isLoadingKnowledgeBaseChildren, setIsLoadingKnowledgeBaseChildren] = useState(false);
   const [postTree, setPostTree] = useState([]);
   const [originalPost, setOriginalPost] = useState(null);
   const [isLoadingThread, setIsLoadingThread] = useState(true);
@@ -981,7 +987,7 @@ function ThreadView({ userData, onRequireAuth }) {
   }, [origMenuOpen, userData?.user_id, originalPost?.post_id]);
 
   useEffect(() => {
-    if (!userData?.user_id || !originalPost?.user_id) return undefined;
+    if (Number(threadData?.is_system_container) === 1 || !userData?.user_id || !originalPost?.user_id) return undefined;
     if (Number(userData.user_id) === Number(originalPost.user_id)) return undefined;
     let cancelled = false;
     setLoadingFollowStatus(true);
@@ -1001,7 +1007,7 @@ function ThreadView({ userData, onRequireAuth }) {
     return () => {
       cancelled = true;
     };
-  }, [userData?.user_id, originalPost?.user_id]);
+  }, [threadData?.is_system_container, userData?.user_id, originalPost?.user_id]);
 
   const handleFollowAuthorToggle = async () => {
     if (!userData) {
@@ -1219,6 +1225,42 @@ function ThreadView({ userData, onRequireAuth }) {
     };
     fetchThread();
   }, [thread_id, language]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const communityId = String(threadData?.community_id || '');
+    if (!threadData?.is_system_container || !communityId || !thread_id) {
+      setKnowledgeBaseChildren([]);
+      setIsLoadingKnowledgeBaseChildren(false);
+      return undefined;
+    }
+
+    setKnowledgeBaseChildren([]);
+    setIsLoadingKnowledgeBaseChildren(true);
+    const params = new URLSearchParams({
+      community_id: communityId,
+      parent_thread_id: String(thread_id),
+      lang: language,
+    });
+    axios
+      .get(`/api/fetch_knowledge_base_nodes.php?${params.toString()}`)
+      .then((response) => {
+        if (!cancelled) {
+          setKnowledgeBaseChildren(Array.isArray(response.data?.nodes) ? response.data.nodes : []);
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching knowledge base sections:', error);
+        if (!cancelled) setKnowledgeBaseChildren([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingKnowledgeBaseChildren(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [threadData?.community_id, threadData?.is_system_container, thread_id, language]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -1597,6 +1639,13 @@ function ThreadView({ userData, onRequireAuth }) {
   }
 
   const threadDetailImageLayout = normalizeImageLayout(threadData?.image_layout);
+  const isKnowledgeBaseEntry = Number(threadData?.is_system_container) === 1;
+  const isReadOnlyKnowledgeBase = isKnowledgeBaseEntry && Number(threadData?.is_locked) === 1;
+  const knowledgeBaseTypeLabel = {
+    guide: 'Student guide',
+    section: 'Knowledge base section',
+    article: 'Knowledge base article',
+  }[threadData?.content_kind] || 'Knowledge base entry';
 
   // Final return block
   return (
@@ -1605,18 +1654,21 @@ function ThreadView({ userData, onRequireAuth }) {
       <div className="thread-header-row">
         <nav className="breadcrumbs" aria-label="Breadcrumb">
           <RouterLink to="/info">Info Board</RouterLink>
-          <span className="breadcrumb-sep">&gt;</span>
-          {threadData?.forum_id ? (
-            <RouterLink to={`/info/forum/${threadData.forum_id}`}>
-              {threadData?.forum_name || 'Category'}
-            </RouterLink>
-          ) : (
-            <span>{threadData?.forum_name || 'Category'}</span>
-          )}
-          <span className="breadcrumb-sep">&gt;</span>
-          {/*<span className="breadcrumb-current" aria-current="page">
-            {threadData?.title || `Thread ${thread_id}`}
-          </span>*/}
+          {isKnowledgeBaseEntry && threadData?.parent_thread_id ? (
+            <>
+              <span className="breadcrumb-sep">&gt;</span>
+              <RouterLink to={`/info/forum/${threadData.forum_id}/thread/${threadData.parent_thread_id}`}>
+                {threadData?.parent_thread_title || 'Parent article'}
+              </RouterLink>
+            </>
+          ) : !isKnowledgeBaseEntry && threadData?.forum_id ? (
+            <>
+              <span className="breadcrumb-sep">&gt;</span>
+              <RouterLink to={`/info/forum/${threadData.forum_id}`}>
+                {threadData?.forum_name || 'Category'}
+              </RouterLink>
+            </>
+          ) : null}
         </nav>
       </div>
       <section className={`thread-hero thread-hero--${threadDetailImageLayout}`}>
@@ -1651,10 +1703,19 @@ function ThreadView({ userData, onRequireAuth }) {
         )}
       </section>
 
+      {isReadOnlyKnowledgeBase && (
+        <div className="knowledge-base-readonly-note" role="note">
+          <strong>{knowledgeBaseTypeLabel}</strong>
+          <span>This entry is read-only. Use an Information Board question megathread for discussion.</span>
+        </div>
+      )}
+
       {hasMeaningfulUpdate(threadData?.created_at, threadData?.updated_at) && (
         <div className="meta-quiet" style={{ marginTop: 2, marginBottom: 10 }}>
           Last updated {timeAgo(threadData.updated_at)}
-          {threadData.updated_by_first_name ? ` by ${threadData.updated_by_first_name} ${threadData.updated_by_last_name || ''}` : ''}
+          {!isKnowledgeBaseEntry && threadData.updated_by_first_name
+            ? ` by ${threadData.updated_by_first_name} ${threadData.updated_by_last_name || ''}`
+            : ''}
         </div>
       )}
 
@@ -1665,10 +1726,11 @@ function ThreadView({ userData, onRequireAuth }) {
             .trim()
             .replace(/^["']+|["']+$/g, '')
             .replace(/^#/, '')}`}
-          className="post-card card-lift original-post"
+          className={`post-card original-post${isKnowledgeBaseEntry ? ' knowledge-base-original' : ' card-lift'}`}
+          aria-label={isKnowledgeBaseEntry ? `${knowledgeBaseTypeLabel} content` : undefined}
         >
-          <div className={`verified-scope ${Number(originalPost.verified) === 1 ? 'verified' : ''}`}>
-            {Number(originalPost.verified) === 1 && (
+          <div className={`verified-scope ${!isKnowledgeBaseEntry && Number(originalPost.verified) === 1 ? 'verified' : ''}`}>
+            {!isKnowledgeBaseEntry && Number(originalPost.verified) === 1 && (
               <div className="verified-banner">
                 <div className="verified-badge">
                   <FaCheckCircle className="verified-icon" />
@@ -1687,9 +1749,10 @@ function ThreadView({ userData, onRequireAuth }) {
               </div>
             )}
 
-            {/* Use the thread-top-row pattern inside the card */}
+            {/* Knowledge-base root content is institutional copy, not an individual's post. */}
+            {!isKnowledgeBaseEntry && (
             <div className="thread-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div className="original-post-author" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div className="avatar-wrapper">
                   <img
                     src={buildAvatarSrc(originalPost.avatar_path)}
@@ -1701,7 +1764,7 @@ function ThreadView({ userData, onRequireAuth }) {
                     }}
                   />
                 </div>
-                <div>
+                <div className="original-post-author-copy">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     <RouterLink to={`/user/${originalPost.user_id}`} className="post-author-name" style={{ textDecoration: 'none', fontWeight: 700 }}>
                       {getDisplayName(originalPost, userData?.user_id)}
@@ -1798,13 +1861,15 @@ function ThreadView({ userData, onRequireAuth }) {
                 </div>
               </div>
             </div>
+            )}
 
             <div
               className="post-content"
-              style={{ marginTop: '8px' }}
+              style={{ marginTop: isKnowledgeBaseEntry ? 0 : '8px' }}
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
             />
-            <div className="vote-row">
+            {!isKnowledgeBaseEntry && (
+              <div className="vote-row">
               <button
                 type="button"
                 className={`vote-button upvote-button ${originalHasUpvoted ? 'active' : ''}`}
@@ -1825,19 +1890,35 @@ function ThreadView({ userData, onRequireAuth }) {
                 {originalHasDownvoted ? <FaArrowAltCircleDown /> : <FaRegArrowAltCircleDown />}
               </button>
               <span className="vote-count">{originalDownvotes}</span>
-              <button
-                type="button"
-                className="reply-button"
-                onClick={handleOpenRootReply}
-                title="Leave a comment"
-                aria-label="Leave a comment"
-              >
-                <FiMessageCircle />
-              </button>
+              {!isReadOnlyKnowledgeBase && (
+                <button
+                  type="button"
+                  className="reply-button"
+                  onClick={handleOpenRootReply}
+                  title="Leave a comment"
+                  aria-label="Leave a comment"
+                >
+                  <FiMessageCircle />
+                </button>
+              )}
               <span className="vote-count comment-count">{totalComments}</span>
-            </div>
+              </div>
+            )}
+            {isKnowledgeBaseEntry && !isReadOnlyKnowledgeBase && (
+              <div className="knowledge-base-discussion-action">
+                <button
+                  type="button"
+                  className="reply-button"
+                  onClick={handleOpenRootReply}
+                >
+                  <FiMessageCircle aria-hidden="true" />
+                  Join the discussion
+                </button>
+                <span>{totalComments} {totalComments === 1 ? 'comment' : 'comments'}</span>
+              </div>
+            )}
           </div>
-      {rootReplyOpen && (
+      {!isReadOnlyKnowledgeBase && rootReplyOpen && (
         <form className="reply-form" onSubmit={handleRootReplySubmit}>
           <textarea
             className="reply-textarea"
@@ -1861,11 +1942,45 @@ function ThreadView({ userData, onRequireAuth }) {
           </div>
         </form>
       )}
-      <hr className="thread-divider" />
     </div>
   )}
 
-  <div className="reply-sort-controls filter-toolbar filter-toolbar--sort-only">
+      {isLoadingKnowledgeBaseChildren ? (
+        <div className="knowledge-base-child-state" role="status">Loading sections…</div>
+      ) : knowledgeBaseChildren.length > 0 ? (
+        <section className="knowledge-base-child-section" aria-labelledby="knowledge-base-child-heading">
+          <div className="knowledge-base-child-heading">
+            <p>Continue reading</p>
+            <h2 id="knowledge-base-child-heading">
+              {threadData?.content_kind === 'guide' ? 'Explore this guide' : 'Articles in this section'}
+            </h2>
+          </div>
+          <div className="knowledge-base-child-grid">
+            {knowledgeBaseChildren.map((child, index) => (
+              <RouterLink
+                key={child.thread_id}
+                className="knowledge-base-child-card"
+                to={`/info/forum/${child.forum_id}/thread/${child.thread_id}`}
+              >
+                <span className="knowledge-base-child-index">{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <small>{child.content_kind === 'megathread' ? 'Questions & discussion' : child.child_count > 0 ? 'Section' : 'Article'}</small>
+                  <h3>{child.title}</h3>
+                  {child.excerpt && <p>{child.excerpt}</p>}
+                  {child.child_count > 0 && (
+                    <span>{child.child_count} {child.child_count === 1 ? 'article' : 'articles'}</span>
+                  )}
+                </div>
+                <FaChevronRight aria-hidden="true" />
+              </RouterLink>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+  {!isReadOnlyKnowledgeBase && (
+    <>
+      <div className="reply-sort-controls filter-toolbar filter-toolbar--sort-only">
         <label htmlFor="replySort" className="sort-pill">Sort</label>
         <select
           id="replySort"
@@ -1904,12 +2019,15 @@ function ThreadView({ userData, onRequireAuth }) {
               handleUnverifyPost={handleUnverifyPost}
               canVerifyPosts={canVerifyPosts}
               communityType={threadData?.community_type}
+              repliesDisabled={isReadOnlyKnowledgeBase}
               onRequireAuth={onRequireAuth}
               onReport={handleOpenReport}
             />
           ))}
         </div>
       )}
+    </>
+  )}
   
       <ReportModal
         isOpen={!!reportTarget}

@@ -302,7 +302,8 @@ try {
         $db->rollBack();
     }
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    error_log('[SRP] resolve_report failed: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Unable to resolve report']);
 } catch (PDOException $e) {
     if ($db->inTransaction()) {
         $db->rollBack();

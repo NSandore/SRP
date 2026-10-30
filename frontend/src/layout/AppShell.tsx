@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import './AppShell.css';
 import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
-import ContactUsButton from '../components/ContactUsButton';
 import AppFooterLinks from './AppFooterLinks';
 import { ProfileContactProvider } from '../context/ProfileContactContext';
 import NavBar from '../components/NavBar';
@@ -43,6 +42,7 @@ export default function AppShell({
   const isSettingsRoute = pathname.startsWith('/settings');
   const isDonateRoute = pathname.startsWith('/donate');
   const isReelsRoute = pathname === '/reels' || pathname.startsWith('/reels/');
+  const isThreadRoute = /\/thread(?:\/|$)/.test(pathname);
   const isHomeRoute = pathname === '/home';
   const isCommunityProfileRoute = /^\/(university|group)\/[^/]+/.test(pathname);
   const isInfoRoute = pathname === '/info' || pathname.startsWith('/info/');
@@ -56,8 +56,8 @@ export default function AppShell({
         : isCommunityProfileRoute
           ? 'area-community'
           : '';
-  // Saved, Connections, Events, management workspaces, and Reported Items have no
-  // content for the right rail, so let the center rail claim that column's width.
+  // Thread details and the routes below have no content for the right rail, so
+  // let the center rail claim that column's width.
   const NO_RIGHT_RAIL_PATHS = [
     '/saved',
     '/connections',
@@ -69,14 +69,17 @@ export default function AppShell({
     // Documents and admin workspaces read as full-width pages: the rail's
     // feed-oriented widgets are noise beside them.
     '/changelog',
+    '/faq',
     '/privacy',
     '/terms',
     '/admin/changelog',
     '/admin/institutions',
   ];
-  const isNoRightRailRoute = NO_RIGHT_RAIL_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`)
-  );
+  const isNoRightRailRoute =
+    isThreadRoute ||
+    NO_RIGHT_RAIL_PATHS.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`)
+    );
   const effectiveLockedKeys = lockedNavKeys ?? ['saved', 'connections', 'profile', 'polls_feed'];
 
   const [announcementHeight, setAnnouncementHeight] = useState(0);
@@ -204,14 +207,11 @@ export default function AppShell({
               <div className="center-rail__content">{children}</div>
               <AppFooterLinks />
             </div>
-            <div className="right-rail">
-              <RightSidebar userData={userData} />
-              {!isCommunityProfileRoute && (
-                <div style={{ marginTop: '1rem' }}>
-                  <ContactUsButton />
-                </div>
-              )}
-            </div>
+            {!isThreadRoute && (
+              <div className="right-rail">
+                <RightSidebar userData={userData} />
+              </div>
+            )}
           </ProfileContactProvider>
         </div>
       </main>

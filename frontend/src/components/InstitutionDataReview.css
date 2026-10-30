@@ -83,8 +83,7 @@
   font: inherit;
 }
 
-.institution-review__filters button,
-.institution-review__pagination button {
+.institution-review__filters button {
   flex: 0 0 auto;
   padding: 8px 11px;
   border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
@@ -291,6 +290,23 @@
 .institution-review__overview strong {
   overflow-wrap: anywhere;
   font-size: 0.86rem;
+}
+
+.institution-review__visibility-select {
+  width: 100%;
+  min-width: 130px;
+  padding: 7px 9px;
+  border: 1px solid var(--home-line, var(--line-soft, #dce7f5));
+  border-radius: 8px;
+  background: var(--home-surface, var(--surface, #fff));
+  color: var(--home-ink, var(--ink, #16263d));
+  font: inherit;
+  font-weight: 700;
+}
+
+.institution-review__overview small {
+  color: var(--home-ink-soft, var(--ink-muted, #667895));
+  font-size: 0.7rem;
 }
 
 .institution-review__reason-box,
@@ -798,14 +814,8 @@
   transform: scale(0.97);
 }
 
-.institution-review__pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+.institution-review__page-navigator {
   margin-top: 16px;
-  color: var(--home-ink-soft, var(--ink-muted, #667895));
-  font-size: 0.8rem;
 }
 
 [data-theme='dark'] .institution-review__alert {

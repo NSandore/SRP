@@ -1,4 +1,11 @@
 <?php
+// Retired: this legacy flow bypassed the verified onboarding pipeline. Keep a
+// stable response for old clients without permitting account creation.
+header('Content-Type: application/json');
+http_response_code(410);
+echo json_encode(['error' => 'This registration endpoint has been retired. Use init_register.php.']);
+exit;
+
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 

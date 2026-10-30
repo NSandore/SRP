@@ -91,9 +91,9 @@ try {
     }
 
     // ---- Step 2: verify code and set the new password ----
-    if (strlen($newPassword) < 8) {
+    if (strlen($newPassword) < 12 || strlen($newPassword) > 72) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'New password must be at least 8 characters.']);
+        echo json_encode(['success' => false, 'error' => 'New password must be between 12 and 72 characters.']);
         exit;
     }
 

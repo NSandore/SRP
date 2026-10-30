@@ -54,7 +54,10 @@ import ChangelogModal from './components/ChangelogModal';
 import ChangelogPage from './components/ChangelogPage';
 import ChangelogAdmin from './components/ChangelogAdmin';
 import ProductTour from './components/ProductTour';
+import TestControls from './components/TestControls';
+import WelcomeOverlay from './components/WelcomeOverlay';
 import { PrivacyPolicyPage, TermsPage } from './components/LegalPage';
+import FaqPage from './components/FaqPage';
 import SearchResults from './components/SearchResults';
 import CommunityRequests from './components/CommunityRequests';
 import AuthOverlay from './components/AuthOverlay';
@@ -68,7 +71,11 @@ import { buildAvatarSrc } from './utils/avatar';
 import VerificationReview from './components/VerificationReview';
 import Newsroom from './components/Newsroom';
 import ReelsPage from './components/ReelsPage';
+import ReelsComingSoon from './components/ReelsComingSoon';
+import { REELS_ENABLED } from './constants/features';
 import InstitutionDataReview from './components/InstitutionDataReview';
+import { hasTestControls } from './utils/testAccounts';
+import { isSuperAdmin } from './constants/roles';
 import './layout/PlatformPolish.css';
 
 const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/polls', '/admin/verifications', '/admin/institutions', '/admin/newsroom', '/admin/changelog'];
@@ -116,6 +123,7 @@ function App() {
   const [soundUnlocked, setSoundUnlocked] = useState(false);
 
   const [showWelcome, setShowWelcome] = useState(false);
+  const [tourReplayToken, setTourReplayToken] = useState(0);
 
   const getInitials = (firstName = '', lastName = '') => {
     const first = firstName.trim().charAt(0);
@@ -131,8 +139,8 @@ function App() {
     }, 4000);
   };
 
-  const playNotificationSound = () => {
-    if (!soundUnlocked) return;
+  const playNotificationSound = (force = false) => {
+    if (!soundUnlocked && !force) return;
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(() => {});
@@ -312,6 +320,78 @@ function App() {
   const refreshNotifications = () => {
     if (userData?.user_id) {
       fetchNotifications(userData.user_id);
+    }
+  };
+
+  const runTestAccountAction = async (action) => {
+    try {
+      const response = await axios.post(
+        '/api/test_account_action.php',
+        { action },
+        { withCredentials: true }
+      );
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'The test action could not be completed.');
+      }
+      return response.data;
+    } catch (error) {
+      throw new Error(
+        error.response?.data?.error
+        || error.message
+        || 'The test action could not be completed.'
+      );
+    }
+  };
+
+  const replayProductGuide = async () => {
+    const result = await runTestAccountAction('replay_guide');
+    if (!result.tour?.eligible) {
+      throw new Error('The guide is not eligible for this account yet.');
+    }
+    setShowWelcome(false);
+    setShowAmbassadorOverlay(false);
+    setIsNotificationsOpen(false);
+    navigate('/home');
+    setTourReplayToken((token) => token + 1);
+  };
+
+  const createTestNotification = async () => {
+    const result = await runTestAccountAction('create_notification');
+    if (!result.notification?.notification_id) {
+      throw new Error('The test notification was not returned by the server.');
+    }
+
+    const notification = {
+      ...result.notification,
+      is_read: String(result.notification.is_read ?? 0),
+    };
+    setNotifications((current) => {
+      const next = [
+        notification,
+        ...current.filter((item) => item.notification_id !== notification.notification_id),
+      ];
+      prevUnreadNotifs.current = next.filter((item) => parseInt(item.is_read, 10) === 0).length;
+      return next;
+    });
+    notifInitRef.current = true;
+    pushToast('Test notification received');
+    playNotificationSound(true);
+    setIsNotificationsOpen(true);
+  };
+
+  const sendAccountTestEmail = async () => {
+    try {
+      const response = await axios.post('/api/send_test_email.php', {}, { withCredentials: true });
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Unable to send the test email.');
+      }
+      pushToast(response.data?.message || 'Test email sent');
+    } catch (error) {
+      throw new Error(
+        error.response?.data?.error
+        || error.message
+        || 'Unable to send the test email.'
+      );
     }
   };
 
@@ -525,6 +605,8 @@ function App() {
   };
 
   const shouldShowOverlays = !isAuthPage;
+  const testControlsEnabled = shouldShowOverlays && hasTestControls(userData?.email);
+  const isSuperAdminUser = isSuperAdmin(userData?.role_id);
 
   return (
     <div className={`app-container ${isAuthPage ? 'auth-page' : ''}`}>
@@ -539,30 +621,34 @@ function App() {
           </div>
         ))}
       </div>
+      {testControlsEnabled && (
+        <TestControls
+          onReplayGuide={replayProductGuide}
+          onTestNotification={createTestNotification}
+          onShowWelcome={() => {
+            setIsNotificationsOpen(false);
+            setShowAmbassadorOverlay(false);
+            setShowWelcome(true);
+          }}
+          onShowAmbassadors={() => {
+            setIsNotificationsOpen(false);
+            setShowWelcome(false);
+            setShowAmbassadorOverlay(true);
+            fetchAmbassadors();
+          }}
+          onSendTestEmail={sendAccountTestEmail}
+        />
+      )}
       {shouldShowOverlays && showWelcome && (
-        <div className="welcome-overlay">
-          <div className="welcome-message">
-            <div className="welcome-kicker">Welcome to StudentSphere</div>
-            <h1>Find the people who have already walked your path.</h1>
-            <p>Start by following ambassadors who can guide you with real, on-campus advice.</p>
-            <div className="welcome-actions">
-              <button
-                className="get-started-button"
-                onClick={() => {
-                  setShowWelcome(false);
-                  setShowAmbassadorOverlay(true);
-                  fetchAmbassadors();
-                }}
-              >
-                Explore ambassadors
-              </button>
-              <button className="welcome-secondary" onClick={() => setShowWelcome(false)}>
-                Not now
-              </button>
-            </div>
-            <div className="welcome-footnote">You can open this any time from your campus page.</div>
-          </div>
-        </div>
+        <WelcomeOverlay
+          firstName={userData?.first_name}
+          onExplore={() => {
+            setShowWelcome(false);
+            setShowAmbassadorOverlay(true);
+            fetchAmbassadors();
+          }}
+          onDismiss={() => setShowWelcome(false)}
+        />
       )}
 
       {shouldShowOverlays && showAmbassadorOverlay && (
@@ -665,7 +751,9 @@ function App() {
           tour waits for onboarding to finish; the changelog waits for an entry
           published since the user last acknowledged one. */}
       {shouldShowOverlays && <ChangelogModal userData={userData} />}
-      {shouldShowOverlays && <ProductTour userData={userData} />}
+      {shouldShowOverlays && !showWelcome && !showAmbassadorOverlay && (
+        <ProductTour userData={userData} replayToken={tourReplayToken} />
+      )}
 
       <Routes>
         <Route
@@ -688,6 +776,14 @@ function App() {
           element={
             <AppShell navBarProps={navBarProps} userData={userData}>
               <ChangelogPage />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/faq"
+          element={
+            <AppShell navBarProps={navBarProps} userData={userData}>
+              <FaqPage />
             </AppShell>
           }
         />
@@ -851,16 +947,20 @@ function App() {
                 <Route
                   path="/reels"
                   element={
-                    <ReelsPage
-                      userData={userData}
-                      onRequireAuth={() => setRequireAuthOverlay(true)}
-                    />
+                    REELS_ENABLED ? (
+                      <ReelsPage
+                        userData={userData}
+                        onRequireAuth={() => setRequireAuthOverlay(true)}
+                      />
+                    ) : (
+                      <ReelsComingSoon />
+                    )
                   }
                 />
                 <Route
                   path="/community-requests"
                   element={
-                    userData && userData.email === 'n.sandore5140@gmail.com' ? (
+                    isSuperAdminUser ? (
                       <CommunityRequests />
                     ) : (
                       <Navigate to="/communities" />
@@ -892,7 +992,7 @@ function App() {
                 />
                 <Route
                   path="/messages"
-                  element={<Messages userData={userData} />}
+                  element={userData ? <Messages userData={userData} /> : <Navigate to="/login" replace />}
                 />
                 <Route
                   path="/reports"
@@ -949,7 +1049,7 @@ function App() {
                 <Route
                   path="/admin/verifications"
                   element={
-                    userData ? (
+                    isSuperAdminUser ? (
                       <VerificationReview userData={userData} />
                     ) : (
                       <AuthOverlay
@@ -965,7 +1065,7 @@ function App() {
                 <Route
                   path="/admin/institutions"
                   element={
-                    userData ? (
+                    isSuperAdminUser ? (
                       <InstitutionDataReview userData={userData} />
                     ) : (
                       <AuthOverlay
@@ -981,7 +1081,7 @@ function App() {
                 <Route
                   path="/admin/newsroom"
                   element={
-                    userData ? (
+                    isSuperAdminUser ? (
                       <Newsroom userData={userData} />
                     ) : (
                       <AuthOverlay
@@ -997,7 +1097,7 @@ function App() {
                 <Route
                   path="/admin/changelog"
                   element={
-                    userData ? (
+                    isSuperAdminUser ? (
                       <ChangelogAdmin userData={userData} />
                     ) : (
                       <AuthOverlay

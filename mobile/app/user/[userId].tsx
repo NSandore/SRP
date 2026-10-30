@@ -15,6 +15,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import AppShell from '@/components/navigation/AppShell';
 import ReelGrid from '@/components/reels/ReelGrid';
+import { REELS_ENABLED } from '@/constants/features';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
@@ -737,7 +738,7 @@ export default function UserProfileScreen() {
           <View style={styles.tabsRow}>
             {[
               { id: 'about', label: 'About' },
-              { id: 'reels', label: 'Reels' },
+              ...(REELS_ENABLED ? [{ id: 'reels', label: 'Reels' }] : []),
               { id: 'posts', label: 'Posts' },
             ].map((tab) => {
               const active = activeTab === tab.id;
@@ -962,7 +963,7 @@ export default function UserProfileScreen() {
               </View>
             ) : null}
 
-            {activeTab === 'reels' ? (
+            {REELS_ENABLED && activeTab === 'reels' ? (
               <View style={styles.sectionCard}>
                 <ReelGrid userId={userId} isOwnProfile={Boolean(isOwnProfile)} />
               </View>

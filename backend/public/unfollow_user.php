@@ -11,7 +11,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
 
 if (srp_is_dev_mode()) {
-    ini_set('display_errors', 1);
+    ini_set('display_errors', 0);
     error_reporting(E_ALL);
 }
 

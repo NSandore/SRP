@@ -2,8 +2,22 @@
 // submit_group_question.php
 // Allows a user to submit a question to a group. Creates a pending question and notifies group ambassadors.
 
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 header('Content-Type: application/json');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
+    exit;
+}
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+    exit;
+}
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input || !is_array($input)) {
@@ -11,9 +25,9 @@ if (!$input || !is_array($input)) {
 }
 
 $group_id = isset($input['group_id']) ? normalizeId($input['group_id']) : '';
-$user_id  = isset($input['user_id']) ? normalizeId($input['user_id']) : '';
-$title    = isset($input['title']) ? trim($input['title']) : '';
-$body     = isset($input['body']) ? trim($input['body']) : '';
+$user_id  = normalizeId($_SESSION['user_id']);
+$title    = isset($input['title']) ? srp_sanitize_plain((string)$input['title']) : '';
+$body     = isset($input['body']) ? srp_sanitize_plain((string)$input['body']) : '';
 
 if ($group_id === '' || $user_id === '' || $title === '' || $body === '') {
     http_response_code(400);

@@ -6,6 +6,8 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/test_accounts.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 require __DIR__ . '/../vendor/autoload.php';
 
 use MailerSend\MailerSend;
@@ -20,13 +22,39 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// Diagnostic email sender: restrict to super admins so it cannot be abused to
-// send arbitrary mail through the platform's provider.
-if (!isset($_SESSION['user_id']) || !isSuperAdmin((int)($_SESSION['role_id'] ?? 0))) {
+// Diagnostic email sender: only super admins and the explicitly allowlisted
+// test account may send a message, and the recipient is always their own
+// canonical account email.
+$userId = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
+if ($userId === '') {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
 }
+
+try {
+    $db = getDB();
+    $canSendTestEmail = isSuperAdmin((int)($_SESSION['role_id'] ?? 0))
+        || srp_user_has_test_controls($db, $userId);
+} catch (Throwable $error) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Database error']);
+    exit;
+}
+
+if (!$canSendTestEmail) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+    exit;
+}
+
+srp_rate_limit_enforce(
+    $db,
+    'test-email:' . $userId,
+    10,
+    900,
+    'Too many test emails were requested. Please wait a few minutes.'
+);
 
 $apiKey = getenv('MAILERSEND_API_KEY');
 $fromEmail = getenv('MAILERSEND_FROM_EMAIL');
@@ -50,10 +78,7 @@ if (!$fromEmail) {
     exit;
 }
 
-$userId = normalizeId($_SESSION['user_id']);
-
 try {
-    $db = getDB();
     $stmt = $db->prepare("
         SELECT first_name, last_name, email
         FROM users

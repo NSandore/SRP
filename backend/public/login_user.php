@@ -13,7 +13,7 @@ use MailerSend\Helpers\Builder\EmailParams;
 $data = json_decode(file_get_contents('php://input'), true);
 
 $email = isset($data['email']) ? trim($data['email']) : '';
-$password = isset($data['password']) ? trim($data['password']) : '';
+$password = isset($data['password']) ? (string)$data['password'] : '';
 
 if (empty($email) || empty($password)) {
     echo json_encode(["error" => "Email and password are required."]);

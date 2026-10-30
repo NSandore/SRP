@@ -149,18 +149,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     srp_university_json(['success' => false, 'error' => 'POST is required.'], 405);
 }
 
+$sessionUserId = normalizeId($_SESSION['user_id'] ?? '');
+$sessionRoleId = isset($_SESSION['role_id']) ? (int)$_SESSION['role_id'] : 0;
+if ($sessionUserId === '') {
+    srp_university_json(['success' => false, 'error' => 'Not authenticated.'], 401);
+}
+
 $communityId = normalizeId($_POST['community_id'] ?? '');
 if ($communityId === '') {
     srp_university_json(
         ['success' => false, 'error' => 'A valid community_id is required.'],
         400
     );
-}
-
-$sessionUserId = normalizeId($_SESSION['user_id'] ?? '');
-$sessionRoleId = isset($_SESSION['role_id']) ? (int)$_SESSION['role_id'] : 0;
-if ($sessionUserId === '') {
-    srp_university_json(['success' => false, 'error' => 'Not authenticated.'], 401);
 }
 
 try {

@@ -20,6 +20,7 @@ try {
         SELECT 
             t.thread_id, 
             t.forum_id, 
+            t.parent_thread_id,
             t.user_id, 
             u.first_name,
             u.last_name,
@@ -27,6 +28,9 @@ try {
             u.verified AS author_verified,
             ac.logo_path AS ambassador_logo_path,
             t.title,
+            t.content_kind,
+            t.sort_order,
+            t.is_locked,
             t.image_path,
             t.image_layout,
             t.created_at,
@@ -38,7 +42,11 @@ try {
             t.downvotes,
             f.name AS forum_name,
             f.community_id,
+            f.is_system_container,
+            c.name AS community_name,
+            c.parent_community_id,
             c.community_type,
+            pt.title AS parent_thread_title,
             (SELECT vote_type FROM thread_votes WHERE thread_id = t.thread_id AND user_id = :user_id) AS user_vote
         FROM threads t
         JOIN users u ON u.user_id = t.user_id
@@ -50,9 +58,10 @@ try {
         LEFT JOIN communities ac
                ON ac.id = a.community_id
         LEFT JOIN users ub ON ub.user_id = t.updated_by
+        LEFT JOIN threads pt ON pt.thread_id = t.parent_thread_id
         WHERE t.thread_id = :thread_id
           AND t.is_hidden = 0
-          AND f.is_hidden = 0
+          AND (f.is_hidden = 0 OR f.is_system_container = 1)
     ");
     $stmt->execute([':thread_id' => $thread_id, ':user_id' => $user_id]);
     $thread = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -68,6 +77,25 @@ try {
                 ['title']
             );
             $thread = $translatedThread[0] ?? $thread;
+
+            if (!empty($thread['parent_thread_id']) && !empty($thread['parent_thread_title'])) {
+                $translatedParent = srp_translate_info_board_rows(
+                    $db,
+                    [[
+                        'thread_id' => $thread['parent_thread_id'],
+                        'title' => $thread['parent_thread_title'],
+                    ]],
+                    'thread',
+                    'thread_id',
+                    ['title']
+                );
+                if (isset($translatedParent[0])) {
+                    $thread['original_parent_thread_title'] = $translatedParent[0]['original_title']
+                        ?? $thread['parent_thread_title'];
+                    $thread['parent_thread_title'] = $translatedParent[0]['title']
+                        ?? $thread['parent_thread_title'];
+                }
+            }
 
             $translatedForum = srp_translate_info_board_rows(
                 $db,

@@ -24,10 +24,11 @@ import {
 } from 'lucide-react';
 import { isAdmin, isSuperAdmin } from '../constants/roles';
 import { useLanguage } from '../i18n/LanguageContext';
+import { REELS_ENABLED } from '../constants/features';
 
 const baseItems = [
   { to: '/home', labelKey: 'nav.home', Icon: Home, color: '#2F80ED', key: 'home', sectionKey: 'nav.explore' },
-  { to: '/reels', labelKey: 'nav.reels', Icon: Clapperboard, color: '#7656D9', key: 'reels', sectionKey: 'nav.explore' },
+  { to: '/reels', labelKey: 'nav.reels', Icon: Clapperboard, color: '#7656D9', key: 'reels', sectionKey: 'nav.explore', comingSoon: !REELS_ENABLED },
   { to: '/info', labelKey: 'nav.infoBoard', Icon: Info, color: '#69A8F7', key: 'info', sectionKey: 'nav.explore' },
   { to: '/funding', labelKey: 'nav.funding', Icon: Medal, color: '#F59E0B', key: 'funding', sectionKey: 'nav.explore' },
   { to: '/communities', labelKey: 'nav.communities', Icon: Users, color: '#10B981', key: 'communities', sectionKey: 'nav.explore' },
@@ -96,10 +97,9 @@ function LeftSidebar({
     return groups;
   }, []);
 
-  const renderItem = ({ to, labelKey, Icon, color, key }) => {
+  const renderItem = ({ to, labelKey, Icon, color, key, comingSoon }) => {
     const label = t(labelKey);
     const isLocked = !userData && lockedKeys.includes(key);
-    const isComingSoon = key === 'funding';
     const pendingCounts = {
       verifications: Number(pendingVerificationCount) || 0,
       reports: Number(pendingReportCount) || 0,
@@ -108,7 +108,7 @@ function LeftSidebar({
     const pendingCount = pendingCounts[key] || 0;
 
     return (
-      <li key={key} data-tour={key === 'communities' ? 'communities' : undefined}>
+      <li key={key}>
         <NavLink
           to={to}
           className={({ isActive }) => {
@@ -138,10 +138,8 @@ function LeftSidebar({
                 {t('nav.locked')}
               </span>
             )}
-            {isComingSoon && (
-              <span className="lock-badge coming-soon-badge">
-                {t('nav.comingSoon')}
-              </span>
+            {!isLocked && comingSoon && (
+              <span className="lock-badge coming-soon-badge">{t('nav.comingSoon')}</span>
             )}
           </div>
           {pendingCount > 0 && (

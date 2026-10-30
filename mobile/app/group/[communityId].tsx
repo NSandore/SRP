@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import AppShell from '@/components/navigation/AppShell';
 import ReelGrid from '@/components/reels/ReelGrid';
+import { REELS_ENABLED } from '@/constants/features';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
@@ -45,6 +46,17 @@ type Group = {
   secondary_color?: string | null;
   parent_name?: string;
   parent_type?: string;
+  content_mode?: 'community' | 'knowledge_base';
+};
+
+type KnowledgeBaseEntry = {
+  thread_id: string;
+  forum_id: string;
+  title: string;
+  content_kind?: 'article' | 'megathread' | 'discussion';
+  excerpt?: string;
+  reply_count?: number;
+  tags?: string[];
 };
 
 type PinnedItem = {
@@ -97,8 +109,9 @@ type UploadAsset = {
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
+  { key: 'articles', label: 'Articles' },
   { key: 'subgroups', label: 'Sub-Groups' },
-  { key: 'reels', label: 'Reels' },
+  ...(REELS_ENABLED ? [{ key: 'reels', label: 'Reels' }] : []),
   { key: 'posts', label: 'Pinned Topics' },
   { key: 'qa', label: 'Q+A' },
 ] as const;
@@ -140,6 +153,8 @@ export default function GroupProfileScreen() {
   const [editBannerAsset, setEditBannerAsset] = useState<UploadAsset | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editStatus, setEditStatus] = useState('');
+  const [knowledgeBaseEntries, setKnowledgeBaseEntries] = useState<KnowledgeBaseEntry[]>([]);
+  const [loadingKnowledgeBase, setLoadingKnowledgeBase] = useState(false);
 
   const followerCount = Number(group?.followers_count || 0);
   const subCount = Number(group?.child_count || 0);
@@ -184,7 +199,9 @@ export default function GroupProfileScreen() {
       .then((resp) => {
         if (!mounted) return;
         if ((resp.data as any)?.success) {
-          setGroup((resp.data as any)?.group || null);
+          const nextGroup = (resp.data as any)?.group || null;
+          setGroup(nextGroup);
+          setActiveTab(nextGroup?.content_mode === 'knowledge_base' ? 'articles' : 'overview');
         } else {
           setError((resp.data as any)?.error || 'Unable to load group.');
         }
@@ -201,6 +218,36 @@ export default function GroupProfileScreen() {
       mounted = false;
     };
   }, [communityId, user?.user_id]);
+
+  useEffect(() => {
+    if (!communityId || group?.content_mode !== 'knowledge_base') {
+      setKnowledgeBaseEntries([]);
+      return;
+    }
+    let mounted = true;
+    setLoadingKnowledgeBase(true);
+    apiClient
+      .get('/fetch_knowledge_base_articles.php', {
+        params: { community_id: communityId, user_id: user?.user_id },
+      })
+      .then((resp) => {
+        if (!mounted) return;
+        setKnowledgeBaseEntries(
+          (resp.data as any)?.success && Array.isArray((resp.data as any)?.articles)
+            ? (resp.data as any).articles
+            : []
+        );
+      })
+      .catch(() => {
+        if (mounted) setKnowledgeBaseEntries([]);
+      })
+      .finally(() => {
+        if (mounted) setLoadingKnowledgeBase(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [communityId, group?.content_mode, user?.user_id]);
 
   useEffect(() => {
     if (!communityId) return;
@@ -437,7 +484,10 @@ export default function GroupProfileScreen() {
   );
   const logoSrc = buildUploadSrc(group?.logo_path || '/uploads/logos/default-logo.png');
 
-  const tabs = TABS.filter((tab) => tab.key !== 'subgroups' || subCount > 0 || canEditCommunity);
+  const isKnowledgeBase = group?.content_mode === 'knowledge_base';
+  const tabs = isKnowledgeBase
+    ? TABS.filter((tab) => tab.key === 'overview' || tab.key === 'articles')
+    : TABS.filter((tab) => tab.key !== 'articles' && (tab.key !== 'subgroups' || subCount > 0 || canEditCommunity));
 
   if (isLoading && !group) {
     return (
@@ -608,6 +658,45 @@ export default function GroupProfileScreen() {
           </View>
         ) : null}
 
+        {activeTab === 'articles' && isKnowledgeBase ? (
+          <View style={styles.contentCard}>
+            <View style={styles.sectionHeader}>
+              <ThemedText style={styles.sectionTitle}>Knowledge Base</ThemedText>
+              <ThemedText style={styles.sectionSub}>
+                Read the guides first, then use a megathread for questions and shared experience.
+              </ThemedText>
+            </View>
+            {loadingKnowledgeBase ? <ActivityIndicator /> : null}
+            {!loadingKnowledgeBase && knowledgeBaseEntries.length === 0 ? (
+              <ThemedText style={styles.mutedText}>No knowledge base entries yet.</ThemedText>
+            ) : (
+              knowledgeBaseEntries.map((entry) => {
+                const isMegathread = entry.content_kind === 'megathread';
+                return (
+                  <Pressable
+                    key={entry.thread_id}
+                    style={[styles.knowledgeBaseCard, isMegathread && styles.knowledgeBaseMegathread]}
+                    onPress={() => router.push(`/thread/${entry.thread_id}`)}
+                  >
+                    <ThemedText style={styles.knowledgeBaseType}>
+                      {isMegathread ? 'QUESTIONS MEGATHREAD' : 'KNOWLEDGE BASE ARTICLE'}
+                    </ThemedText>
+                    <ThemedText style={styles.pinnedTitle}>{entry.title}</ThemedText>
+                    {entry.excerpt ? (
+                      <ThemedText style={styles.knowledgeBaseExcerpt} numberOfLines={3}>
+                        {entry.excerpt}
+                      </ThemedText>
+                    ) : null}
+                    <ThemedText style={styles.pinnedMeta}>
+                      {isMegathread ? `${entry.reply_count || 0} replies` : 'Read-only guide'}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })
+            )}
+          </View>
+        ) : null}
+
         {activeTab === 'subgroups' ? (
           <View style={styles.contentCard}>
             <View style={styles.sectionHeader}>
@@ -656,7 +745,7 @@ export default function GroupProfileScreen() {
           </View>
         ) : null}
 
-        {activeTab === 'reels' ? (
+        {REELS_ENABLED && activeTab === 'reels' ? (
           <View style={styles.contentCard}>
             <ReelGrid communityId={communityId} title={`${group?.name || 'Community'} reels`} />
           </View>
@@ -1069,6 +1158,31 @@ const createStyles = (colors: BrandColors) =>
   pinnedMeta: {
     fontSize: 12,
     color: colors.subtext,
+  },
+  knowledgeBaseCard: {
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderColor: colors.border,
+    borderLeftColor: colors.primaryFrom,
+    borderRadius: 12,
+    padding: 12,
+    gap: 5,
+    backgroundColor: colors.card,
+  },
+  knowledgeBaseMegathread: {
+    borderLeftColor: colors.primaryTo,
+    backgroundColor: hexToRgba(colors.primaryTo, 0.06),
+  },
+  knowledgeBaseType: {
+    color: colors.primaryFrom,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  knowledgeBaseExcerpt: {
+    color: colors.subtext,
+    fontSize: 12,
+    lineHeight: 18,
   },
   subCard: {
     flexDirection: 'row',

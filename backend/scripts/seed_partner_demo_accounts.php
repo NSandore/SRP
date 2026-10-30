@@ -117,7 +117,9 @@ $accounts = [
     ],
     'admin' => [
         'user_id' => $ids['admin'],
-        'role_id' => 5,
+        // Demo identities may exercise community administration, but must
+        // never receive platform-wide super-admin access.
+        'role_id' => 4,
         'first_name' => 'Avery',
         'last_name' => 'Morgan',
         'email' => 'demo.admin@studentsphere.example.com',
@@ -297,7 +299,7 @@ try {
         ->execute([':uid' => $ids['member']]);
     $db->prepare("
         UPDATE posts
-        SET user_id = :uid, verified_by = CASE WHEN verified = 1 THEN :uid ELSE verified_by END
+        SET user_id = :uid, verified = 0, verified_by = NULL, verified_at = NULL
         WHERE post_id IN ('puharthjga00001','puhartadva00001','puharthartta001')
     ")->execute([':uid' => $ids['ambassador']]);
     $db->prepare("UPDATE group_questions SET user_id = :member, approved_by = :ambassador WHERE question_id IN ('quhartparking001','quhartlibrary001')")
@@ -738,7 +740,7 @@ try {
     ");
     $notifications = [
         ['ndemo2026connection', $ids['member'], $ids['prospect'], 'connection', null, "Riley C. sent you a <a href='/user/{$ids['prospect']}'>connection request</a>.", 0, 35],
-        ['ndemo2026reply', $ids['member'], $ids['ambassador'], 'reply', $fixtureIds['post_hjg_answer'], "Jordan E. replied with a verified answer in <a href='/info/forum/{$fixtureIds['forum_campus']}/thread/{$fixtureIds['thread_hjg']}'>Campus Life at UHart</a>.", 0, 18],
+        ['ndemo2026reply', $ids['member'], $ids['ambassador'], 'reply', $fixtureIds['post_hjg_answer'], "Jordan E. replied in <a href='/info/forum/{$fixtureIds['forum_campus']}/thread/{$fixtureIds['thread_hjg']}'>Campus Life at UHart</a>.", 0, 18],
         ['ndemo2026event', $ids['member'], $ids['ambassador'], 'event', $fixtureIds['event_welcome'], "Reminder: <a href='/events-feed?event={$fixtureIds['event_welcome']}'>UHart Community Welcome & Campus Q+A</a> is coming up.", 1, 90],
     ];
     foreach ($notifications as [$notificationId, $recipientId, $actorId, $type, $referenceId, $message, $isRead, $minutes]) {

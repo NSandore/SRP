@@ -46,3 +46,23 @@ export const getReadableTextColor = (value) => {
   const contrastWithBlack = (luminance + 0.05) / 0.05;
   return contrastWithWhite >= contrastWithBlack ? '#ffffff' : '#000000';
 };
+
+export const getHighestContrastColor = (values, background) => {
+  const backgroundRgb = parseColor(background);
+  if (!backgroundRgb || !Array.isArray(values)) return null;
+  const luminance = ({ r, g, b }) => {
+    const toLinear = (channel) => {
+      const value = channel / 255;
+      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+  };
+  const backgroundLuminance = luminance(backgroundRgb);
+  return values.reduce((best, value) => {
+    const rgb = parseColor(value);
+    if (!rgb) return best;
+    const contrast = (Math.max(luminance(rgb), backgroundLuminance) + 0.05)
+      / (Math.min(luminance(rgb), backgroundLuminance) + 0.05);
+    return !best || contrast > best.contrast ? { value, contrast } : best;
+  }, null)?.value || null;
+};

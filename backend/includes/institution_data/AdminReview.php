@@ -69,6 +69,9 @@ final class SrpInstitutionAdminReview
         'logo_attribution',
         'logo_width',
         'logo_height',
+        'directory_visibility',
+        'directory_visibility_reason',
+        'directory_visibility_manual',
     ];
 
     private const ROW_COLUMNS = [
@@ -137,6 +140,9 @@ final class SrpInstitutionAdminReview
         'data_candidates_json',
         'pipeline_metadata_json',
         'manual_overrides_json',
+        'directory_visibility',
+        'directory_visibility_reason',
+        'directory_visibility_manual',
     ];
 
     private PDO $db;
@@ -293,6 +299,7 @@ final class SrpInstitutionAdminReview
                 'mark_verified',
                 'request_refresh',
                 'resolve_duplicate',
+                'set_directory_visibility',
             ],
             true
         )) {
@@ -455,6 +462,23 @@ final class SrpInstitutionAdminReview
                             $field
                         );
                 }
+            } elseif ($action === 'set_directory_visibility') {
+                $visibility = strtolower(trim((string)($payload['value'] ?? '')));
+                if (!in_array($visibility, ['listed', 'search_only', 'archived'], true)) {
+                    throw new InvalidArgumentException('Choose a valid directory visibility.');
+                }
+                $now = gmdate(DATE_ATOM);
+                $scalarChanges['directory_visibility'] = $visibility;
+                $scalarChanges['directory_visibility_reason'] = 'manual_super_admin';
+                $scalarChanges['directory_visibility_manual'] = 1;
+                $documents['manual_overrides_json']['directory_visibility'] = [
+                    'value' => $visibility,
+                    'source_url' => null,
+                    'notes' => 'Set from institution data review.',
+                    'verified_by' => $actorId,
+                    'verified_at' => $now,
+                    'expires_at' => null,
+                ];
             } elseif ($action === 'request_refresh') {
                 // A normal web request may only queue intent in row metadata.
                 $now = gmdate(DATE_ATOM);
@@ -753,6 +777,7 @@ final class SrpInstitutionAdminReview
             ? null
             : (bool)$row['pipeline_active'];
         $row['pipeline_review_required'] = (bool)$row['pipeline_review_required'];
+        $row['directory_visibility_manual'] = (bool)($row['directory_visibility_manual'] ?? false);
         $row['is_active'] = $row['pipeline_active'] !== false;
         $row['selected_logo_url'] = $this->selectedLogo($row);
         $row['data_sources'] = $documents['data_sources_json'];

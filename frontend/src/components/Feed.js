@@ -14,6 +14,7 @@ import {
   BookOpenText,
   CalendarClock,
   CalendarDays,
+  ChevronDown,
   Compass,
   GraduationCap,
   LibraryBig,
@@ -27,6 +28,7 @@ import ThreadCard from './ThreadCard';
 import CommunityRequestModal from './CommunityRequestModal';
 import FloatingComposer from './FloatingComposer';
 import ModalOverlay from './ModalOverlay';
+import PageNavigator, { clampPage } from './PageNavigator';
 import buildUploadSrc from '../utils/uploads';
 import ReportModal from './ReportModal';
 import TagPicker from './TagPicker';
@@ -39,8 +41,42 @@ import { useLanguage } from '../i18n/LanguageContext';
 import './LockedFeature.css';
 import './CreationModal.css';
 import './HomeDashboard.css';
+import './InfoKnowledgeBases.css';
 
 const ALL_TOPICS_VALUE = 'all';
+const COMMUNITY_KINDS = new Set(['university', 'group']);
+const COMMUNITY_SCOPES = new Set(['all', 'followed', 'unfollowed']);
+const COMMUNITY_SORTS = new Set(['popularity', 'alpha']);
+const MOBILE_FUNDING_QUERY = '(max-width: 720px)';
+
+const isMobileFundingViewport = () => (
+  typeof window !== 'undefined'
+  && typeof window.matchMedia === 'function'
+  && window.matchMedia(MOBILE_FUNDING_QUERY).matches
+);
+
+const parseCommunityPage = (value) => {
+  const rawValue = String(value ?? '');
+  if (!/^\d+$/.test(rawValue)) return 1;
+  const parsed = Number(rawValue);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+};
+
+const readCommunityUrlState = (params) => {
+  const rawKind = (params.get('kind') || '').toLowerCase();
+  const rawScope = (params.get('scope') || '').toLowerCase();
+  const rawSort = (params.get('sort') || '').toLowerCase();
+  const scope = COMMUNITY_SCOPES.has(rawScope) ? rawScope : 'all';
+
+  return {
+    kind: COMMUNITY_KINDS.has(rawKind) ? rawKind : 'university',
+    scope,
+    filter: scope === 'all' ? 'All' : scope.charAt(0).toUpperCase() + scope.slice(1),
+    sort: COMMUNITY_SORTS.has(rawSort) ? rawSort : 'popularity',
+    query: params.get('query') ?? '',
+    page: parseCommunityPage(params.get('page')),
+  };
+};
 
 const normalizeTopicValue = (value) => {
   if (!value) return '';
@@ -126,12 +162,17 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const navigate = useNavigate();
   const { language, locale, t } = useLanguage();
   const { tags: tagOptions } = useTagOptions();
+  const initialCommunityUrlStateRef = useRef(null);
+  if (initialCommunityUrlStateRef.current === null) {
+    initialCommunityUrlStateRef.current = readCommunityUrlState(searchParams);
+  }
+  const initialCommunityUrlState = initialCommunityUrlStateRef.current;
   const [sortBy, setSortBy] = useState("default"); // options: "default", "popularity", "mostUpvoted", "mostRecent"
   const [selectedTopics, setSelectedTopics] = useState([ALL_TOPICS_VALUE]);
   const [isTopicDropdownOpen, setIsTopicDropdownOpen] = useState(false);
-  const [communityFilter, setCommunityFilter] = useState('All'); // Options: "All", "Followed", "Unfollowed"
-  const [selectedCommunityTab, setSelectedCommunityTab] = useState("university");
-  const [communitySort, setCommunitySort] = useState('popularity'); // 'popularity' | 'alpha'
+  const [communityFilter, setCommunityFilter] = useState(initialCommunityUrlState.filter); // Options: "All", "Followed", "Unfollowed"
+  const [selectedCommunityTab, setSelectedCommunityTab] = useState(initialCommunityUrlState.kind);
+  const [communitySort, setCommunitySort] = useState(initialCommunityUrlState.sort); // 'popularity' | 'alpha'
   const [showCommunityFilters, setShowCommunityFilters] = useState(false);
   const [feedSort, setFeedSort] = useState('recent'); // 'recent' | 'trending'
   const [showHomeFilters, setShowHomeFilters] = useState(false);
@@ -140,9 +181,20 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [allCommunities, setAllCommunities] = useState([]);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialCommunityUrlState.page);
   const [totalPages, setTotalPages] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [totalCommunityCount, setTotalCommunityCount] = useState(0);
+  const [searchTerm, setSearchTerm] = useState(initialCommunityUrlState.query);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialCommunityUrlState.query);
+  const communityRequestIdRef = useRef(0);
+  const communityViewStateRef = useRef(null);
+  communityViewStateRef.current = {
+    kind: selectedCommunityTab,
+    filter: communityFilter,
+    sort: communitySort,
+    query: searchTerm,
+    page: currentPage,
+  };
 
   const [forums, setForums] = useState([]);
   const [isLoadingForums, setIsLoadingForums] = useState(false);
@@ -240,6 +292,17 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [savedPosts, setSavedPosts] = useState([]);
   const [savedSearch, setSavedSearch] = useState('');
   const [openSavedMenu, setOpenSavedMenu] = useState(null);
+  const [infoKnowledgeBaseNodes, setInfoKnowledgeBaseNodes] = useState([]);
+  const [isLoadingInfoKnowledgeBase, setIsLoadingInfoKnowledgeBase] = useState(true);
+  const [hasLoadedInfoKnowledgeBase, setHasLoadedInfoKnowledgeBase] = useState(false);
+  const [infoKnowledgeBaseError, setInfoKnowledgeBaseError] = useState('');
+  const [fundingArticleGroups, setFundingArticleGroups] = useState([]);
+  const [fundingArticleCount, setFundingArticleCount] = useState(0);
+  const [isLoadingFundingArticles, setIsLoadingFundingArticles] = useState(false);
+  const [fundingArticlesError, setFundingArticlesError] = useState('');
+  const [fundingArticleSearch, setFundingArticleSearch] = useState('');
+  const [fundingGroupExpansion, setFundingGroupExpansion] = useState({});
+  const [isMobileFundingLayout, setIsMobileFundingLayout] = useState(isMobileFundingViewport);
   // Track which saved tab is active
   const [savedTab, setSavedTab] = useState('forums'); // 'forums' | 'threads' | 'posts'
   const [feedThreads, setFeedThreads] = useState([]);
@@ -252,10 +315,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [exploreThreads, setExploreThreads] = useState([]);
   const [isLoadingExplore, setIsLoadingExplore] = useState(false);
   const [isExploreDropdownOpen, setIsExploreDropdownOpen] = useState(false);
-  const [exploreLabelText, setExploreLabelText] = useState(() => t('home.allTags'));
   const topicDropdownRef = useRef(null);
   const exploreDropdownRef = useRef(null);
-  const exploreLabelRef = useRef(null);
   const feedSegmentRef = useRef(null);
   const feedContentRef = useRef(null);
   const exploreContentRef = useRef(null);
@@ -283,18 +344,18 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   }, [searchParams]);
 
   const skipUrlSyncRef = useRef(false);
-  const searchTermRef = useRef(searchTerm);
-  useEffect(() => {
-    searchTermRef.current = searchTerm;
-  }, [searchTerm]);
 
   const safeSetSearchParams = useCallback(
     (nextParams, options) => {
       try {
-        const nextString = new URLSearchParams(nextParams).toString();
+        const normalizedNextParams = new URLSearchParams(nextParams);
+        const nextString = normalizedNextParams.toString();
         const currentString = searchParamsRef.current.toString();
         if (nextString === currentString) return;
-        setSearchParams(nextParams, options);
+        // Keep same-tick updates from cloning a stale URL snapshot while the
+        // router is still committing the previous navigation.
+        searchParamsRef.current = normalizedNextParams;
+        setSearchParams(normalizedNextParams, options);
       } catch (err) {
         console.error('Error updating URL params:', err);
       }
@@ -387,6 +448,26 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, [updateSegmentIndicator]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(MOBILE_FUNDING_QUERY);
+    const handleFundingLayoutChange = (event) => {
+      setIsMobileFundingLayout(event.matches);
+    };
+
+    setIsMobileFundingLayout(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleFundingLayoutChange);
+      return () => mediaQuery.removeEventListener('change', handleFundingLayoutChange);
+    }
+
+    mediaQuery.addListener(handleFundingLayoutChange);
+    return () => mediaQuery.removeListener(handleFundingLayoutChange);
+  }, []);
 
   useEffect(() => {
     if (userData) {
@@ -746,7 +827,9 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     }
   };
 
-  const fetchAllCommunitiesData = async (page = 1, term = '') => {
+  const fetchAllCommunitiesData = useCallback(async (page = 1, term = '') => {
+    const requestId = communityRequestIdRef.current + 1;
+    communityRequestIdRef.current = requestId;
     setIsLoadingAll(true);
     try {
       // Decide the endpoint by selectedCommunityTab
@@ -769,17 +852,39 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         params.append('user_id', String(userData.user_id));
       }
       const response = await axios.get(`${endpoint}?${params.toString()}`);
-      const communities = response.data.communities;
-      setAllCommunities(Array.isArray(communities) ? communities : []);
-      setTotalPages(response.data.total_pages || 1);
+      if (requestId !== communityRequestIdRef.current) return;
+
+      const communities = Array.isArray(response.data.communities) ? response.data.communities : [];
+      const parsedTotal = Number(response.data.total_count);
+      const nextTotal = Number.isFinite(parsedTotal) && parsedTotal >= 0
+        ? parsedTotal
+        : communities.length;
+      const nextTotalPages = Math.max(1, Number(response.data.total_pages) || 1);
+
+      setTotalCommunityCount(nextTotal);
+      setTotalPages(nextTotalPages);
+
+      if (page > nextTotalPages) {
+        setAllCommunities([]);
+        const correctedParams = new URLSearchParams(searchParamsRef.current);
+        correctedParams.set('page', String(nextTotalPages));
+        safeSetSearchParams(correctedParams, { replace: true });
+        return;
+      }
+
+      setAllCommunities(communities);
     } catch (error) {
+      if (requestId !== communityRequestIdRef.current) return;
       console.error('Error fetching all communities:', error);
       setAllCommunities([]);
+      setTotalCommunityCount(0);
       setTotalPages(1);
     } finally {
-      setIsLoadingAll(false);
+      if (requestId === communityRequestIdRef.current) {
+        setIsLoadingAll(false);
+      }
     }
-  };
+  }, [selectedCommunityTab, communityFilter, communitySort, userData?.user_id, safeSetSearchParams]);
 
   // ------------- FORUMS -------------
   const fetchForums = async (communityId) => {
@@ -808,6 +913,46 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       setIsLoadingForums(false);
     }
   };
+
+  const fetchInfoKnowledgeBase = async () => {
+    setIsLoadingInfoKnowledgeBase(true);
+    setInfoKnowledgeBaseError('');
+    try {
+      const params = new URLSearchParams({ community_id: INFO_COMMUNITY_ID, lang: language });
+      const resp = await axios.get(`/api/fetch_knowledge_base_nodes.php?${params.toString()}`);
+      setInfoKnowledgeBaseNodes(resp.data.success && Array.isArray(resp.data.nodes)
+        ? resp.data.nodes
+        : []);
+    } catch (error) {
+      console.error('Error fetching Info Board knowledge base:', error);
+      setInfoKnowledgeBaseNodes([]);
+      setInfoKnowledgeBaseError('Unable to load the Information Board knowledge base.');
+    } finally {
+      setIsLoadingInfoKnowledgeBase(false);
+      setHasLoadedInfoKnowledgeBase(true);
+    }
+  };
+
+  const fetchFundingArticles = useCallback(async () => {
+    setIsLoadingFundingArticles(true);
+    setFundingArticlesError('');
+    try {
+      const params = new URLSearchParams({ lang: language });
+      const resp = await axios.get(`/api/fetch_funding_articles.php?${params.toString()}`);
+      const groups = resp.data.success && Array.isArray(resp.data.groups)
+        ? resp.data.groups
+        : [];
+      setFundingArticleGroups(groups);
+      setFundingArticleCount(Number(resp.data.article_count) || 0);
+    } catch (error) {
+      console.error('Error fetching funding articles:', error);
+      setFundingArticleGroups([]);
+      setFundingArticleCount(0);
+      setFundingArticlesError('Unable to load the funding guides right now.');
+    } finally {
+      setIsLoadingFundingArticles(false);
+    }
+  }, [language]);
 
   // Sorting helper for forums
   const sortItems = (items, criteria) => {
@@ -913,42 +1058,22 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // tag click handlers removed; tags are display-only
 
   const exploreTagOptions = useMemo(
-    () => (tagOptions || []).map((opt) => ({ value: opt.slug, label: opt.name })),
+    () => (tagOptions || [])
+      .map((opt) => ({ value: opt.slug, label: opt.name }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
     [tagOptions]
   );
 
   const exploreSelectedLabels = useMemo(() => {
     if (!exploreTags.length) return t('home.allTags');
+    if (exploreTags.length > 1) {
+      return `${exploreTags.length} ${t('home.tags').toLocaleLowerCase(locale)}`;
+    }
     const labels = exploreTags.map(
       (slug) => exploreTagOptions.find((opt) => opt.value === slug)?.label || slug
     );
     return labels.join(', ');
-  }, [exploreTags, exploreTagOptions, t]);
-
-  useEffect(() => {
-    setExploreLabelText(exploreSelectedLabels);
-  }, [exploreSelectedLabels]);
-
-  useEffect(() => {
-    const measure = () => {
-      if (!exploreLabelRef.current) return;
-      const el = exploreLabelRef.current;
-      const isOverflowing =
-        el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
-      if (isOverflowing && exploreTags.length > 0) {
-        setExploreLabelText(t('home.filtersSelected', { count: exploreTags.length }));
-      } else {
-        setExploreLabelText(exploreSelectedLabels);
-      }
-    };
-
-    const raf = requestAnimationFrame(measure);
-    window.addEventListener('resize', measure);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', measure);
-    };
-  }, [exploreSelectedLabels, exploreTags.length, isExploreDropdownOpen, t]);
+  }, [exploreTags, exploreTagOptions, locale, t]);
 
   // Forum upvote/downvote
   const handleVoteClick = async (forumId, voteType) => {
@@ -982,20 +1107,15 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const handleDownvoteClick = (forumId) => handleVoteClick(forumId, "down");
 
   // ------------- INITIAL HOOKS -------------
-  // When the user goes to "communities"
   useEffect(() => {
     if ((activeSection === 'home' || activeSection === 'communities') && userData) {
       fetchFollowedCommunities();
     }
-    if (activeSection === 'communities') {
-      fetchAllCommunitiesData(1, searchTermRef.current || '');
-      setCurrentPage(1);
-    }
     if (activeSection === 'info') {
-      // Fetch forums for the info board community
-      fetchForums(INFO_COMMUNITY_ID);
-      // Also fetch saved forums so we know what's saved
-      fetchSavedForums();
+      fetchInfoKnowledgeBase();
+    }
+    if (activeSection === 'funding') {
+      fetchFundingArticles();
     }
     if (activeSection === 'saved' && userData) {
       fetchSavedForums();
@@ -1003,66 +1123,55 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       fetchSavedPosts();
       setSavedTab('forums');
     }
-  }, [activeSection, userData, selectedCommunityTab, language]);
+  }, [activeSection, userData, language, fetchFundingArticles]);
 
-  // Searching communities (debounce approach).
-  // Keep this tied to the search input only so tab/section changes
-  // don't issue a second duplicate request.
+  // Debounce only typed searches. URL-driven query changes (refresh or
+  // Back/Forward) update both values below and can load immediately.
   useEffect(() => {
-    const debounce = setTimeout(() => {
-      if (activeSection === 'communities') {
-        fetchAllCommunitiesData(1, searchTerm);
-        setCurrentPage(1);
-      }
-    }, 300);
-    return () => clearTimeout(debounce);
-  }, [searchTerm]);
+    if (activeSection !== 'communities' || searchTerm === debouncedSearchTerm) {
+      return undefined;
+    }
+    const debounce = window.setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => window.clearTimeout(debounce);
+  }, [activeSection, searchTerm, debouncedSearchTerm]);
 
-  useEffect(() => {
-    if (activeSection !== 'communities') return;
-    fetchAllCommunitiesData(1, searchTerm);
-    setCurrentPage(1);
-  }, [communityFilter]);
-
+  // ---------------- URL SYNC (Communities only) ----------------
+  // URL navigation is authoritative. This includes refreshes and browser
+  // Back/Forward, so restore the complete request tuple together.
   useEffect(() => {
     if (activeSection !== 'communities') return;
-    fetchAllCommunitiesData(1, searchTerm);
-    setCurrentPage(1);
-  }, [communitySort]);
-
-  // ---------------- URL SYNC (Communities only; visual state only) ----------------
-  // Initialize local UI state from URL params on mount or when URL changes
-  useEffect(() => {
-    if (activeSection !== 'communities') return;
-    const kind = (searchParams.get('kind') || '').toLowerCase();
-    const scope = (searchParams.get('scope') || '').toLowerCase();
-    const query = searchParams.get('query') ?? '';
+    const nextUrlState = readCommunityUrlState(searchParams);
+    const currentViewState = communityViewStateRef.current;
 
     let didUpdate = false;
-    if (kind === 'university' || kind === 'group') {
-      if (selectedCommunityTab !== kind) {
-        setSelectedCommunityTab(kind);
-        didUpdate = true;
-      }
+    if (currentViewState.kind !== nextUrlState.kind) {
+      setSelectedCommunityTab(nextUrlState.kind);
+      didUpdate = true;
     }
-    if (['all', 'followed', 'unfollowed'].includes(scope)) {
-      const scopeToState = scope === 'all' ? 'All' : scope.charAt(0).toUpperCase() + scope.slice(1);
-      if (communityFilter !== scopeToState) {
-        setCommunityFilter(scopeToState);
-        didUpdate = true;
-      }
+    if (currentViewState.filter !== nextUrlState.filter) {
+      setCommunityFilter(nextUrlState.filter);
+      didUpdate = true;
     }
-    if (typeof query === 'string' && searchTerm !== query) {
-      setSearchTerm(query);
+    if (currentViewState.sort !== nextUrlState.sort) {
+      setCommunitySort(nextUrlState.sort);
+      didUpdate = true;
+    }
+    if (currentViewState.query !== nextUrlState.query) {
+      setSearchTerm(nextUrlState.query);
+      setDebouncedSearchTerm(nextUrlState.query);
+      didUpdate = true;
+    }
+    if (currentViewState.page !== nextUrlState.page) {
+      setCurrentPage(nextUrlState.page);
       didUpdate = true;
     }
     if (didUpdate) {
       skipUrlSyncRef.current = true;
     }
-    // We intentionally do not trigger backend calls here. Existing effects handle fetching.
   }, [activeSection, searchParams]);
 
-  // Push UI state to URL params when it changes (no backend calls triggered by this directly)
+  // Local filter/search changes replace the current history entry. Explicit
+  // page navigation uses a push in handleCommunityPageChange below.
   useEffect(() => {
     if (activeSection !== 'communities') return;
     if (skipUrlSyncRef.current) {
@@ -1078,6 +1187,9 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     const scopeParam = (communityFilter || 'All').toLowerCase(); // 'all' | 'followed' | 'unfollowed'
     if ((params.get('scope') || '') !== scopeParam) { params.set('scope', scopeParam); changed = true; }
 
+    const sortParam = COMMUNITY_SORTS.has(communitySort) ? communitySort : 'popularity';
+    if ((params.get('sort') || '') !== sortParam) { params.set('sort', sortParam); changed = true; }
+
     const queryParam = searchTerm || '';
     const existingQuery = params.get('query') || '';
     if (existingQuery !== queryParam) {
@@ -1085,8 +1197,57 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       changed = true;
     }
 
+    const pageParam = String(parseCommunityPage(currentPage));
+    if ((params.get('page') || '') !== pageParam) { params.set('page', pageParam); changed = true; }
+
     if (changed) safeSetSearchParams(params, { replace: true });
-  }, [selectedCommunityTab, communityFilter, searchTerm, activeSection]);
+  }, [selectedCommunityTab, communityFilter, communitySort, searchTerm, currentPage, activeSection, safeSetSearchParams]);
+
+  // A single effect owns normal community-list requests. Waiting until URL
+  // and local state agree prevents a refresh or history navigation from
+  // issuing an intermediate request with stale filters or page 1.
+  useEffect(() => {
+    // Invalidate any response belonging to the previous request tuple now,
+    // including during the search debounce window.
+    communityRequestIdRef.current += 1;
+
+    if (activeSection !== 'communities' || searchTerm !== debouncedSearchTerm) {
+      return undefined;
+    }
+
+    const urlState = readCommunityUrlState(searchParams);
+    const stateScope = (communityFilter || 'All').toLowerCase();
+    const urlMatchesState =
+      urlState.kind === selectedCommunityTab
+      && urlState.scope === stateScope
+      && urlState.sort === communitySort
+      && urlState.query === searchTerm
+      && urlState.page === currentPage;
+
+    if (!urlMatchesState) return undefined;
+
+    // Scheduling the request lets the StrictMode effect cleanup cancel its
+    // development-only first pass instead of sending the same request twice.
+    const requestTimer = window.setTimeout(() => {
+      fetchAllCommunitiesData(currentPage, debouncedSearchTerm);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(requestTimer);
+      communityRequestIdRef.current += 1;
+    };
+  }, [
+    activeSection,
+    searchParams,
+    selectedCommunityTab,
+    communityFilter,
+    communitySort,
+    currentPage,
+    searchTerm,
+    debouncedSearchTerm,
+    userData?.user_id,
+    fetchAllCommunitiesData,
+  ]);
 
   // Sync topic filter from URL when on Info board
   useEffect(() => {
@@ -1150,20 +1311,38 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     };
   }, [isExploreDropdownOpen]);
 
-  // Pagination controls
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      const newPage = currentPage + 1;
-      setCurrentPage(newPage);
-      fetchAllCommunitiesData(newPage, searchTerm);
-    }
+  const handleCommunitySearchChange = (value) => {
+    if (value === searchTerm) return;
+    setSearchTerm(value);
+    setCurrentPage(1);
   };
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      const newPage = currentPage - 1;
-      setCurrentPage(newPage);
-      fetchAllCommunitiesData(newPage, searchTerm);
-    }
+
+  const handleCommunityTabChange = (nextTab) => {
+    if (nextTab === selectedCommunityTab) return;
+    setSelectedCommunityTab(nextTab);
+    setCurrentPage(1);
+  };
+
+  const handleCommunityFilterChange = (nextFilter) => {
+    if (nextFilter === communityFilter) return;
+    setCommunityFilter(nextFilter);
+    setCurrentPage(1);
+  };
+
+  const handleCommunitySortChange = (nextSort) => {
+    if (nextSort === communitySort) return;
+    setCommunitySort(nextSort);
+    setCurrentPage(1);
+  };
+
+  // Page jumps get their own history entries. URL hydration and the sole
+  // request effect above take care of updating state and loading the page.
+  const handleCommunityPageChange = (requestedPage) => {
+    const nextPage = clampPage(requestedPage, totalPages, currentPage);
+    if (isLoadingAll || nextPage === currentPage) return;
+    const params = new URLSearchParams(searchParamsRef.current);
+    params.set('page', String(nextPage));
+    safeSetSearchParams(params);
   };
 
   // Follow/unfollow community
@@ -1571,7 +1750,12 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
         <nav className="home-pathways" aria-label={t('home.dashboardShortcuts')}>
           {homePathways.map(({ to, eyebrow, title, description, Icon, tone }) => (
-            <Link key={to} to={to} className={`home-pathway-card home-pathway-card--${tone}`}>
+            <Link
+              key={to}
+              to={to}
+              className={`home-pathway-card home-pathway-card--${tone}`}
+              data-tour={tone === 'communities' ? 'communities' : undefined}
+            >
               <span className="home-pathway-icon" aria-hidden="true">
                 <Icon size={19} />
               </span>
@@ -1647,7 +1831,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               id="home-filter-panel"
               className={`home-filter-panel ${showHomeFilters ? 'open' : ''}`}
             >
-              <div className="control-group home-content-control">
+              <div className="control-group home-content-control" aria-label={t('home.content')}>
                 <span className="sort-pill">{t('home.content')}</span>
                 {activeFeed === 'yourFeed' ? (
                   <div
@@ -1704,10 +1888,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       aria-haspopup="listbox"
                       aria-expanded={isExploreDropdownOpen}
                     >
-                      <span ref={exploreLabelRef} className="topic-dropdown-label">{exploreLabelText}</span>
+                      <span className="topic-dropdown-label">{exploreSelectedLabels}</span>
                     </button>
                     {isExploreDropdownOpen && (
-                      <div className="topic-dropdown-menu" role="listbox" aria-multiselectable="true">
+                      <div
+                        className="topic-dropdown-menu explore-tags-menu"
+                        role="listbox"
+                        aria-multiselectable="true"
+                      >
                         {exploreTagOptions.map((tagOption) => {
                           const checked = exploreTags.includes(tagOption.value);
                           return (
@@ -1975,8 +2163,10 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               <p>Discover university and group spaces organized around shared experience.</p>
             </div>
             <div className="scholarly-page-count" aria-live="polite">
-              <strong>{isLoadingAll ? '—' : filteredCommunities.length}</strong>
-              <span>communities in view</span>
+              <strong>
+                {isLoadingAll ? '—' : totalCommunityCount.toLocaleString(locale)}
+              </strong>
+              <span>{selectedCommunityTab === 'group' ? 'groups' : 'universities'} in view</span>
             </div>
           </header>
           <div className="section-controls section-controls-sticky scholarly-controls community-controls filter-toolbar filter-toolbar--search-first">
@@ -1989,7 +2179,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                   type="search"
                   placeholder="Search universities and groups"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleCommunitySearchChange(e.target.value)}
                 />
               </label>
               <button
@@ -2029,14 +2219,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 >
                   <button
                     type="button"
-                    onClick={() => setSelectedCommunityTab('university')}
+                    onClick={() => handleCommunityTabChange('university')}
                     className={`chip ${selectedCommunityTab === 'university' ? 'active' : ''}`}
                   >
                     Universities
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSelectedCommunityTab('group')}
+                    onClick={() => handleCommunityTabChange('group')}
                     className={`chip ${selectedCommunityTab === 'group' ? 'active' : ''}`}
                   >
                     Groups
@@ -2058,21 +2248,21 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                   <button
                     type="button"
                     className={`chip ${communityFilter === 'All' ? 'active' : ''}`}
-                    onClick={() => setCommunityFilter('All')}
+                    onClick={() => handleCommunityFilterChange('All')}
                   >
                     All
                   </button>
                   <button
                     type="button"
                     className={`chip ${communityFilter === 'Followed' ? 'active' : ''}`}
-                    onClick={() => setCommunityFilter('Followed')}
+                    onClick={() => handleCommunityFilterChange('Followed')}
                   >
                     Followed
                   </button>
                   <button
                     type="button"
                     className={`chip ${communityFilter === 'Unfollowed' ? 'active' : ''}`}
-                    onClick={() => setCommunityFilter('Unfollowed')}
+                    onClick={() => handleCommunityFilterChange('Unfollowed')}
                   >
                     Unfollowed
                   </button>
@@ -2085,7 +2275,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 <select
                   id="community-sort"
                   value={communitySort}
-                  onChange={(e) => setCommunitySort(e.target.value)}
+                  onChange={(e) => handleCommunitySortChange(e.target.value)}
                   className="sort-select"
                   aria-label="Sort communities"
                 >
@@ -2232,26 +2422,14 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
               </div>
             )}
 
-            {/* Pagination */}
-            <div className="pagination-controls">
-              <button
-                onClick={handlePrevPage}
-                disabled={currentPage === 1}
-                className="pagination-button"
-              >
-                Last
-              </button>
-              <span className="pagination-info">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-                className="pagination-button"
-              >
-                Next
-              </button>
-            </div>
+            <PageNavigator
+              page={currentPage}
+              totalPages={totalPages}
+              onPageChange={handleCommunityPageChange}
+              disabled={isLoadingAll}
+              className="community-page-navigator"
+              ariaLabel={`${selectedCommunityTab === 'group' ? 'Group' : 'University'} community pages`}
+            />
           </div>
         </div>
         {showRequestModal && (
@@ -2293,6 +2471,57 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             return match ? match.label : topicLabelFromValue(topic);
           })
           .join(', ');
+
+    if (
+      isLoadingInfoKnowledgeBase ||
+      hasLoadedInfoKnowledgeBase ||
+      infoKnowledgeBaseNodes.length > 0 ||
+      infoKnowledgeBaseError
+    ) {
+      return withNotification(
+        <main className="scholarly-page scholarly-info-page info-kb-page">
+          {reportModal}
+          <div className="feed-container scholarly-page-panel">
+            <header className="scholarly-page-header">
+              <div>
+                <p className="scholarly-page-kicker">Student knowledge base</p>
+                <h1>Info Board</h1>
+                <p>Choose a starting point, then follow its sections to focused student guides.</p>
+              </div>
+              <div className="scholarly-page-count" aria-live="polite">
+                <strong>{isLoadingInfoKnowledgeBase ? '—' : infoKnowledgeBaseNodes.length}</strong>
+                <span>starting points</span>
+              </div>
+            </header>
+
+            {isLoadingInfoKnowledgeBase ? (
+              <div className="info-board-state" role="status">Loading knowledge base…</div>
+            ) : infoKnowledgeBaseError ? (
+              <div className="info-board-state">{infoKnowledgeBaseError}</div>
+            ) : (
+              <div className="info-kb-root-grid">
+                {infoKnowledgeBaseNodes.map((node, index) => (
+                  <Link
+                    key={node.thread_id}
+                    className="info-kb-root-card"
+                    to={`/info/forum/${node.forum_id}/thread/${node.thread_id}`}
+                  >
+                    <div className="info-kb-root-card__number">{String(index + 1).padStart(2, '0')}</div>
+                    <div className="info-kb-root-card__body">
+                      <span>Student guide</span>
+                      <h2>{node.title}</h2>
+                      {node.excerpt && <p>{node.excerpt}</p>}
+                      <small>{node.child_count} {node.child_count === 1 ? 'section' : 'sections'}</small>
+                    </div>
+                    <ArrowUpRight size={20} aria-hidden="true" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </main>
+      );
+    }
 
     return withNotification(
       <main className="scholarly-page scholarly-info-page">
@@ -2664,6 +2893,33 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
 
   // FUNDING SECTION
   if (activeSection === 'funding') {
+    const normalizedFundingSearch = fundingArticleSearch.trim().toLowerCase();
+    const visibleFundingGroups = fundingArticleGroups
+      .map((group) => {
+        if (!normalizedFundingSearch) return group;
+        const groupMatches = [group.title, group.description]
+          .some((value) => String(value || '').toLowerCase().includes(normalizedFundingSearch));
+        return {
+          ...group,
+          articles: groupMatches
+            ? group.articles
+            : group.articles.filter((article) => (
+                [article.title, article.excerpt, article.content_kind]
+                  .some((value) => String(value || '').toLowerCase().includes(normalizedFundingSearch))
+              )),
+        };
+      })
+      .filter((group) => Array.isArray(group.articles) && group.articles.length > 0);
+    const visibleFundingArticleCount = visibleFundingGroups.reduce(
+      (total, group) => total + group.articles.length,
+      0
+    );
+    const fundingDiscussionArticle = fundingArticleGroups
+      .flatMap((group) => group.articles || [])
+      .find((article) => article.content_kind === 'megathread');
+    const fundingDiscussionPath = fundingDiscussionArticle
+      ? `/info/forum/${fundingDiscussionArticle.forum_id}/thread/${fundingDiscussionArticle.thread_id}`
+      : '/info';
     const fundingPlans = [
       {
         title: 'Curated opportunities',
@@ -2690,29 +2946,138 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             <p className="scholarly-page-kicker">Funding archive</p>
             <h1 id="funding-title">A clearer path through education funding.</h1>
             <p>
-              The funding hub is still in development. There are no live scholarship
-              records or deadline tools here yet.
+              Read practical funding guides from the Information Board here. Scholarship
+              opportunity records and deadline tools are still being developed.
             </p>
             <div className="scholarly-page-actions">
-              <Link className="home-button home-button-primary" to="/info?topics=financial-aid">
-                Browse funding discussions
+              <a className="home-button home-button-primary" href="#funding-guides">
+                Browse funding guides
                 <ArrowUpRight size={16} aria-hidden="true" />
-              </Link>
-              <Link className="home-button scholarly-quiet-button" to="/home">
-                Back to home
+              </a>
+              <Link className="home-button scholarly-quiet-button" to="/info">
+                Open the Info Board
               </Link>
             </div>
           </div>
-          <span className="scholarly-status-badge">Coming soon</span>
+          <span className="scholarly-status-badge">
+            {isLoadingFundingArticles ? 'Loading guides' : `${fundingArticleCount} guides live`}
+          </span>
+        </section>
+
+        <section
+          className="scholarly-funding-library"
+          id="funding-guides"
+          aria-labelledby="funding-guides-title"
+        >
+          <header>
+            <div>
+              <p className="scholarly-page-kicker">Information Board collection</p>
+              <h2 id="funding-guides-title">Funding guides</h2>
+              <p>These links open the original articles, so guidance stays synchronized across the site.</p>
+            </div>
+            <div className="scholarly-funding-library__tools">
+              <span aria-live="polite">
+                {isLoadingFundingArticles ? 'Loading…' : `${visibleFundingArticleCount} of ${fundingArticleCount}`}
+              </span>
+              <label htmlFor="funding-guide-search">
+                <Search size={16} aria-hidden="true" />
+                <span className="sr-only">Search funding guides</span>
+                <input
+                  id="funding-guide-search"
+                  type="search"
+                  value={fundingArticleSearch}
+                  onChange={(event) => setFundingArticleSearch(event.target.value)}
+                  placeholder="Search funding guides"
+                />
+              </label>
+            </div>
+          </header>
+
+          {isLoadingFundingArticles ? (
+            <div className="scholarly-funding-library__state" role="status">Loading funding guides…</div>
+          ) : fundingArticlesError ? (
+            <div className="scholarly-funding-library__state">
+              <p>{fundingArticlesError}</p>
+              <Link to="/info">Browse the Information Board</Link>
+            </div>
+          ) : visibleFundingGroups.length === 0 ? (
+            <div className="scholarly-funding-library__state">
+              No funding guides match “{fundingArticleSearch.trim()}”.
+            </div>
+          ) : (
+            <div className="scholarly-funding-groups">
+              {visibleFundingGroups.map((group, groupIndex) => {
+                const articleListId = `funding-group-${groupIndex}-articles`;
+                const isExpanded = fundingGroupExpansion[group.key]
+                  ?? (!isMobileFundingLayout || Boolean(normalizedFundingSearch));
+
+                return (
+                  <section className="scholarly-funding-group" key={group.key}>
+                    <button
+                      type="button"
+                      className="scholarly-funding-group__toggle"
+                      aria-expanded={isExpanded}
+                      aria-controls={articleListId}
+                      onClick={() => setFundingGroupExpansion((current) => ({
+                        ...current,
+                        [group.key]: !isExpanded,
+                      }))}
+                    >
+                      <span className="scholarly-funding-group__heading">
+                        <span className="scholarly-funding-icon" aria-hidden="true">
+                          <BookOpenText size={19} />
+                        </span>
+                        <span>
+                          <span
+                            className="scholarly-funding-group__title"
+                            role="heading"
+                            aria-level="3"
+                          >
+                            {group.title}
+                          </span>
+                          <span className="scholarly-funding-group__description">
+                            {group.description}
+                          </span>
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={`scholarly-funding-group__chevron${isExpanded ? ' is-expanded' : ''}`}
+                        size={19}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {isExpanded && (
+                      <div className="scholarly-funding-article-list" id={articleListId}>
+                        {group.articles.map((article) => (
+                          <Link
+                            className="scholarly-funding-article"
+                            key={article.thread_id}
+                            to={`/info/forum/${article.forum_id}/thread/${article.thread_id}`}
+                          >
+                            <div>
+                              <span>{article.content_kind === 'megathread' ? 'Community Q&A' : 'Guide'}</span>
+                              <h4>{article.title}</h4>
+                              {article.excerpt && <p>{article.excerpt}</p>}
+                            </div>
+                            <ArrowUpRight size={18} aria-hidden="true" />
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <section className="scholarly-funding-plan" aria-labelledby="funding-plan-title">
           <header>
             <div>
-              <p className="scholarly-page-kicker">Planned archive</p>
-              <h2 id="funding-plan-title">What this space is being designed to hold</h2>
+              <p className="scholarly-page-kicker">Coming next</p>
+              <h2 id="funding-plan-title">Planned funding tools</h2>
             </div>
-            <span>Planning, not live data</span>
+            <span>Guides are live; opportunity data is planned</span>
           </header>
           <div className="scholarly-funding-grid">
             {fundingPlans.map(({ title, description, Icon }) => (
@@ -2731,13 +3096,16 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         <aside className="scholarly-page-note">
           <BookOpenText size={19} aria-hidden="true" />
           <div>
-            <strong>Funding conversations are available now.</strong>
+            <strong>Need help applying a guide to your situation?</strong>
             <p>
-              Use the Info Board for current community discussions about financial aid,
-              scholarships, and education costs.
+              Use the Financial Aid Questions Megathread for general discussion, then confirm
+              account-specific answers with your school’s financial aid office.
             </p>
           </div>
-          <Link to="/info?topics=financial-aid" aria-label="Open financial aid discussions">
+          <Link
+            to={fundingDiscussionPath}
+            aria-label="Open the Financial Aid Questions Megathread"
+          >
             <ArrowUpRight size={18} />
           </Link>
         </aside>

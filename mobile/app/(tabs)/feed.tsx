@@ -233,7 +233,9 @@ export default function FeedScreen() {
   });
 
   const exploreTagOptions = useMemo(
-    () => (tagOptions || []).map((opt) => ({ value: opt.slug, label: opt.name })),
+    () => (tagOptions || [])
+      .map((opt) => ({ value: opt.slug, label: opt.name }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
     [tagOptions]
   );
 
@@ -661,7 +663,11 @@ export default function FeedScreen() {
                 </ThemedText>
               </Pressable>
             </View>
-            <View style={styles.tagPanelList}>
+            <ScrollView
+              style={styles.tagPanelScroll}
+              contentContainerStyle={styles.tagPanelList}
+              nestedScrollEnabled
+            >
               <Pressable
                 style={[
                   styles.tagPanelItem,
@@ -698,7 +704,7 @@ export default function FeedScreen() {
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
           </View>
         ) : null}
 
@@ -1314,6 +1320,9 @@ const createStyles = (colors: BrandColors) =>
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  tagPanelScroll: {
+    maxHeight: 240,
   },
   tagPanelItem: {
     paddingHorizontal: 12,

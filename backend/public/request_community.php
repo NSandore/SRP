@@ -177,7 +177,7 @@ try {
         $domain = 'sandboxe67f4501277d44af9f736a2154a5b6cb.mailgun.org';
         $mg->messages()->send($domain, [
             'from' => 'noreply@studentsphere.com',
-            'to' => 'n.sandore5140@gmail.com',
+            'to' => getenv('SUPPORT_EMAIL') ?: 'support@thestudentsphere.com',
             'subject' => 'New Community Creation Request',
             'text' => "User $userEmail requested a new community:\nName: $name\nType: {$type}\nParent: " . ($parentName ?: 'N/A') . "\nTagline: $tagline\nLocation: $location\nWebsite: $website\nPrimary Color: $primaryColor\nSecondary Color: $secondaryColor\nDescription: $description"
         ]);

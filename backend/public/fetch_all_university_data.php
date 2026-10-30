@@ -21,7 +21,7 @@ $communityType = isset($_GET['community_type']) ? strtolower(trim((string)$_GET[
 if (!in_array($communityType, ['university', 'group'], true)) {
     $communityType = 'university';
 }
-$limit = 10; // Number of communities per page
+$limit = 24;
 $page = max(1, $page);
 $offset = ($page - 1) * $limit;
 
@@ -33,7 +33,11 @@ try {
         'c',
         ['id' => 'community_id']
     );
-    $activePredicate = SrpInstitutionPublicProjection::activeUniversityPredicate($db, 'c');
+    $directoryPredicate = SrpInstitutionPublicProjection::directoryUniversityPredicate(
+        $db,
+        'c',
+        $search !== ''
+    );
 
     if ($isGuest) {
         $query = "
@@ -47,9 +51,14 @@ try {
                 0 AS is_followed
             FROM communities c
             WHERE c.community_type = :community_type
-              AND {$activePredicate}
+              AND {$directoryPredicate}
         ";
         $params = [':community_type' => $communityType];
+        if ($scope === 'followed') {
+            // Guests cannot follow communities. Keep the response and its
+            // total aligned with the client-side Followed view.
+            $query .= " AND 1 = 0";
+        }
     } else {
         $query = "
             SELECT
@@ -64,7 +73,7 @@ try {
             LEFT JOIN followed_communities fc 
                 ON c.id = fc.community_id AND fc.user_id = :user_id
             WHERE c.community_type = :community_type
-              AND {$activePredicate}
+              AND ({$directoryPredicate} OR fc.user_id IS NOT NULL)
         ";
         $params = [':user_id' => $user_id, ':community_type' => $communityType];
 
@@ -118,9 +127,11 @@ try {
         FROM communities c
         " . ($isGuest ? "" : "LEFT JOIN followed_communities fc ON c.id = fc.community_id AND fc.user_id = :user_id") . "
         WHERE c.community_type = :community_type
-          AND {$activePredicate}
+          AND " . ($isGuest ? $directoryPredicate : "({$directoryPredicate} OR fc.user_id IS NOT NULL)") . "
     ";
-    if (!$isGuest) {
+    if ($isGuest && $scope === 'followed') {
+        $countQuery .= " AND 1 = 0";
+    } elseif (!$isGuest) {
         if ($scope === 'followed') {
             $countQuery .= " AND fc.user_id IS NOT NULL";
         } elseif ($scope === 'unfollowed') {
@@ -147,8 +158,10 @@ try {
 
     $response = [
         'communities' => $communities,
+        'total_count' => $totalCommunities,
         'total_pages' => $totalPages,
-        'current_page' => $page
+        'current_page' => $page,
+        'per_page' => $limit
     ];
 
     echo json_encode($response);

@@ -339,14 +339,15 @@ function SearchResults() {
                     const defaultCommunityLogo = buildUploadSrc('/uploads/logos/default-logo.png');
                     const fallbackLogo =
                       c.community_type === 'university' ? universityFallbackLogo : defaultCommunityLogo;
+                    const selectedLogo =
+                      typeof c.selected_logo_url === 'string' ? c.selected_logo_url.trim() : '';
                     const normalizedLogoPath = typeof c.logo_path === 'string' ? c.logo_path.trim() : '';
-                    const logoSrc = normalizedLogoPath
-                      ? buildUploadSrc(
-                        normalizedLogoPath.startsWith('/')
-                          ? normalizedLogoPath
-                          : `/uploads/logos/${normalizedLogoPath}`
-                      ) || fallbackLogo
-                      : fallbackLogo;
+                    const isPlaceholderLogoPath = /(^|\/)default-logo\.png$/i.test(normalizedLogoPath);
+                    const logoSrc = selectedLogo
+                      ? buildUploadSrc(selectedLogo)
+                      : normalizedLogoPath && !isPlaceholderLogoPath
+                        ? buildUploadSrc(normalizedLogoPath)
+                        : fallbackLogo;
 
                     return (
                       <Link
@@ -359,6 +360,11 @@ function SearchResults() {
                           alt={c.name}
                           className="community-row-logo"
                           loading="lazy"
+                          onError={(event) => {
+                            if (event.currentTarget.src !== fallbackLogo) {
+                              event.currentTarget.src = fallbackLogo;
+                            }
+                          }}
                         />
                         <div className="community-row-content">
                           <div className="community-row-header">

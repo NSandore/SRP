@@ -124,13 +124,14 @@ if (isset($_SESSION['user_id'])) {
         $_SESSION['admin_community_ids'] = $adminStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 
         $userMetaStmt = $db->prepare("
-            SELECT is_verified, verified, verified_community_id, education_status, recent_university_id
+            SELECT role_id, is_verified, verified, verified_community_id, education_status, recent_university_id
             FROM users
             WHERE user_id = :uid
             LIMIT 1
         ");
         $userMetaStmt->execute([':uid' => $userId]);
         $userMeta = $userMetaStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $_SESSION['role_id'] = (int)($userMeta['role_id'] ?? $_SESSION['role_id'] ?? 0);
         $_SESSION['is_verified'] = (int)($userMeta['is_verified'] ?? 0);
         $_SESSION['verified'] = (int)($userMeta['verified'] ?? 0);
         $_SESSION['verified_community_id'] = $userMeta['verified_community_id'] ?? null;

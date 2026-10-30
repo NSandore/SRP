@@ -6,9 +6,7 @@ require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/onboarding.php';
 require_once __DIR__ . '/../includes/rate_limit.php';
-require __DIR__ . '/../vendor/autoload.php';
-
-use Mailgun\Mailgun;
+require_once __DIR__ . '/../includes/email.php';
 
 header('Content-Type: application/json');
 
@@ -38,7 +36,18 @@ $firstName = trim((string)$inputData['firstName']);
 $lastName = trim((string)$inputData['lastName']);
 $email = trim((string)$inputData['email']);
 $phone = trim((string)($inputData['phone'] ?? ''));
-$passwordHash = password_hash((string)$inputData['password'], PASSWORD_BCRYPT);
+$password = (string)$inputData['password'];
+if (strlen($password) < 12 || strlen($password) > 72) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Password must be between 12 and 72 characters.']);
+    exit;
+}
+if (mb_strlen($firstName) > 100 || mb_strlen($lastName) > 100 || strlen($email) > 254 || strlen($phone) > 30) {
+    http_response_code(400);
+    echo json_encode(['error' => 'One or more account fields are too long.']);
+    exit;
+}
+$passwordHash = password_hash($password, PASSWORD_BCRYPT);
 $enableTwoFactor = isset($inputData['enable_two_factor']) ? (int)filter_var($inputData['enable_two_factor'], FILTER_VALIDATE_BOOLEAN) : 0;
 $devMode = srp_is_dev_mode();
 $disableTwoFactor = (int)filter_var(getenv('DISABLE_TWO_FACTOR') ?: 0, FILTER_VALIDATE_BOOLEAN);
@@ -122,6 +131,7 @@ try {
     $extras = [
         'two_factor_enabled' => $effectiveTwoFactor,
         'auto_join_campus' => 1,
+        'email_verification_expires_at' => gmdate('c', time() + 15 * 60),
         'onboarding' => $wizardState,
     ];
 
@@ -137,26 +147,23 @@ try {
         ':extras' => json_encode($extras, JSON_UNESCAPED_SLASHES),
     ]);
 
-    $mailgunApiKey = getenv('MAILGUN_API_KEY');
-    if ($mailgunApiKey) {
-        $mailgunDomain = getenv('MAILGUN_DOMAIN') ?: 'sandbox4223236740f0414e949fd59ca1a63257.mailgun.org';
-        $fromEmail = "StudentSphere <postmaster@{$mailgunDomain}>";
-
-        try {
-            $mg = Mailgun::create($mailgunApiKey);
-            $mg->messages()->send($mailgunDomain, [
-                'from' => $fromEmail,
-                'to' => "{$firstName} {$lastName} <{$email}>",
-                'subject' => 'StudentSphere email verification code',
-                'text' => "Your StudentSphere verification code is {$verificationCode}.",
-                'html' => "<p>Your StudentSphere verification code is <strong>{$verificationCode}</strong>.</p>"
-            ]);
-            $emailSent = true;
-        } catch (Throwable $mailError) {
-            $emailSent = false;
-        }
+    try {
+        srp_send_email(
+            $email,
+            trim("{$firstName} {$lastName}"),
+            'StudentSphere email verification code',
+            "Your StudentSphere verification code is {$verificationCode}. It expires in 15 minutes.",
+            "<p>Your StudentSphere verification code is <strong>{$verificationCode}</strong>. It expires in 15 minutes.</p>"
+        );
+        $emailSent = true;
+    } catch (Throwable $mailError) {
+        error_log('[SRP] registration email failed: ' . $mailError->getMessage());
+        $emailSent = false;
     }
 
+    // Rotate the pre-authentication identifier before establishing the new
+    // authenticated session to prevent session fixation.
+    session_regenerate_id(true);
     $_SESSION['user_id'] = $userId;
     $_SESSION['first_name'] = $firstName;
     $_SESSION['last_name'] = $lastName;
@@ -193,7 +200,9 @@ try {
     http_response_code(201);
     echo json_encode([
         'success' => true,
-        'message' => 'Account created. Verification code generated.',
+        'message' => $emailSent
+            ? 'Account created. Verification code sent.'
+            : 'Account created, but the verification email could not be sent.',
         'user' => [
             'user_id' => $userId,
             'first_name' => $firstName,

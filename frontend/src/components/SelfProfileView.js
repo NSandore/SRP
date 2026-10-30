@@ -10,6 +10,7 @@ import { buildAvatarSrc } from '../utils/avatar';
 import buildUploadSrc from '../utils/uploads';
 import { usePublishProfileContact } from '../context/ProfileContactContext';
 import ReelGrid, { IntroReelCard } from './ReelGrid';
+import { REELS_ENABLED } from '../constants/features';
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return '';
@@ -93,7 +94,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
   const userId = userData?.user_id;
   const profileTabs = [
     { id: 'about', label: 'About' },
-    { id: 'reels', label: 'Reels' },
+    ...(REELS_ENABLED ? [{ id: 'reels', label: 'Reels' }] : []),
     { id: 'posts', label: 'Posts' },
     { id: 'replies', label: 'Replies' },
   ];
@@ -605,7 +606,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                       )}
                     </div>
 
-                    <IntroReelCard profile={profile} isOwner />
+                    {REELS_ENABLED && <IntroReelCard profile={profile} isOwner />}
 
                     <div className="content-card self-profile-about-card">
                       <div className="qa-header">
@@ -713,7 +714,7 @@ function SelfProfileView({ userData, onProfileUpdate }) {
                 </>
               )}
 
-              {activeTab === 'reels' && (
+              {REELS_ENABLED && activeTab === 'reels' && (
                 <ReelGrid
                   userId={userId}
                   isOwner

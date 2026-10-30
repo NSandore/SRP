@@ -9,6 +9,7 @@ require_once __DIR__ . '/info_board_translations.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 const SRP_NEWSROOM_ED_SOURCE_URL = 'https://www.ed.gov/about/news/press-release';
+const SRP_NEWSROOM_ED_READER_URL = 'https://r.jina.ai/http://https://www.ed.gov/about/news/press-release';
 const SRP_NEWSROOM_PROMPT_VERSION = 'student-news-v1';
 
 function srp_ensure_newsroom_table(PDO $db): void {
@@ -45,6 +46,13 @@ function srp_ensure_newsroom_table(PDO $db): void {
             KEY idx_newsroom_status_source_date (status, source_published_at),
             KEY idx_newsroom_published (status, published_at),
             KEY idx_newsroom_target_forum (target_forum_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+    ");
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS newsroom_sync_state (
+            source_key VARCHAR(80) NOT NULL,
+            last_synced_at DATETIME NOT NULL,
+            PRIMARY KEY (source_key)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
     ");
 }
@@ -172,6 +180,40 @@ function srp_newsroom_fetch_official_html(): string {
 }
 
 /**
+ * ED.gov currently blocks direct requests from this server with a 403. The
+ * reader is used only as a fallback and its results are still restricted to
+ * links on ED.gov before anything reaches the review queue.
+ */
+function srp_newsroom_fetch_official_reader_markdown(): string {
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('PHP cURL is required to sync official news.');
+    }
+    $ch = curl_init(SRP_NEWSROOM_ED_READER_URL);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 2,
+        CURLOPT_CONNECTTIMEOUT => 6,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_USERAGENT => 'StudentSphere-Newsroom/1.0 (+https://studentsphere.app)',
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+        CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
+        CURLOPT_HTTPHEADER => ['Accept: text/plain'],
+    ]);
+    $markdown = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+    if (!is_string($markdown) || $status < 200 || $status >= 300 || strlen($markdown) > 5_000_000) {
+        throw new RuntimeException(
+            'The Department of Education news page could not be loaded.'
+            . ($error !== '' ? ' Transport error.' : '')
+        );
+    }
+    return $markdown;
+}
+
+/**
  * Parse only the official ED.gov newsroom result rows.
  *
  * @return array<int, array<string, mixed>>
@@ -235,9 +277,72 @@ function srp_newsroom_parse_ed_news(string $html): array {
     return $items;
 }
 
+/**
+ * Parse the fallback reader's Markdown. Links must be official ED press
+ * release URLs, so an intermediary can never inject an arbitrary source.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function srp_newsroom_parse_ed_news_markdown(string $markdown): array {
+    $lines = preg_split('/\R/', $markdown) ?: [];
+    $items = [];
+    $seenUrls = [];
+    foreach ($lines as $index => $line) {
+        if (!preg_match('/^\[([^\]]+)\]\((https:\/\/(?:www\.)?ed\.gov\/about\/news\/press-release\/[^\s)]+)\)$/', trim($line), $match)) {
+            continue;
+        }
+        $url = srp_newsroom_safe_url($match[2], true);
+        $title = srp_sanitize_plain(html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5), 500);
+        if ($url === '' || $title === '' || isset($seenUrls[$url])) {
+            continue;
+        }
+        $summaryLines = [];
+        $published = null;
+        for ($offset = 1; $offset <= 8 && isset($lines[$index + $offset]); $offset++) {
+            $candidate = trim($lines[$index + $offset]);
+            if ($candidate === '') {
+                continue;
+            }
+            if (preg_match('/^[A-Z][a-z]+\s+\d{1,2},\s+\d{4}$/', $candidate)) {
+                $published = srp_newsroom_datetime($candidate);
+                break;
+            }
+            if (preg_match('/^\[/', $candidate) || $candidate === 'Press Release') {
+                break;
+            }
+            $summaryLines[] = $candidate;
+        }
+        if ($published === null) {
+            continue;
+        }
+        $seenUrls[$url] = true;
+        $items[] = [
+            'source_name' => 'U.S. Department of Education',
+            'source_url' => $url,
+            'source_title' => $title,
+            'source_content' => srp_sanitize_plain(implode(' ', $summaryLines), 4000),
+            'source_published_at' => $published,
+        ];
+        if (count($items) >= 25) {
+            break;
+        }
+    }
+    if (!$items) {
+        throw new RuntimeException('No official news items were found in the fallback source.');
+    }
+    return $items;
+}
+
 function srp_newsroom_sync_official(PDO $db): array {
     srp_ensure_newsroom_table($db);
-    $items = srp_newsroom_parse_ed_news(srp_newsroom_fetch_official_html());
+    $usedFallback = false;
+    try {
+        $items = srp_newsroom_parse_ed_news(srp_newsroom_fetch_official_html());
+    } catch (Throwable $directError) {
+        error_log('[SRP] Newsroom direct ED.gov sync failed; using reader fallback: ' . $directError->getMessage());
+        $items = srp_newsroom_parse_ed_news_markdown(srp_newsroom_fetch_official_reader_markdown());
+        $usedFallback = true;
+    }
     $inserted = 0;
     $updated = 0;
     $insert = $db->prepare("
@@ -271,7 +376,41 @@ function srp_newsroom_sync_official(PDO $db): array {
             $updated++;
         }
     }
-    return ['found' => count($items), 'imported' => $inserted, 'updated' => $updated];
+    return [
+        'found' => count($items),
+        'imported' => $inserted,
+        'updated' => $updated,
+        'used_fallback' => $usedFallback,
+    ];
+}
+
+/**
+ * @return array{synced: bool, reason?: string, found?: int, imported?: int, updated?: int, used_fallback?: bool}
+ */
+function srp_newsroom_sync_official_if_due(PDO $db): array {
+    srp_ensure_newsroom_table($db);
+    $lock = $db->query("SELECT GET_LOCK('srp_newsroom_official_sync', 0)")->fetchColumn();
+    if ((int)$lock !== 1) {
+        return ['synced' => false, 'reason' => 'Another newsroom sync is already running.'];
+    }
+    try {
+        $state = $db->prepare('SELECT last_synced_at FROM newsroom_sync_state WHERE source_key = :source LIMIT 1');
+        $state->execute([':source' => 'official_ed']);
+        $lastSyncedAt = $state->fetchColumn();
+        if (is_string($lastSyncedAt) && gmdate('Y-m-d', strtotime($lastSyncedAt)) === gmdate('Y-m-d')) {
+            return ['synced' => false, 'reason' => 'The official newsroom was already synced today.'];
+        }
+        $result = srp_newsroom_sync_official($db);
+        $save = $db->prepare("
+            INSERT INTO newsroom_sync_state (source_key, last_synced_at)
+            VALUES ('official_ed', UTC_TIMESTAMP())
+            ON DUPLICATE KEY UPDATE last_synced_at = VALUES(last_synced_at)
+        ");
+        $save->execute();
+        return ['synced' => true] + $result;
+    } finally {
+        $db->query("SELECT RELEASE_LOCK('srp_newsroom_official_sync')");
+    }
 }
 
 function srp_newsroom_source_footer(array $item): string {

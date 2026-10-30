@@ -2,7 +2,6 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import RightRail from '../widgets/RightRail';
-import ThreadRightRail from './ThreadRightRail';
 import { useProfileContactRailContent } from '../context/ProfileContactContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -14,7 +13,6 @@ function RightSidebar({ userData }) {
   const location = useLocation();
   const { t } = useLanguage();
   const pathname = location.pathname;
-  const isThreadView = /\/thread\//.test(pathname);
   const isDonateRoute = pathname.startsWith('/donate');
   const communityMatch = pathname.match(/^\/(university|group)\/([^/]+)/);
   const communityContext = communityMatch
@@ -43,15 +41,11 @@ function RightSidebar({ userData }) {
           </div>
         </section>
       )}
-      {isThreadView
-        ? <ThreadRightRail />
-        : (
-          <RightRail
-            userData={userData}
-            communityContext={communityContext}
-            hideGenericWidgets={hideGenericWidgets}
-          />
-        )}
+      <RightRail
+        userData={userData}
+        communityContext={communityContext}
+        hideGenericWidgets={hideGenericWidgets}
+      />
     </aside>
   );
 }

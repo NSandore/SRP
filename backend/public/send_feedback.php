@@ -26,7 +26,7 @@ try {
 
     $mg->messages()->send($domain, [
         'from' => "$name <$email>",
-        'to' => 'n.sandore5140@gmail.com',
+        'to' => getenv('SUPPORT_EMAIL') ?: 'support@thestudentsphere.com',
         'subject' => 'StudentSphere Feedback',
         'text' => "Feedback from $name <$email>:\n\n$message"
     ]);

@@ -1,17 +1,20 @@
 <?php
 // fetch_feed.php
 
-session_start();
 header('Content-Type: application/json');
 require_once '../db_connection.php';
+require_once __DIR__ . '/../session_bootstrap.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
-if (!isset($_GET['user_id'])) {
-    echo json_encode(["success" => false, "error" => "Missing user_id"]);
+startSession();
+
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(["success" => false, "error" => "Authentication required."]);
     exit;
 }
 
-$user_id = normalizeId($_GET['user_id']);
+$user_id = normalizeId($_SESSION['user_id']);
 $sort = isset($_GET['sort']) ? strtolower(trim($_GET['sort'])) : 'recent';
 if (!in_array($sort, ['recent', 'trending'], true)) {
     $sort = 'recent';

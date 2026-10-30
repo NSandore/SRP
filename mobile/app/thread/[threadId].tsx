@@ -38,6 +38,15 @@ const REPLY_SORT_OPTIONS = [
 
 type ReplySort = (typeof REPLY_SORT_OPTIONS)[number]['key'];
 
+type KnowledgeBaseNode = {
+  thread_id: string;
+  forum_id: string;
+  title: string;
+  content_kind?: ThreadData['content_kind'];
+  excerpt?: string;
+  child_count?: number;
+};
+
 type PostNode = PostData & { children: PostNode[]; hasVerified?: boolean };
 
 function buildReplyTree(posts: PostData[]) {
@@ -151,6 +160,8 @@ export default function ThreadDetailScreen() {
   const styles = useBrandStyles(createStyles);
 
   const [thread, setThread] = useState<ThreadData | null>(null);
+  const [knowledgeBaseChildren, setKnowledgeBaseChildren] = useState<KnowledgeBaseNode[]>([]);
+  const [isLoadingKnowledgeBaseChildren, setIsLoadingKnowledgeBaseChildren] = useState(false);
   const [originalPost, setOriginalPost] = useState<PostData | null>(null);
   const [postTree, setPostTree] = useState<PostNode[]>([]);
   const [isLoadingThread, setIsLoadingThread] = useState(true);
@@ -171,6 +182,16 @@ export default function ThreadDetailScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const totalReplies = useMemo(() => countReplies(postTree), [postTree]);
+  const isKnowledgeBaseEntry = Number(thread?.is_system_container) === 1;
+  const isReadOnlyArticle = isKnowledgeBaseEntry && Number(thread?.is_locked) === 1;
+  const knowledgeBaseTypeLabel =
+    thread?.content_kind === 'guide'
+      ? 'Student guide'
+      : thread?.content_kind === 'section'
+        ? 'Knowledge base section'
+        : thread?.content_kind === 'article'
+          ? 'Knowledge base article'
+          : 'Knowledge base entry';
 
   useEffect(() => {
     if (!threadId) return;
@@ -180,6 +201,40 @@ export default function ThreadDetailScreen() {
       .catch(() => setError('Failed to load thread details.'))
       .finally(() => setIsLoadingThread(false));
   }, [threadId, user?.user_id]);
+
+  useEffect(() => {
+    let mounted = true;
+    const communityId = String(thread?.community_id || '');
+    if (!isKnowledgeBaseEntry || !communityId || !threadId) {
+      setKnowledgeBaseChildren([]);
+      setIsLoadingKnowledgeBaseChildren(false);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    setKnowledgeBaseChildren([]);
+    setIsLoadingKnowledgeBaseChildren(true);
+    apiClient
+      .get('/fetch_knowledge_base_nodes.php', {
+        params: { community_id: communityId, parent_thread_id: String(threadId) },
+      })
+      .then((response) => {
+        if (!mounted) return;
+        const nodes = (response.data as any)?.nodes;
+        setKnowledgeBaseChildren(Array.isArray(nodes) ? nodes : []);
+      })
+      .catch(() => {
+        if (mounted) setKnowledgeBaseChildren([]);
+      })
+      .finally(() => {
+        if (mounted) setIsLoadingKnowledgeBaseChildren(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [isKnowledgeBaseEntry, thread?.community_id, threadId]);
 
   const loadPosts = () => {
     if (!threadId) return;
@@ -377,12 +432,14 @@ export default function ThreadDetailScreen() {
           </Pressable>
           <ThemedText style={styles.voteCount}>{Number(post.downvotes) || 0}</ThemedText>
 
-          <Pressable
-            onPress={() => setActiveReplyId(activeReplyId === post.post_id ? null : post.post_id)}
-            style={styles.replyButton}
-          >
-            <MaterialCommunityIcons name="message-outline" size={18} color={colors.subtext} />
-          </Pressable>
+          {!isReadOnlyArticle ? (
+            <Pressable
+              onPress={() => setActiveReplyId(activeReplyId === post.post_id ? null : post.post_id)}
+              style={styles.replyButton}
+            >
+              <MaterialCommunityIcons name="message-outline" size={18} color={colors.subtext} />
+            </Pressable>
+          ) : null}
           <ThemedText style={styles.voteCount}>{childCount}</ThemedText>
 
           <Pressable
@@ -409,7 +466,7 @@ export default function ThreadDetailScreen() {
           ) : null}
         </View>
 
-        {activeReplyId === post.post_id ? (
+        {!isReadOnlyArticle && activeReplyId === post.post_id ? (
           <View style={styles.replyBox}>
             <TextInput
               style={styles.replyInput}
@@ -486,14 +543,21 @@ export default function ThreadDetailScreen() {
           <Pressable onPress={() => router.push('/info')}>
             <ThemedText style={styles.breadcrumbText}>Info Board</ThemedText>
           </Pressable>
-          <ThemedText style={styles.breadcrumbSep}>/</ThemedText>
-          {thread?.forum_id ? (
-            <Pressable onPress={() => router.push(`/info/forum/${thread.forum_id}`)}>
-              <ThemedText style={styles.breadcrumbText}>{thread?.forum_name || 'Category'}</ThemedText>
-            </Pressable>
-          ) : (
-            <ThemedText style={styles.breadcrumbText}>{thread?.forum_name || 'Category'}</ThemedText>
-          )}
+          {isKnowledgeBaseEntry && thread?.parent_thread_id ? (
+            <>
+              <ThemedText style={styles.breadcrumbSep}>/</ThemedText>
+              <Pressable onPress={() => router.push(`/thread/${thread.parent_thread_id}`)}>
+                <ThemedText style={styles.breadcrumbText}>{thread.parent_thread_title || 'Parent article'}</ThemedText>
+              </Pressable>
+            </>
+          ) : !isKnowledgeBaseEntry && thread?.forum_id ? (
+            <>
+              <ThemedText style={styles.breadcrumbSep}>/</ThemedText>
+              <Pressable onPress={() => router.push(`/info/forum/${thread.forum_id}`)}>
+                <ThemedText style={styles.breadcrumbText}>{thread?.forum_name || 'Category'}</ThemedText>
+              </Pressable>
+            </>
+          ) : null}
         </View>
 
         <ThemedText type="title" style={styles.threadTitle}>
@@ -522,13 +586,24 @@ export default function ThreadDetailScreen() {
         {hasMeaningfulUpdate(thread?.created_at, thread?.updated_at) ? (
           <ThemedText style={styles.metaText}>
             Last updated {timeAgo(thread?.updated_at)}
-            {thread?.updated_by_first_name ? ` by ${thread.updated_by_first_name} ${thread.updated_by_last_name || ''}` : ''}
+            {!isKnowledgeBaseEntry && thread?.updated_by_first_name
+              ? ` by ${thread.updated_by_first_name} ${thread.updated_by_last_name || ''}`
+              : ''}
           </ThemedText>
         ) : null}
 
+        {isReadOnlyArticle ? (
+          <View style={styles.readOnlyNote}>
+            <ThemedText style={styles.readOnlyTitle}>{knowledgeBaseTypeLabel}</ThemedText>
+            <ThemedText style={styles.helper}>
+              This entry is read-only. Use an Information Board question megathread for discussion.
+            </ThemedText>
+          </View>
+        ) : null}
+
         {originalPost ? (
-          <View style={styles.threadCard}>
-            {Number(originalPost.verified) === 1 ? (
+          <View style={[styles.threadCard, isKnowledgeBaseEntry ? styles.knowledgeBaseCard : null]}>
+            {!isKnowledgeBaseEntry && Number(originalPost.verified) === 1 ? (
               <View style={styles.verifiedBanner}>
                 <MaterialCommunityIcons name="check-decagram" size={18} color="#1b5e20" />
                 <View style={{ flex: 1 }}>
@@ -543,6 +618,7 @@ export default function ThreadDetailScreen() {
               </View>
             ) : null}
 
+            {!isKnowledgeBaseEntry ? (
             <View style={styles.postHeader}>
               <Image source={{ uri: buildAvatarSrc(originalPost.avatar_path) }} style={styles.avatar} />
               <View style={{ flex: 1 }}>
@@ -558,6 +634,7 @@ export default function ThreadDetailScreen() {
                 ) : null}
               </View>
             </View>
+            ) : null}
 
             <RenderHTML
               contentWidth={width - 48}
@@ -565,7 +642,8 @@ export default function ThreadDetailScreen() {
               baseStyle={styles.postContent}
             />
 
-            <View style={styles.voteRow}>
+            {!isKnowledgeBaseEntry ? (
+              <View style={styles.voteRow}>
               <Pressable onPress={() => handleVote(originalPost.post_id, 'up')} style={styles.voteButton}>
                 <MaterialCommunityIcons
                   name={originalPost.user_vote === 'up' ? 'arrow-up-bold' : 'arrow-up-bold-outline'}
@@ -583,9 +661,11 @@ export default function ThreadDetailScreen() {
               </Pressable>
               <ThemedText style={styles.voteCount}>{Number(originalPost.downvotes) || 0}</ThemedText>
 
-              <Pressable onPress={() => setRootReplyOpen(true)} style={styles.replyButton}>
-                <MaterialCommunityIcons name="message-outline" size={18} color={colors.subtext} />
-              </Pressable>
+              {!isReadOnlyArticle ? (
+                <Pressable onPress={() => setRootReplyOpen(true)} style={styles.replyButton}>
+                  <MaterialCommunityIcons name="message-outline" size={18} color={colors.subtext} />
+                </Pressable>
+              ) : null}
               <ThemedText style={styles.voteCount}>{totalReplies}</ThemedText>
 
               <Pressable
@@ -594,9 +674,20 @@ export default function ThreadDetailScreen() {
               >
                 <ThemedText style={styles.reportText}>Report</ThemedText>
               </Pressable>
-            </View>
+              </View>
+            ) : !isReadOnlyArticle ? (
+              <View style={styles.knowledgeBaseDiscussionAction}>
+                <Pressable onPress={() => setRootReplyOpen(true)} style={styles.knowledgeBaseDiscussionButton}>
+                  <MaterialCommunityIcons name="message-outline" size={18} color={colors.subtext} />
+                  <ThemedText style={styles.knowledgeBaseDiscussionText}>Join the discussion</ThemedText>
+                </Pressable>
+                <ThemedText style={styles.metaText}>
+                  {totalReplies} {totalReplies === 1 ? 'comment' : 'comments'}
+                </ThemedText>
+              </View>
+            ) : null}
 
-            {rootReplyOpen ? (
+            {!isReadOnlyArticle && rootReplyOpen ? (
               <View style={styles.replyForm}>
                 <TextInput
                   style={styles.replyInput}
@@ -624,7 +715,47 @@ export default function ThreadDetailScreen() {
           </View>
         ) : null}
 
-        <View style={styles.sortRow}>
+        {isLoadingKnowledgeBaseChildren ? (
+          <ActivityIndicator />
+        ) : knowledgeBaseChildren.length > 0 ? (
+          <View style={styles.knowledgeBaseChildren}>
+            <ThemedText style={styles.knowledgeBaseKicker}>CONTINUE READING</ThemedText>
+            <ThemedText style={styles.knowledgeBaseHeading}>
+              {thread?.content_kind === 'guide' ? 'Explore this guide' : 'Articles in this section'}
+            </ThemedText>
+            {knowledgeBaseChildren.map((child, index) => (
+              <Pressable
+                key={child.thread_id}
+                style={styles.knowledgeBaseChildCard}
+                onPress={() => router.push(`/thread/${child.thread_id}`)}
+              >
+                <ThemedText style={styles.knowledgeBaseIndex}>{String(index + 1).padStart(2, '0')}</ThemedText>
+                <View style={styles.knowledgeBaseChildBody}>
+                  <ThemedText style={styles.knowledgeBaseType}>
+                    {child.content_kind === 'megathread'
+                      ? 'QUESTIONS & DISCUSSION'
+                      : Number(child.child_count) > 0
+                        ? 'SECTION'
+                        : 'ARTICLE'}
+                  </ThemedText>
+                  <ThemedText style={styles.knowledgeBaseChildTitle}>{child.title}</ThemedText>
+                  {child.excerpt ? (
+                    <ThemedText style={styles.knowledgeBaseExcerpt} numberOfLines={2}>{child.excerpt}</ThemedText>
+                  ) : null}
+                  {Number(child.child_count) > 0 ? (
+                    <ThemedText style={styles.knowledgeBaseCount}>
+                      {child.child_count} {Number(child.child_count) === 1 ? 'article' : 'articles'}
+                    </ThemedText>
+                  ) : null}
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primaryFrom} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {!isReadOnlyArticle ? (
+          <View style={styles.sortRow}>
           <ThemedText style={styles.sortLabel}>Sort replies:</ThemedText>
           <View style={styles.dropdownAnchor}>
             <Pressable
@@ -640,13 +771,14 @@ export default function ThreadDetailScreen() {
               <MaterialCommunityIcons name="chevron-down" size={16} color={colors.subtext} />
             </Pressable>
           </View>
-        </View>
+          </View>
+        ) : null}
 
-        {postTree.length === 0 ? (
+        {!isReadOnlyArticle && postTree.length === 0 ? (
           <ThemedText style={styles.helper}>No replies yet. Be the first to respond.</ThemedText>
         ) : null}
 
-        {postTree.map((post) => renderPost(post))}
+        {!isReadOnlyArticle ? postTree.map((post) => renderPost(post)) : null}
       </ScrollView>
 
       {menuOverlay ? (
@@ -884,6 +1016,33 @@ const createStyles = (colors: BrandColors) =>
     shadowRadius: 8,
     elevation: 2,
   },
+  knowledgeBaseCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primaryFrom,
+    backgroundColor: hexToRgba(colors.primaryFrom, 0.045),
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  knowledgeBaseDiscussionAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 10,
+  },
+  knowledgeBaseDiscussionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  knowledgeBaseDiscussionText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   postCard: {
     backgroundColor: colors.card,
     borderRadius: Brand.radius.card,
@@ -1036,6 +1195,78 @@ const createStyles = (colors: BrandColors) =>
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card,
+  },
+  readOnlyNote: {
+    borderWidth: 1,
+    borderColor: hexToRgba(colors.primaryFrom, 0.28),
+    borderRadius: 10,
+    padding: 10,
+    gap: 3,
+    backgroundColor: hexToRgba(colors.primaryFrom, 0.07),
+  },
+  readOnlyTitle: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  knowledgeBaseChildren: {
+    gap: 10,
+    marginVertical: 4,
+  },
+  knowledgeBaseKicker: {
+    color: colors.primaryFrom,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+  },
+  knowledgeBaseHeading: {
+    color: colors.text,
+    fontSize: 19,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  knowledgeBaseChildCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 13,
+    backgroundColor: colors.card,
+  },
+  knowledgeBaseIndex: {
+    color: colors.primaryFrom,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  knowledgeBaseChildBody: {
+    flex: 1,
+    gap: 3,
+  },
+  knowledgeBaseType: {
+    color: colors.subtext,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  knowledgeBaseChildTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  knowledgeBaseExcerpt: {
+    color: colors.subtext,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  knowledgeBaseCount: {
+    color: colors.primaryFrom,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
   },
   sortRow: {
     gap: 8,

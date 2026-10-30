@@ -1,8 +1,8 @@
-const DEFAULT_NATIVE_API_BASE_URL = 'http://10.0.0.251:3001';
+const DEFAULT_NATIVE_API_BASE_URL = 'https://thestudentsphere.com';
 
 const getDefaultApiBaseUrl = () => {
   if (typeof window !== 'undefined' && window.location?.hostname) {
-    return `${window.location.protocol}//${window.location.hostname}:3001`;
+    return window.location.origin;
   }
 
   return DEFAULT_NATIVE_API_BASE_URL;

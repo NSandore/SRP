@@ -24,6 +24,8 @@ jobs:
           echo "All PHP files pass php -l"
       - name: Run permission tests
         run: php backend/tests/permissions_test.php
+      - name: Run test-account allowlist tests
+        run: php backend/tests/test_accounts_test.php
       - name: Run institution pipeline tests
         run: |
           set -e
@@ -32,7 +34,7 @@ jobs:
           done
 
   frontend:
-    name: Frontend (React build)
+    name: Frontend (tests + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -44,6 +46,8 @@ jobs:
           node-version: '20'
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
+      - name: Unit tests
+        run: npm test -- --watchAll=false --runInBand
       - name: Production build
         run: CI=false npm run build
 

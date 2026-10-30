@@ -89,9 +89,13 @@ try {
         $results['tags'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    // Discovery/search hides inactive universities from new selections while
-    // leaving groups unaffected. Detail-by-ID endpoints remain unfiltered.
-    $activeCommunityPredicate = SrpInstitutionPublicProjection::activeUniversityPredicate($db, 'c');
+    // Search includes explicitly searchable institutions but excludes the
+    // archived tier. Detail-by-ID endpoints remain deliberately unfiltered.
+    $directoryCommunityPredicate = SrpInstitutionPublicProjection::directoryUniversityPredicate(
+        $db,
+        'c',
+        true
+    );
     $communitySearchConditions = [
         'c.name LIKE :q',
         'c.tagline LIKE :q',
@@ -104,21 +108,15 @@ try {
         }
     }
     $communitySearchSql = implode(' OR ', $communitySearchConditions);
+    $communityPublicProjection = SrpInstitutionPublicProjection::selectList($db, 'c');
     $stmt = $db->prepare("
         SELECT 
-            c.id, 
-            c.community_type, 
-            c.parent_community_id,
-            c.name, 
-            c.tagline, 
-            c.location, 
-            c.logo_path, 
-            c.created_at,
+            {$communityPublicProjection},
             p.name AS parent_name
         FROM communities c
         LEFT JOIN communities p ON p.id = c.parent_community_id
         WHERE ({$communitySearchSql})
-          AND {$activeCommunityPredicate}
+          AND {$directoryCommunityPredicate}
         ORDER BY c.created_at DESC
         LIMIT :lim
     ");

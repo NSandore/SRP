@@ -13,6 +13,7 @@ import { buildAvatarSrc } from "../utils/avatar";
 import buildUploadSrc from "../utils/uploads";
 import { usePublishProfileContact } from "../context/ProfileContactContext";
 import ReelGrid, { IntroReelCard } from "./ReelGrid";
+import { REELS_ENABLED } from "../constants/features";
 
 const getAmbassadorCommunityId = (community) =>
   String(community?.community_id ?? community?.id ?? community ?? "").trim();
@@ -543,7 +544,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const shouldBlurDetails = !userData || isRestrictedForPrivacy || isNetworkRestricted;
   const profileTabs = [
     { id: "about", label: "About" },
-    { id: "reels", label: "Reels" },
+    ...(REELS_ENABLED ? [{ id: "reels", label: "Reels" }] : []),
     { id: "posts", label: "Posts" },
     { id: "replies", label: "Replies" },
   ];
@@ -794,7 +795,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                   )}
                 </div>
 
-                <IntroReelCard profile={profile} isOwner={isOwnProfile} />
+                {REELS_ENABLED && <IntroReelCard profile={profile} isOwner={isOwnProfile} />}
 
                 <div className="content-card">
                   <div className="qa-header">
@@ -906,7 +907,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
             </>
           )}
 
-          {activeTab === "reels" && (
+          {REELS_ENABLED && activeTab === "reels" && (
             <ReelGrid
               userId={user_id}
               isOwner={isOwnProfile}

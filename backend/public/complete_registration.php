@@ -1,4 +1,10 @@
 <?php
+// Retired: onboarding is now handled by the authenticated wizard endpoint.
+header('Content-Type: application/json');
+http_response_code(410);
+echo json_encode(['error' => 'This registration endpoint has been retired. Use onboarding_wizard.php.']);
+exit;
+
 require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');

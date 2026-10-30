@@ -29,7 +29,13 @@ try {
                 SELECT COUNT(*)
                 FROM followed_communities fc
                 WHERE fc.community_id = c.id
-            ) AS followers_count
+            ) AS followers_count,
+            CASE WHEN EXISTS (
+                SELECT 1
+                FROM forums kb
+                WHERE kb.community_id = c.id
+                  AND kb.is_system_container = 1
+            ) THEN 'knowledge_base' ELSE 'community' END AS content_mode
          FROM communities c
          WHERE c.id = :id AND c.community_type = 'group'
          LIMIT 1"

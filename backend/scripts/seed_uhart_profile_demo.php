@@ -361,30 +361,29 @@ try {
             :id, :thread_id, :user_id, :content,
             DATE_SUB(UTC_TIMESTAMP(), INTERVAL :hours HOUR),
             DATE_SUB(UTC_TIMESTAMP(), INTERVAL :hours HOUR),
-            :upvotes, 0, :reply_to, :verified, :verified_by,
-            CASE WHEN :verified = 1 THEN DATE_SUB(UTC_TIMESTAMP(), INTERVAL :hours HOUR) ELSE NULL END,
+            :upvotes, 0, :reply_to, 0, NULL, NULL,
             0
         )
         ON DUPLICATE KEY UPDATE
             content = VALUES(content),
             upvotes = VALUES(upvotes),
             reply_to = VALUES(reply_to),
-            verified = VALUES(verified),
-            verified_by = VALUES(verified_by),
-            verified_at = VALUES(verified_at),
+            verified = 0,
+            verified_by = NULL,
+            verified_at = NULL,
             is_hidden = 0
     ");
 
     $posts = [
-        [$ids['post_hjg_question'], $ids['thread_hjg'], $studentUserId, 'I have a gap between classes and need a quiet place with outlets. Which areas tend to work best?', 124, 5, null, 0],
-        [$ids['post_hjg_answer'], $ids['thread_hjg'], $adminUserId, 'Mortensen Library is in the Harry Jack Gray Center. The upper levels are generally a good fit for focused work; reserveable and collaborative spaces may have different noise expectations.', 3, 14, $ids['post_hjg_question'], 1],
-        [$ids['post_advising_question'], $ids['thread_advising'], $studentUserId, 'I am considering a minor outside my home college. When should I start comparing requirements with my advisor?', 196, 4, null, 0],
-        [$ids['post_advising_answer'], $ids['thread_advising'], $adminUserId, 'Start during your first planning conversation if possible. Bring the minor requirements and a draft semester plan so your advisor can identify prerequisites and courses that may satisfy more than one requirement.', 8, 11, $ids['post_advising_question'], 1],
-        [$ids['post_hartt_question'], $ids['thread_hartt'], $studentUserId, 'Is there one place to find public Hartt performances and Hartford Art School exhibitions?', 268, 7, null, 0],
-        [$ids['post_hartt_answer'], $ids['thread_hartt'], $adminUserId, 'Start with the university events listings and the individual school calendars. Venue details matter: Wilde Auditorium is in the Harry Jack Gray Center, while other performances may use Lincoln Theater or the Handel Performing Arts Center.', 16, 18, $ids['post_hartt_question'], 1],
+        [$ids['post_hjg_question'], $ids['thread_hjg'], $studentUserId, 'I have a gap between classes and need a quiet place with outlets. Which areas tend to work best?', 124, 5, null],
+        [$ids['post_hjg_answer'], $ids['thread_hjg'], $adminUserId, 'Mortensen Library is in the Harry Jack Gray Center. The upper levels are generally a good fit for focused work; reserveable and collaborative spaces may have different noise expectations.', 3, 14, $ids['post_hjg_question']],
+        [$ids['post_advising_question'], $ids['thread_advising'], $studentUserId, 'I am considering a minor outside my home college. When should I start comparing requirements with my advisor?', 196, 4, null],
+        [$ids['post_advising_answer'], $ids['thread_advising'], $adminUserId, 'Start during your first planning conversation if possible. Bring the minor requirements and a draft semester plan so your advisor can identify prerequisites and courses that may satisfy more than one requirement.', 8, 11, $ids['post_advising_question']],
+        [$ids['post_hartt_question'], $ids['thread_hartt'], $studentUserId, 'Is there one place to find public Hartt performances and Hartford Art School exhibitions?', 268, 7, null],
+        [$ids['post_hartt_answer'], $ids['thread_hartt'], $adminUserId, 'Start with the university events listings and the individual school calendars. Venue details matter: Wilde Auditorium is in the Harry Jack Gray Center, while other performances may use Lincoln Theater or the Handel Performing Arts Center.', 16, 18, $ids['post_hartt_question']],
     ];
 
-    foreach ($posts as [$id, $threadId, $userId, $content, $hours, $upvotes, $replyTo, $verified]) {
+    foreach ($posts as [$id, $threadId, $userId, $content, $hours, $upvotes, $replyTo]) {
         $postUpsert->execute([
             ':id' => $id,
             ':thread_id' => $threadId,
@@ -393,8 +392,6 @@ try {
             ':hours' => $hours,
             ':upvotes' => $upvotes,
             ':reply_to' => $replyTo,
-            ':verified' => $verified,
-            ':verified_by' => $verified ? $adminUserId : null,
         ]);
     }
 

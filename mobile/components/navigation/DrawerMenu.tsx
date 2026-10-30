@@ -22,13 +22,14 @@ import { ThemedText } from '@/components/themed-text';
 import { useSession } from '@/hooks/use-session';
 import { isAdmin, isSuperAdmin } from '@/constants/roles';
 import { useLockedFeature } from '@/providers/LockedFeatureProvider';
+import { REELS_ENABLED } from '@/constants/features';
 import { useBrandStyles } from '@/hooks/use-brand-styles';
 
 const DRAWER_WIDTH = 300;
 
 const baseItems = [
   { key: 'home', label: 'Home', route: '/feed', icon: 'home', color: '#2F80ED' },
-  { key: 'reels', label: 'Reels', route: '/reels', icon: 'play-box-multiple', color: '#8B5CF6' },
+  { key: 'reels', label: 'Reels', route: '/reels', icon: 'play-box-multiple', color: '#8B5CF6', comingSoon: !REELS_ENABLED },
   { key: 'info', label: 'Info Board', route: '/info', icon: 'information-variant', color: '#69A8F7' },
   { key: 'funding', label: 'Funding', route: '/funding', icon: 'medal-outline', color: '#F59E0B', comingSoon: true },
   { key: 'communities', label: 'Communities', route: '/communities', icon: 'account-group', color: '#10B981' },

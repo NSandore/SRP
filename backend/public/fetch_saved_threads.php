@@ -1,19 +1,21 @@
 <?php
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+    exit;
+}
+
 try {
     $db = getDB();
 
-    if (!isset($_GET['user_id'])) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Missing user_id']);
-        exit;
-    }
-
-    $user_id = normalizeId($_GET['user_id']);
+    $user_id = normalizeId($_SESSION['user_id']);
 
     $query = "SELECT st.thread_id,
                      t.forum_id,

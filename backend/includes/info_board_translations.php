@@ -379,5 +379,6 @@ function srp_translate_info_board_rows(
 }
 
 function srp_is_info_board_community($communityId): bool {
-    return (string)$communityId === srp_info_board_community_id();
+    $communityId = (string)$communityId;
+    return $communityId === srp_info_board_community_id();
 }

@@ -17,6 +17,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+$sessionUserId = normalizeId($_SESSION['user_id'] ?? '');
+$sessionRoleId = (int)($_SESSION['role_id'] ?? 0);
+$isSuperAdminUser = isSuperAdmin($sessionRoleId);
+
+if ($sessionUserId === '') {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Authentication required.']);
+    exit;
+}
+
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input || !is_array($input)) {
     $input = $_POST;
@@ -68,16 +78,6 @@ $aliasesJson = normalizeAliases($aliasesInput);
 if ($name === '' || $type === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Name and type are required.']);
-    exit;
-}
-
-$sessionUserId = normalizeId($_SESSION['user_id'] ?? '');
-$sessionRoleId = (int)($_SESSION['role_id'] ?? 0);
-$isSuperAdminUser = isSuperAdmin($sessionRoleId);
-
-if ($sessionUserId === '') {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Forbidden']);
     exit;
 }
 

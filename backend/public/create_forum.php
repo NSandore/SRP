@@ -1,7 +1,6 @@
 <?php
-session_start(); // Start the session to access session variables
-
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../session_bootstrap.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../includes/sanitize.php';
@@ -9,6 +8,7 @@ require_once __DIR__ . '/../includes/content_limits.php';
 require_once __DIR__ . '/../tag_helpers.php';
 
 header('Content-Type: application/json');
+startSession();
 
 // Retrieve input (supports JSON or multipart form data)
 $data = json_decode(file_get_contents('php://input'), true);

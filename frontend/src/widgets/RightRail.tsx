@@ -22,6 +22,12 @@ type ManagedItem = {
   subCommunityName?: string;
   sourceCommunityId?: string;
   pollOptions?: string[];
+  pollOptionRecords?: Array<{ option_id: string; text: string; votes: number }>;
+  totalVotes?: number;
+  hasVoted?: boolean;
+  userChoices?: string[];
+  closed?: boolean;
+  allowMultipleChoices?: boolean;
   createdAt?: string;
   showResults?: boolean;
   zoomMeetingId?: string;
@@ -67,131 +73,12 @@ const POLL_RESULTS_KEY = 'managedPollTallies';
 const RSVP_KEY = 'managedEventRsvps';
 const COMMUNITY_EVENT_PAGE_SIZE = 4;
 
-const railSampleDate = (daysFromNow: number, hour = 16) => {
-  const date = new Date();
-  date.setDate(date.getDate() + daysFromNow);
-  date.setHours(hour, 0, 0, 0);
-  return date.toISOString();
-};
-
-const SAMPLE_RAIL_EVENTS: ManagedItem[] = [
-  {
-    id: 'sample-event-research-roundtable',
-    type: 'event',
-    title: 'Research Methods Roundtable',
-    description: 'A practical cross-disciplinary discussion.',
-    date: railSampleDate(3),
-    location: 'Library Seminar Room 2',
-    scope: 'global',
-    communityName: 'Academic Commons',
-  },
-];
-
-const SAMPLE_RAIL_POLLS: ManagedItem[] = [
-  {
-    id: 'sample-rail-reading-format',
-    type: 'poll',
-    title: 'Which reading-group format works best?',
-    date: railSampleDate(6, 17),
-    scope: 'global',
-    communityName: 'Academic Commons',
-    pollOptions: ['One monthly session', 'Two shorter sessions', 'Asynchronous notes'],
-    showResults: true,
-  },
-];
-
-const UHART_COMMUNITY_ID = 'c8c95ee34ea174266';
-const SAMPLE_UHART_POLLS: ManagedItem[] = [
-  {
-    id: 'sample-uhart-study-space',
-    type: 'poll',
-    title: 'Which campus study setting helps you focus?',
-    description: 'Help shape future peer recommendations for productive study spaces.',
-    date: railSampleDate(8, 21),
-    scope: 'community',
-    communityId: UHART_COMMUNITY_ID,
-    sourceCommunityId: UHART_COMMUNITY_ID,
-    communityName: 'University of Hartford',
-    pollOptions: ['Quiet library floor', 'Reserveable study room', 'Student center table', 'Outdoor campus space'],
-    showResults: true,
-    allowedAudiences: ['public', 'members', 'verified', 'ambassadors', 'admins'],
-  },
-  {
-    id: 'sample-uhart-community-programming',
-    type: 'poll',
-    title: 'What should the next UHart community session focus on?',
-    description: 'Choose the practical topic that would be most useful this month.',
-    date: railSampleDate(13, 21),
-    scope: 'community',
-    communityId: UHART_COMMUNITY_ID,
-    sourceCommunityId: UHART_COMMUNITY_ID,
-    communityName: 'University of Hartford',
-    pollOptions: ['Academic planning', 'Campus resources', 'Career preparation', 'Arts and performances'],
-    showResults: true,
-    allowedAudiences: ['public', 'members', 'verified', 'ambassadors', 'admins'],
-  },
-];
-
-const localizeSampleItem = (item: ManagedItem, t: (key: string) => string): ManagedItem => {
-  switch (item.id) {
-    case 'sample-event-research-roundtable':
-      return {
-        ...item,
-        title: t('rail.samples.roundtableTitle'),
-        description: t('rail.samples.roundtableDescription'),
-        location: t('rail.samples.roundtableLocation'),
-        communityName: t('nav.academicCommons'),
-      };
-    case 'sample-rail-reading-format':
-      return {
-        ...item,
-        title: t('rail.samples.readingFormatTitle'),
-        communityName: t('nav.academicCommons'),
-      };
-    case 'sample-uhart-study-space':
-      return {
-        ...item,
-        title: t('rail.samples.studySpaceTitle'),
-        description: t('rail.samples.studySpaceDescription'),
-      };
-    case 'sample-uhart-community-programming':
-      return {
-        ...item,
-        title: t('rail.samples.programmingTitle'),
-        description: t('rail.samples.programmingDescription'),
-      };
-    default:
-      return item;
-  }
-};
-
-const SAMPLE_POLL_OPTION_KEYS: Record<string, Record<string, string>> = {
-  'sample-rail-reading-format': {
-    'One monthly session': 'rail.samples.readingFormatMonthly',
-    'Two shorter sessions': 'rail.samples.readingFormatShorter',
-    'Asynchronous notes': 'rail.samples.readingFormatAsync',
-  },
-  'sample-uhart-study-space': {
-    'Quiet library floor': 'rail.samples.quietLibrary',
-    'Reserveable study room': 'rail.samples.studyRoom',
-    'Student center table': 'rail.samples.studentCenter',
-    'Outdoor campus space': 'rail.samples.outdoorSpace',
-  },
-  'sample-uhart-community-programming': {
-    'Academic planning': 'rail.samples.academicPlanning',
-    'Campus resources': 'rail.samples.campusResources',
-    'Career preparation': 'rail.samples.careerPreparation',
-    'Arts and performances': 'rail.samples.artsPerformances',
-  },
-};
-
 const localizePollOption = (
-  pollId: string,
+  _pollId: string,
   option: string,
-  t: (key: string) => string
+  _t: (key: string) => string
 ) => {
-  const translationKey = SAMPLE_POLL_OPTION_KEYS[pollId]?.[option];
-  return translationKey ? t(translationKey) : option;
+  return option;
 };
 
 const datePrefix = (type: string | undefined, t: (key: string) => string) => {
@@ -254,6 +141,7 @@ export default function RightRail({
 
   const [items, setItems] = useState<ManagedItem[]>([]);
   const [remoteEvents, setRemoteEvents] = useState<ManagedItem[]>([]);
+  const [remotePolls, setRemotePolls] = useState<ManagedItem[]>([]);
   const [followed, setFollowed] = useState<string[]>([]);
   const [community, setCommunity] = useState<CommunitySummary | null>(null);
   const [communityAmbassadors, setCommunityAmbassadors] = useState<any[]>([]);
@@ -344,6 +232,62 @@ export default function RightRail({
       }
     };
     loadEvents();
+    return () => {
+      cancelled = true;
+    };
+  }, [userData?.user_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPolls = async () => {
+      try {
+        const res = await axios.get('/api/fetch_polls.php', { withCredentials: true });
+        const polls = Array.isArray(res.data?.polls) ? res.data.polls : [];
+        const normalized: ManagedItem[] = polls.map((poll: any) => {
+          const options = Array.isArray(poll.options) ? poll.options : [];
+          return {
+            id: String(poll.poll_id),
+            type: 'poll',
+            title: String(poll.question || ''),
+            description: String(poll.description || ''),
+            date: poll.closes_at || undefined,
+            scope: poll.scope === 'community' ? 'community' : 'global',
+            communityId: poll.community_id ? String(poll.community_id) : '',
+            sourceCommunityId: poll.community_id ? String(poll.community_id) : '',
+            communityName: String(poll.community_name || ''),
+            pollOptions: options.map((option: any) => String(option.text || '')),
+            pollOptionRecords: options.map((option: any) => ({
+              option_id: String(option.option_id),
+              text: String(option.text || ''),
+              votes: Number(option.votes || 0),
+            })),
+            totalVotes: Number(poll.total_votes || 0),
+            hasVoted: Boolean(poll.has_voted),
+            userChoices: Array.isArray(poll.user_choices) ? poll.user_choices.map(String) : [],
+            closed: Boolean(poll.closed),
+            allowMultipleChoices: Boolean(poll.allow_multiple_choices),
+            isRemote: true,
+          };
+        });
+        if (!cancelled) {
+          setRemotePolls(normalized);
+          const responses: Record<string, string> = {};
+          const tallies: Record<string, Record<string, number>> = {};
+          normalized.forEach((poll) => {
+            const selected = poll.pollOptionRecords?.find((option) => poll.userChoices?.includes(option.option_id));
+            if (poll.hasVoted && selected) responses[poll.id] = selected.text;
+            tallies[poll.id] = Object.fromEntries(
+              (poll.pollOptionRecords || []).map((option) => [option.text, option.votes])
+            );
+          });
+          setPollResponses(responses);
+          setPollTallies(tallies);
+        }
+      } catch {
+        if (!cancelled) setRemotePolls([]);
+      }
+    };
+    loadPolls();
     return () => {
       cancelled = true;
     };
@@ -507,6 +451,7 @@ export default function RightRail({
     const merged = new Map<string, ManagedItem>();
     items.forEach((item) => merged.set(String(item.id), item));
     remoteEvents.forEach((item) => merged.set(String(item.id), item));
+    remotePolls.forEach((item) => merged.set(String(item.id), item));
     const accessible = Array.from(merged.values()).filter((item) => item.isRemote || isVisible(item));
     if (!communityContext?.id) return accessible;
     return accessible.filter((item) => {
@@ -515,7 +460,7 @@ export default function RightRail({
       );
       return sourceCommunityId === String(communityContext.id);
     });
-  }, [communityContext?.id, items, remoteEvents, isVisible]);
+  }, [communityContext?.id, items, remoteEvents, remotePolls, isVisible]);
 
   const sortedEvents = useMemo(() => {
     const isUpcomingEvent = (item: ManagedItem) => {
@@ -544,7 +489,7 @@ export default function RightRail({
   }, [visibleItems, now]);
 
   const polls = useMemo(
-    () => visibleItems.filter((i) => i.type === 'poll').slice(0, 5),
+    () => visibleItems.filter((i) => i.type === 'poll' && i.isRemote).slice(0, 5),
     [visibleItems]
   );
   const communityKind = community?.parent_community_id
@@ -554,22 +499,8 @@ export default function RightRail({
       : communityContext?.type === 'group'
         ? t('rail.group')
         : t('rail.community');
-  const displayEvents = (communityContext
-    ? sortedEvents
-    : sortedEvents.length
-      ? sortedEvents
-      : SAMPLE_RAIL_EVENTS).map((item) => localizeSampleItem(item, t));
-  const displayPolls = (communityContext
-    ? (
-        polls.length
-          ? polls
-          : String(communityContext.id) === UHART_COMMUNITY_ID
-            ? SAMPLE_UHART_POLLS
-            : []
-      )
-    : polls.length
-      ? polls
-      : SAMPLE_RAIL_POLLS).map((item) => localizeSampleItem(item, t));
+  const displayEvents = sortedEvents;
+  const displayPolls = polls;
   const shouldPaginateCommunityEvents = Boolean(
     communityContext && displayEvents.length >= 5
   );
@@ -653,7 +584,7 @@ export default function RightRail({
 
   const currentPoll = displayPolls[pollIndex];
 
-  const handleVote = (option: string) => {
+  const handleVote = async (option: string) => {
     if (!currentPoll) return;
     if (!userData?.user_id) {
       setPollMessage(t('rail.logInToVote'));
@@ -661,20 +592,44 @@ export default function RightRail({
     }
 
     const prevChoice = pollResponses[currentPoll.id];
-    if (prevChoice) {
+    if (currentPoll.closed) {
+      setPollMessage('This poll is closed.');
+      return;
+    }
+    if (prevChoice && !currentPoll.allowMultipleChoices) {
       setPollMessage(t('rail.responseFinal'));
       return;
     }
-
-    setPollResponses((prev) => ({ ...prev, [currentPoll.id]: option }));
-    setPollTallies((prev) => {
-      const next = { ...prev };
-      const pollTotals = { ...(next[currentPoll.id] || {}) };
-      pollTotals[option] = (pollTotals[option] || 0) + 1;
-      next[currentPoll.id] = pollTotals;
-      return next;
-    });
-    setPollMessage(t('rail.thanksVoting'));
+    const optionRecord = currentPoll.pollOptionRecords?.find((entry) => entry.text === option);
+    if (!optionRecord) {
+      setPollMessage(t('rail.noPollOptions'));
+      return;
+    }
+    try {
+      const res = await axios.post('/api/vote_poll.php', {
+        poll_id: currentPoll.id,
+        option_id: optionRecord.option_id,
+      }, { withCredentials: true });
+      if (!res.data?.success) throw new Error(res.data?.error || 'Unable to record vote');
+      const updatedOptions = Array.isArray(res.data.options) ? res.data.options : [];
+      setPollResponses((prev) => ({ ...prev, [currentPoll.id]: option }));
+      setPollTallies((prev) => ({
+        ...prev,
+        [currentPoll.id]: Object.fromEntries(
+          updatedOptions.map((entry: any) => [String(entry.text || ''), Number(entry.votes || 0)])
+        ),
+      }));
+      setRemotePolls((prev) => prev.map((poll) => poll.id === currentPoll.id ? {
+        ...poll,
+        hasVoted: true,
+        userChoices: [...(poll.userChoices || []), optionRecord.option_id],
+        pollOptionRecords: updatedOptions,
+        totalVotes: Number(res.data.total_votes || 0),
+      } : poll));
+      setPollMessage(t('rail.thanksVoting'));
+    } catch (err: any) {
+      setPollMessage(err?.response?.data?.error || err?.message || 'Unable to record your vote.');
+    }
   };
 
   const goNextPoll = () => {
@@ -1001,7 +956,7 @@ export default function RightRail({
                     {t('rail.logInToVote')}
                   </div>
                 )}
-                {!pollResponses[currentPoll.id] && currentPoll.pollOptions && currentPoll.pollOptions.length > 0 ? (
+                {(!pollResponses[currentPoll.id] || currentPoll.allowMultipleChoices) && !currentPoll.closed && currentPoll.pollOptions && currentPoll.pollOptions.length > 0 ? (
                   <div className="widget-poll-options" role="group" aria-label={t('rail.pollOptions')}>
                     {currentPoll.pollOptions.map((opt, idx) => {
                       return (
@@ -1018,11 +973,11 @@ export default function RightRail({
                       );
                     })}
                   </div>
-                ) : !pollResponses[currentPoll.id] ? (
+                ) : !pollResponses[currentPoll.id] && !currentPoll.closed ? (
                   <div className="widget-item-meta">{t('rail.noPollOptions')}</div>
                 ) : null}
                 {pollMessage && <div className="widget-item-meta">{pollMessage}</div>}
-                {pollResponses[currentPoll.id] && (
+                {(pollResponses[currentPoll.id] || currentPoll.closed) && (
                   <div className="poll-results">
                     {(currentPoll.pollOptions || []).map((opt, idx) => {
                       const pollTotal = pollTallies[currentPoll.id] || {};

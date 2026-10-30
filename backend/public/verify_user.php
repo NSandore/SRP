@@ -4,6 +4,7 @@ startSession();
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/onboarding.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 header('Content-Type: application/json');
 
@@ -27,7 +28,7 @@ if ($userId === '' || $submittedCode === '') {
     exit;
 }
 
-if (!empty($_SESSION['user_id']) && normalizeId($_SESSION['user_id']) !== $userId) {
+if (empty($_SESSION['user_id']) || normalizeId($_SESSION['user_id']) !== $userId) {
     http_response_code(403);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
@@ -35,6 +36,13 @@ if (!empty($_SESSION['user_id']) && normalizeId($_SESSION['user_id']) !== $userI
 
 try {
     $db = getDB();
+    srp_rate_limit_enforce(
+        $db,
+        'email-verify:' . $userId . ':' . srp_client_ip(),
+        6,
+        900,
+        'Too many verification attempts. Please request a new code.'
+    );
 
     // Fetch stored code
     $stmt = $db->prepare("SELECT verification_code, is_verified FROM users WHERE user_id = :user_id");
@@ -50,6 +58,16 @@ try {
     if ($user['is_verified']) {
         http_response_code(200);
         echo json_encode(['message' => 'User already verified']);
+        exit;
+    }
+
+    $extras = srp_get_account_settings_extras($db, $userId);
+    $expiresAt = isset($extras['email_verification_expires_at'])
+        ? strtotime((string)$extras['email_verification_expires_at'])
+        : false;
+    if ($expiresAt === false || $expiresAt < time()) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Verification code expired. Please request a new code.']);
         exit;
     }
 
@@ -72,6 +90,10 @@ try {
     $state['current_step'] = max(2, (int)($state['current_step'] ?? 2));
     $state['email_verification_skipped'] = false;
     srp_save_onboarding_state($db, $userId, $state);
+
+    $extras = srp_get_account_settings_extras($db, $userId);
+    unset($extras['email_verification_expires_at']);
+    srp_save_account_settings_extras($db, $userId, $extras);
 
     http_response_code(200);
     echo json_encode([

@@ -289,6 +289,10 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
       setError('Passwords do not match.');
       return;
     }
+    if (password.length < 12 || password.length > 72) {
+      setError('Password must be between 12 and 72 characters.');
+      return;
+    }
     setIsWorking(true);
     try {
       const res = await axios.post(
@@ -306,8 +310,10 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
       applyWizardState(res.data?.wizard, res.data?.email_verification_skipped ? 2 : 1);
       if (res.data?.email_verification_skipped) {
         setNotice('Email verification was skipped in development mode.');
-      } else {
+      } else if (res.data?.email_sent) {
         setNotice(`Verification code sent to ${user.email}.`);
+      } else {
+        setError('Your account was created, but email delivery is unavailable. Please use Resend code after the issue is resolved.');
       }
     } catch (err) {
       setError(err?.response?.data?.error || 'Unable to create account right now.');
@@ -348,7 +354,11 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
         { user_id: sessionUser?.user_id, email: sessionUser?.email },
         { withCredentials: true }
       );
-      setNotice(res.data?.message || 'Verification code sent.');
+      if (res.data?.email_sent) {
+        setNotice(res.data?.message || 'Verification code sent.');
+      } else {
+        setError(res.data?.message || 'Email delivery is temporarily unavailable.');
+      }
     } catch (err) {
       setError(err?.response?.data?.error || 'Could not resend verification code.');
     } finally {

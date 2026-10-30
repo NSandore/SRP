@@ -8,6 +8,13 @@ export type ThreadData = {
   community_type?: string;
   forum_name?: string;
   community_name?: string;
+  parent_community_id?: string | null;
+  parent_thread_id?: string | null;
+  parent_thread_title?: string | null;
+  is_system_container?: number | string;
+  content_kind?: 'discussion' | 'article' | 'megathread' | 'guide' | 'section';
+  sort_order?: number | string;
+  is_locked?: number | string;
   title?: string;
   created_at?: string;
   updated_at?: string;

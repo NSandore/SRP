@@ -4,7 +4,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getApiBase } from '../utils/apiBase';
 import useTagOptions from '../hooks/useTagOptions';
 import TagPicker from './TagPicker';
-import { getRoleLabel, isSuperAdmin, isAdmin, isModerator } from '../constants/roles';
+import { getRoleLabel, isSuperAdmin, isAdmin } from '../constants/roles';
+import { hasTestControls } from '../utils/testAccounts';
 import {
   FaBell,
   FaBullhorn,
@@ -73,9 +74,9 @@ const createDefaultSettings = () => ({
 
 function AccountSettings({ userData, onInterestsUpdated }) {
   const roleId = Number(userData?.role_id || 0);
-  const isModeratorUser = isModerator(roleId);
   const isAdminUser = isAdmin(roleId);
   const isSuperAdminUser = isSuperAdmin(roleId);
+  const canSendTestEmail = isSuperAdminUser || hasTestControls(userData?.email);
   const [fetchedIsAmbassador, setFetchedIsAmbassador] = useState(Number(userData?.is_ambassador) === 1 ? 1 : 0);
   const isAmbassador = Number(fetchedIsAmbassador) === 1;
   const canConnectZoom = isAmbassador || isAdminUser || isSuperAdminUser;
@@ -107,14 +108,14 @@ function AccountSettings({ userData, onInterestsUpdated }) {
       { id: 'feed', label: 'Feed', icon: <FaUsers size={16} /> },
       { id: 'community', label: 'Community', icon: <FaUniversity size={16} /> },
       canConnectZoom ? { id: 'integrations', label: 'Integrations', icon: <FaPlug size={16} /> } : null,
-      isModeratorUser ? { id: 'moderation', label: 'Moderation', icon: <FaBullhorn size={16} /> } : null,
-      isAmbassador ? { id: 'ambassador', label: 'Ambassador', icon: <FaUsers size={16} /> } : null,
-      isAdminUser ? { id: 'admin', label: 'Admin', icon: <FaLock size={16} /> } : null,
+      isSuperAdminUser ? { id: 'moderation', label: 'Moderation preview', icon: <FaBullhorn size={16} /> } : null,
+      isSuperAdminUser ? { id: 'ambassador', label: 'Ambassador preview', icon: <FaUsers size={16} /> } : null,
+      isSuperAdminUser ? { id: 'admin', label: 'Admin preview', icon: <FaLock size={16} /> } : null,
       { id: 'sessions', label: 'Sessions', icon: <FaShieldAlt size={16} /> },
-      { id: 'data', label: 'Data', icon: <FaLock size={16} /> },
+      isSuperAdminUser ? { id: 'data', label: 'Data preview', icon: <FaLock size={16} /> } : null,
     ];
     return base.filter(Boolean);
-  }, [isModeratorUser, isAmbassador, isAdminUser, canConnectZoom]);
+  }, [isSuperAdminUser, canConnectZoom]);
   const [activeTab, setActiveTab] = useState('profile');
 
   const flashStatus = (message) => {
@@ -872,14 +873,14 @@ function AccountSettings({ userData, onInterestsUpdated }) {
             ← Back to home
           </button>
         </div>
-        <div className="settings-actions">
+        {isSuperAdminUser && <div className="settings-actions">
           <button type="button" className="pill-button" onClick={() => flashStatus('Saved')}>
             Save changes
           </button>
           <button type="button" className="pill-button secondary" onClick={confirmReset}>
             Reset defaults
           </button>
-        </div>
+        </div>}
       </div>
 
       {status && <div className="settings-status">{status}</div>}
@@ -1021,7 +1022,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
             </div>
             <p>Stay on top of replies, messages, and campus news.</p>
           </div>
-          <div className="setting-row">
+          {isSuperAdminUser && <div className="setting-row">
             <div className="setting-text">
               <div className="setting-label">Email updates <span className="settings-badge hold-badge">On hold</span></div>
               <p className="setting-help">Security alerts and activity summaries.</p>
@@ -1034,9 +1035,9 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               />
               <span className="toggle-slider" />
             </label>
-          </div>
+          </div>}
 
-          <div className="setting-row">
+          {canSendTestEmail && <div className="setting-row">
             <div className="setting-text">
               <div className="setting-label">Send test email</div>
               <p className="setting-help">Confirm MailerSend can reach your inbox.</p>
@@ -1049,7 +1050,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
             >
               {isSendingTestEmail ? 'Sending...' : 'Send Test Email'}
             </button>
-          </div>
+          </div>}
 
           <div className="setting-row">
             <div className="setting-text">
@@ -1121,7 +1122,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
             </label>
           </div>
 
-          <div className="setting-row">
+          {isSuperAdminUser && <div className="setting-row">
             <div className="setting-text">
               <div className="setting-label">Login alerts <span className="settings-badge hold-badge">On hold</span></div>
               <p className="setting-help">Email me when a new device signs in.</p>
@@ -1134,7 +1135,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               />
               <span className="toggle-slider" />
             </label>
-          </div>
+          </div>}
 
           <div className="setting-row">
             <div className="setting-text">
@@ -1246,7 +1247,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
         </section>
         )}
 
-        {isModeratorUser && activeTab === 'moderation' && (
+        {isSuperAdminUser && activeTab === 'moderation' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
@@ -1301,7 +1302,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           </section>
         )}
 
-        {isAmbassador && activeTab === 'ambassador' && (
+        {isSuperAdminUser && activeTab === 'ambassador' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
@@ -1356,7 +1357,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           </section>
         )}
 
-        {isAdminUser && activeTab === 'admin' && (
+        {isSuperAdminUser && activeTab === 'admin' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
@@ -1469,7 +1470,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
         </section>
         )}
 
-        {activeTab === 'data' && (
+        {isSuperAdminUser && activeTab === 'data' && (
         <section className="settings-card full-span">
           <div className="settings-card-heading">
             <div className="settings-card-eyebrow">

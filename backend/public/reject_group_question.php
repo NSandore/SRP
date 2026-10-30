@@ -2,8 +2,23 @@
 // reject_group_question.php
 // Ambassadors decline a group/university question with a justification.
 
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
 require_once __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 header('Content-Type: application/json');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
+    exit;
+}
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+    exit;
+}
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input || !is_array($input)) {
@@ -11,8 +26,8 @@ if (!$input || !is_array($input)) {
 }
 
 $question_id = isset($input['question_id']) ? normalizeId($input['question_id']) : '';
-$user_id     = isset($input['user_id']) ? normalizeId($input['user_id']) : ''; // approver/decliner
-$reason      = isset($input['reason']) ? trim($input['reason']) : '';
+$user_id     = normalizeId($_SESSION['user_id']);
+$reason      = isset($input['reason']) ? srp_sanitize_plain((string)$input['reason']) : '';
 
 if ($question_id === '' || $user_id === '' || $reason === '') {
     http_response_code(400);
@@ -33,10 +48,7 @@ try {
         exit;
     }
 
-    // Validate ambassador
-    $astmt = $db->prepare("SELECT COUNT(*) FROM ambassadors WHERE user_id = :uid AND community_id = :gid");
-    $astmt->execute([':uid' => $user_id, ':gid' => $question['group_id']]);
-    if ((int)$astmt->fetchColumn() === 0) {
+    if (!canModerateCommunityContent($user_id, (int)($_SESSION['role_id'] ?? 0), $question['group_id'], $db)) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Not authorized to decline']);
         exit;

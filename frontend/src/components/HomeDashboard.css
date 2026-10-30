@@ -626,7 +626,7 @@
 }
 
 .home-reading-room {
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--home-line);
   border-radius: 16px;
   background: var(--home-paper);
@@ -706,6 +706,65 @@
   margin-left: auto;
 }
 
+/* Desktop Explore controls are a single rail: labels reserve their own space
+ * and only the selected-tag text is allowed to shrink. */
+@media (min-width: 1200px) {
+  .home-dashboard .home-controls {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 24px;
+    align-items: center;
+  }
+
+  .home-dashboard .home-filter-panel {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    width: 100%;
+    margin-left: 0;
+    padding-left: 0;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  .home-dashboard .home-filter-panel .home-content-control {
+    flex: 0 0 auto;
+  }
+
+  .home-dashboard .home-filter-panel .topic-multi-select-wrapper {
+    display: grid;
+    grid-template-columns: auto minmax(0, 190px) auto;
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .home-dashboard .home-filter-panel .topic-multi-select-wrapper .sort-pill,
+  .home-dashboard .home-filter-panel .topic-selection-meta {
+    flex: 0 0 auto;
+  }
+
+  .home-dashboard .home-filter-panel .topic-multi-select-wrapper .topic-dropdown {
+    grid-column: 2;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .home-dashboard .home-filter-panel .topic-multi-select-wrapper .sort-pill {
+    grid-column: 1;
+  }
+
+  .home-dashboard .home-filter-panel .topic-selection-meta {
+    grid-column: 3;
+  }
+
+  .home-dashboard .home-filter-panel .topic-dropdown-toggle {
+    width: 100%;
+    max-width: none;
+  }
+}
+
 .home-dashboard .sort-pill {
   padding: 0;
   background: transparent;
@@ -774,12 +833,24 @@
 }
 
 .home-dashboard .topic-dropdown-menu {
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 5px;
   border-color: var(--home-line);
   border-radius: 10px;
   background: var(--home-paper-strong);
   box-shadow: 0 16px 36px rgba(38, 82, 132, 0.16);
   transform-origin: top left;
+}
+
+/* Keep the Explore tag picker usable when the tag list exceeds the viewport. */
+.home-dashboard .explore-tags-menu {
+  max-height: min(240px, calc(100vh - 160px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .home-dashboard .topic-dropdown-option {
@@ -1356,26 +1427,10 @@
   font-size: 0.72rem;
 }
 
-.scholarly-communities-page .pagination-controls {
+.scholarly-communities-page .community-page-navigator {
   margin: 0;
   padding: 16px 28px;
   border-top: 1px solid var(--home-line);
-}
-
-.scholarly-communities-page .pagination-button {
-  margin: 0;
-  padding: 7px 13px;
-}
-
-.scholarly-communities-page .pagination-button:disabled {
-  border-color: var(--home-line);
-  background: transparent;
-  color: var(--home-ink-soft);
-}
-
-.scholarly-communities-page .pagination-info {
-  color: var(--home-ink-soft);
-  font-size: 0.76rem;
 }
 
 .scholarly-communities-page .empty-state-card {
@@ -1468,6 +1523,217 @@
   border-color: var(--home-line);
   background: transparent;
   color: var(--home-ink);
+}
+
+.scholarly-funding-library {
+  overflow: hidden;
+  border: 1px solid var(--home-line);
+  border-radius: 16px;
+  background: var(--home-paper);
+  box-shadow: var(--home-shadow);
+  scroll-margin-top: 90px;
+}
+
+.scholarly-funding-library > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 23px 28px 20px;
+  border-bottom: 1px solid var(--home-line);
+}
+
+.scholarly-funding-library h2 {
+  margin: 5px 0 4px;
+  color: var(--home-ink);
+  font-family: var(--home-serif);
+  font-size: 1.45rem;
+  font-weight: 500;
+}
+
+.scholarly-funding-library > header p:not(.scholarly-page-kicker) {
+  max-width: 620px;
+  margin: 0;
+  color: var(--home-ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.scholarly-funding-library__tools {
+  display: grid;
+  min-width: 270px;
+  gap: 7px;
+  justify-items: end;
+}
+
+.scholarly-funding-library__tools > span {
+  color: var(--home-ink-soft);
+  font-size: 0.68rem;
+}
+
+.scholarly-funding-library__tools label {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--home-line);
+  border-radius: 9px;
+  background: var(--home-paper-strong);
+  color: var(--home-ink-soft);
+}
+
+.scholarly-funding-library__tools input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--home-ink);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.scholarly-funding-library__tools input::placeholder {
+  color: var(--home-ink-soft);
+}
+
+.scholarly-funding-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--home-line);
+}
+
+.scholarly-funding-group {
+  min-width: 0;
+  padding: 23px 24px;
+  background: var(--home-paper);
+}
+
+.scholarly-funding-group__toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scholarly-funding-group__toggle:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid var(--home-forest);
+  outline-offset: 5px;
+}
+
+.scholarly-funding-group__heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  min-height: 82px;
+}
+
+.scholarly-funding-group__chevron {
+  margin-top: 8px;
+  color: var(--home-ink-soft);
+  transition: transform 160ms var(--home-ease-out);
+}
+
+.scholarly-funding-group__chevron.is-expanded {
+  transform: rotate(180deg);
+}
+
+.scholarly-funding-group__title {
+  display: block;
+  margin: 1px 0 4px;
+  color: var(--home-ink);
+  font-family: var(--home-serif);
+  font-size: 1.04rem;
+  font-weight: 600;
+}
+
+.scholarly-funding-group__description {
+  display: block;
+  color: var(--home-ink-soft);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.scholarly-funding-article-list {
+  display: grid;
+}
+
+.scholarly-funding-article {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 2px;
+  border-top: 1px solid var(--home-line);
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.scholarly-funding-article > div {
+  min-width: 0;
+}
+
+.scholarly-funding-article span {
+  color: var(--home-rust);
+  font-size: 0.59rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scholarly-funding-article h4 {
+  margin: 3px 0;
+  color: var(--home-ink);
+  font-family: var(--home-serif);
+  font-size: 0.93rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.scholarly-funding-article p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--home-ink-soft);
+  font-size: 0.7rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.scholarly-funding-article > svg {
+  flex: 0 0 auto;
+  margin-top: 17px;
+  color: var(--home-forest);
+}
+
+.scholarly-funding-library__state {
+  padding: 34px 28px;
+  color: var(--home-ink-soft);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.scholarly-funding-library__state p {
+  margin: 0 0 7px;
+}
+
+.scholarly-funding-library__state a {
+  color: var(--home-forest);
+  font-weight: 600;
 }
 
 .scholarly-funding-plan {
@@ -1802,6 +2068,10 @@
     color: var(--home-ink);
   }
 
+  .scholarly-funding-article:hover h4 {
+    color: var(--home-forest);
+  }
+
   .scholarly-page-note > a:hover {
     background: color-mix(in srgb, var(--home-forest) 8%, transparent);
   }
@@ -2062,6 +2332,15 @@
     padding: 0 0 28px;
   }
 
+  .home-shell .nav-left .brand-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .home-shell .nav-left .brand-title {
+    font-size: 1rem;
+  }
+
   .home-dashboard {
     gap: 12px;
   }
@@ -2087,24 +2366,35 @@
   }
 
   .home-pathways {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .home-pathway-card,
   .home-pathway-card:nth-child(2),
   .home-pathway-card:nth-child(3) {
-    border-right: 0;
+    border-right: 1px solid var(--home-line);
     border-bottom: 1px solid var(--home-line);
     border-radius: 0;
   }
 
   .home-pathway-card:first-child {
-    border-radius: 13px 13px 0 0;
+    border-radius: 13px 0 0;
+  }
+
+  .home-pathway-card:nth-child(2) {
+    border-right: 0;
+    border-radius: 0 13px 0 0;
+  }
+
+  .home-pathway-card:nth-child(3) {
+    border-bottom: 0;
+    border-radius: 0 0 0 13px;
   }
 
   .home-pathway-card:last-child {
+    border-right: 0;
     border-bottom: 0;
-    border-radius: 0 0 13px 13px;
+    border-radius: 0 0 13px;
   }
 
   .home-reading-room-header {
@@ -2268,7 +2558,7 @@
     padding: 18px 20px;
   }
 
-  .scholarly-communities-page .pagination-controls {
+  .scholarly-communities-page .community-page-navigator {
     padding: 14px 20px;
   }
 
@@ -2288,6 +2578,37 @@
 
   .scholarly-status-badge {
     justify-self: start;
+  }
+
+  .scholarly-funding-library > header {
+    flex-direction: column;
+    padding: 21px 20px 17px;
+  }
+
+  .scholarly-funding-library__tools {
+    width: 100%;
+    min-width: 0;
+    justify-items: stretch;
+  }
+
+  .scholarly-funding-library__tools > span {
+    justify-self: start;
+  }
+
+  .scholarly-funding-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .scholarly-funding-group {
+    padding: 20px;
+  }
+
+  .scholarly-funding-group__heading {
+    min-height: 0;
+  }
+
+  .scholarly-funding-group__toggle[aria-expanded='true'] {
+    margin-bottom: 15px;
   }
 
   .scholarly-funding-plan > header {
@@ -2372,6 +2693,7 @@
   .home-pathway-icon,
   .home-pathway-arrow,
   .home-hero-cta-arrow,
+  .scholarly-funding-group__chevron,
   .home-dashboard .thread-card::before,
   .home-dashboard .forum-card::before,
   .home-dashboard .chips-row.segmented-control::before,

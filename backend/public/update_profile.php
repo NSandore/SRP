@@ -6,7 +6,7 @@ startSession(); // Start the session
 header('Content-Type: application/json');
 require_once '../db_connection.php';
 if (srp_is_dev_mode()) {
-    ini_set('display_errors', 1);
+    ini_set('display_errors', 0);
     error_reporting(E_ALL);
 }
 $db = getDB();
@@ -71,7 +71,8 @@ $query = "UPDATE users
 $stmt = $db->prepare($query);
 if (!$stmt) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . implode(" - ", $db->errorInfo())]);
+    error_log('[SRP] profile prepare failed: ' . implode(' - ', $db->errorInfo()));
+    echo json_encode(['success' => false, 'error' => 'Unable to update the profile.']);
     exit;
 }
 
@@ -105,7 +106,7 @@ if ($stmt->execute()) {
 } else {
     http_response_code(500);
     error_log("Execute failed: " . implode(" - ", $stmt->errorInfo()));
-    echo json_encode(['success' => false, 'error' => 'Update failed: ' . implode(" - ", $stmt->errorInfo())]);
+    echo json_encode(['success' => false, 'error' => 'Unable to update the profile.']);
 }
 
 $stmt->closeCursor();

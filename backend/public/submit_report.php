@@ -4,6 +4,7 @@ startSession();
 require_once __DIR__ . '/../reporting_utils.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 header('Content-Type: application/json');
 
@@ -47,8 +48,34 @@ $reporterId = normalizeId($_SESSION['user_id']);
 try {
     $db = getDB();
     ensureReportsTable($db);
+    srp_rate_limit_enforce(
+        $db,
+        'report:' . $reporterId . ':' . srp_client_ip(),
+        10,
+        3600,
+        'Too many reports submitted. Please wait before trying again.'
+    );
 
     $context = getReportContext($db, $itemType, $itemId);
+    $duplicateStmt = $db->prepare("
+        SELECT report_id
+        FROM reports
+        WHERE item_type = :type
+          AND item_id = :item_id
+          AND reported_by = :reported_by
+          AND status = 'pending'
+        LIMIT 1
+    ");
+    $duplicateStmt->execute([
+        ':type' => $itemType,
+        ':item_id' => $itemId,
+        ':reported_by' => $reporterId,
+    ]);
+    if ($duplicateStmt->fetchColumn()) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'You have already reported this item.']);
+        exit;
+    }
     $reportId = generateUniqueId($db, 'reports');
 
     // Determine severity from reason code
@@ -89,16 +116,11 @@ try {
         ':context' => $context['item_context'] ?? '',
     ]);
 
-    // Auto-hide logic: high/critical or >=3 distinct reporters
-    $hide = ($severity === 'high' || $severity === 'critical');
-    if (!$hide) {
-        $countStmt = $db->prepare("SELECT COUNT(DISTINCT reported_by) FROM reports WHERE item_type = :type AND item_id = :item_id");
-        $countStmt->execute([':type' => $itemType, ':item_id' => $itemId]);
-        $reporterCount = (int)$countStmt->fetchColumn();
-        if ($reporterCount >= 3) {
-            $hide = true;
-        }
-    }
+    // A single reporter must never be able to hide content by choosing a
+    // severe reason. Require corroboration from three distinct accounts.
+    $countStmt = $db->prepare("SELECT COUNT(DISTINCT reported_by) FROM reports WHERE item_type = :type AND item_id = :item_id AND status = 'pending'");
+    $countStmt->execute([':type' => $itemType, ':item_id' => $itemId]);
+    $hide = (int)$countStmt->fetchColumn() >= 3;
     if ($hide) {
         setItemHidden($db, $itemType, $itemId, true);
     }
@@ -151,7 +173,8 @@ try {
     ]);
 } catch (InvalidArgumentException $e) {
     http_response_code(404);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    error_log('[SRP] submit_report failed: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Unable to submit report']);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Database error: ']);

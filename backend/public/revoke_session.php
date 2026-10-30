@@ -18,12 +18,26 @@ if (!$input || !isset($input['session_id'])) {
     exit;
 }
 
-$targetSessionId = trim($input['session_id']);
+$targetSessionRef = trim($input['session_id']);
 $currentSessionId = session_id();
 $userId = normalizeId($_SESSION['user_id']);
 
 try {
     $db = getDB();
+    $lookup = $db->prepare("SELECT session_id FROM user_sessions WHERE user_id = :uid AND revoked_at IS NULL");
+    $lookup->execute([':uid' => $userId]);
+    $targetSessionId = '';
+    foreach ($lookup->fetchAll(PDO::FETCH_COLUMN) as $candidate) {
+        if (hash_equals(hash('sha256', (string)$candidate), $targetSessionRef)) {
+            $targetSessionId = (string)$candidate;
+            break;
+        }
+    }
+    if ($targetSessionId === '') {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Session not found']);
+        exit;
+    }
     $stmt = $db->prepare("UPDATE user_sessions SET revoked_at = NOW() WHERE session_id = :sid AND user_id = :uid");
     $stmt->execute([':sid' => $targetSessionId, ':uid' => $userId]);
 

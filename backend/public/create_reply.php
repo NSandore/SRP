@@ -52,6 +52,20 @@ if ($user_id !== normalizeId($_SESSION['user_id'])) {
  */
 try {
     $db = getDB();
+    $threadStmt = $db->prepare("SELECT is_locked FROM threads WHERE thread_id = :thread_id LIMIT 1");
+    $threadStmt->execute([':thread_id' => $thread_id]);
+    $threadLocked = $threadStmt->fetchColumn();
+    if ($threadLocked === false) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Thread not found.']);
+        exit;
+    }
+    if ((int)$threadLocked === 1) {
+        http_response_code(403);
+        echo json_encode(['error' => 'This knowledge base entry is read-only. Ask related questions in a megathread.']);
+        exit;
+    }
+
     $postingWindow = srp_get_posting_window($db, $user_id);
     if (!$postingWindow['can_post']) {
         http_response_code(403);

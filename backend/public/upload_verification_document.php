@@ -99,7 +99,7 @@ if ($extension === 'pdf') {
 }
 
 $uploadDir = __DIR__ . '/../../uploads/verification/';
-if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
+if (!is_dir($uploadDir) && !mkdir($uploadDir, 0700, true)) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Upload directory is not writable']);
     exit;
@@ -119,6 +119,7 @@ if (!move_uploaded_file($file['tmp_name'], $destination)) {
     echo json_encode(['success' => false, 'error' => 'Failed to store upload']);
     exit;
 }
+chmod($destination, 0600);
 
 http_response_code(200);
 echo json_encode([

@@ -1,11 +1,23 @@
 <?php
 // add_reply_notification.php
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
+require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../db_connection.php';
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
+    exit;
+}
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+    exit;
+}
 
 // Try to parse JSON input first.
 $input = json_decode(file_get_contents('php://input'), true);
@@ -13,10 +25,10 @@ $input = json_decode(file_get_contents('php://input'), true);
 // If JSON was provided, use it; otherwise, fallback to $_POST.
 if ($input && is_array($input)) {
     $post_id = isset($input['post_id']) ? normalizeId($input['post_id']) : null;
-    $replier_id = isset($input['replier_id']) ? normalizeId($input['replier_id']) : null;
+    $replier_id = normalizeId($_SESSION['user_id']);
 } else {
     $post_id = isset($_POST['post_id']) ? normalizeId($_POST['post_id']) : null;
-    $replier_id = isset($_POST['replier_id']) ? normalizeId($_POST['replier_id']) : null;
+    $replier_id = normalizeId($_SESSION['user_id']);
 }
 
 if (!$post_id || !$replier_id) {

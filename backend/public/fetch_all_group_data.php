@@ -51,6 +51,11 @@ try {
             WHERE aud.community_type = 'group'
         ";
         $params = [];
+        if ($scope === 'followed') {
+            // Guests cannot follow communities. Keep the response and its
+            // total aligned with the client-side Followed view.
+            $query .= " AND 1 = 0";
+        }
     } else {
         $query = "
             SELECT 
@@ -109,7 +114,9 @@ try {
         " . ($isGuest ? "" : "LEFT JOIN followed_communities fc ON aud.community_id = fc.community_id AND fc.user_id = :user_id") . "
         WHERE aud.community_type = 'group'
     ";
-    if (!$isGuest) {
+    if ($isGuest && $scope === 'followed') {
+        $countQuery .= " AND 1 = 0";
+    } elseif (!$isGuest) {
         if ($scope === 'followed') {
             $countQuery .= " AND fc.user_id IS NOT NULL";
         } elseif ($scope === 'unfollowed') {
@@ -137,6 +144,7 @@ try {
 
     $response = [
         'communities' => $communities,
+        'total_count' => $totalCommunities,
         'total_pages' => $totalPages,
         'current_page' => $page
     ];

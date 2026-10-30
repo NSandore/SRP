@@ -39,6 +39,7 @@ try {
         LEFT JOIN threads t ON f.forum_id = t.forum_id
         WHERE f.community_id = :community_id
           AND f.is_hidden = 0
+          AND f.is_system_container = 0
         GROUP BY
             f.forum_id,
             f.name,

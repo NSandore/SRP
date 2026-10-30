@@ -407,9 +407,9 @@ input::placeholder, textarea::placeholder {
   object-fit: cover;
 }
 
-/* Welcome Overlay Styles */
-/* Ensure the overlay is above all elements */
-.welcome-overlay, .overlay {
+/* Shared full-screen overlay used by the ambassador browser. The friendlier
+   first-login welcome has isolated styles in WelcomeOverlay.css. */
+.overlay {
   position: fixed;
   inset: var(--nav-height) 0 0 0;
   width: 100%;
@@ -433,67 +433,6 @@ input::placeholder, textarea::placeholder {
   z-index: 1400;
 }
 
-.welcome-message {
-  position: relative;
-  background: linear-gradient(155deg, #ffffff, #f0f6ff);
-  padding: 2.5rem 2.75rem;
-  border-radius: 28px;
-  text-align: left;
-  box-shadow: 0 30px 80px rgba(5, 16, 38, 0.35);
-  z-index: 10000;
-  width: min(560px, 92vw);
-  border: 1px solid rgba(47, 128, 237, 0.18);
-}
-
-.welcome-kicker {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #16305C;
-  margin-bottom: 0.75rem;
-}
-
-.welcome-message h1 {
-  font-size: 2rem;
-  margin: 0 0 0.75rem;
-  color: #0b1b32;
-}
-
-.welcome-message p {
-  margin: 0 0 1.5rem;
-  color: #34506b;
-  line-height: 1.6;
-}
-
-.welcome-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.welcome-secondary {
-  background: transparent;
-  border: 1px solid rgba(11, 27, 50, 0.2);
-  color: #0b1b32;
-  padding: 0.65rem 1.25rem;
-  border-radius: 999px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.welcome-secondary:hover {
-  border-color: rgba(11, 27, 50, 0.45);
-}
-
-.welcome-footnote {
-  margin-top: 1.5rem;
-  font-size: 0.85rem;
-  color: rgba(11, 27, 50, 0.6);
-}
-
-
 .overlay-content {
   background: var(--card-background);
   padding: 1.75rem;
@@ -512,23 +451,6 @@ input::placeholder, textarea::placeholder {
 .sidebar-list {
   position: relative;
   z-index: 1; /* Ensure it's lower than overlays */
-}
-
-.get-started-button {
-  background: linear-gradient(135deg, #2F80ED, #1D5FC4);
-  color: #ffffff;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  box-shadow: 0 10px 20px rgba(47, 128, 237, 0.25);
-}
-
-.get-started-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 24px rgba(47, 128, 237, 0.3);
 }
 
 /* Ambassador Overlay */
@@ -2637,10 +2559,11 @@ button:focus-visible,
     transition: padding 200ms ease, min-height 200ms ease;
   }
   .nav-left {
-    flex: 1 1 0;
+    flex: 1 1 auto;
     min-width: 0;
     justify-content: flex-start;
     gap: 0.25rem;
+    overflow: hidden;
   }
   .nav-center {
     order: 3;
@@ -2649,22 +2572,40 @@ button:focus-visible,
   }
   .nav-right {
     order: 2;
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: auto;
     justify-content: flex-end;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.5rem;
   }
-  .nav-icons { gap: 0.5rem; }
+  .nav-icons {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
   .nav-button {
     width: auto;
     margin-left: 0;
   }
   .user-avatar { width: 40px; height: 40px; }
-  .brand-title { font-size: 1.1rem; }
-  .brand-button { padding: 0.35rem 0; }
+  .brand-title {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 1.1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .brand-button {
+    min-width: 0;
+    max-width: 100%;
+    padding: 0.35rem 0;
+    overflow: hidden;
+  }
   .hamburger-button { padding: 6px; }
-  .brand-logo { width: 48px; height: 48px; }
+  .brand-logo {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+  }
   .search-form {
     width: 100%;
     margin: 0;
@@ -2715,6 +2656,22 @@ button:focus-visible,
     width: 100%;
   }
   .search-container .search-button.mobile-only { margin-left: 6px; }
+}
+
+@media (max-width: 600px) {
+  .nav-right,
+  .nav-icons {
+    gap: 0.25rem;
+  }
+
+  .nav-left .brand-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .nav-left .brand-title {
+    font-size: 1rem;
+  }
 }
 
 /* Main Content Layout */

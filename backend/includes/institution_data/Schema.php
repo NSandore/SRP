@@ -59,6 +59,9 @@ final class SrpInstitutionSchema
         'data_candidates_json',
         'pipeline_metadata_json',
         'manual_overrides_json',
+        'directory_visibility',
+        'directory_visibility_reason',
+        'directory_visibility_manual',
     ];
 
     /** @var list<string> */
@@ -148,6 +151,9 @@ final class SrpInstitutionSchema
             'active' => 0,
             'review_required' => 0,
             'pipeline_errors' => 0,
+            'directory_listed' => 0,
+            'directory_search_only' => 0,
+            'directory_archived' => 0,
         ];
         // Before the additive migration, every existing university remains
         // selectable; the public projection applies the same compatibility
@@ -176,6 +182,17 @@ final class SrpInstitutionSchema
                 "SELECT COUNT(*) FROM communities
                  WHERE community_type = 'university' AND pipeline_last_error IS NOT NULL"
             )->fetchColumn();
+        }
+        if (isset($columns['directory_visibility'])) {
+            foreach (['listed', 'search_only', 'archived'] as $visibility) {
+                $statement = $db->prepare(
+                    "SELECT COUNT(*) FROM communities
+                     WHERE community_type = 'university'
+                       AND directory_visibility = :visibility"
+                );
+                $statement->execute([':visibility' => $visibility]);
+                $counts['directory_' . $visibility] = (int)$statement->fetchColumn();
+            }
         }
 
         return [

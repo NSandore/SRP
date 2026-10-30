@@ -14,6 +14,10 @@ function AppFooterLinks() {
     <nav className="app-footer-links" aria-label="Site information">
       <Link to="/changelog">Changelog</Link>
       <span aria-hidden="true">·</span>
+      <Link to="/faq">FAQ</Link>
+      <span aria-hidden="true">·</span>
+      <a href="mailto:support@thestudentsphere.com">Email Us</a>
+      <span aria-hidden="true">·</span>
       <Link to="/privacy">Privacy Policy</Link>
       <span aria-hidden="true">·</span>
       <Link to="/terms">Terms of Service</Link>

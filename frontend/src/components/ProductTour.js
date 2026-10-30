@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { House, LifeBuoy, PanelLeft, Search, Users } from 'lucide-react';
 import { buildApiUrl } from '../utils/apiBase';
 import './ProductTour.css';
 
@@ -18,40 +19,58 @@ const TOUR_STEPS = [
   {
     id: 'feed',
     target: '[data-tour="feed"]',
-    title: 'Your feed',
-    body: 'Posts from the communities you follow land here. Follow more schools and groups to fill it out.',
+    title: 'Your home base',
+    body: 'Posts from communities you follow gather here. Follow a few that matter to you, and your feed will grow with you.',
+    icon: House,
   },
   {
     id: 'navigation',
     target: '[data-tour="primary-nav"]',
-    title: 'Getting around',
-    body: 'Jump between your feed, communities, events, and saved items from here.',
+    title: 'Everything is close by',
+    body: 'Use this menu to move between your feed, communities, events, and saved posts.',
+    icon: PanelLeft,
   },
   {
     id: 'search',
     target: '[data-tour="search"]',
-    title: 'Find anything',
-    body: 'Search for universities, groups, people, and discussions from any page.',
+    title: 'Looking for something?',
+    body: 'Search for a university, group, person, or conversation from anywhere.',
+    icon: Search,
   },
   {
     id: 'communities',
     target: '[data-tour="communities"]',
-    title: 'Communities',
-    body: 'Every school has a home on StudentSphere. Join yours to see its events and forums.',
+    title: 'Find your people',
+    body: 'Communities bring together schools and shared interests. Follow a few to see their conversations and events in your feed.',
+    icon: Users,
   },
   {
     id: 'contact',
     target: '.contact-us-button',
-    title: 'Need a hand?',
-    body: 'Questions or feedback reach us straight from this button, wherever you are.',
+    title: 'We’re here when you need us',
+    body: 'Questions, feedback, or something not working? Send us a note anytime.',
     placement: 'top',
+    icon: LifeBuoy,
   },
 ];
 
 const CARD_MARGIN = 14;
 const VIEWPORT_PADDING = 12;
 
-function ProductTour({ userData }) {
+export const findVisibleTourTarget = (selector) => {
+  const candidates = Array.from(document.querySelectorAll(selector));
+  return candidates.find((node) => {
+    const styles = window.getComputedStyle(node);
+    const bounds = node.getBoundingClientRect();
+    return styles.display !== 'none'
+      && styles.visibility !== 'hidden'
+      && styles.opacity !== '0'
+      && bounds.width > 0
+      && bounds.height > 0;
+  }) || null;
+};
+
+function ProductTour({ userData, replayToken = 0 }) {
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState(null);
@@ -81,7 +100,7 @@ function ProductTour({ userData }) {
         const tour = response?.data?.tour;
         if (!tour?.eligible) return;
 
-        const available = TOUR_STEPS.filter((step) => document.querySelector(step.target));
+        const available = TOUR_STEPS.filter((step) => findVisibleTourTarget(step.target));
         if (available.length === 0) return;
 
         setSteps(available);
@@ -94,7 +113,7 @@ function ProductTour({ userData }) {
     return () => {
       cancelled = true;
     };
-  }, [userData?.user_id, post]);
+  }, [userData?.user_id, replayToken, post]);
 
   const currentStep = active ? steps[stepIndex] : null;
 
@@ -103,7 +122,7 @@ function ProductTour({ userData }) {
     if (!currentStep) return undefined;
 
     const measure = () => {
-      const node = document.querySelector(currentStep.target);
+      const node = findVisibleTourTarget(currentStep.target);
       if (!node) {
         setRect(null);
         return;
@@ -118,12 +137,15 @@ function ProductTour({ userData }) {
     };
 
     measure();
-    const node = document.querySelector(currentStep.target);
-    node?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const node = findVisibleTourTarget(currentStep.target);
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    node?.scrollIntoView({ block: 'center', behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+    const settleTimer = window.setTimeout(measure, 320);
 
     window.addEventListener('resize', measure);
     window.addEventListener('scroll', measure, true);
     return () => {
+      window.clearTimeout(settleTimer);
       window.removeEventListener('resize', measure);
       window.removeEventListener('scroll', measure, true);
     };
@@ -187,6 +209,9 @@ function ProductTour({ userData }) {
     return null;
   }
 
+  const StepIcon = currentStep.icon;
+  const progress = (stepIndex + 1) / steps.length;
+
   return (
     <div className="product-tour" role="dialog" aria-modal="true" aria-label="Product tour">
       <div
@@ -207,25 +232,43 @@ function ProductTour({ userData }) {
       <div
         ref={cardRef}
         className="product-tour__card"
+        data-tour-step={currentStep.id}
         style={{ top: cardPosition.top, left: cardPosition.left }}
       >
-        <p className="product-tour__count">
-          Step {stepIndex + 1} of {steps.length}
-        </p>
-        <h3 className="product-tour__title">{currentStep.title}</h3>
-        <p className="product-tour__body">{currentStep.body}</p>
+        <div className="product-tour__meta">
+          <span className="product-tour__icon" aria-hidden="true">
+            <StepIcon size={17} strokeWidth={2.1} />
+          </span>
+          <p className="product-tour__count">
+            A quick tour <span aria-hidden="true">·</span> {stepIndex + 1} of {steps.length}
+          </p>
+        </div>
+        <div
+          className="product-tour__progress"
+          role="progressbar"
+          aria-label="Tour progress"
+          aria-valuemin="1"
+          aria-valuemax={steps.length}
+          aria-valuenow={stepIndex + 1}
+        >
+          <span style={{ '--tour-progress': progress }} />
+        </div>
+        <div className="product-tour__copy">
+          <h3 className="product-tour__title">{currentStep.title}</h3>
+          <p className="product-tour__body">{currentStep.body}</p>
+        </div>
         <div className="product-tour__actions">
           <button type="button" className="product-tour__skip" onClick={() => finish('skip')}>
-            Skip tour
+            Skip for now
           </button>
           <div className="product-tour__nav">
             {stepIndex > 0 && (
               <button type="button" className="product-tour__back" onClick={back}>
-                Back
+                Previous
               </button>
             )}
             <button type="button" className="product-tour__next" onClick={next}>
-              {stepIndex >= steps.length - 1 ? 'Finish' : 'Next'}
+              {stepIndex >= steps.length - 1 ? 'Start exploring' : 'Continue'}
             </button>
           </div>
         </div>

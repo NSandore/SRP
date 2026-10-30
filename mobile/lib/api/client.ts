@@ -17,10 +17,6 @@ apiClient.interceptors.request.use(async (config) => {
     const sessionId = await loadStoredSessionId();
     if (sessionId) {
       config.headers.set('X-Session-Id', sessionId);
-      config.params = {
-        ...(config.params || {}),
-        session_id: sessionId,
-      };
     }
   } catch {
     // ignore storage errors

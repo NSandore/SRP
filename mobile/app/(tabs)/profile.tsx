@@ -20,6 +20,7 @@ import { useSession } from '@/hooks/use-session';
 import { useLockedFeature } from '@/providers/LockedFeatureProvider';
 import AppShell from '@/components/navigation/AppShell';
 import ReelGrid from '@/components/reels/ReelGrid';
+import { REELS_ENABLED } from '@/constants/features';
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
 import { useBrandStyles } from '@/hooks/use-brand-styles';
@@ -654,7 +655,7 @@ export default function ProfileScreen() {
           <View style={styles.tabsRow}>
             {[
               { id: 'about', label: 'About' },
-              { id: 'reels', label: 'Reels' },
+              ...(REELS_ENABLED ? [{ id: 'reels', label: 'Reels' }] : []),
               { id: 'posts', label: 'Posts' },
               { id: 'replies', label: 'Replies' },
             ].map((tab) => {
@@ -825,7 +826,7 @@ export default function ProfileScreen() {
             </View>
           ) : null}
 
-          {activeTab === 'reels' ? (
+          {REELS_ENABLED && activeTab === 'reels' ? (
             <View style={styles.sectionCard}>
               <ReelGrid userId={userId} isOwnProfile />
             </View>

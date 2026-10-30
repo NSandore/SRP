@@ -21,7 +21,6 @@ import { isSuperAdmin } from '@/constants/roles';
 import { useSession } from '@/hooks/use-session';
 import { useLockedFeature } from '@/providers/LockedFeatureProvider';
 import useTagOptions from '@/hooks/use-tag-options';
-import { fetchForums } from '@/lib/api/forums';
 import type { ForumItem } from '@/lib/api/forums';
 import { apiClient } from '@/lib/api/client';
 import { buildAvatarSrc } from '@/lib/uploads';
@@ -43,6 +42,14 @@ const SORT_OPTIONS = [
 
 type SortKey = (typeof SORT_OPTIONS)[number]['key'];
 
+type KnowledgeBaseNode = {
+  thread_id: string;
+  forum_id: string;
+  title: string;
+  excerpt?: string;
+  child_count?: number;
+};
+
 export default function InfoScreen() {
   const router = useRouter();
   const { user } = useSession();
@@ -55,7 +62,7 @@ export default function InfoScreen() {
   const [forums, setForums] = useState<ForumItem[]>([]);
   const [sortBy, setSortBy] = useState<SortKey>('mostRecent');
   const [selectedTopics, setSelectedTopics] = useState<string[]>([ALL_TOPICS_VALUE]);
-  const [isLoadingForums, setIsLoadingForums] = useState(false);
+  const [isLoadingForums] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showTagSelector, setShowTagSelector] = useState(true);
@@ -75,6 +82,10 @@ export default function InfoScreen() {
     x: number;
     y: number;
   } | null>(null);
+  const [infoKnowledgeBaseNodes, setInfoKnowledgeBaseNodes] = useState<KnowledgeBaseNode[]>([]);
+  const [isLoadingInfoKnowledgeBase, setIsLoadingInfoKnowledgeBase] = useState(true);
+  const [hasLoadedInfoKnowledgeBase, setHasLoadedInfoKnowledgeBase] = useState(false);
+  const [infoKnowledgeBaseError, setInfoKnowledgeBaseError] = useState<string | null>(null);
 
   const buildPinKey = (itemId: string, itemType: 'forum' | 'thread') => `${itemType}:${itemId}`;
 
@@ -119,25 +130,31 @@ export default function InfoScreen() {
 
   useEffect(() => {
     let mounted = true;
-    setIsLoadingForums(true);
-    setError(null);
-    fetchForums(INFO_COMMUNITY_ID, user?.user_id)
-      .then((list) => {
+    setIsLoadingInfoKnowledgeBase(true);
+    setInfoKnowledgeBaseError(null);
+    apiClient
+      .get('/fetch_knowledge_base_nodes.php', {
+        params: { community_id: INFO_COMMUNITY_ID },
+      })
+      .then((resp) => {
         if (!mounted) return;
-        setForums(list);
+        const nodes = (resp.data as any)?.nodes;
+        setInfoKnowledgeBaseNodes(Array.isArray(nodes) ? nodes : []);
       })
       .catch(() => {
         if (!mounted) return;
-        setError('Unable to load forums.');
+        setInfoKnowledgeBaseNodes([]);
+        setInfoKnowledgeBaseError('Unable to load the Information Board knowledge base.');
       })
       .finally(() => {
         if (!mounted) return;
-        setIsLoadingForums(false);
+        setIsLoadingInfoKnowledgeBase(false);
+        setHasLoadedInfoKnowledgeBase(true);
       });
     return () => {
       mounted = false;
     };
-  }, [user?.user_id]);
+  }, []);
 
   useEffect(() => {
     if (!user?.user_id) {
@@ -273,6 +290,71 @@ export default function InfoScreen() {
   const clearTopicFilter = () => {
     updateTopicSelection([ALL_TOPICS_VALUE]);
   };
+
+  if (
+    isLoadingInfoKnowledgeBase ||
+    hasLoadedInfoKnowledgeBase ||
+    infoKnowledgeBaseNodes.length > 0 ||
+    infoKnowledgeBaseError
+  ) {
+    return (
+      <AppShell>
+        <View style={styles.screen}>
+          <ScrollView contentContainerStyle={styles.container}>
+            <View style={styles.header}>
+              <ThemedText type="title" style={styles.pageTitle}>Information Board</ThemedText>
+            </View>
+            <ThemedText style={styles.metaText}>
+              Student answers organized as guides, sections, and knowledge base articles.
+            </ThemedText>
+            <View style={styles.knowledgeBaseHeader}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.knowledgeBaseKicker}>STARTING POINTS</ThemedText>
+                <ThemedText style={styles.knowledgeBaseHeading}>What can we help you find?</ThemedText>
+              </View>
+              <ThemedText style={styles.metaText}>
+                {isLoadingInfoKnowledgeBase ? '—' : infoKnowledgeBaseNodes.length} guides
+              </ThemedText>
+            </View>
+
+            {isLoadingInfoKnowledgeBase ? <ActivityIndicator /> : null}
+            {infoKnowledgeBaseError ? (
+              <ThemedText style={styles.error}>{infoKnowledgeBaseError}</ThemedText>
+            ) : null}
+
+            <View style={styles.knowledgeBaseGrid}>
+              {infoKnowledgeBaseNodes.map((node, index) => (
+                <Pressable
+                  key={node.thread_id}
+                  style={styles.knowledgeBaseLink}
+                  onPress={() => router.push(`/thread/${node.thread_id}`)}
+                >
+                  <View style={styles.knowledgeBaseCardHeader}>
+                    <ThemedText style={styles.knowledgeBaseNumber}>
+                      {String(index + 1).padStart(2, '0')}
+                    </ThemedText>
+                  </View>
+                  <MaterialCommunityIcons
+                    name="arrow-top-right"
+                    size={18}
+                    color={colors.primaryFrom}
+                    style={styles.knowledgeBaseArrow}
+                  />
+                  <View style={styles.knowledgeBaseCardBody}>
+                    <ThemedText style={styles.knowledgeBaseType}>STUDENT GUIDE</ThemedText>
+                    <ThemedText style={styles.knowledgeBaseCardTitle}>{node.title}</ThemedText>
+                    <ThemedText style={styles.knowledgeBaseCount}>
+                      {Number(node.child_count) || 0} {Number(node.child_count) === 1 ? 'section' : 'sections'}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -712,6 +794,89 @@ const createStyles = (colors: BrandColors) =>
   metaText: {
     fontSize: 12,
     color: colors.subtext,
+  },
+  knowledgeBaseSection: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+    backgroundColor: hexToRgba(colors.primaryFrom, 0.04),
+  },
+  knowledgeBaseHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  knowledgeBaseKicker: {
+    color: colors.primaryFrom,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  knowledgeBaseHeading: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  knowledgeBaseLink: {
+    position: 'relative',
+    width: '48%',
+    minHeight: 170,
+    justifyContent: 'space-between',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: colors.card,
+  },
+  knowledgeBaseGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  knowledgeBaseCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  knowledgeBaseArrow: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+  },
+  knowledgeBaseCardBody: {
+    gap: 4,
+  },
+  knowledgeBaseCardTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  knowledgeBaseType: {
+    color: colors.primaryFrom,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  knowledgeBaseNumber: {
+    alignSelf: 'flex-start',
+    color: colors.primaryFrom,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    paddingTop: 2,
+  },
+  knowledgeBaseCount: {
+    color: colors.primaryFrom,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
   },
   controlBar: {
     gap: 16,
