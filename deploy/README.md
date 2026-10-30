@@ -48,6 +48,13 @@ API keys are absent from the development environment, so the clone cannot send
 production email or call production integrations. Production is never modified
 and development changes are never synchronized back.
 
+Super admins can run the same refresh from **Account settings → Admin preview →
+Refresh development data** on the development site. The control is omitted from
+the production interface, and the API independently refuses to run unless it is using
+the designated development environment, port, and database. A typed confirmation
+is required, concurrent refreshes are blocked, and all development sessions are
+cleared when the refresh finishes.
+
 ## Prepare a release without changing production
 
 ```bash
