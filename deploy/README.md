@@ -1,0 +1,72 @@
+# StudentSphere deployment architecture
+
+Production is built only from an exact commit contained in `origin/master`.
+The editable `dev` checkout is used only by the development frontend/API.
+
+## Runtime layout
+
+```text
+/home/nick/services/srp-server/srp/          editable development checkout
+/home/nick/.config/srp/development.env       development secrets (0600)
+/home/nick/.config/srp/production.env        production secrets (0600)
+/home/nick/.local/share/srp-deployment/
+  current -> releases/<commit>
+  releases/<commit>/                         immutable Git release
+  repository.git/                            deployment-only Git mirror
+  shared/uploads/                            production runtime media
+```
+
+The development frontend runs on port 3000 and proxies `/api` to the
+development PHP server on `127.0.0.1:3004`. Production nginx continues to own
+`127.0.0.1:3001`; its API upstream is the production PHP server on port 3003.
+
+## One-time development setup
+
+After the protected production environment has been copied into place, run:
+
+```bash
+deploy/bootstrap-development.sh
+```
+
+It requests sudo only for MySQL database/user creation, generates independent
+development credentials, clones database structure without production user
+data, and copies only the non-personal `roles` and `tags` reference rows.
+
+## Prepare a release without changing production
+
+```bash
+deploy/deploy-production.sh <master-commit-sha>
+```
+
+## Activate a verified release
+
+Activation is intended for the protected GitHub deployment job after all CI
+jobs pass:
+
+```bash
+deploy/deploy-production.sh <master-commit-sha> --activate
+```
+
+The script serializes deployments, builds from a clean mirror, installs locked
+dependencies, runs backend/frontend checks, creates a production backup, swaps
+the `current` symlink atomically, restarts only the production API, and rolls
+back the symlink if the API health check fails. Database migrations are opt-in
+with `SRP_RUN_MIGRATIONS=true` because schema rollback is not generally safe.
+
+## Initial cutover
+
+Do not activate until all of the following are true:
+
+1. A separate development database and `/home/nick/.config/srp/development.env`
+   exist.
+2. Development API port 3004 passes its health check.
+3. `/home/nick/.config/srp/production.env` is populated and mode 0600.
+4. Production uploads have been synchronized into
+   `/home/nick/.local/share/srp-deployment/shared/uploads`.
+5. nginx has been prepared to serve
+   `/home/nick/.local/share/srp-deployment/current/frontend/build`.
+6. The current `dev` work has been reviewed and merged into `master`.
+7. The pre-cutover backup has passed its checksum verification.
+
+The initial nginx/API cutover is a separate controlled operation. Routine
+deployments after that use the deployment script above.

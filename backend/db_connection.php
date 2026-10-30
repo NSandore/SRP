@@ -38,8 +38,15 @@ function loadEnvFile(string $path): void {
     }
 }
 
-// Load root .env for local/dev configuration.
-loadEnvFile(__DIR__ . '/../.env');
+// Load deployment configuration. Long-running processes can point at an
+// environment-specific file so development and production never need to share
+// the editable checkout's .env. Fall back to the historical root .env for
+// local compatibility.
+$configuredEnvFile = getenv('SRP_ENV_FILE');
+$envFile = ($configuredEnvFile !== false && trim($configuredEnvFile) !== '')
+    ? trim($configuredEnvFile)
+    : (__DIR__ . '/../.env');
+loadEnvFile($envFile);
 
 function srp_is_dev_mode(): bool {
     // An explicit environment override always wins.

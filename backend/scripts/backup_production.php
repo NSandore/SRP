@@ -87,7 +87,9 @@ $uploadArchive = null;
 $uploadsDir = $projectRoot . '/uploads';
 if (is_dir($uploadsDir)) {
     $uploadArchive = $prefix . '-uploads.tar.gz';
-    $tar = proc_open(['/usr/bin/tar', '-C', $projectRoot, '-czf', $uploadArchive, 'uploads'], [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['pipe', 'w']], $pipes);
+    // Production releases link uploads to shared runtime storage. Dereference
+    // that link so the backup contains the files, not only the symlink.
+    $tar = proc_open(['/usr/bin/tar', '--dereference', '-C', $projectRoot, '-czf', $uploadArchive, 'uploads'], [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['pipe', 'w']], $pipes);
     $tarError = is_resource($tar) ? stream_get_contents($pipes[2]) : 'could not start tar';
     if (is_resource($tar)) {
         fclose($pipes[2]);
