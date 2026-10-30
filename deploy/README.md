@@ -32,6 +32,22 @@ It requests sudo only for MySQL database/user creation, generates independent
 development credentials, clones database structure without production user
 data, and copies only the non-personal `roles` and `tags` reference rows.
 
+## Refresh development from production
+
+For realistic feature testing, run:
+
+```bash
+deploy/refresh-development-from-production.sh
+```
+
+This is a destructive reset of the **development** database and a strictly
+one-way, point-in-time copy from production. It retains users, communities,
+forums, threads, posts, messages, and relationships, while removing active
+sessions, rate-limit state, temporary 2FA codes, and Zoom credentials. Provider
+API keys are absent from the development environment, so the clone cannot send
+production email or call production integrations. Production is never modified
+and development changes are never synchronized back.
+
 ## Prepare a release without changing production
 
 ```bash
