@@ -70,3 +70,11 @@ Do not activate until all of the following are true:
 
 The initial nginx/API cutover is a separate controlled operation. Routine
 deployments after that use the deployment script above.
+
+## Automatic deployment watcher
+
+`deploy-if-ready.sh` compares the public release to `origin/master`. When a new
+commit exists, it queries the repository's GitHub Actions runs and activates the
+commit only when the `CI` workflow for that exact SHA reports
+`completed:success`. Missing, queued, running, failed, or cancelled CI runs are
+fail-closed and leave production unchanged.

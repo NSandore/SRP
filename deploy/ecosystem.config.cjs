@@ -15,7 +15,7 @@ module.exports = {
     },
     {
       name: 'srp-api-production',
-      script: '/home/nick/services/srp-server/srp/deploy/run-api.sh',
+      script: '/home/nick/.local/share/srp-deployment/current/deploy/run-api.sh',
       args: 'production',
       interpreter: '/usr/bin/bash',
       cwd: '/home/nick/.local/share/srp-deployment',

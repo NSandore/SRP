@@ -142,7 +142,11 @@ mv -Tf "$next_link" "$current_link"
 if pm2 describe srp-api-production > /dev/null 2>&1; then
   pm2 restart srp-api-production --update-env
 else
-  pm2 start /home/nick/services/srp-server/srp/deploy/ecosystem.config.cjs --only srp-api-production
+  pm2 start "$current_link/deploy/run-api.sh" \
+    --name srp-api-production \
+    --interpreter /usr/bin/bash \
+    --cwd "$deployment_root" \
+    -- production
 fi
 
 health_ok=false
@@ -157,6 +161,27 @@ done
 
 if [[ "$health_ok" != 'true' ]]; then
   echo "New release failed its API health check; rolling back." >&2
+  if [[ -n "$previous_target" && -d "$previous_target" ]]; then
+    rollback_link="$deployment_root/.rollback-$short_sha"
+    ln -s "$previous_target" "$rollback_link"
+    mv -Tf "$rollback_link" "$current_link"
+    pm2 restart srp-api-production --update-env
+  fi
+  exit 1
+fi
+
+public_health_url=${SRP_PUBLIC_HEALTH_URL:-https://thestudentsphere.com/api/}
+public_health_ok=false
+for _ in 1 2 3 4 5; do
+  if curl -fsS --max-time 8 "$public_health_url" \
+      | php -r '$d=json_decode(stream_get_contents(STDIN), true); exit(($d["status"] ?? null) === "ok" ? 0 : 1);'; then
+    public_health_ok=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$public_health_ok" != 'true' ]]; then
+  echo "New release failed its public health check; rolling back." >&2
   if [[ -n "$previous_target" && -d "$previous_target" ]]; then
     rollback_link="$deployment_root/.rollback-$short_sha"
     ln -s "$previous_target" "$rollback_link"
