@@ -2,6 +2,8 @@
 
 Production is built only from an exact commit contained in `origin/master`.
 The editable `dev` checkout is used only by the development frontend/API.
+For the normal VS Code and terminal promotion steps, see
+[`docs/DEPLOYMENT_WORKFLOW.md`](../docs/DEPLOYMENT_WORKFLOW.md).
 
 ## Runtime layout
 
