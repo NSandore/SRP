@@ -100,6 +100,11 @@ function AccountSettings({ userData, onInterestsUpdated }) {
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const statusTimerRef = useRef(null);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showDevelopmentRefreshModal, setShowDevelopmentRefreshModal] = useState(false);
+  const [developmentRefreshConfirmation, setDevelopmentRefreshConfirmation] = useState('');
+  const [isRefreshingDevelopment, setIsRefreshingDevelopment] = useState(false);
+  const [developmentRefreshError, setDevelopmentRefreshError] = useState('');
+  const isDevelopmentRuntime = process.env.NODE_ENV === 'development';
   const tabs = useMemo(() => {
     const base = [
       { id: 'profile', label: 'Profile', icon: <FaUserCog size={16} /> },
@@ -733,6 +738,43 @@ function AccountSettings({ userData, onInterestsUpdated }) {
 
   const handleCancelReset = () => setShowResetModal(false);
 
+  const openDevelopmentRefresh = () => {
+    setDevelopmentRefreshConfirmation('');
+    setDevelopmentRefreshError('');
+    setShowDevelopmentRefreshModal(true);
+  };
+
+  const closeDevelopmentRefresh = () => {
+    if (isRefreshingDevelopment) return;
+    setShowDevelopmentRefreshModal(false);
+    setDevelopmentRefreshConfirmation('');
+    setDevelopmentRefreshError('');
+  };
+
+  const refreshDevelopmentData = async () => {
+    if (developmentRefreshConfirmation !== 'REFRESH DEVELOPMENT' || isRefreshingDevelopment) return;
+
+    setIsRefreshingDevelopment(true);
+    setDevelopmentRefreshError('');
+    try {
+      const response = await axios.post(
+        '/api/refresh_development_data.php',
+        { confirmation: developmentRefreshConfirmation },
+        { withCredentials: true }
+      );
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Unable to refresh development data.');
+      }
+      window.location.assign('/login?developmentRefresh=complete');
+    } catch (error) {
+      console.error('Error refreshing development data', error);
+      setDevelopmentRefreshError(
+        error.response?.data?.error || error.message || 'Unable to refresh development data.'
+      );
+      setIsRefreshingDevelopment(false);
+    }
+  };
+
   const [sessions, setSessions] = useState([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState('');
@@ -1096,6 +1138,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               <span className="toggle-slider" />
             </label>
           </div>
+
         </section>
         )}
 
@@ -1299,6 +1342,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               <span className="toggle-slider" />
             </label>
           </div>
+
           </section>
         )}
 
@@ -1423,6 +1467,26 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               <span className="toggle-slider" />
             </label>
           </div>
+
+          {isDevelopmentRuntime && (
+            <div className="setting-row development-refresh-row">
+              <div className="setting-text">
+                <div className="setting-label">
+                  Refresh development data <span className="settings-badge danger">Development only</span>
+                </div>
+                <p className="setting-help">
+                  Replace development data with a current, one-way production snapshot for troubleshooting.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="pill-button danger small"
+                onClick={openDevelopmentRefresh}
+              >
+                Refresh data
+              </button>
+            </div>
+          )}
           </section>
         )}
 
@@ -1511,6 +1575,59 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               </button>
               <button type="button" className="pill-button danger" onClick={handleConfirmReset}>
                 Reset defaults
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDevelopmentRefreshModal && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="development-refresh-modal-title"
+        >
+          <div className="modal-content development-refresh-modal">
+            <h3 id="development-refresh-modal-title">Replace all development data?</h3>
+            <p>
+              This copies the current production database and uploads into development. It permanently removes
+              dev-only database changes, clears all development sessions, and signs you out. Production is not changed.
+            </p>
+            <label htmlFor="development-refresh-confirmation">
+              Type <strong>REFRESH DEVELOPMENT</strong> to continue
+            </label>
+            <input
+              id="development-refresh-confirmation"
+              type="text"
+              value={developmentRefreshConfirmation}
+              onChange={(event) => setDevelopmentRefreshConfirmation(event.target.value)}
+              disabled={isRefreshingDevelopment}
+              autoComplete="off"
+              autoFocus
+            />
+            {developmentRefreshError && (
+              <p className="error-text" role="alert">{developmentRefreshError}</p>
+            )}
+            {isRefreshingDevelopment && (
+              <p className="setting-help" role="status">Copying production data… Keep this page open.</p>
+            )}
+            <div className="form-actions development-refresh-actions">
+              <button
+                type="button"
+                className="pill-button secondary"
+                onClick={closeDevelopmentRefresh}
+                disabled={isRefreshingDevelopment}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="pill-button danger"
+                onClick={refreshDevelopmentData}
+                disabled={developmentRefreshConfirmation !== 'REFRESH DEVELOPMENT' || isRefreshingDevelopment}
+              >
+                {isRefreshingDevelopment ? 'Refreshing…' : 'Replace development data'}
               </button>
             </div>
           </div>

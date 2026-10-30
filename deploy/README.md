@@ -2,6 +2,8 @@
 
 Production is built only from an exact commit contained in `origin/master`.
 The editable `dev` checkout is used only by the development frontend/API.
+For the normal VS Code and terminal promotion steps, see
+[`docs/DEPLOYMENT_WORKFLOW.md`](../docs/DEPLOYMENT_WORKFLOW.md).
 
 ## Runtime layout
 
@@ -31,6 +33,29 @@ deploy/bootstrap-development.sh
 It requests sudo only for MySQL database/user creation, generates independent
 development credentials, clones database structure without production user
 data, and copies only the non-personal `roles` and `tags` reference rows.
+
+## Refresh development from production
+
+For realistic feature testing, run:
+
+```bash
+deploy/refresh-development-from-production.sh
+```
+
+This is a destructive reset of the **development** database and a strictly
+one-way, point-in-time copy from production. It retains users, communities,
+forums, threads, posts, messages, and relationships, while removing active
+sessions, rate-limit state, temporary 2FA codes, and Zoom credentials. Provider
+API keys are absent from the development environment, so the clone cannot send
+production email or call production integrations. Production is never modified
+and development changes are never synchronized back.
+
+Super admins can run the same refresh from **Account settings → Admin preview →
+Refresh development data** on the development site. The control is omitted from
+the production interface, and the API independently refuses to run unless it is using
+the designated development environment, port, and database. A typed confirmation
+is required, concurrent refreshes are blocked, and all development sessions are
+cleared when the refresh finishes.
 
 ## Prepare a release without changing production
 
