@@ -1122,7 +1122,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
                   <button
                     type="button"
                     className="pill-button secondary small"
-                    onClick={() => navigate('/signup?verify=1')}
+                    onClick={() => navigate('/signup?verify=1&return_to=settings')}
                   >
                     Review verification
                   </button>

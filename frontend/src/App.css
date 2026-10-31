@@ -6732,6 +6732,66 @@ select:focus {
   margin-top: auto;
 }
 
+.admin-review__decision {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.admin-review__decision label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.admin-review__decision label span,
+.admin-review__decision-meta {
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.admin-review__decision textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--text-color);
+  background: var(--card-background);
+  font: inherit;
+  line-height: 1.45;
+}
+
+.admin-review__decision textarea:focus-visible {
+  outline: 3px solid rgba(47, 128, 237, 0.2);
+  border-color: #2f80ed;
+}
+
+.admin-review__decision-meta {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.admin-review__decision-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.admin-review__decision-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.admin-review__decision-buttons > button {
+  flex: 1;
+}
+
 .admin-review__approve,
 .admin-review__reject {
   flex: 1;

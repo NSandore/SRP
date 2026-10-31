@@ -156,6 +156,26 @@
   line-height: 1.55;
 }
 
+.verification-prompt-feedback {
+  margin-bottom: 1rem;
+  border: 1px solid rgba(180, 35, 24, 0.24);
+  border-radius: 12px;
+  padding: 0.8rem;
+  color: #7a271a;
+  background: #fff4f2;
+}
+
+.verification-prompt-feedback strong,
+.verification-prompt-feedback p {
+  display: block;
+  margin: 0;
+}
+
+.verification-prompt-feedback p {
+  margin-top: 0.25rem;
+  line-height: 1.45;
+}
+
 .verification-prompt-actions {
   display: flex;
   justify-content: flex-end;

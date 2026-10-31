@@ -258,17 +258,18 @@ function App() {
   // Inside your App component
   useEffect(() => {
     console.log('User data changed:', userData);
-    if (userData) {
+    if (userData && onboardingState) {
       console.log('login_count:', userData.login_count);
-      if (Number(userData.login_count) === 0) {
+      if (Number(userData.login_count) === 0 && onboardingState.status !== 'completed') {
         console.log('login_count is 0, showing welcome overlay');
         setShowWelcome(true);
         // Auto-dismiss after 3 seconds (optional)
       } else {
         console.log('login_count is not 0, welcome overlay will not be shown');
+        setShowWelcome(false);
       }
     }
-  }, [userData]);
+  }, [userData, onboardingState]);
 
   const fetchNotifications = async (user_id) => {
     try {

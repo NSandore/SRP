@@ -57,4 +57,22 @@ describe('OnboardingBanner', () => {
     expect(screen.queryByRole('button', { name: /get verified/i })).not.toBeInTheDocument();
     expect(hasPendingIdentityVerification(userData, onboarding)).toBe(true);
   });
+
+  test('shows the reviewer message when a request is denied', () => {
+    renderBanner(
+      <OnboardingBanner
+        onboarding={{
+          status: 'completed',
+          current_step: 9,
+          verification: { student: { status: 'rejected', review_message: 'Please upload a document showing the current term.' } },
+        }}
+        userData={{ education_status: 'Student', verified: 0 }}
+      />
+    );
+
+    expect(screen.getByText('Verification needs attention')).toBeInTheDocument();
+    expect(screen.getByText(/please upload a document showing the current term/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /review and try again/i }));
+    expect(screen.getByText('Reviewer message', { selector: 'strong' })).toBeInTheDocument();
+  });
 });

@@ -5,6 +5,7 @@ startSession();
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../includes/roles.php';
+require_once __DIR__ . '/../includes/sanitize.php';
 
 header('Content-Type: application/json');
 
@@ -36,9 +37,18 @@ if (!is_array($payload)) {
 
 $requestId = normalizeId($payload['request_id'] ?? '');
 $decision = trim((string)($payload['decision'] ?? ''));
+$reviewMessage = srp_sanitize_plain($payload['review_message'] ?? '');
+if (mb_strlen($reviewMessage) > 1000) {
+    $reviewMessage = mb_substr($reviewMessage, 0, 1000);
+}
 if ($requestId === '' || !in_array($decision, ['approve', 'reject'], true)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid request']);
+    exit;
+}
+if ($decision === 'reject' && mb_strlen($reviewMessage) < 10) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Provide a brief reason for the denial (at least 10 characters)']);
     exit;
 }
 
@@ -59,12 +69,13 @@ try {
 
     $update = $db->prepare("
         UPDATE user_verification_requests
-        SET status = :status, reviewed_by = :reviewed_by, reviewed_at = NOW()
+        SET status = :status, reviewed_by = :reviewed_by, reviewed_at = NOW(), notes = :review_message
         WHERE request_id = :rid
     ");
     $update->execute([
         ':status' => $status,
         ':reviewed_by' => normalizeId($_SESSION['user_id']),
+        ':review_message' => $reviewMessage !== '' ? $reviewMessage : null,
         ':rid' => $requestId,
     ]);
 
@@ -97,6 +108,9 @@ try {
     $decisionLabel = $decision === 'approve' ? 'approved' : 'rejected';
     $suffix = $communityName !== '' ? " for {$communityName}" : '';
     $message = "Your verification request{$suffix} was {$decisionLabel}.";
+    if ($reviewMessage !== '') {
+        $message .= " Reviewer message: {$reviewMessage}";
+    }
 
     if ($recipientId !== '') {
         $notifStmt = $db->prepare("
@@ -125,7 +139,8 @@ try {
             $recipients = [new \MailerSend\Helpers\Builder\Recipient($recipient['email'], $toName)];
             $subject = "Your verification request was {$decisionLabel}";
             $textBody = $message . " You can continue using StudentSphere in the meantime.";
-            $htmlBody = "<p>{$message}</p><p>You can continue using StudentSphere in the meantime.</p>";
+            $safeMessage = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $htmlBody = "<p>{$safeMessage}</p><p>You can continue using StudentSphere in the meantime.</p>";
             $emailParams = (new \MailerSend\Helpers\Builder\EmailParams())
                 ->setFrom($fromEmail)
                 ->setFromName($fromName)

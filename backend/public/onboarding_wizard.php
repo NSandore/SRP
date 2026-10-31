@@ -46,7 +46,7 @@ function onboarding_next_step(array $state, bool $isVerified): int {
 
 function fetch_verification_summary(PDO $db, string $userId): array {
     $stmt = $db->prepare("
-        SELECT verification_type, status, verification_method, created_at
+        SELECT verification_type, status, verification_method, notes AS review_message, created_at
         FROM user_verification_requests
         WHERE user_id = :uid
         ORDER BY created_at DESC
@@ -66,6 +66,7 @@ function fetch_verification_summary(PDO $db, string $userId): array {
         $summary[$type] = [
             'status' => $row['status'] ?? 'pending',
             'method' => $row['verification_method'] ?? '',
+            'review_message' => $row['review_message'] ?? '',
             'created_at' => $row['created_at'] ?? null,
         ];
     }

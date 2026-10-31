@@ -30,6 +30,9 @@ export const hasPendingIdentityVerification = (userData, onboarding) => {
   return Object.values(onboarding?.verification || {}).some((request) => request?.status === 'pending');
 };
 
+export const getRejectedVerificationFeedback = (onboarding) =>
+  Object.values(onboarding?.verification || {}).find((request) => request?.status === 'rejected')?.review_message || '';
+
 function OnboardingBanner({ onboarding, userData, onResume }) {
   const navigate = useNavigate();
   const [showVerificationInfo, setShowVerificationInfo] = useState(false);
@@ -37,6 +40,7 @@ function OnboardingBanner({ onboarding, userData, onResume }) {
   const onboardingIncomplete = isOnboardingIncomplete(onboarding);
   const verificationPending = !onboardingIncomplete && hasPendingIdentityVerification(userData, onboarding);
   const showVerificationPrompt = !onboardingIncomplete && shouldPromptIdentityVerification(userData, onboarding);
+  const rejectionFeedback = getRejectedVerificationFeedback(onboarding);
 
   useEffect(() => {
     if (!showVerificationInfo) return undefined;
@@ -55,14 +59,14 @@ function OnboardingBanner({ onboarding, userData, onResume }) {
       <aside className={`onboarding-banner${showVerificationPrompt || verificationPending ? ' onboarding-banner--verification' : ''}${verificationPending ? ' onboarding-banner--pending' : ''}`} aria-label={onboardingIncomplete ? 'Incomplete account setup' : verificationPending ? 'Identity verification pending' : 'Identity verification available'}>
         <span className="onboarding-banner__icon" aria-hidden="true">{onboardingIncomplete ? <FaCompass /> : <FaShieldAlt />}</span>
         <div className="onboarding-banner__copy">
-          <strong>{onboardingIncomplete ? 'Finish setting up your account' : verificationPending ? 'Pending verification' : 'Add a verified school connection'}</strong>
-          <span>{onboardingIncomplete ? onboardingMessage(onboarding.current_step) : verificationPending ? 'Your documents were submitted and are waiting for review. You can keep using StudentSphere in the meantime.' : 'Get verified to add a reviewed badge and help others trust your student or staff affiliation.'}</span>
+          <strong>{onboardingIncomplete ? 'Finish setting up your account' : verificationPending ? 'Pending verification' : rejectionFeedback ? 'Verification needs attention' : 'Add a verified school connection'}</strong>
+          <span>{onboardingIncomplete ? onboardingMessage(onboarding.current_step) : verificationPending ? 'Your documents were submitted and are waiting for review. You can keep using StudentSphere in the meantime.' : rejectionFeedback ? `Reviewer message: ${rejectionFeedback}` : 'Get verified to add a reviewed badge and help others trust your student or staff affiliation.'}</span>
         </div>
         {verificationPending ? (
           <span className="onboarding-banner__status">Under review</span>
         ) : (
           <button type="button" className="onboarding-banner__action" onClick={onboardingIncomplete ? onResume : () => setShowVerificationInfo(true)}>
-            {onboardingIncomplete ? 'Resume onboarding' : 'Get verified'} <FaArrowRight aria-hidden="true" />
+            {onboardingIncomplete ? 'Resume onboarding' : rejectionFeedback ? 'Review and try again' : 'Get verified'} <FaArrowRight aria-hidden="true" />
           </button>
         )}
       </aside>
@@ -74,10 +78,11 @@ function OnboardingBanner({ onboarding, userData, onResume }) {
               <h2 id="verification-prompt-title">What verification changes</h2>
               <p>Submit proof of your student or staff connection for review. You can keep using StudentSphere while the request is pending.</p>
             </div>
+            {rejectionFeedback && <div className="verification-prompt-feedback" role="status"><strong>Reviewer message</strong><p>{rejectionFeedback}</p></div>}
             <VerificationComparison compact />
             <div className="verification-prompt-actions">
               <button type="button" className="onboarding-banner__action onboarding-banner__action--secondary" onClick={() => setShowVerificationInfo(false)}>Maybe later</button>
-              <button ref={startButtonRef} type="button" className="onboarding-banner__action" onClick={() => navigate('/signup?verify=1')}>Start verification <FaArrowRight aria-hidden /></button>
+              <button ref={startButtonRef} type="button" className="onboarding-banner__action" onClick={() => navigate('/signup?verify=1&return_to=home')}>Start verification <FaArrowRight aria-hidden /></button>
             </div>
           </section>
         </div>

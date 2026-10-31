@@ -155,6 +155,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const verificationMode = searchParams.get('verify') === '1';
+  const verificationReturnPath = searchParams.get('return_to') === 'settings' ? '/settings' : '/home';
   const onAuthenticatedRef = useRef(onAuthenticated);
   const errorRef = useRef(null);
   const resultsRequestRef = useRef(false);
@@ -187,6 +188,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
   const [verificationInstitutionId, setVerificationInstitutionId] = useState('');
   const [staffPosition, setStaffPosition] = useState('');
   const [verificationPending, setVerificationPending] = useState(false);
+  const [verificationFeedback, setVerificationFeedback] = useState('');
   const [pendingDeletedAccount, setPendingDeletedAccount] = useState(null);
   const [previousAccountPassword, setPreviousAccountPassword] = useState('');
   const [deletionActionError, setDeletionActionError] = useState('');
@@ -231,6 +233,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
           if (context.position) setStaffPosition(context.position);
           const verificationSummary = response.data?.verification || {};
           setVerificationPending(Object.values(verificationSummary).some((request) => request?.status === 'pending'));
+          setVerificationFeedback(Object.values(verificationSummary).find((request) => request?.status === 'rejected')?.review_message || '');
           if (context.community_id) setVerificationInstitutionId(String(context.community_id));
           if (user.recent_university_id) {
             const id = String(user.recent_university_id);
@@ -671,6 +674,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
           <p>Verification is separate from email confirmation. It can add a student or staff badge after an authorized reviewer approves the request.</p>
         </div>
         {error && <p ref={errorRef} tabIndex="-1" className="auth-error" role="alert">{error}</p>}
+        {verificationFeedback && !verificationPending && <div className="signup-verification-feedback" role="status"><strong>Reviewer message</strong><p>{verificationFeedback}</p><span>Update the requested documents below and submit again when you’re ready.</span></div>}
         {verificationPending ? (
           <div className="signup-verification-complete">
             <FaCheckCircle aria-hidden />
@@ -717,7 +721,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
               <label className="signup-file-field"><span>Schedule or billing statement from the last 90 days</span><input type="file" accept="image/*,application/pdf" onChange={handleVerificationFileChange(setVerificationDocumentFile)} /><small>{verificationDocumentFile?.name || 'Choose an image or PDF'}</small></label>
             )}
             <div className="signup-actions">
-              <button type="button" className="auth-secondary" onClick={() => navigate('/settings')} disabled={isWorking}>Do this later</button>
+              <button type="button" className="auth-secondary" onClick={() => { onLeaveOnboarding?.(); navigate(verificationReturnPath); }} disabled={isWorking}>Do this later</button>
               <button type="button" className="auth-primary" onClick={submitVerificationRequest} disabled={isWorking}>{isWorking ? 'Submitting…' : 'Submit for review'}</button>
             </div>
           </div>
@@ -920,7 +924,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
                           <VerificationComparison />
                           <div className="signup-verification-invite__actions">
                             <button type="button" className="auth-secondary" onClick={() => finishAndNavigate('/home')} disabled={isWorking}>Do this later</button>
-                            <button type="button" className="auth-primary" onClick={() => finishAndNavigate('/signup?verify=1')} disabled={isWorking}>Verify now</button>
+                            <button type="button" className="auth-primary" onClick={() => finishAndNavigate('/signup?verify=1&return_to=home')} disabled={isWorking}>Verify now</button>
                           </div>
                         </>
                       )}
