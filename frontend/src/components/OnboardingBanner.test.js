@@ -31,6 +31,8 @@ describe('OnboardingBanner', () => {
     fireEvent.click(screen.getByRole('button', { name: /get verified/i }));
     expect(screen.getByRole('dialog', { name: /what verification changes/i })).toBeInTheDocument();
     expect(screen.getByText(/does not grant moderation/i)).toBeInTheDocument();
+    expect(screen.getByText(/approved staff may apply/i)).toBeInTheDocument();
+    expect(screen.getByText(/confirming your email—not by identity verification/i)).toBeInTheDocument();
   });
 
   test('does not prompt verified users or users with a pending review', () => {

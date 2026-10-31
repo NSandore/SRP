@@ -19,6 +19,21 @@ const rows = [
     verified: 'Standard member features plus a reviewed trust signal',
   },
   {
+    label: 'Verified-member events',
+    standard: 'Public and standard member events',
+    verified: 'Can access events reserved for verified members of the associated community',
+  },
+  {
+    label: 'Ambassador applications',
+    standard: 'Not eligible through an unreviewed school affiliation',
+    verified: 'Approved staff may apply at a university they follow; student verification alone does not qualify',
+  },
+  {
+    label: 'Daily posting limit',
+    standard: 'Raised by confirming your email—not by identity verification',
+    verified: 'The same email-confirmation rule applies; identity review does not change the posting limit',
+  },
+  {
     label: 'Documents',
     standard: 'No documents required',
     verified: 'Used privately for review and never shown publicly',
