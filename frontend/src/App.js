@@ -459,6 +459,10 @@ function App() {
   };
   const openSignUpPage = () => navigate('/signup');
   const resumeOnboarding = () => navigate('/signup');
+  const leaveOnboarding = () => {
+    setShowWelcome(false);
+    setShowAmbassadorOverlay(false);
+  };
   const openLoginPage = () => navigate('/login');
   const continueAsGuest = () => {
     // Guarded here as well as at the point the return path is recorded, so no
@@ -479,7 +483,7 @@ function App() {
   
     try {
       const response = await axios.get(
-        `/api/fetch_all_community_ambassadors.php?user_id=${userData.user_id}`,
+        '/api/fetch_all_community_ambassadors.php',
         { withCredentials: true }
       );
   
@@ -698,7 +702,20 @@ function App() {
             ) : errorAmbassadors ? (
               <p className="ambassador-overlay__status">{errorAmbassadors}</p>
             ) : ambassadors.length === 0 ? (
-              <p className="ambassador-overlay__status">No current ambassadors.</p>
+              <div className="ambassador-overlay__empty">
+                <span aria-hidden="true"><FaUsers /></span>
+                <h3>No ambassadors found yet</h3>
+                <p>Follow a school or community to see its available ambassadors here.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAmbassadorOverlay(false);
+                    navigate('/communities');
+                  }}
+                >
+                  Browse communities
+                </button>
+              </div>
             ) : (
               <ul className="ambassador-list" aria-label="Ambassador list">
                 {ambassadors.map((amb) => {
@@ -742,7 +759,10 @@ function App() {
 
                         <button
                           className="message-button"
-                          onClick={() => alert(`Message ${amb.first_name} ${amb.last_name}`)}
+                          onClick={() => {
+                            setShowAmbassadorOverlay(false);
+                            navigate(`/messages?user=${encodeURIComponent(amb.user_id)}`);
+                          }}
                         >
                           Message
                         </button>
@@ -778,7 +798,7 @@ function App() {
       <Routes>
         <Route
           path="/signup"
-          element={<SignUp onAuthenticated={handleSignupAuthenticated} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} onOnboardingChange={setOnboardingState} />}
+          element={<SignUp onAuthenticated={handleSignupAuthenticated} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} onOnboardingChange={setOnboardingState} onLeaveOnboarding={leaveOnboarding} />}
         />
         <Route
           path="/login"

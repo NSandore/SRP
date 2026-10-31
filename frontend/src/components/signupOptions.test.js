@@ -1,4 +1,5 @@
 import {
+  ambassadorMessageDestination,
   needsForTags,
   primaryRoleForAudiences,
   rankGuideRecommendations,
@@ -29,5 +30,10 @@ describe('signup onboarding options', () => {
     const recommendations = rankGuideRecommendations(articles, ['financial_aid'], 2);
     expect(recommendations[0].title).toContain('financial aid');
     expect(recommendations).toHaveLength(2);
+  });
+
+  test('keeps the recommended ambassador attached to the message handoff', () => {
+    expect(ambassadorMessageDestination({ user_id: 'u123abc' })).toBe('/messages?user=u123abc');
+    expect(ambassadorMessageDestination(null)).toBe('/communities');
   });
 });

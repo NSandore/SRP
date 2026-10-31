@@ -6908,7 +6908,13 @@
   color: var(--home-ink, #11244D);
 }
 
-.ambassador-overlay :is(.ambassador-overlay__header, .ambassador-item) {
+.ambassador-overlay .ambassador-overlay__header {
+  border-color: var(--home-line, #DCE7F5);
+  background: transparent;
+  color: var(--home-ink, #11244D);
+}
+
+.ambassador-overlay .ambassador-item {
   border-color: var(--home-line, #DCE7F5);
   background: var(--home-kraft, #EEF4FC);
   color: var(--home-ink, #11244D);
@@ -6924,7 +6930,13 @@
   color: #EAF2FF;
 }
 
-[data-theme='dark'] .ambassador-overlay :is(.ambassador-overlay__header, .ambassador-item) {
+[data-theme='dark'] .ambassador-overlay .ambassador-overlay__header {
+  border-color: #2A4163;
+  background: transparent;
+  color: #EAF2FF;
+}
+
+[data-theme='dark'] .ambassador-overlay .ambassador-item {
   border-color: #2A4163;
   background: #0E203B;
   color: #EAF2FF;

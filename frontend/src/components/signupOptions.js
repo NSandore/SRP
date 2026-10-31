@@ -81,6 +81,11 @@ export const needsForTags = (tagValues = []) => {
     .map((option) => option.value);
 };
 
+export const ambassadorMessageDestination = (ambassador) => {
+  const userId = String(ambassador?.user_id || '').trim();
+  return userId ? `/messages?user=${encodeURIComponent(userId)}` : '/communities';
+};
+
 export const rankGuideRecommendations = (articles = [], needValues = [], limit = 3) => {
   const keywords = NEED_OPTIONS
     .filter((option) => needValues.includes(option.value))
