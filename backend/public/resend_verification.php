@@ -62,6 +62,25 @@ try {
         exit;
     }
 
+    if (srp_is_dev_mode()) {
+        $verifyStmt = $db->prepare("UPDATE users SET is_verified = 1 WHERE user_id = :uid");
+        $verifyStmt->execute([':uid' => $userId]);
+        $wizardState = srp_get_onboarding_state($db, $userId);
+        $wizardState['email_verification_skipped'] = true;
+        $wizardState['current_step'] = max(2, (int)($wizardState['current_step'] ?? 1));
+        srp_mark_step_complete($wizardState, 1);
+        srp_save_onboarding_state($db, $userId, $wizardState);
+
+        http_response_code(200);
+        echo json_encode([
+            'message' => 'Email verification skipped in development.',
+            'email_sent' => false,
+            'email_verification_skipped' => true,
+            'wizard' => $wizardState,
+        ]);
+        exit;
+    }
+
     if ((int)$user['is_verified'] === 1) {
         http_response_code(200);
         echo json_encode(['message' => 'User already verified']);

@@ -52,7 +52,7 @@ $enableTwoFactor = isset($inputData['enable_two_factor']) ? (int)filter_var($inp
 $devMode = srp_is_dev_mode();
 $disableTwoFactor = (int)filter_var(getenv('DISABLE_TWO_FACTOR') ?: 0, FILTER_VALIDATE_BOOLEAN);
 $effectiveTwoFactor = ($devMode || $disableTwoFactor) ? 0 : $enableTwoFactor;
-$skipEmailVerification = false;
+$skipEmailVerification = $devMode;
 $emailSent = false;
 $verificationCode = random_int(100000, 999999);
 
@@ -97,7 +97,7 @@ try {
     }
 
     $userId = generateUniqueId($db, 'users');
-    $isVerified = 0;
+    $isVerified = $skipEmailVerification ? 1 : 0;
 
     $insertUser = $db->prepare("
         INSERT INTO users (
@@ -126,6 +126,8 @@ try {
     $wizardState = srp_default_onboarding_state();
     if ($isVerified) {
         srp_mark_step_complete($wizardState, 1);
+        $wizardState['email_verification_skipped'] = true;
+        $wizardState['current_step'] = 2;
     }
 
     $extras = [
@@ -147,18 +149,20 @@ try {
         ':extras' => json_encode($extras, JSON_UNESCAPED_SLASHES),
     ]);
 
-    try {
-        srp_send_email(
-            $email,
-            trim("{$firstName} {$lastName}"),
-            'StudentSphere email verification code',
-            "Your StudentSphere verification code is {$verificationCode}. It expires in 15 minutes.",
-            "<p>Your StudentSphere verification code is <strong>{$verificationCode}</strong>. It expires in 15 minutes.</p>"
-        );
-        $emailSent = true;
-    } catch (Throwable $mailError) {
-        error_log('[SRP] registration email failed: ' . $mailError->getMessage());
-        $emailSent = false;
+    if (!$skipEmailVerification) {
+        try {
+            srp_send_email(
+                $email,
+                trim("{$firstName} {$lastName}"),
+                'StudentSphere email verification code',
+                "Your StudentSphere verification code is {$verificationCode}. It expires in 15 minutes.",
+                "<p>Your StudentSphere verification code is <strong>{$verificationCode}</strong>. It expires in 15 minutes.</p>"
+            );
+            $emailSent = true;
+        } catch (Throwable $mailError) {
+            error_log('[SRP] registration email failed: ' . $mailError->getMessage());
+            $emailSent = false;
+        }
     }
 
     // Rotate the pre-authentication identifier before establishing the new
@@ -200,9 +204,11 @@ try {
     http_response_code(201);
     echo json_encode([
         'success' => true,
-        'message' => $emailSent
-            ? 'Account created. Verification code sent.'
-            : 'Account created, but the verification email could not be sent.',
+        'message' => $skipEmailVerification
+            ? 'Account created. Email verification skipped in development.'
+            : ($emailSent
+                ? 'Account created. Verification code sent.'
+                : 'Account created, but the verification email could not be sent.'),
         'user' => [
             'user_id' => $userId,
             'first_name' => $firstName,
@@ -219,7 +225,7 @@ try {
             'admin_community_ids' => [],
         ],
         'wizard' => $wizardState,
-        'email_verification_skipped' => false,
+        'email_verification_skipped' => $skipEmailVerification,
         'email_sent' => $emailSent,
         'dev_mode' => $devMode,
         'session_id' => $sessionId,

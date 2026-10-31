@@ -383,7 +383,10 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
       const response = await axios.post('/api/resend_verification.php', {
         user_id: sessionUser?.user_id, email: sessionUser?.email,
       }, { withCredentials: true });
-      if (response.data?.email_sent) setNotice(response.data?.message || 'A new code is on its way.');
+      if (response.data?.email_verification_skipped) {
+        setNotice(response.data?.message || 'Email verification is skipped in the development environment.');
+        applyWizardState(response.data?.wizard, 2);
+      } else if (response.data?.email_sent) setNotice(response.data?.message || 'A new code is on its way.');
       else setError(response.data?.message || 'Email delivery is temporarily unavailable.');
     } catch (requestError) {
       setError(requestError?.response?.data?.error || 'Could not resend the code.');
