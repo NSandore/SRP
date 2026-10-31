@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import axios from 'axios';
-import ProductTour from './ProductTour';
+import ProductTour, { isProductTourCompatiblePath } from './ProductTour';
 
 jest.mock('axios');
 
@@ -100,4 +100,22 @@ test('skips a step when its only target is hidden', async () => {
 
   expect(await screen.findByRole('progressbar', { name: /tour progress/i })).toHaveAttribute('aria-valuemax', '1');
   expect(screen.queryByRole('heading', { name: /find your people/i })).not.toBeInTheDocument();
+});
+
+test('defers the tour until a compatible route is reached', async () => {
+  addTarget(fixture, { tour: 'feed', bounds: rect(40, 260, 700, 500) });
+  const { rerender } = render(<ProductTour userData={{ user_id: 'u-test' }} enabled={false} />);
+
+  expect(axios.get).not.toHaveBeenCalled();
+  expect(screen.queryByRole('dialog', { name: /product tour/i })).not.toBeInTheDocument();
+
+  rerender(<ProductTour userData={{ user_id: 'u-test' }} enabled />);
+  expect(await screen.findByRole('heading', { name: /your home base/i })).toBeInTheDocument();
+});
+
+test('only treats Home as a compatible tour starting point', () => {
+  expect(isProductTourCompatiblePath('/home')).toBe(true);
+  expect(isProductTourCompatiblePath('/messages')).toBe(false);
+  expect(isProductTourCompatiblePath('/communities')).toBe(false);
+  expect(isProductTourCompatiblePath('/info/forum/f1/thread/t1')).toBe(false);
 });

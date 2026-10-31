@@ -53,7 +53,7 @@ import ContactUsButton from './components/ContactUsButton';
 import ChangelogModal from './components/ChangelogModal';
 import ChangelogPage from './components/ChangelogPage';
 import ChangelogAdmin from './components/ChangelogAdmin';
-import ProductTour from './components/ProductTour';
+import ProductTour, { isProductTourCompatiblePath } from './components/ProductTour';
 import TestControls from './components/TestControls';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import { PrivacyPolicyPage, TermsPage } from './components/LegalPage';
@@ -629,6 +629,7 @@ function App() {
   };
 
   const shouldShowOverlays = !isAuthPage;
+  const shouldOfferProductTour = isProductTourCompatiblePath(location.pathname);
   const testControlsEnabled = shouldShowOverlays && hasTestControls(userData?.email);
   const isSuperAdminUser = isSuperAdmin(userData?.role_id);
 
@@ -792,7 +793,7 @@ function App() {
           published since the user last acknowledged one. */}
       {shouldShowOverlays && <ChangelogModal userData={userData} />}
       {shouldShowOverlays && !showWelcome && !showAmbassadorOverlay && (
-        <ProductTour userData={userData} replayToken={tourReplayToken} />
+        <ProductTour userData={userData} replayToken={tourReplayToken} enabled={shouldOfferProductTour} />
       )}
 
       <Routes>
