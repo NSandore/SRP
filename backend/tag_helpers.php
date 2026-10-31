@@ -27,6 +27,12 @@ function srp_tag_options(): array {
         ['name' => 'Study Abroad'],
         ['name' => 'Career Services'],
         ['name' => 'Athletics'],
+        ['name' => 'Paying for School'],
+        ['name' => 'Academic Support'],
+        ['name' => 'Disability & Accessibility'],
+        ['name' => 'Student Rights & Policies'],
+        ['name' => 'Peer Support'],
+        ['name' => 'Getting Started'],
     ];
 }
 

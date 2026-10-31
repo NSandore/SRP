@@ -1,28 +1,69 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  FaArrowRight,
+  FaBookOpen,
+  FaCheck,
+  FaCheckCircle,
+  FaCompass,
+  FaShieldAlt,
+  FaUniversity,
+  FaUsers,
+} from 'react-icons/fa';
 import './Login.css';
-import { FaCheckCircle } from 'react-icons/fa';
-import useTagOptions from '../hooks/useTagOptions';
+import './SignUp.css';
+import {
+  AUDIENCE_OPTIONS,
+  NEED_OPTIONS,
+  needsForTags,
+  primaryRoleForAudiences,
+  rankGuideRecommendations,
+  tagsForNeeds,
+} from './signupOptions';
 
-const ROLE_OPTIONS = [
-  { value: 'prospect', label: 'Prospect' },
-  { value: 'student', label: 'Student' },
-  { value: 'alumni', label: 'Alumni' },
-  { value: 'staff_representative', label: 'Staff / Representative' },
-];
+const INFO_COMMUNITY_ID = 'c57b7fd6c45b9d57b';
+const MAX_NEEDS = 8;
+
+const AUDIENCE_ICONS = {
+  exploring: FaCompass,
+  currently_enrolled: FaBookOpen,
+  previously_attended: FaUniversity,
+  supporting_student: FaUsers,
+  school_professional: FaUniversity,
+  mentor_resource: FaUsers,
+};
+
+const stepFromWizard = (wizard, fallback = 0) => {
+  const internalStep = Number(wizard?.current_step ?? fallback);
+  if (internalStep <= 1) return internalStep;
+  if (internalStep === 2) return 2;
+  if (internalStep === 3) return 3;
+  return 9;
+};
+
+const visibleStepNumber = (step) => {
+  if (step <= 1) return 1;
+  if (step === 2) return 2;
+  if (step === 3) return 3;
+  return 4;
+};
+
+const roleIntentFromUser = (user) => {
+  const value = String(user?.education_status || '').toLowerCase();
+  if (value.includes('staff')) return 'staff_representative';
+  if (value.includes('student')) return 'student';
+  if (value.includes('alumni')) return 'alumni';
+  return 'prospect';
+};
 
 const UniversitySearch = React.memo(function UniversitySearch({
   userId,
   selectedIds,
   onToggle,
   onSelect,
-  placeholder = 'Search universities',
-  emptyHelper = 'Search for a university to follow.',
-  actionLabel = 'Follow',
-  selectedLabel = 'Following',
   multiSelect = true,
-  communityType = 'university',
+  inputId = 'signup-school-search',
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -30,77 +71,72 @@ const UniversitySearch = React.memo(function UniversitySearch({
   const requestIdRef = useRef(0);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) return undefined;
     const trimmed = query.trim();
     if (trimmed === '') {
       setResults([]);
       setLoading(false);
-      return;
+      return undefined;
     }
+
     const requestId = ++requestIdRef.current;
-    const timer = setTimeout(async () => {
+    const timer = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await axios.get('/api/fetch_all_university_data.php', {
-          params: { user_id: userId, page: 1, search: trimmed, community_type: communityType },
+        const response = await axios.get('/api/fetch_all_university_data.php', {
+          params: { user_id: userId, page: 1, search: trimmed, community_type: 'university' },
           withCredentials: true,
         });
         if (requestIdRef.current !== requestId) return;
-        const universities = Array.isArray(res.data?.communities) ? res.data.communities : [];
-        setResults(universities);
-      } catch (err) {
-        if (requestIdRef.current !== requestId) return;
-        setResults([]);
+        setResults(Array.isArray(response.data?.communities) ? response.data.communities : []);
+      } catch (error) {
+        if (requestIdRef.current === requestId) setResults([]);
       } finally {
-        if (requestIdRef.current === requestId) {
-          setLoading(false);
-        }
+        if (requestIdRef.current === requestId) setLoading(false);
       }
-    }, 300);
+    }, 250);
 
-    return () => clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, [query, userId]);
 
   return (
-    <div>
+    <div className="signup-school-search">
+      <label htmlFor={inputId}>School or program name</label>
       <input
-        placeholder={placeholder}
+        id={inputId}
+        type="search"
+        placeholder="Start typing a school name"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(event) => setQuery(event.target.value)}
+        autoComplete="off"
       />
-      {query.trim() === '' ? (
-        <p className="auth-helper">{emptyHelper}</p>
-      ) : loading ? (
-        <p>Loading universities…</p>
-      ) : (
-        <div className="auth-list auth-search-results">
-          {results.map((community) => (
-            <div key={community.community_id} className="info-card" style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 600 }}>{community.name}</p>
-                  <p className="muted" style={{ margin: '4px 0 0 0' }}>
-                    {community.location || 'Location unavailable'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className={`pill-button ${selectedIds.includes(String(community.community_id)) ? '' : 'secondary'}`}
-                  onClick={() => {
-                    const id = String(community.community_id);
-                    if (multiSelect) {
-                      onToggle?.(id, community);
-                    } else {
-                      onSelect?.(id, community);
-                    }
-                  }}
-                >
-                  {selectedIds.includes(String(community.community_id)) ? selectedLabel : actionLabel}
-                </button>
-              </div>
-            </div>
-          ))}
-          {!results.length && <p className="muted">No matching universities. Try another search.</p>}
+      <p className="signup-field-help">Optional. Add one now, or connect with schools later.</p>
+      {loading && <p className="signup-inline-status" role="status">Searching schools…</p>}
+      {!loading && query.trim() !== '' && (
+        <div className="signup-school-results">
+          {results.map((community) => {
+            const id = String(community.community_id);
+            const selected = selectedIds.includes(id);
+            return (
+              <button
+                type="button"
+                className={`signup-school-result${selected ? ' selected' : ''}`}
+                key={id}
+                onClick={() => {
+                  if (multiSelect) onToggle?.(id, community);
+                  else onSelect?.(id, community);
+                }}
+                aria-pressed={selected}
+              >
+                <span>
+                  <strong>{community.name}</strong>
+                  <small>{community.location || 'Location not listed'}</small>
+                </span>
+                <span className="signup-result-action">{selected ? 'Added' : 'Add'}</span>
+              </button>
+            );
+          })}
+          {!results.length && <p className="signup-inline-status">No matching schools found.</p>}
         </div>
       )}
     </div>
@@ -109,236 +145,220 @@ const UniversitySearch = React.memo(function UniversitySearch({
 
 function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
   const navigate = useNavigate();
-  const { tags: tagOptions, loading: loadingTags } = useTagOptions();
+  const [searchParams] = useSearchParams();
+  const verificationMode = searchParams.get('verify') === '1';
   const onAuthenticatedRef = useRef(onAuthenticated);
+  const errorRef = useRef(null);
+  const resultsRequestRef = useRef(false);
 
   const [step, setStep] = useState(0);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [sessionUser, setSessionUser] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [isWorking, setIsWorking] = useState(false);
 
-  const [accountForm, setAccountForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
+  const [accountForm, setAccountForm] = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
   const [verificationCode, setVerificationCode] = useState('');
+  const [audienceIntents, setAudienceIntents] = useState([]);
   const [roleIntent, setRoleIntent] = useState('prospect');
-  const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedNeeds, setSelectedNeeds] = useState([]);
   const [selectedCommunityIds, setSelectedCommunityIds] = useState([]);
-  const [interestFilter, setInterestFilter] = useState('topics');
-  const [locationCity, setLocationCity] = useState('');
-  const [locationState, setLocationState] = useState('');
-  const [skillsInput, setSkillsInput] = useState('');
-  const [studentSchoolId, setStudentSchoolId] = useState('');
-  const [studentStartDate, setStudentStartDate] = useState('');
-  const [staffPosition, setStaffPosition] = useState('');
-  const [staffInstitutionId, setStaffInstitutionId] = useState('');
+  const [selectedCommunities, setSelectedCommunities] = useState({});
+  const [recommendations, setRecommendations] = useState([]);
+  const [recommendedAmbassador, setRecommendedAmbassador] = useState(null);
+  const [isLoadingResults, setIsLoadingResults] = useState(false);
+
   const [verificationMethod, setVerificationMethod] = useState('id_photo');
   const [verificationSelfieFile, setVerificationSelfieFile] = useState(null);
   const [verificationIdFrontFile, setVerificationIdFrontFile] = useState(null);
   const [verificationDocumentFile, setVerificationDocumentFile] = useState(null);
+  const [verificationInstitutionId, setVerificationInstitutionId] = useState('');
+  const [staffPosition, setStaffPosition] = useState('');
   const [verificationPending, setVerificationPending] = useState(false);
-
-  const [isWorking, setIsWorking] = useState(false);
 
   useEffect(() => {
     onAuthenticatedRef.current = onAuthenticated;
   }, [onAuthenticated]);
 
   useEffect(() => {
-    if (roleIntent === 'staff_representative' && verificationMethod !== 'id_photo') {
-      setVerificationMethod('id_photo');
-      setVerificationSelfieFile(null);
-      setVerificationIdFrontFile(null);
-      setVerificationDocumentFile(null);
-    }
-  }, [roleIntent, verificationMethod]);
+    if (error && errorRef.current) errorRef.current.focus();
+  }, [error]);
 
-  const handleVerificationFileChange = (setter) => (event) => {
-    setter(event.target.files?.[0] || null);
-  };
-
-  const applyWizardState = (nextWizard, fallbackStep = 0) => {
-    const nextStep = Number(nextWizard?.current_step || fallbackStep || 0);
-    setStep(nextStep === 4 ? 5 : nextStep);
-    if (nextWizard?.role_intent) {
-      setRoleIntent(nextWizard.role_intent);
-    }
-  };
+  const applyWizardState = useCallback((wizard, fallback = 0) => {
+    setStep(stepFromWizard(wizard, fallback));
+    if (wizard?.role_intent) setRoleIntent(wizard.role_intent);
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
     const bootstrap = async () => {
       setIsBootstrapping(true);
       try {
-        const res = await axios.get('/api/onboarding_wizard.php', { withCredentials: true });
-        if (!isMounted) return;
-        if (res.data?.logged_in && res.data?.user) {
-          setSessionUser(res.data.user);
-          onAuthenticatedRef.current?.(res.data.user);
-          applyWizardState(res.data.wizard, 1);
-          if (res.data.user.recent_university_id) {
-            setStudentSchoolId(res.data.user.recent_university_id);
-            setSelectedCommunityIds((prev) =>
-              prev.includes(res.data.user.recent_university_id)
-                ? prev
-                : [...prev, res.data.user.recent_university_id]
-            );
+        const response = await axios.get('/api/onboarding_wizard.php', { withCredentials: true });
+        if (!mounted) return;
+        if (response.data?.logged_in && response.data?.user) {
+          const user = response.data.user;
+          const context = response.data?.context || {};
+          setSessionUser(user);
+          onAuthenticatedRef.current?.(user);
+          applyWizardState(response.data.wizard, 1);
+          setRoleIntent(response.data?.wizard?.role_intent || roleIntentFromUser(user));
+          if (Array.isArray(context.audience_intents) && context.audience_intents.length) {
+            setAudienceIntents(context.audience_intents);
+          } else if (response.data?.wizard?.role_intent) {
+            const match = AUDIENCE_OPTIONS.find((option) => option.roleIntent === response.data.wizard.role_intent);
+            if (match) setAudienceIntents([match.value]);
           }
-          if (res.data.profile_basics) {
-            setLocationCity(res.data.profile_basics.location_city || '');
-            setLocationState(res.data.profile_basics.location_state || '');
-            setSkillsInput(res.data.profile_basics.skills || '');
-          }
-          if (res.data.context) {
-            setStaffPosition(res.data.context.position || '');
-            setStaffInstitutionId(res.data.context.community_id || '');
+          if (Array.isArray(context.needs)) setSelectedNeeds(context.needs);
+          if (context.position) setStaffPosition(context.position);
+          if (context.community_id) setVerificationInstitutionId(String(context.community_id));
+          if (user.recent_university_id) {
+            const id = String(user.recent_university_id);
+            setSelectedCommunityIds([id]);
+            setVerificationInstitutionId(id);
           }
         } else {
           setStep(0);
         }
-      } catch (err) {
-        if (!isMounted) return;
-        setStep(0);
+      } catch (bootstrapError) {
+        if (mounted) setStep(0);
       } finally {
-        if (isMounted) setIsBootstrapping(false);
+        if (mounted) setIsBootstrapping(false);
       }
     };
     bootstrap();
     return () => {
-      isMounted = false;
+      mounted = false;
     };
-  }, []);
+  }, [applyWizardState]);
 
   useEffect(() => {
-    if (!sessionUser?.user_id) return;
-
+    if (!sessionUser?.user_id) return undefined;
+    let mounted = true;
     const hydrateSelections = async () => {
       try {
-        const [tagsRes, followedRes] = await Promise.all([
+        const [tagsResponse, followsResponse] = await Promise.all([
           axios.get('/api/fetch_tag_interests.php', { params: { user_id: sessionUser.user_id }, withCredentials: true }),
           axios.get('/api/followed_communities.php', { params: { user_id: sessionUser.user_id }, withCredentials: true }),
         ]);
-        const tagSlugs = Array.isArray(tagsRes.data?.tags) ? tagsRes.data.tags : [];
-        setSelectedTags(tagSlugs);
-        const followed = Array.isArray(followedRes.data) ? followedRes.data : [];
-        const ids = followed.map((item) => String(item.community_id));
-        setSelectedCommunityIds((prev) => {
-          const merged = new Set([...prev, ...ids]);
-          return Array.from(merged);
+        if (!mounted) return;
+        const tags = Array.isArray(tagsResponse.data?.tags) ? tagsResponse.data.tags : [];
+        setSelectedNeeds((current) => current.length ? current : needsForTags(tags));
+        const followed = Array.isArray(followsResponse.data) ? followsResponse.data : [];
+        setSelectedCommunityIds((current) => Array.from(new Set([
+          ...current,
+          ...followed.map((community) => String(community.community_id)),
+        ])));
+        setSelectedCommunities((current) => {
+          const next = { ...current };
+          followed.forEach((community) => {
+            next[String(community.community_id)] = community;
+          });
+          return next;
         });
-      } catch (err) {
-        // no-op
+      } catch (hydrateError) {
+        // Optional personalization should never block account creation.
       }
     };
     hydrateSelections();
+    return () => {
+      mounted = false;
+    };
   }, [sessionUser?.user_id]);
 
-  const toggleTag = (slug) => {
-    setSelectedTags((prev) =>
-      prev.includes(slug)
-        ? prev.filter((s) => s !== slug)
-        : prev.length >= 8
-          ? prev
-          : [...prev, slug]
-    );
-  };
-
-  const toggleCommunitySelection = (communityId) => {
-    setSelectedCommunityIds((prev) =>
-      prev.includes(communityId)
-        ? prev.filter((id) => id !== communityId)
-        : [...prev, communityId]
-    );
-  };
-
-  const selectStudentSchool = (communityId) => {
-    setStudentSchoolId(communityId);
-    setSelectedCommunityIds((prev) =>
-      prev.includes(communityId) ? prev : [...prev, communityId]
-    );
-  };
-
-  const exitSetup = async () => {
-    setError('');
-    if (!sessionUser) {
-      onContinueAsGuest?.();
-      return;
-    }
+  const loadPersonalizedResults = useCallback(async () => {
+    if (!sessionUser?.user_id || resultsRequestRef.current) return;
+    resultsRequestRef.current = true;
+    setIsLoadingResults(true);
     try {
-      await axios.post('/api/onboarding_wizard.php', { action: 'exit_wizard' }, { withCredentials: true });
-    } catch (err) {
-      // no-op
+      const primaryCommunityId = selectedCommunityIds[0] || '';
+      const requests = [axios.get('/api/fetch_knowledge_base_articles.php', {
+        params: { community_id: INFO_COMMUNITY_ID, user_id: sessionUser.user_id },
+        withCredentials: true,
+      })];
+      if (primaryCommunityId) {
+        requests.push(axios.get('/api/fetch_ambassador_list.php', {
+          params: { community_id: primaryCommunityId },
+          withCredentials: true,
+        }));
+      }
+      const [articlesResponse, ambassadorResponse] = await Promise.all(requests);
+      const articles = Array.isArray(articlesResponse.data?.articles) ? articlesResponse.data.articles : [];
+      setRecommendations(rankGuideRecommendations(articles, selectedNeeds, 3));
+      const ambassadors = Array.isArray(ambassadorResponse?.data?.ambassadors) ? ambassadorResponse.data.ambassadors : [];
+      setRecommendedAmbassador(ambassadors[0] || null);
+    } catch (resultsError) {
+      setRecommendations([]);
+      setRecommendedAmbassador(null);
+    } finally {
+      setIsLoadingResults(false);
     }
-    navigate('/home');
+  }, [selectedCommunityIds, selectedNeeds, sessionUser?.user_id]);
+
+  useEffect(() => {
+    if (step === 9 && !verificationMode) loadPersonalizedResults();
+  }, [loadPersonalizedResults, step, verificationMode]);
+
+  const changeStep = (nextStep) => {
+    setError('');
+    setNotice('');
+    setStep(nextStep);
   };
 
-  const createAccount = async () => {
+  const createAccount = async (event) => {
+    event.preventDefault();
     setError('');
     setNotice('');
     const { firstName, lastName, email, password, confirmPassword } = accountForm;
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      setError('First name, last name, email, and password are required.');
+    if (![firstName, lastName, email, password, confirmPassword].every((value) => value.trim())) {
+      setError('Complete each field to create your account.');
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError('The passwords do not match.');
       return;
     }
     if (password.length < 12 || password.length > 72) {
-      setError('Password must be between 12 and 72 characters.');
+      setError('Use a password between 12 and 72 characters.');
       return;
     }
     setIsWorking(true);
     try {
-      const res = await axios.post(
-        '/api/init_register.php',
-        { firstName, lastName, email, password },
-        { withCredentials: true }
-      );
-      const user = res.data?.user;
-      if (!user) {
-        setError(res.data?.error || 'Unable to create account.');
-        return;
-      }
+      const response = await axios.post('/api/init_register.php', {
+        firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), password,
+      }, { withCredentials: true });
+      const user = response.data?.user;
+      if (!user) throw new Error(response.data?.error || 'Unable to create account.');
       setSessionUser(user);
       onAuthenticatedRef.current?.(user);
-      applyWizardState(res.data?.wizard, res.data?.email_verification_skipped ? 2 : 1);
-      if (res.data?.email_verification_skipped) {
-        setNotice('Email verification was skipped in development mode.');
-      } else if (res.data?.email_sent) {
-        setNotice(`Verification code sent to ${user.email}.`);
-      } else {
-        setError('Your account was created, but email delivery is unavailable. Please use Resend code after the issue is resolved.');
-      }
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Unable to create account right now.');
+      applyWizardState(response.data?.wizard, response.data?.email_verification_skipped ? 2 : 1);
+      if (response.data?.email_verification_skipped) setNotice('Email confirmation is skipped in the development environment.');
+      else if (response.data?.email_sent) setNotice(`We sent a six-digit code to ${user.email}.`);
+      else setError('Your account was created, but email delivery is unavailable. Try resending the code shortly.');
+    } catch (requestError) {
+      setError(requestError?.response?.data?.error || requestError.message || 'Unable to create account right now.');
     } finally {
       setIsWorking(false);
     }
   };
 
-  const verifyEmailCode = async () => {
+  const verifyEmailCode = async (event) => {
+    event.preventDefault();
     setError('');
-    if (!verificationCode.trim()) {
-      setError('Enter the verification code from your email.');
+    if (!/^\d{6}$/.test(verificationCode.trim())) {
+      setError('Enter the six-digit code from your email.');
       return;
     }
     setIsWorking(true);
     try {
-      const res = await axios.post(
-        '/api/verify_user.php',
-        { user_id: sessionUser?.user_id, code: verificationCode.trim() },
-        { withCredentials: true }
-      );
-      setNotice(res.data?.message || 'Email verified.');
-      applyWizardState(res.data?.wizard, 2);
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Invalid code.');
+      const response = await axios.post('/api/verify_user.php', {
+        user_id: sessionUser?.user_id, code: verificationCode.trim(),
+      }, { withCredentials: true });
+      setNotice(response.data?.message || 'Email confirmed.');
+      applyWizardState(response.data?.wizard, 2);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.error || 'That code could not be verified.');
     } finally {
       setIsWorking(false);
     }
@@ -349,18 +369,13 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
     setNotice('');
     setIsWorking(true);
     try {
-      const res = await axios.post(
-        '/api/resend_verification.php',
-        { user_id: sessionUser?.user_id, email: sessionUser?.email },
-        { withCredentials: true }
-      );
-      if (res.data?.email_sent) {
-        setNotice(res.data?.message || 'Verification code sent.');
-      } else {
-        setError(res.data?.message || 'Email delivery is temporarily unavailable.');
-      }
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Could not resend verification code.');
+      const response = await axios.post('/api/resend_verification.php', {
+        user_id: sessionUser?.user_id, email: sessionUser?.email,
+      }, { withCredentials: true });
+      if (response.data?.email_sent) setNotice(response.data?.message || 'A new code is on its way.');
+      else setError(response.data?.message || 'Email delivery is temporarily unavailable.');
+    } catch (requestError) {
+      setError(requestError?.response?.data?.error || 'Could not resend the code.');
     } finally {
       setIsWorking(false);
     }
@@ -371,613 +386,398 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
     setNotice('');
     setIsWorking(true);
     try {
-      const res = await axios.post(
-        '/api/onboarding_wizard.php',
-        { action: 'skip_email_verification' },
-        { withCredentials: true }
-      );
-      applyWizardState(res.data?.wizard, 2);
-      setNotice('You can verify your email later. Continue setting up your account.');
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Unable to skip right now.');
+      const response = await axios.post('/api/onboarding_wizard.php', { action: 'skip_email_verification' }, { withCredentials: true });
+      applyWizardState(response.data?.wizard, 2);
+      setNotice('You can confirm your email later. Unconfirmed accounts have limited posting.');
+    } catch (requestError) {
+      setError(requestError?.response?.data?.error || 'Unable to skip email confirmation right now.');
     } finally {
       setIsWorking(false);
     }
   };
 
-  const saveRole = async () => {
+  const toggleAudience = (value) => {
+    setAudienceIntents((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+  };
+
+  const saveAudience = async () => {
     setError('');
-    if (roleIntent === 'student' && !studentSchoolId) {
-      setError('Select the university you currently attend.');
+    if (!audienceIntents.length) {
+      setError('Choose at least one option that describes what brings you here.');
       return;
     }
-    if (roleIntent === 'student' && !studentStartDate) {
-      setError('Enter your start date.');
-      return;
-    }
+    const nextRoleIntent = primaryRoleForAudiences(audienceIntents);
     setIsWorking(true);
     try {
-      const res = await axios.post(
-        '/api/onboarding_wizard.php',
-        {
-          action: 'set_role',
-          role_intent: roleIntent,
-          community_id: roleIntent === 'student' ? studentSchoolId : null,
-          start_date: roleIntent === 'student' ? studentStartDate : null,
-        },
-        { withCredentials: true }
-      );
-      applyWizardState(res.data?.wizard, 3);
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Unable to save role.');
+      const response = await axios.post('/api/onboarding_wizard.php', {
+        action: 'set_role', role_intent: nextRoleIntent, audience_intents: audienceIntents,
+      }, { withCredentials: true });
+      setRoleIntent(nextRoleIntent);
+      applyWizardState(response.data?.wizard, 3);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.error || 'Unable to save your choices.');
     } finally {
       setIsWorking(false);
     }
   };
 
-  const saveInterests = async () => {
+  const toggleNeed = (value) => {
+    setSelectedNeeds((current) => {
+      if (current.includes(value)) return current.filter((item) => item !== value);
+      if (current.length >= MAX_NEEDS) return current;
+      return [...current, value];
+    });
+  };
+
+  const toggleCommunity = (id, community) => {
+    setSelectedCommunityIds((current) => current.includes(id) ? current.filter((communityId) => communityId !== id) : [...current, id]);
+    setSelectedCommunities((current) => {
+      const next = { ...current };
+      if (next[id]) delete next[id];
+      else next[id] = community;
+      return next;
+    });
+  };
+
+  const saveNeeds = async () => {
     setError('');
-    if (!selectedTags.length) {
-      setError('Select at least one interest.');
+    if (!selectedNeeds.length) {
+      setError('Choose at least one area, including “I’m not sure where to start.”');
       return;
     }
     setIsWorking(true);
     try {
-      await axios.post(
-        '/api/onboarding_wizard.php',
-        { action: 'set_interests', tags: selectedTags },
-        { withCredentials: true }
-      );
+      await axios.post('/api/onboarding_wizard.php', {
+        action: 'set_interests', tags: tagsForNeeds(selectedNeeds), needs: selectedNeeds,
+      }, { withCredentials: true });
       if (selectedCommunityIds.length) {
-        await axios.post(
-          '/api/onboarding_wizard.php',
-          { action: 'set_follows', community_ids: selectedCommunityIds },
-          { withCredentials: true }
-        );
+        await axios.post('/api/onboarding_wizard.php', {
+          action: 'set_follows', community_ids: selectedCommunityIds,
+        }, { withCredentials: true });
       }
-      applyWizardState(null, 5);
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Unable to save interests.');
+      const response = await axios.post('/api/onboarding_wizard.php', { action: 'complete_primary_onboarding' }, { withCredentials: true });
+      resultsRequestRef.current = false;
+      applyWizardState(response.data?.wizard, 9);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.error || 'Unable to save what you need help with.');
     } finally {
       setIsWorking(false);
     }
   };
 
-  const saveProfileBasics = async () => {
-    setError('');
+  const finishAndNavigate = async (path) => {
     setIsWorking(true);
     try {
-      const skills = skillsInput
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
-      const res = await axios.post(
-        '/api/onboarding_wizard.php',
-        {
-          action: 'save_profile_basics',
-          location_city: locationCity,
-          location_state: locationState,
-          skills,
-        },
-        { withCredentials: true }
-      );
-      applyWizardState(res.data?.wizard, 9);
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Unable to save profile basics.');
+      await axios.post('/api/onboarding_wizard.php', { action: 'complete_wizard' }, { withCredentials: true });
+    } catch (requestError) {
+      // Primary onboarding is already complete, so navigation can continue.
     } finally {
       setIsWorking(false);
+      navigate(path);
     }
   };
 
+  const exitSetup = async () => {
+    if (!sessionUser) {
+      onContinueAsGuest?.();
+      return;
+    }
+    try {
+      await axios.post('/api/onboarding_wizard.php', { action: 'exit_wizard' }, { withCredentials: true });
+    } catch (requestError) {
+      // Exiting is intentionally non-blocking.
+    }
+    navigate('/home');
+  };
+
+  const handleVerificationFileChange = (setter) => (event) => setter(event.target.files?.[0] || null);
+
+  const selectVerificationInstitution = (id, community) => {
+    setVerificationInstitutionId(id);
+    setSelectedCommunityIds([id]);
+    setSelectedCommunities({ [id]: community });
+  };
 
   const submitVerificationRequest = async () => {
     setError('');
-    const verificationType = roleIntent;
-    if (!['student', 'staff_representative'].includes(verificationType)) {
-      setError('Verification is only available for Student and Staff/Representative roles.');
+    if (!['student', 'staff_representative'].includes(roleIntent)) {
+      setError('Student or staff verification is available after selecting that relationship in your profile.');
       return;
     }
-    if (verificationType === 'staff_representative' && verificationMethod !== 'id_photo') {
-      setError('Staff verification currently supports ID photo only.');
+    if (!verificationInstitutionId) {
+      setError('Select the school connected with this verification request.');
       return;
     }
-    if (verificationMethod === 'id_photo') {
-      if (!verificationSelfieFile || !verificationIdFrontFile) {
-        setError('Upload a selfie with your ID and a photo of the front of your ID.');
-        return;
-      }
-    } else if (verificationMethod === 'tuition_statement') {
-      if (!verificationDocumentFile) {
-        setError('Upload your class schedule or billing statement (last 90 days).');
-        return;
-      }
-    } else {
-      setError('Select a valid verification method.');
+    if (roleIntent === 'staff_representative' && !staffPosition.trim()) {
+      setError('Enter your position or title.');
       return;
     }
-
+    if (verificationMethod === 'id_photo' && (!verificationSelfieFile || !verificationIdFrontFile)) {
+      setError('Add both a selfie holding your ID and a clear photo of the front of the ID.');
+      return;
+    }
+    if (verificationMethod === 'tuition_statement' && !verificationDocumentFile) {
+      setError('Add a current class schedule or billing statement.');
+      return;
+    }
     setIsWorking(true);
     try {
       const uploadDocument = async (file, documentType) => {
         const formData = new FormData();
         formData.append('document', file);
         formData.append('document_type', documentType);
-        const res = await axios.post('/api/upload_verification_document.php', formData, {
-          withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' },
+        const response = await axios.post('/api/upload_verification_document.php', formData, {
+          withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' },
         });
-        if (!res.data?.success || !res.data?.path) {
-          throw new Error(res.data?.error || 'Unable to upload verification document.');
-        }
-        return res.data.path;
+        if (!response.data?.success || !response.data?.path) throw new Error(response.data?.error || 'Unable to upload a verification document.');
+        return response.data.path;
       };
-
       let selfiePath = null;
       let idFrontPath = null;
       let supportingDocPath = null;
-
       if (verificationMethod === 'id_photo') {
         selfiePath = await uploadDocument(verificationSelfieFile, 'selfie_with_id');
         idFrontPath = await uploadDocument(verificationIdFrontFile, 'id_front');
-      } else if (verificationMethod === 'tuition_statement') {
+      } else {
         supportingDocPath = await uploadDocument(verificationDocumentFile, 'supporting_doc');
       }
-
-      const currentAttendanceId = studentSchoolId || staffInstitutionId || null;
-      const res = await axios.post(
-        '/api/onboarding_wizard.php',
-        {
-          action: 'submit_verification_request',
-          verification_type: verificationType,
-          verification_method: verificationMethod,
-          community_id: currentAttendanceId,
-          staff_position: staffPosition.trim(),
-          selfie_path: selfiePath,
-          id_front_path: idFrontPath,
-          supporting_doc_path: supportingDocPath,
-        },
-        { withCredentials: true }
-      );
-      applyWizardState(res.data?.wizard, 9);
+      await axios.post('/api/onboarding_wizard.php', {
+        action: 'submit_verification_request',
+        verification_type: roleIntent,
+        verification_method: verificationMethod,
+        community_id: verificationInstitutionId,
+        staff_position: staffPosition.trim(),
+        selfie_path: selfiePath,
+        id_front_path: idFrontPath,
+        supporting_doc_path: supportingDocPath,
+      }, { withCredentials: true });
       setVerificationPending(true);
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Unable to submit verification request.');
+    } catch (requestError) {
+      setError(requestError?.response?.data?.error || requestError.message || 'Unable to submit verification right now.');
     } finally {
       setIsWorking(false);
     }
   };
 
-  const skipVerification = async () => {
-    setError('');
-    setIsWorking(true);
-    try {
-      const res = await axios.post('/api/onboarding_wizard.php', { action: 'skip_verification' }, { withCredentials: true });
-      applyWizardState(res.data?.wizard, 9);
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Unable to skip verification right now.');
-    } finally {
-      setIsWorking(false);
-    }
+  const renderProgress = () => {
+    const current = visibleStepNumber(step);
+    return (
+      <div className="signup-progress" aria-label={`Step ${current} of 4`}>
+        <div className="signup-progress-track" aria-hidden><span style={{ width: `${((current - 1) / 3) * 100}%` }} /></div>
+        <div className="signup-progress-steps" aria-hidden>
+          {[1, 2, 3, 4].map((number) => (
+            <span key={number} className={number <= current ? 'active' : ''}>{number < current ? <FaCheck /> : number}</span>
+          ))}
+        </div>
+        <p>Step {current} of 4</p>
+      </div>
+    );
   };
 
-  const finishWizard = async () => {
-    setIsWorking(true);
-    try {
-      await axios.post('/api/onboarding_wizard.php', { action: 'complete_wizard' }, { withCredentials: true });
-    } catch (err) {
-      // no-op
-    } finally {
-      setIsWorking(false);
-      navigate('/home');
-    }
+  const renderVerification = () => {
+    const supported = ['student', 'staff_representative'].includes(roleIntent);
+    return (
+      <div className="signup-verification">
+        <div className="signup-verification-heading">
+          <span><FaShieldAlt /> Optional verification</span>
+          <h2>{verificationPending ? 'Your request is being reviewed' : 'Add context people can trust'}</h2>
+          <p>Verification is separate from email confirmation. It can add a student or staff badge after an authorized reviewer approves the request.</p>
+        </div>
+        {error && <p ref={errorRef} tabIndex="-1" className="auth-error" role="alert">{error}</p>}
+        {verificationPending ? (
+          <div className="signup-verification-complete">
+            <FaCheckCircle aria-hidden />
+            <p>We will notify you when the review is complete. You can use StudentSphere while you wait.</p>
+            <button type="button" className="auth-primary" onClick={() => navigate('/home')}>Go to home</button>
+          </div>
+        ) : !supported ? (
+          <div className="signup-verification-complete">
+            <p>Verification is currently available to enrolled students and school representatives.</p>
+            <button type="button" className="auth-primary" onClick={() => navigate('/settings')}>Return to settings</button>
+          </div>
+        ) : (
+          <div className="auth-form">
+            <div className="signup-privacy-note">
+              <FaShieldAlt aria-hidden />
+              <p>Documents are not public. Access is limited to you and authorized StudentSphere reviewers. You can contact StudentSphere to request deletion.</p>
+            </div>
+            <UniversitySearch
+              userId={sessionUser?.user_id}
+              selectedIds={verificationInstitutionId ? [verificationInstitutionId] : []}
+              onSelect={selectVerificationInstitution}
+              multiSelect={false}
+              inputId="verification-school-search"
+            />
+            {roleIntent === 'staff_representative' && (
+              <div className="signup-field">
+                <label htmlFor="staff-position">Position or title</label>
+                <input id="staff-position" value={staffPosition} onChange={(event) => setStaffPosition(event.target.value)} placeholder="For example, admissions counselor" />
+              </div>
+            )}
+            <div className="signup-field">
+              <label htmlFor="verification-method">What can you provide?</label>
+              <select id="verification-method" value={verificationMethod} onChange={(event) => setVerificationMethod(event.target.value)}>
+                <option value="id_photo">Selfie with ID and front of ID</option>
+                {roleIntent === 'student' && <option value="tuition_statement">Recent class schedule or billing statement</option>}
+              </select>
+            </div>
+            {verificationMethod === 'id_photo' ? (
+              <div className="signup-upload-grid">
+                <label><span>Selfie holding your ID</span><input type="file" accept="image/*" onChange={handleVerificationFileChange(setVerificationSelfieFile)} /><small>{verificationSelfieFile?.name || 'Choose an image'}</small></label>
+                <label><span>Front of your ID</span><input type="file" accept="image/*" onChange={handleVerificationFileChange(setVerificationIdFrontFile)} /><small>{verificationIdFrontFile?.name || 'Choose an image'}</small></label>
+              </div>
+            ) : (
+              <label className="signup-file-field"><span>Schedule or billing statement from the last 90 days</span><input type="file" accept="image/*,application/pdf" onChange={handleVerificationFileChange(setVerificationDocumentFile)} /><small>{verificationDocumentFile?.name || 'Choose an image or PDF'}</small></label>
+            )}
+            <div className="signup-actions">
+              <button type="button" className="auth-secondary" onClick={() => navigate('/settings')} disabled={isWorking}>Do this later</button>
+              <button type="button" className="auth-primary" onClick={submitVerificationRequest} disabled={isWorking}>{isWorking ? 'Submitting…' : 'Submit for review'}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
-
-  const stepTitle = useMemo(() => {
-    if (step === 0) return 'Create account';
-    if (step === 1) return 'Verify your email';
-    if (step === 2) return 'Choose your role';
-    if (step === 3) return 'Interests and topics';
-    if (step === 5) return 'Profile basics (optional)';
-    if (step === 7) return 'Optional verification';
-    return 'You are all set';
-  }, [step]);
 
   if (isBootstrapping) {
+    return <main className="auth-welcome signup-onboarding"><div className="signup-loading" role="status">Preparing your starting point…</div></main>;
+  }
+
+  if (verificationMode && sessionUser) {
     return (
-      <div className="auth-welcome">
+      <main className="auth-welcome signup-onboarding signup-onboarding--verification">
         <div className="auth-gradient" aria-hidden />
-        <div className="auth-content">
-          <section className="auth-panel">
-            <h2>Loading setup wizard…</h2>
-          </section>
-        </div>
-      </div>
+        <div className="signup-verification-shell">{renderVerification()}</div>
+      </main>
     );
   }
 
   return (
-    <div className="auth-welcome">
+    <main className="auth-welcome signup-onboarding">
       <div className="auth-gradient" aria-hidden />
-      <div className="auth-content">
-        <section className="auth-hero">
-          <span className="auth-pill">StudentSphere setup</span>
-          <h1>Account creation and setup wizard</h1>
-          <p>
-            Exploration is always available. Verification increases trust and privileges, but it is never a hard gate.
-          </p>
-          <ul className="auth-benefits">
-            {[
-              'Progressive onboarding with role-based questions',
-              'Verification is optional and can be completed later',
-              'Feed personalization starts as soon as interests are selected',
-            ].map((copy) => (
-              <li key={copy}>
-                <FaCheckCircle />
-                {copy}
-              </li>
-            ))}
+      <div className="auth-content signup-shell">
+        <aside className="auth-hero signup-story">
+          <div className="signup-brand"><FaBookOpen aria-hidden /> TheStudentSphere</div>
+          <div className="signup-story-illustration" aria-hidden><FaUniversity /></div>
+          <span className="auth-pill">Guidance that moves with you</span>
+          <h1>Built to help close the gaps in education.</h1>
+          <p>Find clear answers, trusted people, and practical next steps.</p>
+          <ul className="auth-benefits signup-benefits">
+            <li><FaCompass /> Clear answers</li>
+            <li><FaUsers /> Trusted people</li>
+            <li><FaArrowRight /> Practical next steps</li>
           </ul>
-          <button className="auth-secondary" onClick={onShowLogin}>
-            Already have an account?
-          </button>
-          <button type="button" className="auth-ghost" onClick={exitSetup}>
-            Exit setup for now
-          </button>
-        </section>
+          <div className="signup-story-actions">
+            <button type="button" className="auth-secondary" onClick={onShowLogin}>I already have an account</button>
+            <button type="button" className="auth-ghost" onClick={exitSetup}>Explore as a guest</button>
+          </div>
+        </aside>
 
-        <section className="auth-panel">
-          <p className="auth-step-label">
-            {step === 0 ? 'Step 0' : `Step ${step}`} · {stepTitle}
-          </p>
-          <h2>{stepTitle}</h2>
-          {error && <p className="auth-error">{error}</p>}
-          {notice && <p className="auth-success">{notice}</p>}
+        <section className="auth-panel signup-panel">
+          {renderProgress()}
+          <div className="signup-step-copy">
+            <h2>
+              {step === 0 && 'Create your account'}
+              {step === 1 && 'Confirm your email'}
+              {step === 2 && 'What brings you here?'}
+              {step === 3 && 'What would you like help navigating?'}
+              {step === 9 && `A starting point for you${sessionUser?.first_name ? `, ${sessionUser.first_name}` : ''}`}
+            </h2>
+            <p>
+              {step === 0 && 'Join a community built to help you navigate education.'}
+              {step === 1 && 'Email confirmation protects your account and unlocks normal participation.'}
+              {step === 2 && 'Choose any that apply. You can change this later.'}
+              {step === 3 && `Choose up to ${MAX_NEEDS}. You can change these later.`}
+              {step === 9 && 'Start with a useful answer, a relevant community, or someone who can help.'}
+            </p>
+          </div>
+          {error && <p ref={errorRef} tabIndex="-1" className="auth-error" role="alert">{error}</p>}
+          {notice && <p className="auth-success" role="status">{notice}</p>}
 
           {step === 0 && (
-            <div className="auth-form">
+            <form className="auth-form signup-account-form" onSubmit={createAccount} noValidate>
+              <p className="signup-form-context">Your name identifies your contributions. Your email is used to secure your account and is not shown publicly by default.</p>
               <div className="auth-input-grid">
-                <input
-                  placeholder="First name"
-                  value={accountForm.firstName}
-                  onChange={(e) => setAccountForm((prev) => ({ ...prev, firstName: e.target.value }))}
-                />
-                <input
-                  placeholder="Last name"
-                  value={accountForm.lastName}
-                  onChange={(e) => setAccountForm((prev) => ({ ...prev, lastName: e.target.value }))}
-                />
+                <div className="signup-field"><label htmlFor="signup-first-name">First name</label><input id="signup-first-name" autoComplete="given-name" value={accountForm.firstName} onChange={(event) => setAccountForm((current) => ({ ...current, firstName: event.target.value }))} required /></div>
+                <div className="signup-field"><label htmlFor="signup-last-name">Last name</label><input id="signup-last-name" autoComplete="family-name" value={accountForm.lastName} onChange={(event) => setAccountForm((current) => ({ ...current, lastName: event.target.value }))} required /></div>
               </div>
-              <input
-                type="email"
-                placeholder="Email"
-                value={accountForm.email}
-                onChange={(e) => setAccountForm((prev) => ({ ...prev, email: e.target.value }))}
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={accountForm.password}
-                onChange={(e) => setAccountForm((prev) => ({ ...prev, password: e.target.value }))}
-              />
-              <input
-                type="password"
-                placeholder="Confirm password"
-                value={accountForm.confirmPassword}
-                onChange={(e) => setAccountForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-              />
-              <button type="button" className="auth-primary" onClick={createAccount} disabled={isWorking}>
-                {isWorking ? 'Creating account…' : 'Create account'}
-              </button>
-            </div>
+              <div className="signup-field"><label htmlFor="signup-email">Email address</label><input id="signup-email" type="email" autoComplete="email" placeholder="you@example.com" value={accountForm.email} onChange={(event) => setAccountForm((current) => ({ ...current, email: event.target.value }))} required /></div>
+              <div className="signup-field"><label htmlFor="signup-password">Password</label><input id="signup-password" type="password" autoComplete="new-password" value={accountForm.password} onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))} aria-describedby="signup-password-help" required /><p id="signup-password-help" className="signup-field-help">Use 12–72 characters. A long passphrase works well.</p></div>
+              <div className="signup-field"><label htmlFor="signup-confirm-password">Confirm password</label><input id="signup-confirm-password" type="password" autoComplete="new-password" value={accountForm.confirmPassword} onChange={(event) => setAccountForm((current) => ({ ...current, confirmPassword: event.target.value }))} required /></div>
+              <button type="submit" className="auth-primary" disabled={isWorking}>{isWorking ? 'Creating your account…' : 'Create account'}</button>
+              <button type="button" className="auth-link signup-mobile-login" onClick={onShowLogin}>Already have an account? Sign in</button>
+            </form>
           )}
 
           {step === 1 && (
-            <div className="auth-form">
-              <p>Check your email for a verification code.</p>
-              <input
-                placeholder="Verification code"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-                maxLength={6}
-              />
-              <button type="button" className="auth-primary" onClick={verifyEmailCode} disabled={isWorking}>
-                {isWorking ? 'Verifying…' : 'Enter code'}
-              </button>
-              <button type="button" className="auth-link" onClick={resendCode} disabled={isWorking}>
-                Resend code
-              </button>
-              <button type="button" className="auth-link subtle" onClick={skipEmailVerification} disabled={isWorking}>
-                Skip for now (limited posting)
-              </button>
-            </div>
+            <form className="auth-form signup-code-form" onSubmit={verifyEmailCode}>
+              <div className="signup-field"><label htmlFor="signup-verification-code">Six-digit confirmation code</label><input id="signup-verification-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} value={verificationCode} onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, ''))} placeholder="000000" /></div>
+              <button type="submit" className="auth-primary" disabled={isWorking}>{isWorking ? 'Confirming…' : 'Confirm email'}</button>
+              <div className="signup-link-row"><button type="button" className="auth-link" onClick={resendCode} disabled={isWorking}>Send a new code</button><button type="button" className="auth-link subtle" onClick={skipEmailVerification} disabled={isWorking}>Confirm later</button></div>
+            </form>
           )}
 
           {step === 2 && (
             <div className="auth-form">
-              <p>Which best describes you right now?</p>
-              {ROLE_OPTIONS.map((option) => (
-                <label key={option.value} className="auth-checkbox">
-                  <input
-                    type="radio"
-                    checked={roleIntent === option.value}
-                    onChange={() => setRoleIntent(option.value)}
-                  />
-                  {option.label}
-                </label>
-              ))}
-              {roleIntent === 'student' && (
-                <>
-                  <p className="auth-helper">Select the university you currently attend.</p>
-                  <UniversitySearch
-                    userId={sessionUser?.user_id}
-                    selectedIds={studentSchoolId ? [studentSchoolId] : []}
-                    onSelect={selectStudentSchool}
-                    placeholder="Search your university"
-                    emptyHelper="Search for your current university."
-                    actionLabel="Select"
-                    selectedLabel="Selected"
-                    multiSelect={false}
-                  />
-                  <input
-                    type="date"
-                    value={studentStartDate}
-                    onChange={(e) => setStudentStartDate(e.target.value)}
-                  />
-                </>
-              )}
-              <button type="button" className="auth-primary" onClick={saveRole} disabled={isWorking}>
-                Continue
-              </button>
+              <div className="signup-choice-grid signup-audience-grid">
+                {AUDIENCE_OPTIONS.map((option) => {
+                  const selected = audienceIntents.includes(option.value);
+                  const Icon = AUDIENCE_ICONS[option.value];
+                  return (
+                    <button type="button" key={option.value} className={`signup-choice signup-choice--${option.tone}${selected ? ' selected' : ''}`} onClick={() => toggleAudience(option.value)} aria-pressed={selected}>
+                      <span className="signup-choice-icon"><Icon aria-hidden /></span>
+                      <span className="signup-choice-copy"><strong>{option.label}</strong><small>{option.description}</small></span>
+                      <span className="signup-choice-check" aria-hidden>{selected && <FaCheck />}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="signup-actions"><button type="button" className="auth-secondary" onClick={() => changeStep(1)} disabled={isWorking}>Back</button><button type="button" className="auth-primary" onClick={saveAudience} disabled={isWorking}>{isWorking ? 'Saving…' : 'Continue'}</button></div>
             </div>
           )}
 
           {step === 3 && (
             <div className="auth-form">
-              <p>Select interests to personalize your feed immediately.</p>
-              <div className="pill-row">
-                {['topics', 'universities', 'groups'].map((filter) => (
-                  <button
-                    key={filter}
-                    type="button"
-                    className={`pill-button ${interestFilter === filter ? '' : 'secondary'}`}
-                    onClick={() => setInterestFilter(filter)}
-                  >
-                    {filter === 'topics' ? 'Topics' : filter === 'universities' ? 'Universities' : 'Groups'}
-                  </button>
-                ))}
+              <div className="signup-needs-grid">
+                {NEED_OPTIONS.map((option) => {
+                  const selected = selectedNeeds.includes(option.value);
+                  return <button type="button" key={option.value} className={`signup-need${selected ? ' selected' : ''}`} onClick={() => toggleNeed(option.value)} aria-pressed={selected}><span>{option.label}</span><span className="signup-choice-check" aria-hidden>{selected && <FaCheck />}</span></button>;
+                })}
               </div>
-              <div className="interest-grid">
-                {loadingTags ? (
-                  <p>Loading tags…</p>
-                ) : (
-                  interestFilter === 'topics' &&
-                    tagOptions.map((tag) => (
-                      <button
-                        key={tag.slug}
-                        type="button"
-                        className={`pill-button ${selectedTags.includes(tag.slug) ? '' : 'secondary'}`}
-                        onClick={() => toggleTag(tag.slug)}
-                      >
-                        {tag.name}
-                      </button>
-                    ))
-                )}
-              </div>
-              {interestFilter === 'universities' && (
-                <UniversitySearch
-                  userId={sessionUser?.user_id}
-                  selectedIds={selectedCommunityIds}
-                  onToggle={toggleCommunitySelection}
-                  placeholder="Search universities"
-                  emptyHelper="Search for universities to follow."
-                  actionLabel="Follow"
-                  selectedLabel="Following"
-                  communityType="university"
-                />
-              )}
-              {interestFilter === 'groups' && (
-                <UniversitySearch
-                  userId={sessionUser?.user_id}
-                  selectedIds={selectedCommunityIds}
-                  onToggle={toggleCommunitySelection}
-                  placeholder="Search groups"
-                  emptyHelper="Search for groups to follow."
-                  actionLabel="Follow"
-                  selectedLabel="Following"
-                  communityType="group"
-                />
-              )}
-              <button type="button" className="auth-primary" onClick={saveInterests} disabled={isWorking}>
-                Continue
-              </button>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className="auth-form">
-              <p>Add a little more about yourself. You can skip this and return later.</p>
-              <div className="auth-input-grid">
-                <input
-                  placeholder="City"
-                  value={locationCity}
-                  onChange={(e) => setLocationCity(e.target.value)}
-                />
-                <input
-                  placeholder="State"
-                  value={locationState}
-                  onChange={(e) => setLocationState(e.target.value)}
-                />
-              </div>
-              <input
-                placeholder="Skills (comma-separated)"
-                value={skillsInput}
-                onChange={(e) => setSkillsInput(e.target.value)}
-              />
-              <button type="button" className="auth-primary" onClick={saveProfileBasics} disabled={isWorking}>
-                Save and continue
-              </button>
-              <button type="button" className="auth-link" onClick={saveProfileBasics} disabled={isWorking}>
-                Skip for now
-              </button>
-            </div>
-          )}
-
-          {step === 7 && (
-            <div className="auth-form">
-              {verificationPending ? (
-                <div className="auth-pending">
-                  <div className="auth-hourglass" aria-hidden />
-                  <h3>Review in progress</h3>
-                  <p>Please enjoy exploring in the meantime while we review your submission! We will send you an update on your verification status soon.</p>
-                  <button type="button" className="auth-primary" onClick={finishWizard} disabled={isWorking}>
-                    Go to home
-                  </button>
-                </div>
-              ) : (
-                <>
-              <p>Verification is optional. You can skip and return later.</p>
-              {roleIntent === 'staff_representative' && (
-                <>
-                  <label>Institution you represent</label>
-                  <UniversitySearch
-                    userId={sessionUser?.user_id}
-                    selectedIds={staffInstitutionId ? [staffInstitutionId] : []}
-                    onSelect={(id) => setStaffInstitutionId(id)}
-                    placeholder="Search your institution"
-                    emptyHelper="Search for the university you represent."
-                    actionLabel="Select"
-                    selectedLabel="Selected"
-                    multiSelect={false}
-                  />
-                  <input
-                    placeholder="Position / title"
-                    value={staffPosition}
-                    onChange={(e) => setStaffPosition(e.target.value)}
-                  />
-                </>
-              )}
-              <label>Verification method</label>
-              <select
-                value={verificationMethod}
-                onChange={(e) => {
-                  const nextMethod = e.target.value;
-                  setVerificationMethod(nextMethod);
-                  setVerificationSelfieFile(null);
-                  setVerificationIdFrontFile(null);
-                  setVerificationDocumentFile(null);
-                }}
-              >
-                <option value="id_photo">Selfie with ID + front of ID</option>
-                {roleIntent === 'student' && (
-                  <option value="tuition_statement">Class schedule or billing statement (last 90 days)</option>
-                )}
-              </select>
-
-              {verificationMethod === 'id_photo' && (
-                <>
-                  <label>Selfie holding your ID</label>
-                  <div className="auth-upload-actions">
-                    <label className="auth-upload-trigger" htmlFor="verification-selfie-upload">
-                      Upload file
-                    </label>
-                    <label className="auth-upload-trigger" htmlFor="verification-selfie-camera">
-                      Take photo
-                    </label>
-                  </div>
-                  <input
-                    id="verification-selfie-upload"
-                    type="file"
-                    accept="image/*"
-                    className="auth-upload-input"
-                    onChange={handleVerificationFileChange(setVerificationSelfieFile)}
-                  />
-                  <input
-                    id="verification-selfie-camera"
-                    type="file"
-                    accept="image/*"
-                    capture="user"
-                    className="auth-upload-input"
-                    onChange={handleVerificationFileChange(setVerificationSelfieFile)}
-                  />
-                  <label>Front of ID</label>
-                  <div className="auth-upload-actions">
-                    <label className="auth-upload-trigger" htmlFor="verification-id-upload">
-                      Upload file
-                    </label>
-                    <label className="auth-upload-trigger" htmlFor="verification-id-camera">
-                      Take photo
-                    </label>
-                  </div>
-                  <input
-                    id="verification-id-upload"
-                    type="file"
-                    accept="image/*"
-                    className="auth-upload-input"
-                    onChange={handleVerificationFileChange(setVerificationIdFrontFile)}
-                  />
-                  <input
-                    id="verification-id-camera"
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="auth-upload-input"
-                    onChange={handleVerificationFileChange(setVerificationIdFrontFile)}
-                  />
-                  <p className="auth-helper">Your name and the university logo must be visible.</p>
-                </>
-              )}
-
-              {verificationMethod === 'tuition_statement' && (
-                <>
-                  <label>Upload schedule or billing statement</label>
-                  <div className="auth-upload-actions">
-                    <label className="auth-upload-trigger" htmlFor="verification-doc-upload">
-                      Upload file
-                    </label>
-                    <label className="auth-upload-trigger" htmlFor="verification-doc-camera">
-                      Take photo
-                    </label>
-                  </div>
-                  <input
-                    id="verification-doc-upload"
-                    type="file"
-                    accept="image/*,application/pdf"
-                    className="auth-upload-input"
-                    onChange={handleVerificationFileChange(setVerificationDocumentFile)}
-                  />
-                  <input
-                    id="verification-doc-camera"
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="auth-upload-input"
-                    onChange={handleVerificationFileChange(setVerificationDocumentFile)}
-                  />
-                  <p className="auth-helper">Must be within the last 90 days and show your name and university logo.</p>
-                </>
-              )}
-              <button type="button" className="auth-primary" onClick={submitVerificationRequest} disabled={isWorking}>
-                Submit verification request
-              </button>
-              <button type="button" className="auth-link" onClick={skipVerification} disabled={isWorking}>
-                Verify later
-              </button>
-                </>
-              )}
+              <p className="signup-selection-count" aria-live="polite">{selectedNeeds.length} of {MAX_NEEDS} selected</p>
+              <details className="signup-optional-school">
+                <summary>Add a school or program (optional)</summary>
+                <UniversitySearch userId={sessionUser?.user_id} selectedIds={selectedCommunityIds} onToggle={toggleCommunity} />
+                {selectedCommunityIds.length > 0 && <div className="signup-selected-schools">{selectedCommunityIds.map((id) => <span key={id}>{selectedCommunities[id]?.name || 'Selected school'}</span>)}</div>}
+              </details>
+              <div className="signup-actions"><button type="button" className="auth-secondary" onClick={() => changeStep(2)} disabled={isWorking}>Back</button><button type="button" className="auth-primary" onClick={saveNeeds} disabled={isWorking}>{isWorking ? 'Building your starting point…' : 'Show my starting point'}</button></div>
             </div>
           )}
 
           {step === 9 && (
-            <div className="auth-form">
-              <p>Your account is active. You can continue exploring and finish any pending verification later.</p>
-              <button type="button" className="auth-primary" onClick={finishWizard} disabled={isWorking}>
-                Go to home
-              </button>
+            <div className="auth-form signup-results">
+              {isLoadingResults ? <div className="signup-results-loading" role="status">Finding useful guides and people…</div> : (
+                <>
+                  <section className="signup-result-section" aria-labelledby="signup-guides-title">
+                    <div className="signup-result-heading"><div><span>Clear answers</span><h3 id="signup-guides-title">Guides selected for your needs</h3></div><button type="button" className="auth-link" onClick={() => finishAndNavigate('/info')}>Browse all guides</button></div>
+                    <div className="signup-guide-list">
+                      {recommendations.map((article) => <button type="button" className="signup-guide-card" key={article.thread_id} onClick={() => finishAndNavigate(`/info/forum/${article.forum_id}/thread/${article.thread_id}`)}><FaBookOpen aria-hidden /><span><strong>{article.title}</strong><small>{article.excerpt || 'Read practical guidance and next steps.'}</small></span><FaArrowRight aria-hidden /></button>)}
+                      {!recommendations.length && <button type="button" className="signup-guide-card" onClick={() => finishAndNavigate('/info')}><FaBookOpen aria-hidden /><span><strong>Explore Guides & Answers</strong><small>Find plain-language guidance across education topics.</small></span><FaArrowRight aria-hidden /></button>}
+                    </div>
+                  </section>
+                  <div className="signup-next-step-grid">
+                    <section className="signup-next-step-card"><FaUniversity aria-hidden /><span><small>Explore a community</small><strong>{selectedCommunities[selectedCommunityIds[0]]?.name || 'Find your school or program'}</strong><p>See questions, lived experience, events, and community resources.</p></span><button type="button" className="auth-link" onClick={() => finishAndNavigate('/communities')}>Browse communities</button></section>
+                    <section className="signup-next-step-card signup-next-step-card--people"><FaUsers aria-hidden /><span><small>Trusted people</small><strong>{recommendedAmbassador ? `${recommendedAmbassador.first_name} ${recommendedAmbassador.last_name}` : 'Find someone who understands'}</strong><p>{recommendedAmbassador ? `${recommendedAmbassador.headline || 'Community ambassador'} can help you find the right next step.` : 'Connect with students, alumni, ambassadors, and professionals.'}</p></span><button type="button" className="auth-link" onClick={() => finishAndNavigate('/communities?intent=ask')}>Ask your question</button></section>
+                  </div>
+                  <div className="signup-completion-note"><FaShieldAlt aria-hidden /><p>Profile details and student or staff verification can be completed later from Account Settings.</p></div>
+                  <button type="button" className="auth-primary signup-finish" onClick={() => finishAndNavigate('/home')} disabled={isWorking}>{isWorking ? 'Opening StudentSphere…' : 'Go to my home'}</button>
+                </>
+              )}
             </div>
           )}
         </section>
       </div>
-    </div>
+    </main>
   );
 }
 

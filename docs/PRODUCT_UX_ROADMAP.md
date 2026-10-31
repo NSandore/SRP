@@ -36,12 +36,12 @@ The experience should be organized around four questions:
 
 ### Replace software-oriented signup language
 
-- [ ] Replace “account creation and setup wizard” language with a benefit-led
+- [x] Replace “account creation and setup wizard” language with a benefit-led
   introduction such as “Find answers, guidance, and people who can help.”
-- [ ] Replace internal or nonconsecutive step numbering with a visible,
+- [x] Replace internal or nonconsecutive step numbering with a visible,
   accessible “Step X of 4” progress indicator.
-- [ ] Replace “Choose your role” with “What brings you to StudentSphere?”
-- [ ] Replace internal audience labels such as “Prospect” with plain-language
+- [x] Replace “Choose your role” with “What brings you to StudentSphere?”
+- [x] Replace internal audience labels such as “Prospect” with plain-language
   choices:
   - I'm exploring schools or programs.
   - I'm currently enrolled.
@@ -49,9 +49,9 @@ The experience should be organized around four questions:
   - I'm supporting a student or family member.
   - I work for a school or educational organization.
   - I'm a mentor, professional, or community resource.
-- [ ] Allow users to choose more than one reason when their circumstances
+- [x] Allow users to choose more than one reason when their circumstances
   overlap.
-- [ ] Confirm that these audience choices remain separate from authorization
+- [x] Confirm that these audience choices remain separate from authorization
   roles and permissions.
 
 **Acceptance criteria**
@@ -65,10 +65,10 @@ The experience should be organized around four questions:
 
 ### Replace interest-first onboarding with needs-first onboarding
 
-- [ ] Change “Select interests to personalize your feed” to:
+- [x] Change “Select interests to personalize your feed” to:
   “What would you like help navigating? Choose any that apply. You can change
   these later.”
-- [ ] Present needs such as:
+- [x] Present needs such as:
   - Applying to a school or program
   - Understanding financial aid
   - Finding scholarships
@@ -82,9 +82,9 @@ The experience should be organized around four questions:
   - Internships and careers
   - Finding people who understand my experience
   - I'm not sure where to start
-- [ ] Map these user-facing needs to the existing tag and community system
+- [x] Map these user-facing needs to the existing tag and community system
   behind the scenes instead of exposing internal categorization.
-- [ ] Make institution selection optional and inclusive of universities,
+- [x] Make institution selection optional and inclusive of universities,
   community colleges, graduate programs, trade schools, and other pathways.
 
 **Acceptance criteria**
@@ -96,29 +96,29 @@ The experience should be organized around four questions:
 
 ### Reduce initial signup friction
 
-- [ ] Require only the information necessary to create and secure an account.
-- [ ] Move city, state, skills, extended biography, and similar profile fields
+- [x] Require only the information necessary to create and secure an account.
+- [x] Move city, state, skills, extended biography, and similar profile fields
   into optional profile completion.
-- [ ] Explain why any personal information is requested before collecting it.
-- [ ] Move identity/institution verification out of initial signup.
+- [x] Explain why any personal information is requested before collecting it.
+- [x] Move identity/institution verification out of initial signup.
 - [ ] Introduce verification later, after explaining its benefit, badge,
   review process, document access, retention, and deletion policy.
-- [ ] Add persistent field labels, examples, visible requirements, inline
+- [x] Add persistent field labels, examples, visible requirements, inline
   validation, and accessible error summaries.
-- [ ] Make guest exploration available and clearly labeled where product and
+- [x] Make guest exploration available and clearly labeled where product and
   privacy rules permit it.
 
 ### End onboarding with immediate value
 
-- [ ] Replace a generic “You're all set” ending with a personalized starting
+- [x] Replace a generic “You're all set” ending with a personalized starting
   point containing:
   - Up to three relevant guides or answers
   - One or two relevant communities
   - A relevant verified representative, ambassador, or mentor when available
   - A prominent “Ask your question” action
-- [ ] Offer profile completion and verification only after showing these
+- [x] Offer profile completion and verification only after showing these
   results.
-- [ ] Define sensible fallback content when personalization has insufficient
+- [x] Define sensible fallback content when personalization has insufficient
   data.
 
 ## P0 — Reorganize the primary experience

@@ -166,6 +166,7 @@ function srp_default_onboarding_state(): array {
         'interests_selected' => false,
         'follows_selected' => false,
         'profile_basics_completed' => false,
+        'profile_basics_deferred' => false,
         'context_completed' => false,
         'verification_requested' => false,
         'verification_skipped' => false,
@@ -242,6 +243,9 @@ function srp_get_onboarding_state(PDO $db, string $userId): array {
     }
     if (!empty($state['context_completed'])) {
         srp_mark_step_complete($state, 6);
+    }
+    if (!empty($state['profile_basics_completed']) || !empty($state['profile_basics_deferred'])) {
+        srp_mark_step_complete($state, 5);
     }
     if (!empty($state['verification_requested']) || !empty($state['verification_skipped'])) {
         srp_mark_step_complete($state, 7);

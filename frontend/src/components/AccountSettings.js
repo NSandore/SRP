@@ -76,6 +76,9 @@ function AccountSettings({ userData, onInterestsUpdated }) {
   const roleId = Number(userData?.role_id || 0);
   const isAdminUser = isAdmin(roleId);
   const isSuperAdminUser = isSuperAdmin(roleId);
+  const educationStatus = String(userData?.education_status || '').toLowerCase();
+  const canRequestIdentityVerification = educationStatus.includes('student') || educationStatus.includes('staff');
+  const hasIdentityVerification = Number(userData?.verified) === 1;
   const canSendTestEmail = isSuperAdminUser || hasTestControls(userData?.email);
   const [fetchedIsAmbassador, setFetchedIsAmbassador] = useState(Number(userData?.is_ambassador) === 1 ? 1 : 0);
   const isAmbassador = Number(fetchedIsAmbassador) === 1;
@@ -1018,21 +1021,46 @@ function AccountSettings({ userData, onInterestsUpdated }) {
                 <option value="everyone">Everyone</option>
               </select>
             </div>
+
+            {canRequestIdentityVerification && (
+              <div className="setting-row">
+                <div className="setting-text">
+                  <div className="setting-label">
+                    Student or staff verification
+                    <span className={`settings-badge ${hasIdentityVerification ? 'positive' : 'hold-badge'}`}>
+                      {hasIdentityVerification ? 'Verified' : 'Optional'}
+                    </span>
+                  </div>
+                  <p className="setting-help">
+                    Add a reviewed badge that helps others understand your connection to a school.
+                  </p>
+                </div>
+                {!hasIdentityVerification && (
+                  <button
+                    type="button"
+                    className="pill-button secondary small"
+                    onClick={() => navigate('/signup?verify=1')}
+                  >
+                    Review verification
+                  </button>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
-                <FaUsers size={16} /> Tag interests
+                <FaUsers size={16} /> What you'd like help with
               </div>
-              <p>Update the topics that shape your feed recommendations.</p>
+              <p>Update the topics used to find relevant guidance and communities.</p>
             </div>
             <div className="setting-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
               {isLoadingTags ? (
                 <span className="muted">Loading interests...</span>
               ) : (
                 <TagPicker
-                  label="Interests"
+                  label="Topics"
                   options={tagOptions}
                   value={tagInterests}
                   onChange={setTagInterests}
