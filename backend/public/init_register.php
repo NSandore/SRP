@@ -37,9 +37,9 @@ $lastName = trim((string)$inputData['lastName']);
 $email = trim((string)$inputData['email']);
 $phone = trim((string)($inputData['phone'] ?? ''));
 $password = (string)$inputData['password'];
-if (strlen($password) < 12 || strlen($password) > 72) {
+if (strlen($password) < 10 || strlen($password) > 72) {
     http_response_code(400);
-    echo json_encode(['error' => 'Password must be between 12 and 72 characters.']);
+    echo json_encode(['error' => 'Password must be between 10 and 72 characters.']);
     exit;
 }
 if (mb_strlen($firstName) > 100 || mb_strlen($lastName) > 100 || strlen($email) > 254 || strlen($phone) > 30) {

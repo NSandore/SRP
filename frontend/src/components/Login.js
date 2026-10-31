@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import './Login.css';
 import { FaCheckCircle } from 'react-icons/fa';
+import { getPasswordLengthError } from '../utils/passwordValidation';
 
 function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
   const [email, setEmail] = useState('');
@@ -15,6 +16,7 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
   const [resetMessage, setResetMessage] = useState('');
   const [resetCodeSent, setResetCodeSent] = useState(false);
   const [resetCode, setResetCode] = useState('');
+  const [resetPasswordFeedback, setResetPasswordFeedback] = useState({ field: '', message: '', nonce: 0 });
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [twoFactorMessage, setTwoFactorMessage] = useState('');
@@ -118,19 +120,28 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
     e.preventDefault();
 
     if (!email || !resetCode || !newPassword || !confirmPassword) {
+      if (!newPassword) {
+        setResetPasswordFeedback((current) => ({ field: 'password', message: 'Enter a password with at least 10 characters.', nonce: current.nonce + 1 }));
+      } else if (!confirmPassword) {
+        setResetPasswordFeedback((current) => ({ field: 'confirm', message: 'Enter the password again.', nonce: current.nonce + 1 }));
+      }
       setResetMessage('Please fill out all fields.');
       return;
     }
 
     if (newPassword !== confirmPassword) {
+      setResetPasswordFeedback((current) => ({ field: 'confirm', message: 'The passwords do not match.', nonce: current.nonce + 1 }));
       setResetMessage('Passwords do not match.');
       return;
     }
 
-    if (newPassword.length < 8) {
-      setResetMessage('New password must be at least 8 characters.');
+    const passwordLengthError = getPasswordLengthError(newPassword);
+    if (passwordLengthError) {
+      setResetPasswordFeedback((current) => ({ field: 'password', message: passwordLengthError, nonce: current.nonce + 1 }));
+      setResetMessage(passwordLengthError);
       return;
     }
+    setResetPasswordFeedback({ field: '', message: '', nonce: 0 });
 
     try {
       const response = await axios.post('/api/reset_password.php', {
@@ -190,7 +201,7 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
           <p>{showReset ? 'Choose a new password to regain access.' : 'Log in to continue your journey.'}</p>
 
           {showReset ? (
-            <form className="auth-form" onSubmit={resetCodeSent ? handleResetPassword : handleRequestResetCode}>
+            <form className="auth-form" onSubmit={resetCodeSent ? handleResetPassword : handleRequestResetCode} noValidate>
               <label htmlFor="reset-email">Email</label>
               <input
                 type="email"
@@ -221,20 +232,34 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
                     type="password"
                     id="new-password"
                     value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    minLength={8}
+                    onChange={(e) => {
+                      setNewPassword(e.target.value);
+                      if (resetPasswordFeedback.field === 'password') setResetPasswordFeedback({ field: '', message: '', nonce: 0 });
+                    }}
+                    minLength={10}
+                    maxLength={72}
+                    aria-describedby="reset-password-help"
+                    aria-invalid={resetPasswordFeedback.field === 'password'}
                     required
                   />
+                  <p key={resetPasswordFeedback.field === 'password' ? resetPasswordFeedback.nonce : 'reset-password-help'} id="reset-password-help" className={`auth-helper auth-requirement${resetPasswordFeedback.field === 'password' ? ' is-invalid' : ''}`} role={resetPasswordFeedback.field === 'password' ? 'alert' : undefined}>{resetPasswordFeedback.field === 'password' ? resetPasswordFeedback.message : 'Use 10–72 characters. A long passphrase works well.'}</p>
 
                   <label htmlFor="confirm-password">Confirm password</label>
                   <input
                     type="password"
                     id="confirm-password"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    minLength={8}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      if (resetPasswordFeedback.field === 'confirm') setResetPasswordFeedback({ field: '', message: '', nonce: 0 });
+                    }}
+                    minLength={10}
+                    maxLength={72}
+                    aria-describedby={resetPasswordFeedback.field === 'confirm' ? 'reset-confirm-password-help' : undefined}
+                    aria-invalid={resetPasswordFeedback.field === 'confirm'}
                     required
                   />
+                  {resetPasswordFeedback.field === 'confirm' && <p key={resetPasswordFeedback.nonce} id="reset-confirm-password-help" className="auth-helper auth-requirement is-invalid" role="alert">{resetPasswordFeedback.message}</p>}
                 </>
               )}
 
@@ -260,6 +285,7 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
                   setResetCodeSent(false);
                   setResetCode('');
                   setResetMessage('');
+                  setResetPasswordFeedback({ field: '', message: '', nonce: 0 });
                 }}
               >
                 Never mind, take me back

@@ -21,6 +21,7 @@ import {
   rankGuideRecommendations,
   tagsForNeeds,
 } from './signupOptions';
+import { getPasswordLengthError } from '../utils/passwordValidation';
 
 const INFO_COMMUNITY_ID = 'c57b7fd6c45b9d57b';
 const MAX_NEEDS = 8;
@@ -159,6 +160,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
   const [isWorking, setIsWorking] = useState(false);
 
   const [accountForm, setAccountForm] = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
+  const [passwordFeedback, setPasswordFeedback] = useState({ field: '', message: '', nonce: 0 });
   const [verificationCode, setVerificationCode] = useState('');
   const [audienceIntents, setAudienceIntents] = useState([]);
   const [roleIntent, setRoleIntent] = useState('prospect');
@@ -312,17 +314,26 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
     setNotice('');
     const { firstName, lastName, email, password, confirmPassword } = accountForm;
     if (![firstName, lastName, email, password, confirmPassword].every((value) => value.trim())) {
+      if (!password) {
+        setPasswordFeedback((current) => ({ field: 'password', message: 'Enter a password with at least 10 characters.', nonce: current.nonce + 1 }));
+      } else if (!confirmPassword) {
+        setPasswordFeedback((current) => ({ field: 'confirm', message: 'Enter the password again.', nonce: current.nonce + 1 }));
+      }
       setError('Complete each field to create your account.');
       return;
     }
     if (password !== confirmPassword) {
+      setPasswordFeedback((current) => ({ field: 'confirm', message: 'The passwords do not match.', nonce: current.nonce + 1 }));
       setError('The passwords do not match.');
       return;
     }
-    if (password.length < 12 || password.length > 72) {
-      setError('Use a password between 12 and 72 characters.');
+    const passwordLengthError = getPasswordLengthError(password);
+    if (passwordLengthError) {
+      setPasswordFeedback((current) => ({ field: 'password', message: passwordLengthError, nonce: current.nonce + 1 }));
+      setError(passwordLengthError);
       return;
     }
+    setPasswordFeedback({ field: '', message: '', nonce: 0 });
     setIsWorking(true);
     try {
       const response = await axios.post('/api/init_register.php', {
@@ -702,8 +713,8 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
                 <div className="signup-field"><label htmlFor="signup-last-name">Last name</label><input id="signup-last-name" autoComplete="family-name" value={accountForm.lastName} onChange={(event) => setAccountForm((current) => ({ ...current, lastName: event.target.value }))} required /></div>
               </div>
               <div className="signup-field"><label htmlFor="signup-email">Email address</label><input id="signup-email" type="email" autoComplete="email" placeholder="you@example.com" value={accountForm.email} onChange={(event) => setAccountForm((current) => ({ ...current, email: event.target.value }))} required /></div>
-              <div className="signup-field"><label htmlFor="signup-password">Password</label><input id="signup-password" type="password" autoComplete="new-password" value={accountForm.password} onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))} aria-describedby="signup-password-help" required /><p id="signup-password-help" className="signup-field-help">Use 12–72 characters. A long passphrase works well.</p></div>
-              <div className="signup-field"><label htmlFor="signup-confirm-password">Confirm password</label><input id="signup-confirm-password" type="password" autoComplete="new-password" value={accountForm.confirmPassword} onChange={(event) => setAccountForm((current) => ({ ...current, confirmPassword: event.target.value }))} required /></div>
+              <div className="signup-field"><label htmlFor="signup-password">Password</label><input id="signup-password" type="password" autoComplete="new-password" minLength={10} maxLength={72} value={accountForm.password} onChange={(event) => { setAccountForm((current) => ({ ...current, password: event.target.value })); if (passwordFeedback.field === 'password') setPasswordFeedback({ field: '', message: '', nonce: 0 }); }} aria-describedby="signup-password-help" aria-invalid={passwordFeedback.field === 'password'} required /><p key={passwordFeedback.field === 'password' ? passwordFeedback.nonce : 'password-help'} id="signup-password-help" className={`signup-field-help auth-requirement${passwordFeedback.field === 'password' ? ' is-invalid' : ''}`} role={passwordFeedback.field === 'password' ? 'alert' : undefined}>{passwordFeedback.field === 'password' ? passwordFeedback.message : 'Use 10–72 characters. A long passphrase works well.'}</p></div>
+              <div className="signup-field"><label htmlFor="signup-confirm-password">Confirm password</label><input id="signup-confirm-password" type="password" autoComplete="new-password" minLength={10} maxLength={72} value={accountForm.confirmPassword} onChange={(event) => { setAccountForm((current) => ({ ...current, confirmPassword: event.target.value })); if (passwordFeedback.field === 'confirm') setPasswordFeedback({ field: '', message: '', nonce: 0 }); }} aria-describedby={passwordFeedback.field === 'confirm' ? 'signup-confirm-password-help' : undefined} aria-invalid={passwordFeedback.field === 'confirm'} required />{passwordFeedback.field === 'confirm' && <p key={passwordFeedback.nonce} id="signup-confirm-password-help" className="signup-field-help auth-requirement is-invalid" role="alert">{passwordFeedback.message}</p>}</div>
               <button type="submit" className="auth-primary" disabled={isWorking}>{isWorking ? 'Creating your account…' : 'Create account'}</button>
               <button type="button" className="auth-link signup-mobile-login" onClick={onShowLogin}>Already have an account? Sign in</button>
             </form>
