@@ -70,6 +70,101 @@
   outline-offset: 2px;
 }
 
+.onboarding-banner--verification {
+  border-color: color-mix(in srgb, #2f80ed 30%, var(--home-line));
+  background: color-mix(in srgb, #2f80ed 7%, var(--home-paper));
+}
+
+.onboarding-banner--verification .onboarding-banner__icon {
+  color: #2168c7;
+  background: rgba(47, 128, 237, 0.12);
+}
+
+.verification-prompt-backdrop {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(9, 25, 47, 0.62);
+  backdrop-filter: blur(8px);
+}
+
+.verification-prompt-dialog {
+  width: min(820px, 100%);
+  max-height: min(88vh, 760px);
+  overflow-y: auto;
+  border: 1px solid #d6e2f1;
+  border-radius: 18px;
+  padding: 1.25rem;
+  background: #fff;
+  box-shadow: 0 28px 80px rgba(7, 28, 57, 0.3);
+}
+
+.verification-prompt-heading {
+  margin-bottom: 1rem;
+}
+
+.verification-prompt-heading > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #2168c7;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.verification-prompt-heading h2 {
+  margin: 0.35rem 0 0.4rem;
+  color: #102d57;
+  font-family: var(--home-serif);
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 600;
+}
+
+.verification-prompt-heading p {
+  margin: 0;
+  color: #60728d;
+  line-height: 1.55;
+}
+
+.verification-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.onboarding-banner__action--secondary {
+  border-color: #c8d6e8;
+  color: #35506f;
+  background: #fff;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .onboarding-banner__action--secondary:hover {
+    border-color: #9eb2ca;
+    color: #17385e;
+    background: #f3f7fc;
+  }
+}
+
+[data-theme='dark'] .verification-prompt-dialog {
+  border-color: #31506f;
+  background: #0d1d31;
+}
+
+[data-theme='dark'] .verification-prompt-heading h2 {
+  color: #eef5ff;
+}
+
+[data-theme='dark'] .verification-prompt-heading p {
+  color: #b7c6da;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .onboarding-banner__action:hover {
     border-color: var(--home-forest-light);
@@ -86,6 +181,25 @@
 
   .onboarding-banner__action {
     grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .verification-prompt-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .verification-prompt-dialog {
+    max-height: 92vh;
+    border-radius: 18px 18px 0 0;
+    padding: 1rem;
+  }
+
+  .verification-prompt-actions {
+    flex-direction: column-reverse;
+  }
+
+  .verification-prompt-actions .onboarding-banner__action {
     width: 100%;
   }
 }

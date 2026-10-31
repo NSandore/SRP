@@ -28,6 +28,7 @@ import {
 } from './signupOptions';
 import { getPasswordLengthError } from '../utils/passwordValidation';
 import AmbassadorSpecialtyBadges from './AmbassadorSpecialtyBadges';
+import VerificationComparison from './VerificationComparison';
 
 const INFO_COMMUNITY_ID = 'c57b7fd6c45b9d57b';
 const MAX_NEEDS = 8;
@@ -228,6 +229,8 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
           }
           if (Array.isArray(context.needs)) setSelectedNeeds(context.needs);
           if (context.position) setStaffPosition(context.position);
+          const verificationSummary = response.data?.verification || {};
+          setVerificationPending(Object.values(verificationSummary).some((request) => request?.status === 'pending'));
           if (context.community_id) setVerificationInstitutionId(String(context.community_id));
           if (user.recent_university_id) {
             const id = String(user.recent_university_id);
@@ -619,7 +622,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
       } else {
         supportingDocPath = await uploadDocument(verificationDocumentFile, 'supporting_doc');
       }
-      await axios.post('/api/onboarding_wizard.php', {
+      const verificationResponse = await axios.post('/api/onboarding_wizard.php', {
         action: 'submit_verification_request',
         verification_type: roleIntent,
         verification_method: verificationMethod,
@@ -630,6 +633,12 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
         supporting_doc_path: supportingDocPath,
       }, { withCredentials: true });
       setVerificationPending(true);
+      onOnboardingChange?.({
+        ...(verificationResponse.data?.wizard || {}),
+        verification: {
+          [roleIntent]: { status: 'pending', method: verificationMethod },
+        },
+      });
     } catch (requestError) {
       setError(requestError?.response?.data?.error || requestError.message || 'Unable to submit verification right now.');
     } finally {
@@ -897,6 +906,24 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
                           );
                         })}
                       </div>
+                    </section>
+                  )}
+                  {['student', 'staff_representative'].includes(roleIntent) && Number(sessionUser?.verified) !== 1 && (
+                    <section className="signup-verification-invite" aria-labelledby="signup-verification-invite-title">
+                      <div className="signup-result-heading">
+                        <div><span>Optional identity verification</span><h3 id="signup-verification-invite-title">{verificationPending ? 'Your verification is under review' : 'Add a reviewed school connection'}</h3></div>
+                      </div>
+                      {verificationPending ? (
+                        <div className="signup-privacy-note"><FaShieldAlt aria-hidden /><p>You can keep using StudentSphere while an authorized reviewer checks your request. We’ll notify you when a decision is made.</p></div>
+                      ) : (
+                        <>
+                          <VerificationComparison />
+                          <div className="signup-verification-invite__actions">
+                            <button type="button" className="auth-secondary" onClick={() => finishAndNavigate('/home')} disabled={isWorking}>Do this later</button>
+                            <button type="button" className="auth-primary" onClick={() => finishAndNavigate('/signup?verify=1')} disabled={isWorking}>Verify now</button>
+                          </div>
+                        </>
+                      )}
                     </section>
                   )}
                   <div className="signup-completion-note"><FaShieldAlt aria-hidden /><p>Profile details and student or staff verification can be completed later from Account Settings.</p></div>

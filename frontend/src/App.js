@@ -160,7 +160,9 @@ function App() {
   const refreshOnboardingState = React.useCallback(async () => {
     try {
       const response = await axios.get('/api/onboarding_wizard.php', { withCredentials: true });
-      const wizard = response.data?.logged_in ? response.data?.wizard || null : null;
+      const wizard = response.data?.logged_in
+        ? { ...(response.data?.wizard || {}), verification: response.data?.verification || {} }
+        : null;
       setOnboardingState(wizard);
       return wizard;
     } catch (error) {

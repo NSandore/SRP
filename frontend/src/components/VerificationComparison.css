@@ -1,0 +1,107 @@
+.verification-comparison {
+  overflow: hidden;
+  border: 1px solid var(--signup-line, #d6e2f1);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.verification-comparison table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--signup-navy, #102d57);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.verification-comparison th,
+.verification-comparison td {
+  padding: 0.75rem 0.8rem;
+  border-bottom: 1px solid var(--signup-line, #d6e2f1);
+  text-align: left;
+  vertical-align: top;
+}
+
+.verification-comparison thead th {
+  background: #f3f7fd;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.verification-comparison thead th:not(:first-child) {
+  min-width: 180px;
+}
+
+.verification-comparison thead svg {
+  margin-right: 0.3rem;
+  vertical-align: -0.2rem;
+}
+
+.verification-comparison thead th:last-child {
+  color: #156243;
+  background: #eef9f4;
+}
+
+.verification-comparison tbody th {
+  width: 23%;
+  font-weight: 750;
+}
+
+.verification-comparison tbody td {
+  color: #5d6f89;
+}
+
+.verification-comparison tbody td:last-child {
+  color: #244f40;
+  background: rgba(42, 157, 110, 0.045);
+}
+
+.verification-comparison tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.verification-comparison__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.75rem 0.8rem;
+  border-top: 1px solid var(--signup-line, #d6e2f1);
+  color: #62738c;
+  background: #fbfcfe;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.verification-comparison__note svg {
+  flex: 0 0 auto;
+  margin-top: 0.08rem;
+  color: #2f80ed;
+}
+
+@media (max-width: 680px) {
+  .verification-comparison {
+    overflow-x: auto;
+  }
+
+  .verification-comparison table {
+    min-width: 620px;
+  }
+}
+
+[data-theme='dark'] .verification-comparison,
+[data-theme='dark'] .verification-comparison thead th,
+[data-theme='dark'] .verification-comparison__note {
+  color: #e7effb;
+  background: #10243c;
+  border-color: #31506f;
+}
+
+[data-theme='dark'] .verification-comparison tbody td {
+  color: #b8c8dd;
+}
+
+[data-theme='dark'] .verification-comparison thead th:last-child,
+[data-theme='dark'] .verification-comparison tbody td:last-child {
+  color: #bde9d4;
+  background: rgba(42, 157, 110, 0.12);
+}

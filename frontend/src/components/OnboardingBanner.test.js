@@ -1,10 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import OnboardingBanner, { isOnboardingIncomplete } from './OnboardingBanner';
+import { MemoryRouter } from 'react-router-dom';
+import OnboardingBanner, { isOnboardingIncomplete, shouldPromptIdentityVerification } from './OnboardingBanner';
+
+const renderBanner = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('OnboardingBanner', () => {
   test('renders the saved next step and resumes onboarding', () => {
     const onResume = jest.fn();
-    render(<OnboardingBanner onboarding={{ status: 'paused', current_step: 3 }} onResume={onResume} />);
+    renderBanner(<OnboardingBanner onboarding={{ status: 'paused', current_step: 3 }} onResume={onResume} />);
 
     expect(screen.getByText(/topics and schools/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /resume onboarding/i }));
@@ -12,8 +15,29 @@ describe('OnboardingBanner', () => {
   });
 
   test('does not render after onboarding is complete', () => {
-    const { container } = render(<OnboardingBanner onboarding={{ status: 'completed', current_step: 9 }} />);
+    const { container } = renderBanner(<OnboardingBanner onboarding={{ status: 'completed', current_step: 9 }} />);
     expect(container).toBeEmptyDOMElement();
     expect(isOnboardingIncomplete(null)).toBe(false);
+  });
+
+  test('offers eligible unverified users an accurate comparison', () => {
+    renderBanner(
+      <OnboardingBanner
+        onboarding={{ status: 'completed', current_step: 9, verification: {} }}
+        userData={{ education_status: 'Student', verified: 0 }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /get verified/i }));
+    expect(screen.getByRole('dialog', { name: /what verification changes/i })).toBeInTheDocument();
+    expect(screen.getByText(/does not grant moderation/i)).toBeInTheDocument();
+  });
+
+  test('does not prompt verified users or users with a pending review', () => {
+    expect(shouldPromptIdentityVerification({ education_status: 'Student', verified: 1 }, {})).toBe(false);
+    expect(shouldPromptIdentityVerification(
+      { education_status: 'Student', verified: 0 },
+      { verification: { student: { status: 'pending' } } }
+    )).toBe(false);
   });
 });

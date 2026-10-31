@@ -207,7 +207,7 @@ export default function AppShell({
           <ProfileContactProvider>
             <div className="center-rail" data-tour="feed">
               {userData && (
-                <OnboardingBanner onboarding={onboarding} onResume={onResumeOnboarding} />
+                <OnboardingBanner onboarding={onboarding} userData={userData} onResume={onResumeOnboarding} />
               )}
               {/* Wrapper grows to fill any spare height so the footer links sit
                   on the bottom edge of a short page instead of floating

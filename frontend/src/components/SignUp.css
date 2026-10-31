@@ -732,6 +732,25 @@
   white-space: nowrap;
 }
 
+.signup-verification-invite {
+  border: 1px solid var(--signup-line);
+  border-radius: 14px;
+  padding: 1rem;
+  background: linear-gradient(145deg, #fbfdff, #f4f8ff);
+}
+
+.signup-verification-invite__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+
+.signup-verification-invite__actions .auth-primary,
+.signup-verification-invite__actions .auth-secondary {
+  min-width: 130px;
+}
+
 .signup-completion-note,
 .signup-privacy-note {
   display: flex;
@@ -897,7 +916,8 @@
 }
 
 [data-theme='dark'] .signup-ambassador-list,
-[data-theme='dark'] .signup-ambassador-card {
+[data-theme='dark'] .signup-ambassador-card,
+[data-theme='dark'] .signup-verification-invite {
   background: #10243c;
   border-color: #31506f;
 }
@@ -1029,6 +1049,15 @@
 
   .signup-ambassador-card {
     flex-direction: column;
+  }
+
+  .signup-verification-invite__actions {
+    flex-direction: column-reverse;
+  }
+
+  .signup-verification-invite__actions .auth-primary,
+  .signup-verification-invite__actions .auth-secondary {
+    width: 100%;
   }
 }
 
