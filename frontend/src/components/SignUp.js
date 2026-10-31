@@ -860,13 +860,15 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
                       <FaUsers aria-hidden />
                       <span>
                         <small>Trusted people</small>
-                        <strong>{recommendedAmbassador ? `${recommendedAmbassador.first_name} ${recommendedAmbassador.last_name}` : `${communityAmbassadors.length || 'No'} ambassador${communityAmbassadors.length === 1 ? '' : 's'} from your communities`}</strong>
+                        <strong>{recommendedAmbassador ? `${recommendedAmbassador.first_name} ${recommendedAmbassador.last_name}` : communityAmbassadors.length ? `${communityAmbassadors.length} ambassador${communityAmbassadors.length === 1 ? '' : 's'} from your communities` : 'Community guidance is still growing'}</strong>
                         {recommendedAmbassador && <span className="signup-specialty-badges">{recommendedAmbassador.ambassador_specialties.filter((specialty) => tagsForNeeds(selectedNeeds).includes(specialty)).slice(0, 2).map((specialty) => <span key={specialty}>{getAmbassadorSpecialtyLabel(specialty)}</span>)}</span>}
-                        <p>{recommendedAmbassador ? `${recommendedAmbassador.headline || 'Community ambassador'} opted in to questions about these topics.` : communityAmbassadors.length ? 'Browse people from your selected communities and compare their specialties.' : 'There are no ambassadors in your selected communities yet.'}</p>
+                        <p>{recommendedAmbassador ? `${recommendedAmbassador.headline || 'Community ambassador'} opted in to questions about these topics.` : communityAmbassadors.length ? 'Browse people from your selected communities and compare their specialties.' : 'We don’t have a matching ambassador available right now. You can still explore community discussions, ask a public question, or check back later.'}</p>
                       </span>
                       <div className="signup-people-actions">
                         {recommendedAmbassador && <button type="button" className="auth-link" onClick={() => finishAndNavigate(ambassadorMessageDestination(recommendedAmbassador))}>Ask {recommendedAmbassador.first_name}</button>}
                         {communityAmbassadors.length > 0 && <button type="button" className="auth-link subtle" onClick={() => setShowAmbassadorList((visible) => !visible)} aria-expanded={showAmbassadorList}>{showAmbassadorList ? 'Hide ambassador list' : `Browse all ${communityAmbassadors.length}`}</button>}
+                        {!communityAmbassadors.length && <button type="button" className="auth-link" onClick={() => finishAndNavigate(communityResultsDestination(selectedCommunityIds))}>Ask the community</button>}
+                        {!communityAmbassadors.length && <button type="button" className="auth-link subtle" onClick={() => finishAndNavigate('/home?tab=explore')}>Explore discussions</button>}
                       </div>
                     </section>
                   </div>
