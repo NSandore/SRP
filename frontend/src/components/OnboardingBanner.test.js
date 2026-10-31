@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import OnboardingBanner, { isOnboardingIncomplete, shouldPromptIdentityVerification } from './OnboardingBanner';
+import OnboardingBanner, { hasPendingIdentityVerification, isOnboardingIncomplete, shouldPromptIdentityVerification } from './OnboardingBanner';
 
 const renderBanner = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -39,5 +39,20 @@ describe('OnboardingBanner', () => {
       { education_status: 'Student', verified: 0 },
       { verification: { student: { status: 'pending' } } }
     )).toBe(false);
+  });
+
+  test('shows a pending status after setup while review is underway', () => {
+    const userData = { education_status: 'Student', verified: 0 };
+    const onboarding = {
+      status: 'completed',
+      current_step: 9,
+      verification: { student: { status: 'pending' } },
+    };
+    renderBanner(<OnboardingBanner onboarding={onboarding} userData={userData} />);
+
+    expect(screen.getByText('Pending verification')).toBeInTheDocument();
+    expect(screen.getByText('Under review')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /get verified/i })).not.toBeInTheDocument();
+    expect(hasPendingIdentityVerification(userData, onboarding)).toBe(true);
   });
 });

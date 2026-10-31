@@ -19,7 +19,15 @@ export const shouldPromptIdentityVerification = (userData, onboarding) => {
   const eligible = educationStatus.includes('student') || educationStatus.includes('staff');
   if (!eligible) return false;
   const verification = onboarding?.verification || {};
-  return !Object.values(verification).some((request) => request?.status === 'pending');
+  return !Object.values(verification).some((request) => ['pending', 'approved'].includes(request?.status));
+};
+
+export const hasPendingIdentityVerification = (userData, onboarding) => {
+  if (!userData || Number(userData.verified) === 1) return false;
+  const educationStatus = String(userData.education_status || '').toLowerCase();
+  const eligible = educationStatus.includes('student') || educationStatus.includes('staff');
+  if (!eligible) return false;
+  return Object.values(onboarding?.verification || {}).some((request) => request?.status === 'pending');
 };
 
 function OnboardingBanner({ onboarding, userData, onResume }) {
@@ -27,6 +35,7 @@ function OnboardingBanner({ onboarding, userData, onResume }) {
   const [showVerificationInfo, setShowVerificationInfo] = useState(false);
   const startButtonRef = useRef(null);
   const onboardingIncomplete = isOnboardingIncomplete(onboarding);
+  const verificationPending = !onboardingIncomplete && hasPendingIdentityVerification(userData, onboarding);
   const showVerificationPrompt = !onboardingIncomplete && shouldPromptIdentityVerification(userData, onboarding);
 
   useEffect(() => {
@@ -39,19 +48,23 @@ function OnboardingBanner({ onboarding, userData, onResume }) {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [showVerificationInfo]);
 
-  if (!onboardingIncomplete && !showVerificationPrompt) return null;
+  if (!onboardingIncomplete && !showVerificationPrompt && !verificationPending) return null;
 
   return (
     <>
-      <aside className={`onboarding-banner${showVerificationPrompt ? ' onboarding-banner--verification' : ''}`} aria-label={onboardingIncomplete ? 'Incomplete account setup' : 'Identity verification available'}>
+      <aside className={`onboarding-banner${showVerificationPrompt || verificationPending ? ' onboarding-banner--verification' : ''}${verificationPending ? ' onboarding-banner--pending' : ''}`} aria-label={onboardingIncomplete ? 'Incomplete account setup' : verificationPending ? 'Identity verification pending' : 'Identity verification available'}>
         <span className="onboarding-banner__icon" aria-hidden="true">{onboardingIncomplete ? <FaCompass /> : <FaShieldAlt />}</span>
         <div className="onboarding-banner__copy">
-          <strong>{onboardingIncomplete ? 'Finish setting up your account' : 'Add a verified school connection'}</strong>
-          <span>{onboardingIncomplete ? onboardingMessage(onboarding.current_step) : 'Get verified to add a reviewed badge and help others trust your student or staff affiliation.'}</span>
+          <strong>{onboardingIncomplete ? 'Finish setting up your account' : verificationPending ? 'Pending verification' : 'Add a verified school connection'}</strong>
+          <span>{onboardingIncomplete ? onboardingMessage(onboarding.current_step) : verificationPending ? 'Your documents were submitted and are waiting for review. You can keep using StudentSphere in the meantime.' : 'Get verified to add a reviewed badge and help others trust your student or staff affiliation.'}</span>
         </div>
-        <button type="button" className="onboarding-banner__action" onClick={onboardingIncomplete ? onResume : () => setShowVerificationInfo(true)}>
-          {onboardingIncomplete ? 'Resume onboarding' : 'Get verified'} <FaArrowRight aria-hidden="true" />
-        </button>
+        {verificationPending ? (
+          <span className="onboarding-banner__status">Under review</span>
+        ) : (
+          <button type="button" className="onboarding-banner__action" onClick={onboardingIncomplete ? onResume : () => setShowVerificationInfo(true)}>
+            {onboardingIncomplete ? 'Resume onboarding' : 'Get verified'} <FaArrowRight aria-hidden="true" />
+          </button>
+        )}
       </aside>
       {showVerificationInfo && (
         <div className="verification-prompt-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowVerificationInfo(false); }}>

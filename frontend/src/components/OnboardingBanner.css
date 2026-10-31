@@ -80,6 +80,31 @@
   background: rgba(47, 128, 237, 0.12);
 }
 
+.onboarding-banner--pending {
+  border-color: color-mix(in srgb, #d89b2b 34%, var(--home-line));
+  background: color-mix(in srgb, #f1b84b 9%, var(--home-paper));
+}
+
+.onboarding-banner--pending .onboarding-banner__icon {
+  color: #9a6511;
+  background: rgba(216, 155, 43, 0.15);
+}
+
+.onboarding-banner__status {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(154, 101, 17, 0.26);
+  border-radius: 999px;
+  padding: 0.42rem 0.72rem;
+  color: #7a4e0b;
+  background: rgba(255, 255, 255, 0.58);
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .verification-prompt-backdrop {
   position: fixed;
   z-index: 1200;
@@ -182,6 +207,11 @@
   .onboarding-banner__action {
     grid-column: 1 / -1;
     width: 100%;
+  }
+
+  .onboarding-banner__status {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .verification-prompt-backdrop {
