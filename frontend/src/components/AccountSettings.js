@@ -6,6 +6,7 @@ import useTagOptions from '../hooks/useTagOptions';
 import TagPicker from './TagPicker';
 import { getRoleLabel, isSuperAdmin, isAdmin } from '../constants/roles';
 import { hasTestControls } from '../utils/testAccounts';
+import { AMBASSADOR_SPECIALTY_OPTIONS } from './signupOptions';
 import {
   FaBell,
   FaBullhorn,
@@ -66,9 +67,8 @@ const createDefaultSettings = () => ({
     enableAnalytics: true,
   },
   ambassador: {
-    spotlightInFeed: true,
-    dmOfficeHours: true,
-    autoReplyTemplates: false,
+    specialties: [],
+    acceptingQuestions: true,
   },
 });
 
@@ -122,13 +122,13 @@ function AccountSettings({ userData, onInterestsUpdated }) {
       { id: 'community', label: 'Community', icon: <FaUniversity size={16} /> },
       canConnectZoom ? { id: 'integrations', label: 'Integrations', icon: <FaPlug size={16} /> } : null,
       isSuperAdminUser ? { id: 'moderation', label: 'Moderation preview', icon: <FaBullhorn size={16} /> } : null,
-      isSuperAdminUser ? { id: 'ambassador', label: 'Ambassador preview', icon: <FaUsers size={16} /> } : null,
+      isAmbassador ? { id: 'ambassador', label: 'Ambassador profile', icon: <FaUsers size={16} /> } : null,
       isSuperAdminUser ? { id: 'admin', label: 'Admin preview', icon: <FaLock size={16} /> } : null,
       { id: 'sessions', label: 'Sessions', icon: <FaShieldAlt size={16} /> },
       { id: 'data', label: 'Data & account', icon: <FaLock size={16} /> },
     ];
     return base.filter(Boolean);
-  }, [isSuperAdminUser, canConnectZoom]);
+  }, [isSuperAdminUser, isAmbassador, canConnectZoom]);
   const [activeTab, setActiveTab] = useState('profile');
 
   const flashStatus = (message) => {
@@ -311,6 +311,24 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           }
           if (typeof res.data.user.is_ambassador !== 'undefined') {
             setFetchedIsAmbassador(res.data.user.is_ambassador);
+          }
+          if (Array.isArray(res.data.user.ambassador_specialties)) {
+            setSettings((prev) => ({
+              ...prev,
+              ambassador: {
+                ...prev.ambassador,
+                specialties: res.data.user.ambassador_specialties,
+              },
+            }));
+          }
+          if (typeof res.data.user.ambassador_accepting_questions !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              ambassador: {
+                ...prev.ambassador,
+                acceptingQuestions: Boolean(Number(res.data.user.ambassador_accepting_questions)),
+              },
+            }));
           }
           if (typeof res.data.user.show_online !== 'undefined') {
             setSettings((prev) => ({
@@ -738,6 +756,40 @@ function AccountSettings({ userData, onInterestsUpdated }) {
       persistAutoJoinCampus(value);
     }
     flashStatus('Saved');
+  };
+
+  const persistAmbassadorPreferences = async (specialties, acceptingQuestions) => {
+    if (!userData?.user_id || !isAmbassador) return;
+    try {
+      const response = await axios.post('/api/update_account_settings.php', {
+        user_id: userData.user_id,
+        ambassador_specialties: specialties,
+        ambassador_accepting_questions: acceptingQuestions,
+      }, { withCredentials: true });
+      if (!response.data?.success) throw new Error(response.data?.error || 'Unable to save ambassador preferences.');
+      flashStatus('Ambassador profile updated');
+    } catch (error) {
+      console.error('Error saving ambassador preferences', error);
+      flashStatus(error.response?.data?.error || error.message || 'Unable to save ambassador preferences.');
+    }
+  };
+
+  const toggleAmbassadorSpecialty = (specialty) => {
+    const current = settings.ambassador.specialties;
+    const next = current.includes(specialty)
+      ? current.filter((value) => value !== specialty)
+      : [...current, specialty];
+    if (next.length > 4) {
+      flashStatus('Choose up to four specialties');
+      return;
+    }
+    setSettings((prev) => ({ ...prev, ambassador: { ...prev.ambassador, specialties: next } }));
+    persistAmbassadorPreferences(next, settings.ambassador.acceptingQuestions);
+  };
+
+  const toggleAcceptingQuestions = (acceptingQuestions) => {
+    setSettings((prev) => ({ ...prev, ambassador: { ...prev.ambassador, acceptingQuestions } }));
+    persistAmbassadorPreferences(settings.ambassador.specialties, acceptingQuestions);
   };
 
   const resetSettings = () => {
@@ -1405,58 +1457,51 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           </section>
         )}
 
-        {isSuperAdminUser && activeTab === 'ambassador' && (
+        {isAmbassador && activeTab === 'ambassador' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
                 <FaUsers size={16} /> Ambassador tools
               </div>
-              <p>Control how you appear to prospective students and partners.</p>
+              <p>Help students find the right person without sending every question to every ambassador.</p>
             </div>
             <div className="setting-row">
               <div className="setting-text">
-                <div className="setting-label">Spotlight in feed</div>
-                <p className="setting-help">Feature ambassador posts in campus-wide feeds.</p>
+                <div className="setting-label">Accepting questions <span className="settings-badge live-badge">Live</span></div>
+                <p className="setting-help">When off, you remain listed as an ambassador but are not recommended to new members.</p>
               </div>
               <label className="setting-toggle">
                 <input
                   type="checkbox"
-                  checked={settings.ambassador.spotlightInFeed}
-                  onChange={(e) => updateSetting('ambassador', 'spotlightInFeed', e.target.checked)}
+                  checked={settings.ambassador.acceptingQuestions}
+                  onChange={(e) => toggleAcceptingQuestions(e.target.checked)}
                 />
                 <span className="toggle-slider" />
               </label>
             </div>
 
-            <div className="setting-row">
+            <div className="setting-row ambassador-specialty-setting">
               <div className="setting-text">
-                <div className="setting-label">DM office hours</div>
-                <p className="setting-help">Allow students to book office-hour style chats.</p>
+                <div className="setting-label">Specialties</div>
+                <p className="setting-help">Choose up to four topics you are comfortable helping with. These appear as badges in ambassador lists.</p>
               </div>
-              <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={settings.ambassador.dmOfficeHours}
-                  onChange={(e) => updateSetting('ambassador', 'dmOfficeHours', e.target.checked)}
-                />
-                <span className="toggle-slider" />
-              </label>
+              <div className="ambassador-specialty-picker" role="group" aria-label="Ambassador specialties">
+                {AMBASSADOR_SPECIALTY_OPTIONS.map((option) => {
+                  const selected = settings.ambassador.specialties.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`ambassador-specialty-choice${selected ? ' selected' : ''}`}
+                      aria-pressed={selected}
+                      onClick={() => toggleAmbassadorSpecialty(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-
-            <div className="setting-row">
-              <div className="setting-text">
-                <div className="setting-label">Enable reply templates</div>
-                <p className="setting-help">Use saved replies for common admissions questions.</p>
-              </div>
-              <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={settings.ambassador.autoReplyTemplates}
-                  onChange={(e) => updateSetting('ambassador', 'autoReplyTemplates', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
           </section>
         )}
 

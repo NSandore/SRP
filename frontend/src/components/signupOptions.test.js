@@ -1,5 +1,6 @@
 import {
   ambassadorMessageDestination,
+  recommendAmbassador,
   needsForTags,
   primaryRoleForAudiences,
   rankGuideRecommendations,
@@ -35,5 +36,16 @@ describe('signup onboarding options', () => {
   test('keeps the recommended ambassador attached to the message handoff', () => {
     expect(ambassadorMessageDestination({ user_id: 'u123abc' })).toBe('/messages?user=u123abc');
     expect(ambassadorMessageDestination(null)).toBe('/communities');
+  });
+
+  test('only recommends opted-in ambassadors whose specialties match the request', () => {
+    const ambassadors = [
+      { user_id: 'u-busy', ambassador_accepting_questions: false, ambassador_specialties: ['applications'] },
+      { user_id: 'u-general', ambassador_accepting_questions: true, ambassador_specialties: ['peer-support'] },
+      { user_id: 'u-limited', ambassador_accepting_questions: true, availability: 'limited', ambassador_specialties: ['applications'] },
+      { user_id: 'u-admissions', ambassador_accepting_questions: true, ambassador_specialties: ['applications'] },
+    ];
+    expect(recommendAmbassador(ambassadors, ['applying'])?.user_id).toBe('u-admissions');
+    expect(recommendAmbassador(ambassadors, ['wellbeing'])).toBeNull();
   });
 });

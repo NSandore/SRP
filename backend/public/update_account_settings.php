@@ -38,6 +38,8 @@ $notifyEventsProvided = array_key_exists('notify_events', $input);
 $defaultFeedProvided = array_key_exists('default_feed', $input);
 $twoFactorProvided = array_key_exists('two_factor_enabled', $input);
 $autoJoinProvided = array_key_exists('auto_join_campus', $input);
+$ambassadorSpecialtiesProvided = array_key_exists('ambassador_specialties', $input);
+$ambassadorAcceptingProvided = array_key_exists('ambassador_accepting_questions', $input);
 
 if (
     !$profileVisibilityProvided &&
@@ -51,7 +53,9 @@ if (
     !$notifyEventsProvided &&
     !$defaultFeedProvided &&
     !$twoFactorProvided &&
-    !$autoJoinProvided
+    !$autoJoinProvided &&
+    !$ambassadorSpecialtiesProvided &&
+    !$ambassadorAcceptingProvided
 ) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'No settings provided']);
@@ -217,8 +221,51 @@ if ($autoJoinProvided) {
     $autoJoinCampus = $parsed === null ? (intval($input['auto_join_campus']) ? 1 : 0) : ($parsed ? 1 : 0);
 }
 
+$allowedAmbassadorSpecialties = [
+    'applications', 'financial-aid', 'scholarships', 'paying-for-school',
+    'academics', 'housing-and-dining', 'academic-support',
+    'disability-and-accessibility', 'mental-health-and-wellness',
+    'student-rights-and-policies', 'career-services', 'peer-support',
+    'getting-started',
+];
+$ambassadorSpecialties = null;
+if ($ambassadorSpecialtiesProvided) {
+    if (!is_array($input['ambassador_specialties'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid ambassador_specialties value']);
+        exit;
+    }
+    $ambassadorSpecialties = array_values(array_unique(array_map('trim', $input['ambassador_specialties'])));
+    if (count($ambassadorSpecialties) > 4 || array_diff($ambassadorSpecialties, $allowedAmbassadorSpecialties)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Choose up to four valid specialties']);
+        exit;
+    }
+}
+
+$ambassadorAcceptingQuestions = null;
+if ($ambassadorAcceptingProvided) {
+    $parsed = filter_var($input['ambassador_accepting_questions'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($parsed === null && !is_numeric($input['ambassador_accepting_questions'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid ambassador_accepting_questions value']);
+        exit;
+    }
+    $ambassadorAcceptingQuestions = $parsed === null ? (intval($input['ambassador_accepting_questions']) ? 1 : 0) : ($parsed ? 1 : 0);
+}
+
 try {
     $db = getDB();
+
+    if ($ambassadorSpecialtiesProvided || $ambassadorAcceptingProvided) {
+        $ambassadorStmt = $db->prepare('SELECT COUNT(*) FROM ambassadors WHERE user_id = :uid');
+        $ambassadorStmt->execute([':uid' => $userId]);
+        if ((int)$ambassadorStmt->fetchColumn() === 0) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Ambassador settings are only available to ambassadors']);
+            exit;
+        }
+    }
     $db->beginTransaction();
 
     $insertColumns = ['user_id', 'updated_at'];
@@ -259,6 +306,9 @@ if ($notifyRepliesProvided) {
 if ($notifyEventsProvided) {
     $extrasUpdates['notify_events'] = $notifyEvents;
 }
+if ($ambassadorAcceptingProvided) {
+    $extrasUpdates['ambassador_accepting_questions'] = $ambassadorAcceptingQuestions;
+}
 if (!empty($extrasUpdates)) {
     $jsonSetParts = [];
     foreach ($extrasUpdates as $key => $value) {
@@ -272,6 +322,20 @@ if (!empty($extrasUpdates)) {
         $insertColumns[] = 'extras';
         $insertValues[] = $jsonSetInsert;
         $params[':extras'] = null;
+    }
+
+    if ($ambassadorSpecialtiesProvided) {
+        $specialtiesJson = json_encode($ambassadorSpecialties, JSON_UNESCAPED_SLASHES);
+        $updateParts[] = "extras = JSON_SET(COALESCE(extras, JSON_OBJECT()), '$.ambassador_specialties', CAST(:ambassador_specialties AS JSON))";
+        $extrasColumnIndex = array_search('extras', $insertColumns, true);
+        if ($extrasColumnIndex === false) {
+            $insertColumns[] = 'extras';
+            $insertValues[] = "JSON_SET(COALESCE(:extras, JSON_OBJECT()), '$.ambassador_specialties', CAST(:ambassador_specialties AS JSON))";
+            $params[':extras'] = null;
+        } else {
+            $insertValues[$extrasColumnIndex] = "JSON_SET({$insertValues[$extrasColumnIndex]}, '$.ambassador_specialties', CAST(:ambassador_specialties AS JSON))";
+        }
+        $params[':ambassador_specialties'] = $specialtiesJson;
     }
 
     if ($showEmailProvided) {
@@ -358,6 +422,12 @@ if (!empty($extrasUpdates)) {
     }
     if ($defaultFeedProvided) {
         $response['default_feed'] = $defaultFeed;
+    }
+    if ($ambassadorSpecialtiesProvided) {
+        $response['ambassador_specialties'] = $ambassadorSpecialties;
+    }
+    if ($ambassadorAcceptingProvided) {
+        $response['ambassador_accepting_questions'] = $ambassadorAcceptingQuestions;
     }
 
     echo json_encode($response);

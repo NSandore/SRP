@@ -77,6 +77,7 @@ import InstitutionDataReview from './components/InstitutionDataReview';
 import { hasTestControls } from './utils/testAccounts';
 import { isSuperAdmin } from './constants/roles';
 import './layout/PlatformPolish.css';
+import AmbassadorSpecialtyBadges from './components/AmbassadorSpecialtyBadges';
 
 const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/polls', '/admin/verifications', '/admin/institutions', '/admin/newsroom', '/admin/changelog'];
 const AUTH_ROUTES = ['/login', '/signup'];
@@ -748,6 +749,7 @@ function App() {
                           </Link>
                         </p>
                         <p className="ambassador-headline">{amb.headline}</p>
+                        <AmbassadorSpecialtyBadges specialties={amb.ambassador_specialties} />
                       </div>
 
                       <div className="ambassador-actions">

@@ -47,9 +47,12 @@ try {
                 u.avatar_path,
                 u.first_name,
                 u.last_name,
-                u.headline
+                u.headline,
+                JSON_EXTRACT(s.extras, '$.ambassador_specialties') AS ambassador_specialties,
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(s.extras, '$.ambassador_accepting_questions')), '1') AS ambassador_accepting_questions
               FROM ambassadors a
               JOIN users u ON a.user_id = u.user_id
+              LEFT JOIN account_settings s ON s.user_id = u.user_id
               WHERE a.community_id IN ($placeholders)
                 AND u.deletion_status = 'active'
               ORDER BY a.added_at ASC";
@@ -57,6 +60,12 @@ try {
     $stmt = $db->prepare($query);
     $stmt->execute($followedCommunities);
     $ambassadors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($ambassadors as &$ambassador) {
+        $specialties = json_decode($ambassador['ambassador_specialties'] ?? '[]', true);
+        $ambassador['ambassador_specialties'] = is_array($specialties) ? array_values($specialties) : [];
+        $ambassador['ambassador_accepting_questions'] = filter_var($ambassador['ambassador_accepting_questions'], FILTER_VALIDATE_BOOLEAN);
+    }
+    unset($ambassador);
 
     echo json_encode([
         'success' => true,

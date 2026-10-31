@@ -59,6 +59,47 @@ export const NEED_OPTIONS = [
   { value: 'not_sure', label: "I'm not sure where to start", tag: 'getting-started', keywords: ['start', 'college', 'education', 'school'] },
 ];
 
+export const AMBASSADOR_SPECIALTY_OPTIONS = NEED_OPTIONS.map(({ tag, label }) => ({
+  value: tag,
+  label: label
+    .replace('Applying to a school or program', 'Admissions & applications')
+    .replace('Understanding financial aid', 'Financial aid')
+    .replace('Finding scholarships', 'Scholarships')
+    .replace('Paying for school', 'Tuition & billing')
+    .replace('Choosing a program or major', 'Programs & majors')
+    .replace('Housing, food, or transportation', 'Housing & basic needs')
+    .replace('Disability and accessibility services', 'Accessibility services')
+    .replace('Mental health and wellbeing', 'Wellbeing resources')
+    .replace('Student rights or institutional policies', 'Student rights & policies')
+    .replace('Internships and careers', 'Careers & internships')
+    .replace('Finding people who understand my experience', 'Peer support')
+    .replace("I'm not sure where to start", 'Getting started'),
+}));
+
+export const getAmbassadorSpecialtyLabel = (value) =>
+  AMBASSADOR_SPECIALTY_OPTIONS.find((option) => option.value === value)?.label || value;
+
+export const recommendAmbassador = (ambassadors = [], needValues = []) => {
+  const desiredSpecialties = new Set(tagsForNeeds(needValues));
+  if (!desiredSpecialties.size) return null;
+
+  const ranked = ambassadors
+    .filter((ambassador) =>
+      ambassador?.ambassador_accepting_questions !== false && ambassador?.availability !== 'limited'
+    )
+    .map((ambassador, index) => {
+      const specialties = Array.isArray(ambassador?.ambassador_specialties)
+        ? ambassador.ambassador_specialties
+        : [];
+      const matchCount = specialties.filter((specialty) => desiredSpecialties.has(specialty)).length;
+      return { ambassador, matchCount, index };
+    })
+    .filter(({ matchCount }) => matchCount > 0)
+    .sort((a, b) => b.matchCount - a.matchCount || a.index - b.index);
+
+  return ranked[0]?.ambassador || null;
+};
+
 const ROLE_PRIORITY = ['student', 'staff_representative', 'alumni', 'prospect'];
 
 export const primaryRoleForAudiences = (audienceValues = []) => {
