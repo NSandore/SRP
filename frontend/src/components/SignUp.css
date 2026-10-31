@@ -285,6 +285,24 @@
   margin: 0;
 }
 
+.signup-actions-main {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 0.7rem;
+}
+
+.signup-actions-main .auth-primary,
+.signup-actions-main .auth-ghost {
+  align-self: stretch;
+  margin: 0;
+}
+
+.signup-continue-later {
+  align-self: stretch;
+  margin-top: 0.15rem;
+}
+
 .signup-mobile-login {
   display: none;
 }
@@ -901,8 +919,14 @@
     backdrop-filter: blur(10px);
   }
 
+  .signup-actions-main {
+    min-width: 0;
+    flex: 2;
+  }
+
   .signup-actions .auth-primary,
-  .signup-actions .auth-secondary {
+  .signup-actions .auth-secondary,
+  .signup-actions-main .auth-ghost {
     min-width: 0;
     flex: 1;
   }

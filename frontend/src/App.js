@@ -110,6 +110,7 @@ function App() {
   const [followingAmbassadors, setFollowingAmbassadors] = useState([]);
   const [lastAccessiblePath, setLastAccessiblePath] = useState('/home');
   const [pendingProtectedReturnPath, setPendingProtectedReturnPath] = useState(null);
+  const [onboardingState, setOnboardingState] = useState(null);
 
   const [notifications, setNotifications] = useState([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -155,6 +156,18 @@ function App() {
   const isAuthPage = authRoutes.includes(location.pathname);
   const previousPathRef = useRef(location.pathname);
 
+  const refreshOnboardingState = React.useCallback(async () => {
+    try {
+      const response = await axios.get('/api/onboarding_wizard.php', { withCredentials: true });
+      const wizard = response.data?.logged_in ? response.data?.wizard || null : null;
+      setOnboardingState(wizard);
+      return wizard;
+    } catch (error) {
+      // Account access should not be blocked if this optional status check fails.
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     const checkUserSession = async () => {
       try {
@@ -168,6 +181,7 @@ function App() {
           const user = response.data.user;
           user.role_id = Number(user.role_id);
           setUserData(user);
+          refreshOnboardingState();
           fetchNotifications(user.user_id);
           fetchConversations(user.user_id);
           // Apply default feed preference: server setting > localStorage > fallback
@@ -188,6 +202,8 @@ function App() {
               is_ambassador: Number(prev?.is_ambassador || 0),
             }));
           }
+        } else {
+          setOnboardingState(null);
         }
       } catch (err) {
         console.error('Error checking session:', err);
@@ -197,7 +213,7 @@ function App() {
     };
 
     checkUserSession();
-  }, []); // ✅ useEffect is always called in the same order
+  }, [refreshOnboardingState]); // ✅ useEffect is always called in the same order
 
   const refreshUserInterests = React.useCallback(async (overrideUserId) => {
     const uid = overrideUserId || userData?.user_id;
@@ -416,15 +432,17 @@ function App() {
     fetchNotifications(user.user_id);
     fetchConversations(user.user_id);
     refreshUserInterests(user.user_id);
+    refreshOnboardingState();
   };
 
   // Login
-  const handleLogin = (user) => {
+  const handleLogin = async (user) => {
     user.role_id = Number(user.role_id);
     setUserData(user);
     fetchNotifications(user.user_id);
     fetchConversations(user.user_id);
-    navigate('/home');
+    const wizard = await refreshOnboardingState();
+    navigate(wizard && wizard.status !== 'completed' ? '/signup' : '/home');
   };
 
   // Logout
@@ -432,6 +450,7 @@ function App() {
     try {
       await axios.post('/api/logout.php', {}, { withCredentials: true });
       setUserData(null);
+      setOnboardingState(null);
       setAccountMenuVisible(false);
       navigate('/login');
     } catch (err) {
@@ -439,6 +458,7 @@ function App() {
     }
   };
   const openSignUpPage = () => navigate('/signup');
+  const resumeOnboarding = () => navigate('/signup');
   const openLoginPage = () => navigate('/login');
   const continueAsGuest = () => {
     // Guarded here as well as at the point the return path is recorded, so no
@@ -758,7 +778,7 @@ function App() {
       <Routes>
         <Route
           path="/signup"
-          element={<SignUp onAuthenticated={handleSignupAuthenticated} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} />}
+          element={<SignUp onAuthenticated={handleSignupAuthenticated} onShowLogin={openLoginPage} onContinueAsGuest={continueAsGuest} onOnboardingChange={setOnboardingState} />}
         />
         <Route
           path="/login"
@@ -774,7 +794,7 @@ function App() {
         <Route
           path="/changelog"
           element={
-            <AppShell navBarProps={navBarProps} userData={userData}>
+            <AppShell navBarProps={navBarProps} userData={userData} onboarding={onboardingState} onResumeOnboarding={resumeOnboarding}>
               <ChangelogPage />
             </AppShell>
           }
@@ -782,7 +802,7 @@ function App() {
         <Route
           path="/faq"
           element={
-            <AppShell navBarProps={navBarProps} userData={userData}>
+            <AppShell navBarProps={navBarProps} userData={userData} onboarding={onboardingState} onResumeOnboarding={resumeOnboarding}>
               <FaqPage />
             </AppShell>
           }
@@ -790,7 +810,7 @@ function App() {
         <Route
           path="/privacy"
           element={
-            <AppShell navBarProps={navBarProps} userData={userData}>
+            <AppShell navBarProps={navBarProps} userData={userData} onboarding={onboardingState} onResumeOnboarding={resumeOnboarding}>
               <PrivacyPolicyPage />
             </AppShell>
           }
@@ -798,7 +818,7 @@ function App() {
         <Route
           path="/terms"
           element={
-            <AppShell navBarProps={navBarProps} userData={userData}>
+            <AppShell navBarProps={navBarProps} userData={userData} onboarding={onboardingState} onResumeOnboarding={resumeOnboarding}>
               <TermsPage />
             </AppShell>
           }
@@ -806,7 +826,7 @@ function App() {
         <Route
           path="/profile"
           element={
-            <AppShell navBarProps={navBarProps} userData={userData}>
+            <AppShell navBarProps={navBarProps} userData={userData} onboarding={onboardingState} onResumeOnboarding={resumeOnboarding}>
               {userData ? (
                 <SelfProfileView userData={userData} />
               ) : (
@@ -824,7 +844,7 @@ function App() {
         <Route
           path="/user/:user_id"
           element={
-            <AppShell navBarProps={navBarProps} userData={userData}>
+            <AppShell navBarProps={navBarProps} userData={userData} onboarding={onboardingState} onResumeOnboarding={resumeOnboarding}>
               <UserProfileView
                 userData={userData}
                 onFollowNotification={sendFollowNotification}
@@ -836,7 +856,7 @@ function App() {
         <Route
           path="*"
           element={
-            <AppShell navBarProps={navBarProps} userData={userData}>
+            <AppShell navBarProps={navBarProps} userData={userData} onboarding={onboardingState} onResumeOnboarding={resumeOnboarding}>
               <Routes>
                 <Route
                   path="/home"

@@ -144,7 +144,7 @@ const UniversitySearch = React.memo(function UniversitySearch({
   );
 });
 
-function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
+function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingChange }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const verificationMode = searchParams.get('verify') === '1';
@@ -195,7 +195,8 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
   const applyWizardState = useCallback((wizard, fallback = 0) => {
     setStep(stepFromWizard(wizard, fallback));
     if (wizard?.role_intent) setRoleIntent(wizard.role_intent);
-  }, []);
+    if (wizard) onOnboardingChange?.(wizard);
+  }, [onOnboardingChange]);
 
   useEffect(() => {
     let mounted = true;
@@ -538,7 +539,8 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
       return;
     }
     try {
-      await axios.post('/api/onboarding_wizard.php', { action: 'exit_wizard' }, { withCredentials: true });
+      const response = await axios.post('/api/onboarding_wizard.php', { action: 'exit_wizard' }, { withCredentials: true });
+      applyWizardState(response.data?.wizard, step);
     } catch (requestError) {
       // Exiting is intentionally non-blocking.
     }
@@ -723,8 +725,8 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
             <li><FaArrowRight /> Practical next steps</li>
           </ul>
           <div className="signup-story-actions">
-            <button type="button" className="auth-secondary" onClick={onShowLogin}>I already have an account</button>
-            <button type="button" className="auth-ghost" onClick={exitSetup}>Explore as a guest</button>
+            {!sessionUser && <button type="button" className="auth-secondary" onClick={onShowLogin}>I already have an account</button>}
+            <button type="button" className="auth-ghost" onClick={exitSetup}>{sessionUser ? 'Continue later' : 'Explore as a guest'}</button>
           </div>
         </aside>
 
@@ -769,6 +771,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
               <div className="signup-field"><label htmlFor="signup-verification-code">Six-digit confirmation code</label><input id="signup-verification-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} value={verificationCode} onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, ''))} placeholder="000000" /></div>
               <button type="submit" className="auth-primary" disabled={isWorking}>{isWorking ? 'Confirming…' : 'Confirm email'}</button>
               <div className="signup-link-row"><button type="button" className="auth-link" onClick={resendCode} disabled={isWorking}>Send a new code</button><button type="button" className="auth-link subtle" onClick={skipEmailVerification} disabled={isWorking}>Confirm later</button></div>
+              <button type="button" className="auth-ghost signup-continue-later" onClick={exitSetup} disabled={isWorking}>Continue later</button>
             </form>
           )}
 
@@ -787,7 +790,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
                   );
                 })}
               </div>
-              <div className="signup-actions"><button type="button" className="auth-secondary" onClick={() => changeStep(1)} disabled={isWorking}>Back</button><button type="button" className="auth-primary" onClick={saveAudience} disabled={isWorking}>{isWorking ? 'Saving…' : 'Continue'}</button></div>
+              <div className="signup-actions"><button type="button" className="auth-secondary" onClick={() => changeStep(1)} disabled={isWorking}>Back</button><div className="signup-actions-main"><button type="button" className="auth-ghost" onClick={exitSetup} disabled={isWorking}>Continue later</button><button type="button" className="auth-primary" onClick={saveAudience} disabled={isWorking}>{isWorking ? 'Saving…' : 'Continue'}</button></div></div>
             </div>
           )}
 
@@ -805,7 +808,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
                 <UniversitySearch userId={sessionUser?.user_id} selectedIds={selectedCommunityIds} onToggle={toggleCommunity} />
                 {selectedCommunityIds.length > 0 && <div className="signup-selected-schools">{selectedCommunityIds.map((id) => <span key={id}>{selectedCommunities[id]?.name || 'Selected school'}</span>)}</div>}
               </details>
-              <div className="signup-actions"><button type="button" className="auth-secondary" onClick={() => changeStep(2)} disabled={isWorking}>Back</button><button type="button" className="auth-primary" onClick={saveNeeds} disabled={isWorking}>{isWorking ? 'Building your starting point…' : 'Show my starting point'}</button></div>
+              <div className="signup-actions"><button type="button" className="auth-secondary" onClick={() => changeStep(2)} disabled={isWorking}>Back</button><div className="signup-actions-main"><button type="button" className="auth-ghost" onClick={exitSetup} disabled={isWorking}>Continue later</button><button type="button" className="auth-primary" onClick={saveNeeds} disabled={isWorking}>{isWorking ? 'Building your starting point…' : 'Show my starting point'}</button></div></div>
             </div>
           )}
 
