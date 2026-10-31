@@ -22,6 +22,10 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
   const [twoFactorMessage, setTwoFactorMessage] = useState('');
   const [twoFactorError, setTwoFactorError] = useState('');
   const [rememberDevice, setRememberDevice] = useState(true);
+  const [pendingDeletion, setPendingDeletion] = useState(null);
+  const [isHandlingDeletion, setIsHandlingDeletion] = useState(false);
+  const [deletionMessage, setDeletionMessage] = useState('');
+  const [forceDeleteConfirmation, setForceDeleteConfirmation] = useState('');
 
   const handleLoginClick = async (e) => {
     e.preventDefault();
@@ -57,6 +61,13 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
       }
     } catch (err) {
       const payload = err?.response?.data;
+      if (payload?.code === 'account_pending_deletion') {
+        setPendingDeletion(payload.deletion || {});
+        setForceDeleteConfirmation('');
+        setDeletionMessage('');
+        setError('');
+        return;
+      }
       if (payload?.requires_two_factor) {
         setRequiresTwoFactor(true);
         setTwoFactorMessage(payload.message || 'Enter the verification code sent to your email.');
@@ -65,6 +76,28 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
         return;
       }
       setError(payload?.error || 'Server error. Please try again later.');
+    }
+  };
+
+  const handlePendingAccount = async (action) => {
+    if (isHandlingDeletion) return;
+    setIsHandlingDeletion(true);
+    setDeletionMessage('');
+    try {
+      const response = await axios.post('/api/account_lifecycle.php', {
+        action,
+        email: email.trim(),
+        password,
+        confirmation: action === 'force_delete' ? forceDeleteConfirmation : '',
+      }, { withCredentials: true });
+      setPendingDeletion(null);
+      setPassword('');
+      setForceDeleteConfirmation('');
+      setDeletionMessage(response.data?.message || (action === 'recover' ? 'Account restored. Sign in to continue.' : 'Account permanently deleted.'));
+    } catch (requestError) {
+      setDeletionMessage(requestError?.response?.data?.error || 'Unable to complete the account request.');
+    } finally {
+      setIsHandlingDeletion(false);
     }
   };
 
@@ -291,6 +324,20 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
                 Never mind, take me back
               </button>
             </form>
+          ) : pendingDeletion ? (
+            <div className="auth-form account-recovery-panel">
+              <div className="account-recovery-copy">
+                <h3>Account scheduled for deletion</h3>
+                <p>Your profile is hidden and your posts appear under “Deleted User.”</p>
+                <p><strong>{pendingDeletion.days_remaining || 0} day{Number(pendingDeletion.days_remaining) === 1 ? '' : 's'} remain</strong> before personal account data is permanently removed and this email becomes available again.</p>
+              </div>
+              {deletionMessage && <p className="auth-error" role="alert">{deletionMessage}</p>}
+              <button type="button" className="auth-primary" onClick={() => handlePendingAccount('recover')} disabled={isHandlingDeletion}>{isHandlingDeletion ? 'Working…' : 'Recover my account'}</button>
+              <label htmlFor="login-force-delete-confirmation">To permanently delete it now, type <strong>DELETE NOW</strong></label>
+              <input id="login-force-delete-confirmation" type="text" autoComplete="off" value={forceDeleteConfirmation} onChange={(event) => setForceDeleteConfirmation(event.target.value)} disabled={isHandlingDeletion} />
+              <button type="button" className="auth-secondary auth-danger-outline" onClick={() => handlePendingAccount('force_delete')} disabled={isHandlingDeletion || forceDeleteConfirmation !== 'DELETE NOW'}>Permanently delete now</button>
+              <button type="button" className="auth-link" onClick={() => { setPendingDeletion(null); setPassword(''); setDeletionMessage(''); setForceDeleteConfirmation(''); }}>Back to login</button>
+            </div>
           ) : requiresTwoFactor ? (
             <form className="auth-form" onSubmit={handleVerifyTwoFactor}>
               <label htmlFor="two-factor-code">Verification code</label>
@@ -358,6 +405,7 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
               />
 
               {error && <p className="auth-error">{error}</p>}
+              {deletionMessage && <p className="auth-success" role="status">{deletionMessage}</p>}
 
               <button type="submit" className="auth-primary">
                 Log in

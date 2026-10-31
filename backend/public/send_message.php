@@ -39,6 +39,14 @@ if ($sessionUserId !== $sender_id) {
 try {
     $db = getDB();
 
+    $recipientStmt = $db->prepare("SELECT deletion_status FROM users WHERE user_id = :uid LIMIT 1");
+    $recipientStmt->execute([':uid' => $recipient_id]);
+    if ($recipientStmt->fetchColumn() !== 'active') {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'This account is unavailable.']);
+        exit;
+    }
+
     if ($sender_id !== $recipient_id) {
         $settingsStmt = $db->prepare("
             SELECT JSON_UNQUOTE(JSON_EXTRACT(extras, '$.allow_messages_from')) AS allow_messages_from

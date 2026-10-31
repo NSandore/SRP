@@ -178,6 +178,11 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
   const [verificationInstitutionId, setVerificationInstitutionId] = useState('');
   const [staffPosition, setStaffPosition] = useState('');
   const [verificationPending, setVerificationPending] = useState(false);
+  const [pendingDeletedAccount, setPendingDeletedAccount] = useState(null);
+  const [previousAccountPassword, setPreviousAccountPassword] = useState('');
+  const [deletionActionError, setDeletionActionError] = useState('');
+  const [isHandlingDeletion, setIsHandlingDeletion] = useState(false);
+  const [forceDeleteConfirmation, setForceDeleteConfirmation] = useState('');
 
   useEffect(() => {
     onAuthenticatedRef.current = onAuthenticated;
@@ -348,9 +353,45 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
       else if (response.data?.email_sent) setNotice(`We sent a six-digit code to ${user.email}.`);
       else setError('Your account was created, but email delivery is unavailable. Try resending the code shortly.');
     } catch (requestError) {
-      setError(requestError?.response?.data?.error || requestError.message || 'Unable to create account right now.');
+      const payload = requestError?.response?.data;
+      if (payload?.code === 'account_pending_deletion') {
+        setPendingDeletedAccount(payload.deletion || {});
+        setPreviousAccountPassword('');
+        setForceDeleteConfirmation('');
+        setDeletionActionError('');
+        setError('');
+      } else {
+        setError(payload?.error || requestError.message || 'Unable to create account right now.');
+      }
     } finally {
       setIsWorking(false);
+    }
+  };
+
+  const resolveDeletedAccount = async (action) => {
+    if (!previousAccountPassword || isHandlingDeletion) return;
+    setIsHandlingDeletion(true);
+    setDeletionActionError('');
+    try {
+      const response = await axios.post('/api/account_lifecycle.php', {
+        action,
+        email: accountForm.email.trim(),
+        password: previousAccountPassword,
+        confirmation: action === 'force_delete' ? forceDeleteConfirmation : '',
+      }, { withCredentials: true });
+      setPendingDeletedAccount(null);
+      setPreviousAccountPassword('');
+      setForceDeleteConfirmation('');
+      if (action === 'recover') {
+        setNotice(response.data?.message || 'Your previous account was restored. Sign in to continue.');
+      } else {
+        setNotice('Previous account deleted. Creating your new account…');
+        window.setTimeout(() => document.getElementById('signup-account-form')?.requestSubmit(), 0);
+      }
+    } catch (requestError) {
+      setDeletionActionError(requestError?.response?.data?.error || 'Unable to complete the account request.');
+    } finally {
+      setIsHandlingDeletion(false);
     }
   };
 
@@ -709,7 +750,7 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
           {notice && <p className="auth-success" role="status">{notice}</p>}
 
           {step === 0 && (
-            <form className="auth-form signup-account-form" onSubmit={createAccount} noValidate>
+            <form id="signup-account-form" className="auth-form signup-account-form" onSubmit={createAccount} noValidate>
               <p className="signup-form-context">Your name identifies your contributions. Your email is used to secure your account and is not shown publicly by default.</p>
               <div className="auth-input-grid">
                 <div className="signup-field"><label htmlFor="signup-first-name">First name</label><input id="signup-first-name" autoComplete="given-name" value={accountForm.firstName} onChange={(event) => setAccountForm((current) => ({ ...current, firstName: event.target.value }))} required /></div>
@@ -791,6 +832,25 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest }) {
           )}
         </section>
       </div>
+      {pendingDeletedAccount && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pending-account-title">
+          <div className="modal-content signup-deleted-account-modal">
+            <h3 id="pending-account-title">This email belongs to an account awaiting deletion</h3>
+            <p><strong>{pendingDeletedAccount.days_remaining || 0} day{Number(pendingDeletedAccount.days_remaining) === 1 ? '' : 's'} remain</strong> in its recovery window. You can wait, restore the old account, or permanently delete it now and create a new one.</p>
+            <p className="signup-field-help">To prove ownership, enter the password from the previous account.</p>
+            <label htmlFor="previous-account-password">Previous account password</label>
+            <input id="previous-account-password" type="password" autoComplete="current-password" value={previousAccountPassword} onChange={(event) => setPreviousAccountPassword(event.target.value)} disabled={isHandlingDeletion} autoFocus />
+            {deletionActionError && <p className="auth-error" role="alert">{deletionActionError}</p>}
+            <label htmlFor="signup-force-delete-confirmation">To permanently delete it, type <strong>DELETE NOW</strong></label>
+            <input id="signup-force-delete-confirmation" type="text" autoComplete="off" value={forceDeleteConfirmation} onChange={(event) => setForceDeleteConfirmation(event.target.value)} disabled={isHandlingDeletion} />
+            <div className="signup-deleted-account-actions">
+              <button type="button" className="auth-link" onClick={() => { setPendingDeletedAccount(null); setPreviousAccountPassword(''); setDeletionActionError(''); setForceDeleteConfirmation(''); }} disabled={isHandlingDeletion}>Wait until deletion</button>
+              <button type="button" className="auth-secondary" onClick={() => resolveDeletedAccount('recover')} disabled={!previousAccountPassword || isHandlingDeletion}>Recover old account</button>
+              <button type="button" className="auth-primary signup-force-delete" onClick={() => resolveDeletedAccount('force_delete')} disabled={!previousAccountPassword || forceDeleteConfirmation !== 'DELETE NOW' || isHandlingDeletion}>{isHandlingDeletion ? 'Working…' : 'Delete now & create new'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

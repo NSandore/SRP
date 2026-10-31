@@ -28,7 +28,7 @@ production_env=${SRP_PRODUCTION_ENV_FILE:-/home/nick/.config/srp/production.env}
 backup_root=${SRP_BACKUP_DIR:-/home/nick/services/backups/srp/deployments}
 lock_file="$deployment_root/deploy.lock"
 
-install -d -m 0750 "$deployment_root" "$release_root" "$shared_root"
+install -d -m 0750 "$deployment_root" "$release_root" "$shared_root" "$shared_root/logs"
 install -d -m 0700 "$backup_root"
 exec 9>"$lock_file"
 flock -n 9 || { echo "Another StudentSphere deployment is running." >&2; exit 1; }
@@ -133,6 +133,9 @@ SRP_ENV_FILE="$production_env" SRP_BACKUP_DIR="$backup_root" \
 
 if [[ "${SRP_RUN_MIGRATIONS:-false}" == 'true' ]]; then
   SRP_ENV_FILE="$production_env" php "$release_dir/backend/scripts/run_migrations.php"
+elif [[ -f "$release_dir/backend/migrations/20261031_account_deletion.sql" ]]; then
+  SRP_ENV_FILE="$production_env" php "$release_dir/backend/scripts/run_migrations.php" \
+    20261031_account_deletion.sql
 fi
 
 next_link="$deployment_root/.current-$short_sha"
@@ -190,6 +193,18 @@ if [[ "$public_health_ok" != 'true' ]]; then
   fi
   exit 1
 fi
+
+account_deletion_marker='# StudentSphere account deletion purge'
+account_deletion_cron="17 3 * * * SRP_ENV_FILE=$production_env /usr/bin/php $current_link/backend/scripts/purge_deleted_accounts.php >> $shared_root/logs/account-deletion.log 2>&1"
+cron_snapshot=$(mktemp)
+trap 'rm -f -- "$cron_snapshot"' EXIT
+crontab -l > "$cron_snapshot" 2>/dev/null || true
+if ! grep -Fq "$account_deletion_marker" "$cron_snapshot"; then
+  printf '\n%s\n%s\n' "$account_deletion_marker" "$account_deletion_cron" >> "$cron_snapshot"
+  crontab "$cron_snapshot"
+fi
+rm -f -- "$cron_snapshot"
+trap - EXIT
 
 pm2 save
 echo "Activated release: $release_dir"

@@ -54,6 +54,7 @@ try {
               FROM ambassadors a
               JOIN users u ON a.user_id = u.user_id
               WHERE a.community_id IN ($placeholders)
+                AND u.deletion_status = 'active'
               ORDER BY a.added_at ASC";
     
     $stmt = $db->prepare($query);

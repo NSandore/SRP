@@ -53,7 +53,7 @@ try {
             login_count,
             NULL AS community_ambassador_of
         FROM users
-        WHERE user_id = :user_id
+        WHERE user_id = :user_id AND deletion_status = 'active'
         LIMIT 1
     ";
     $stmt = $db->prepare($query);

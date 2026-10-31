@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/onboarding.php';
 require_once __DIR__ . '/../includes/rate_limit.php';
 require_once __DIR__ . '/../includes/email.php';
+require_once __DIR__ . '/../includes/account_deletion.php';
 
 header('Content-Type: application/json');
 
@@ -72,13 +73,30 @@ try {
     srp_ensure_onboarding_tables($db);
     $db->beginTransaction();
 
-    $checkStmt = $db->prepare("SELECT user_id FROM users WHERE email = :email LIMIT 1");
+    $checkStmt = $db->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
     $checkStmt->execute([':email' => $email]);
-    if ($checkStmt->fetchColumn()) {
-        $db->rollBack();
-        http_response_code(409);
-        echo json_encode(['error' => 'Email already registered']);
-        exit;
+    $existingUser = $checkStmt->fetch(PDO::FETCH_ASSOC);
+    if ($existingUser) {
+        if (($existingUser['deletion_status'] ?? 'active') === 'pending') {
+            $summary = srp_account_deletion_summary($existingUser);
+            if (($summary['days_remaining'] ?? 0) <= 0) {
+                srp_purge_account($db, $existingUser, false);
+            } else {
+                $db->rollBack();
+                http_response_code(409);
+                echo json_encode([
+                    'error' => "This account is awaiting deletion. You can recover it or permanently delete it now.",
+                    'code' => 'account_pending_deletion',
+                    'deletion' => $summary,
+                ]);
+                exit;
+            }
+        } else {
+            $db->rollBack();
+            http_response_code(409);
+            echo json_encode(['error' => 'Email already registered']);
+            exit;
+        }
     }
 
     $roleStmt = $db->prepare("

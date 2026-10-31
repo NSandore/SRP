@@ -917,3 +917,44 @@
     transition: none;
   }
 }
+
+.signup-deleted-account-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 620px;
+}
+
+.signup-deleted-account-modal h3,
+.signup-deleted-account-modal p {
+  margin: 0;
+}
+
+.signup-deleted-account-modal label {
+  color: var(--text-color);
+  font-weight: 700;
+}
+
+.signup-deleted-account-modal input {
+  width: 100%;
+}
+
+.signup-deleted-account-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.signup-force-delete {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+@media (max-width: 620px) {
+  .signup-deleted-account-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

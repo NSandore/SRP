@@ -107,6 +107,11 @@ function AccountSettings({ userData, onInterestsUpdated }) {
   const [developmentRefreshConfirmation, setDevelopmentRefreshConfirmation] = useState('');
   const [isRefreshingDevelopment, setIsRefreshingDevelopment] = useState(false);
   const [developmentRefreshError, setDevelopmentRefreshError] = useState('');
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState('');
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const isDevelopmentRuntime = process.env.NODE_ENV === 'development';
   const tabs = useMemo(() => {
     const base = [
@@ -120,7 +125,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
       isSuperAdminUser ? { id: 'ambassador', label: 'Ambassador preview', icon: <FaUsers size={16} /> } : null,
       isSuperAdminUser ? { id: 'admin', label: 'Admin preview', icon: <FaLock size={16} /> } : null,
       { id: 'sessions', label: 'Sessions', icon: <FaShieldAlt size={16} /> },
-      isSuperAdminUser ? { id: 'data', label: 'Data preview', icon: <FaLock size={16} /> } : null,
+      { id: 'data', label: 'Data & account', icon: <FaLock size={16} /> },
     ];
     return base.filter(Boolean);
   }, [isSuperAdminUser, canConnectZoom]);
@@ -130,6 +135,32 @@ function AccountSettings({ userData, onInterestsUpdated }) {
     setStatus(message);
     window.clearTimeout(statusTimerRef.current);
     statusTimerRef.current = window.setTimeout(() => setStatus(''), 1800);
+  };
+
+  const closeDeleteAccountModal = () => {
+    if (isDeletingAccount) return;
+    setShowDeleteAccountModal(false);
+    setDeleteAccountPassword('');
+    setDeleteAccountConfirmation('');
+    setDeleteAccountError('');
+  };
+
+  const requestAccountDeletion = async () => {
+    if (isDeletingAccount || deleteAccountConfirmation !== 'DELETE MY ACCOUNT' || !deleteAccountPassword) return;
+    setIsDeletingAccount(true);
+    setDeleteAccountError('');
+    try {
+      const response = await axios.post('/api/account_lifecycle.php', {
+        action: 'request_deletion',
+        password: deleteAccountPassword,
+        confirmation: deleteAccountConfirmation,
+      }, { withCredentials: true });
+      if (!response.data?.success) throw new Error(response.data?.error || 'Unable to schedule account deletion.');
+      window.location.assign('/');
+    } catch (requestError) {
+      setDeleteAccountError(requestError?.response?.data?.error || requestError.message || 'Unable to schedule account deletion.');
+      setIsDeletingAccount(false);
+    }
   };
 
   const sendTestEmail = async () => {
@@ -1562,30 +1593,30 @@ function AccountSettings({ userData, onInterestsUpdated }) {
         </section>
         )}
 
-        {isSuperAdminUser && activeTab === 'data' && (
+        {activeTab === 'data' && (
         <section className="settings-card full-span">
           <div className="settings-card-heading">
             <div className="settings-card-eyebrow">
               <FaLock size={16} /> Data and controls
             </div>
-            <p>Export or pause your account.</p>
+            <p>Manage your information and account lifecycle.</p>
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Download data <span className="settings-badge hold-badge">On hold</span></div>
+              <div className="setting-label">Download data <span className="settings-badge hold-badge">Coming later</span></div>
               <p className="setting-help">Export posts, messages, and connections as a zip.</p>
             </div>
-            <button type="button" className="pill-button secondary small">
+            <button type="button" className="pill-button secondary small" disabled>
               Generate export
             </button>
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Deactivate account</div>
-              <p className="setting-help">Temporarily hide your profile and content.</p>
+              <div className="setting-label">Delete account</div>
+              <p className="setting-help">Hide your profile now and permanently remove your account after a 30-day recovery period. Your posts remain under “Deleted User.”</p>
             </div>
-            <button type="button" className="pill-button danger small">
-              Deactivate
+            <button type="button" className="pill-button danger small" onClick={() => setShowDeleteAccountModal(true)}>
+              Delete account
             </button>
           </div>
         </section>
@@ -1657,6 +1688,32 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               >
                 {isRefreshingDevelopment ? 'Refreshing…' : 'Replace development data'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteAccountModal && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-account-modal-title">
+          <div className="modal-content account-delete-modal">
+            <div>
+              <span className="settings-badge danger">Destructive action</span>
+              <h3 id="delete-account-modal-title">Schedule account deletion?</h3>
+            </div>
+            <div className="account-delete-summary">
+              <p><strong>Immediately:</strong> You will be signed out, your profile will be hidden, and your posts will show “Deleted User.”</p>
+              <p><strong>For 30 days:</strong> Your email and account data are retained so you can recover the account by signing in.</p>
+              <p><strong>After 30 days:</strong> Personal account data is purged and the email becomes available for a new account. Posts remain anonymized.</p>
+            </div>
+            <label htmlFor="delete-account-password">Current password</label>
+            <input id="delete-account-password" type="password" autoComplete="current-password" value={deleteAccountPassword} onChange={(event) => setDeleteAccountPassword(event.target.value)} disabled={isDeletingAccount} autoFocus />
+            <label htmlFor="delete-account-confirmation">Type <strong>DELETE MY ACCOUNT</strong> to continue</label>
+            <input id="delete-account-confirmation" type="text" autoComplete="off" value={deleteAccountConfirmation} onChange={(event) => setDeleteAccountConfirmation(event.target.value)} disabled={isDeletingAccount} />
+            {deleteAccountError && <p className="error-text" role="alert">{deleteAccountError}</p>}
+            <p className="setting-help">A minimal audit tombstone is retained after purge: the user ID, deletion dates, and a keyed email fingerprint. It does not contain the plaintext email or profile.</p>
+            <div className="form-actions account-delete-actions">
+              <button type="button" className="pill-button secondary" onClick={closeDeleteAccountModal} disabled={isDeletingAccount}>Cancel</button>
+              <button type="button" className="pill-button danger" onClick={requestAccountDeletion} disabled={isDeletingAccount || deleteAccountConfirmation !== 'DELETE MY ACCOUNT' || !deleteAccountPassword}>{isDeletingAccount ? 'Scheduling deletion…' : 'Delete my account'}</button>
             </div>
           </div>
         </div>

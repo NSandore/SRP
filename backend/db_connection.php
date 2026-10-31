@@ -137,6 +137,7 @@ function getIdConfig(): array {
         'educational_experience' => ['prefix' => 'e', 'column' => 'id'],
         'community_admins' => ['prefix' => 'k', 'column' => 'id'],
         'account_settings' => ['prefix' => 's', 'column' => 'id'],
+        'account_deletion_records' => ['prefix' => 'ad', 'column' => 'deletion_id'],
         'followed_communities' => ['prefix' => 'l', 'column' => 'id'],
         'user_follows' => ['prefix' => 'f', 'column' => 'id'],
         'saved_posts' => ['prefix' => 's', 'column' => 'id'],

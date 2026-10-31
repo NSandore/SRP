@@ -15,6 +15,11 @@ php /home/nick/services/srp-server/srp/deploy/clone-development-schema.php \
   --reset-development \
   --include-data
 
+# Production can temporarily lag behind the development branch's schema.
+# Reapply all development migrations after every destructive refresh so the
+# live-edit API always matches the checked-out code.
+SRP_ENV_FILE="$development_env" php /home/nick/services/srp-server/srp/backend/scripts/run_migrations.php
+
 # Copy production media needed to exercise avatars, banners, verification, and
 # reel flows. Do not delete development-only files and never synchronize in the
 # opposite direction.

@@ -399,6 +399,33 @@
   font-size: 0.9rem;
 }
 
+.account-recovery-panel {
+  gap: 14px;
+}
+
+.account-recovery-copy {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.06);
+}
+
+.account-recovery-copy h3,
+.account-recovery-copy p {
+  margin: 0;
+}
+
+.auth-danger-outline {
+  border-color: #dc2626;
+  color: #b91c1c;
+}
+
+[data-theme='dark'] .auth-danger-outline {
+  color: #fca5a5;
+}
+
 @media (max-width: 1024px) {
   .auth-content {
     grid-template-columns: 1fr;

@@ -16,6 +16,7 @@ if [[ -r "$development_env" ]]; then
   echo "Reusing the existing protected development credentials."
   php /home/nick/services/srp-server/srp/deploy/clone-development-schema.php \
     "$production_env" "$development_env" --reset-development
+  SRP_ENV_FILE="$development_env" php /home/nick/services/srp-server/srp/backend/scripts/run_migrations.php
   install -d -m 0700 /home/nick/.local/share/srp-development/uploads
   echo "Development database and environment are ready."
   exit 0
@@ -56,6 +57,7 @@ chmod 0600 "$development_env"
 
 php /home/nick/services/srp-server/srp/deploy/clone-development-schema.php \
   "$production_env" "$development_env" --reset-development
+SRP_ENV_FILE="$development_env" php /home/nick/services/srp-server/srp/backend/scripts/run_migrations.php
 
 install -d -m 0700 /home/nick/.local/share/srp-development/uploads
 echo "Development database and environment are ready."

@@ -43,6 +43,7 @@ try {
               JOIN users u ON a.user_id = u.user_id
               LEFT JOIN account_settings s ON s.user_id = u.user_id
               WHERE a.community_id = :community_id
+                AND u.deletion_status = 'active'
               ORDER BY a.added_at ASC";
     $aStmt = $db->prepare($aQuery);
     $aStmt->execute([':community_id' => $community_id]);
