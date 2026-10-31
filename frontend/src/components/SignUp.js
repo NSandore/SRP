@@ -17,6 +17,8 @@ import {
   AUDIENCE_OPTIONS,
   NEED_OPTIONS,
   ambassadorMessageDestination,
+  communityResultsDestination,
+  mergeAmbassadorsByUser,
   recommendAmbassador,
   getAmbassadorSpecialtyLabel,
   needsForTags,
@@ -25,6 +27,7 @@ import {
   tagsForNeeds,
 } from './signupOptions';
 import { getPasswordLengthError } from '../utils/passwordValidation';
+import AmbassadorSpecialtyBadges from './AmbassadorSpecialtyBadges';
 
 const INFO_COMMUNITY_ID = 'c57b7fd6c45b9d57b';
 const MAX_NEEDS = 8;
@@ -172,6 +175,8 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
   const [selectedCommunities, setSelectedCommunities] = useState({});
   const [recommendations, setRecommendations] = useState([]);
   const [recommendedAmbassador, setRecommendedAmbassador] = useState(null);
+  const [communityAmbassadors, setCommunityAmbassadors] = useState([]);
+  const [showAmbassadorList, setShowAmbassadorList] = useState(false);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
 
   const [verificationMethod, setVerificationMethod] = useState('id_photo');
@@ -283,29 +288,40 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
     resultsRequestRef.current = true;
     setIsLoadingResults(true);
     try {
-      const primaryCommunityId = selectedCommunityIds[0] || '';
-      const requests = [axios.get('/api/fetch_knowledge_base_articles.php', {
+      const articleRequest = axios.get('/api/fetch_knowledge_base_articles.php', {
         params: { community_id: INFO_COMMUNITY_ID, user_id: sessionUser.user_id },
         withCredentials: true,
-      })];
-      if (primaryCommunityId) {
-        requests.push(axios.get('/api/fetch_ambassador_list.php', {
-          params: { community_id: primaryCommunityId },
+      });
+      const ambassadorRequests = selectedCommunityIds.map((communityId) =>
+        axios.get('/api/fetch_ambassador_list.php', {
+          params: { community_id: communityId },
           withCredentials: true,
-        }));
-      }
-      const [articlesResponse, ambassadorResponse] = await Promise.all(requests);
+        })
+      );
+      const [articlesResponse, ambassadorResults] = await Promise.all([
+        articleRequest,
+        Promise.allSettled(ambassadorRequests),
+      ]);
       const articles = Array.isArray(articlesResponse.data?.articles) ? articlesResponse.data.articles : [];
       setRecommendations(rankGuideRecommendations(articles, selectedNeeds, 3));
-      const ambassadors = Array.isArray(ambassadorResponse?.data?.ambassadors) ? ambassadorResponse.data.ambassadors : [];
+      const ambassadors = mergeAmbassadorsByUser(ambassadorResults.flatMap((result, index) => {
+        if (result.status !== 'fulfilled') return [];
+        const response = result.value;
+        const communityId = selectedCommunityIds[index];
+        const communityName = selectedCommunities[communityId]?.name || 'Selected community';
+        const rows = Array.isArray(response?.data?.ambassadors) ? response.data.ambassadors : [];
+        return rows.map((ambassador) => ({ ...ambassador, community_name: communityName }));
+      }));
+      setCommunityAmbassadors(ambassadors);
       setRecommendedAmbassador(recommendAmbassador(ambassadors, selectedNeeds));
     } catch (resultsError) {
       setRecommendations([]);
       setRecommendedAmbassador(null);
+      setCommunityAmbassadors([]);
     } finally {
       setIsLoadingResults(false);
     }
-  }, [selectedCommunityIds, selectedNeeds, sessionUser?.user_id]);
+  }, [selectedCommunities, selectedCommunityIds, selectedNeeds, sessionUser?.user_id]);
 
   useEffect(() => {
     if (step === 9 && !verificationMode) loadPersonalizedResults();
@@ -829,9 +845,58 @@ function SignUp({ onAuthenticated, onShowLogin, onContinueAsGuest, onOnboardingC
                     </div>
                   </section>
                   <div className="signup-next-step-grid">
-                    <section className="signup-next-step-card"><FaUniversity aria-hidden /><span><small>Explore a community</small><strong>{selectedCommunities[selectedCommunityIds[0]]?.name || 'Find your school or program'}</strong><p>See questions, lived experience, events, and community resources.</p></span><button type="button" className="auth-link" onClick={() => finishAndNavigate('/communities')}>Browse communities</button></section>
-                    <section className="signup-next-step-card signup-next-step-card--people"><FaUsers aria-hidden /><span><small>Trusted people</small><strong>{recommendedAmbassador ? `${recommendedAmbassador.first_name} ${recommendedAmbassador.last_name}` : 'Find someone who understands'}</strong>{recommendedAmbassador && <span className="signup-specialty-badges">{recommendedAmbassador.ambassador_specialties.filter((specialty) => tagsForNeeds(selectedNeeds).includes(specialty)).slice(0, 2).map((specialty) => <span key={specialty}>{getAmbassadorSpecialtyLabel(specialty)}</span>)}</span>}<p>{recommendedAmbassador ? `${recommendedAmbassador.headline || 'Community ambassador'} opted in to questions about these topics.` : 'Browse ambassadors by specialty. You will only be directed to people who have opted in to questions.'}</p></span><button type="button" className="auth-link" onClick={() => finishAndNavigate(ambassadorMessageDestination(recommendedAmbassador))}>{recommendedAmbassador ? `Ask ${recommendedAmbassador.first_name}` : 'Browse ambassadors'}</button></section>
+                    <section className="signup-next-step-card">
+                      <FaUniversity aria-hidden />
+                      <span>
+                        <small>Explore {selectedCommunityIds.length > 1 ? 'your communities' : 'a community'}</small>
+                        <strong>{selectedCommunityIds.length > 1 ? `${selectedCommunityIds.length} followed communities` : selectedCommunities[selectedCommunityIds[0]]?.name || 'Find your school or program'}</strong>
+                        <p>See questions, lived experience, events, and community resources.</p>
+                      </span>
+                      <button type="button" className="auth-link" onClick={() => finishAndNavigate(communityResultsDestination(selectedCommunityIds))}>
+                        {selectedCommunityIds.length === 1 ? 'Open community' : selectedCommunityIds.length > 1 ? 'View followed communities' : 'Browse communities'}
+                      </button>
+                    </section>
+                    <section className="signup-next-step-card signup-next-step-card--people">
+                      <FaUsers aria-hidden />
+                      <span>
+                        <small>Trusted people</small>
+                        <strong>{recommendedAmbassador ? `${recommendedAmbassador.first_name} ${recommendedAmbassador.last_name}` : `${communityAmbassadors.length || 'No'} ambassador${communityAmbassadors.length === 1 ? '' : 's'} from your communities`}</strong>
+                        {recommendedAmbassador && <span className="signup-specialty-badges">{recommendedAmbassador.ambassador_specialties.filter((specialty) => tagsForNeeds(selectedNeeds).includes(specialty)).slice(0, 2).map((specialty) => <span key={specialty}>{getAmbassadorSpecialtyLabel(specialty)}</span>)}</span>}
+                        <p>{recommendedAmbassador ? `${recommendedAmbassador.headline || 'Community ambassador'} opted in to questions about these topics.` : communityAmbassadors.length ? 'Browse people from your selected communities and compare their specialties.' : 'There are no ambassadors in your selected communities yet.'}</p>
+                      </span>
+                      <div className="signup-people-actions">
+                        {recommendedAmbassador && <button type="button" className="auth-link" onClick={() => finishAndNavigate(ambassadorMessageDestination(recommendedAmbassador))}>Ask {recommendedAmbassador.first_name}</button>}
+                        {communityAmbassadors.length > 0 && <button type="button" className="auth-link subtle" onClick={() => setShowAmbassadorList((visible) => !visible)} aria-expanded={showAmbassadorList}>{showAmbassadorList ? 'Hide ambassador list' : `Browse all ${communityAmbassadors.length}`}</button>}
+                      </div>
+                    </section>
                   </div>
+                  {showAmbassadorList && communityAmbassadors.length > 0 && (
+                    <section className="signup-ambassador-list" aria-labelledby="signup-ambassadors-title">
+                      <div className="signup-result-heading">
+                        <div><span>Your communities</span><h3 id="signup-ambassadors-title">Ambassadors you can connect with</h3></div>
+                      </div>
+                      <div className="signup-ambassador-grid">
+                        {communityAmbassadors.map((ambassador) => {
+                          const acceptingQuestions = ambassador.ambassador_accepting_questions !== false;
+                          return (
+                            <article key={ambassador.user_id} className="signup-ambassador-card">
+                              <div>
+                                <strong>{ambassador.first_name} {ambassador.last_name}</strong>
+                                <small>{ambassador.community_names.join(' · ')}</small>
+                                <p>{ambassador.headline || 'Community ambassador'}</p>
+                                <AmbassadorSpecialtyBadges specialties={ambassador.ambassador_specialties} limit={4} />
+                              </div>
+                              {acceptingQuestions ? (
+                                <button type="button" className="auth-link" onClick={() => finishAndNavigate(ambassadorMessageDestination(ambassador))}>Ask a question</button>
+                              ) : (
+                                <span className="signup-ambassador-unavailable">Not taking new questions</span>
+                              )}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
                   <div className="signup-completion-note"><FaShieldAlt aria-hidden /><p>Profile details and student or staff verification can be completed later from Account Settings.</p></div>
                   <button type="button" className="auth-primary signup-finish" onClick={() => finishAndNavigate('/home')} disabled={isWorking}>{isWorking ? 'Opening StudentSphere…' : 'Go to my home'}</button>
                 </>

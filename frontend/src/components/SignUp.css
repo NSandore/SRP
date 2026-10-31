@@ -655,6 +655,83 @@
   justify-self: start;
 }
 
+.signup-people-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.signup-ambassador-list {
+  border: 1px solid var(--signup-line);
+  border-radius: 14px;
+  padding: 1rem;
+  background: #fff;
+}
+
+.signup-ambassador-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.signup-ambassador-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  min-width: 0;
+  border: 1px solid var(--signup-line);
+  border-radius: 12px;
+  padding: 0.85rem;
+  background: #f8faff;
+}
+
+.signup-ambassador-card > div {
+  min-width: 0;
+}
+
+.signup-ambassador-card strong,
+.signup-ambassador-card small,
+.signup-ambassador-card p {
+  display: block;
+}
+
+.signup-ambassador-card strong {
+  color: var(--signup-navy);
+  font-size: 0.88rem;
+}
+
+.signup-ambassador-card small {
+  margin-top: 0.18rem;
+  color: var(--signup-blue);
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.signup-ambassador-card p {
+  margin-top: 0.35rem;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.signup-ambassador-card .auth-link {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.signup-ambassador-unavailable {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+  color: #677892;
+  background: #e9eef6;
+  font-size: 0.68rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
 .signup-completion-note,
 .signup-privacy-note {
   display: flex;
@@ -819,6 +896,12 @@
   background: linear-gradient(140deg, #172441, #251f4a);
 }
 
+[data-theme='dark'] .signup-ambassador-list,
+[data-theme='dark'] .signup-ambassador-card {
+  background: #10243c;
+  border-color: #31506f;
+}
+
 [data-theme='dark'] .signup-form-context {
   color: #aebdd3;
 }
@@ -896,6 +979,7 @@
   .signup-choice-grid,
   .signup-needs-grid,
   .signup-next-step-grid,
+  .signup-ambassador-grid,
   .signup-upload-grid {
     grid-template-columns: 1fr;
   }
@@ -937,6 +1021,14 @@
 
   .signup-next-step-card .auth-link {
     grid-column: 1 / -1;
+  }
+
+  .signup-people-actions {
+    grid-column: 1 / -1;
+  }
+
+  .signup-ambassador-card {
+    flex-direction: column;
   }
 }
 

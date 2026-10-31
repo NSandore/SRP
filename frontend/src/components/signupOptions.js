@@ -127,6 +127,40 @@ export const ambassadorMessageDestination = (ambassador) => {
   return userId ? `/messages?user=${encodeURIComponent(userId)}` : '/communities';
 };
 
+export const communityResultsDestination = (communityIds = []) => {
+  const ids = communityIds.map((value) => String(value || '').trim()).filter(Boolean);
+  if (ids.length === 1) return `/university/${encodeURIComponent(ids[0])}`;
+  if (ids.length > 1) return '/communities?kind=university&scope=followed';
+  return '/communities?kind=university&scope=all';
+};
+
+export const mergeAmbassadorsByUser = (ambassadors = []) => {
+  const merged = new Map();
+  ambassadors.forEach((ambassador) => {
+    const userId = String(ambassador?.user_id || '').trim();
+    if (!userId) return;
+    const existing = merged.get(userId);
+    if (!existing) {
+      merged.set(userId, {
+        ...ambassador,
+        ambassador_specialties: Array.from(new Set(ambassador.ambassador_specialties || [])),
+        community_names: ambassador.community_name ? [ambassador.community_name] : [],
+      });
+      return;
+    }
+    existing.ambassador_specialties = Array.from(new Set([
+      ...existing.ambassador_specialties,
+      ...(ambassador.ambassador_specialties || []),
+    ]));
+    if (ambassador.community_name && !existing.community_names.includes(ambassador.community_name)) {
+      existing.community_names.push(ambassador.community_name);
+    }
+    existing.ambassador_accepting_questions =
+      existing.ambassador_accepting_questions || ambassador.ambassador_accepting_questions;
+  });
+  return Array.from(merged.values());
+};
+
 export const rankGuideRecommendations = (articles = [], needValues = [], limit = 3) => {
   const keywords = NEED_OPTIONS
     .filter((option) => needValues.includes(option.value))

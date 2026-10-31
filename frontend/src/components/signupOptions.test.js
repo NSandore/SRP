@@ -1,5 +1,7 @@
 import {
   ambassadorMessageDestination,
+  communityResultsDestination,
+  mergeAmbassadorsByUser,
   recommendAmbassador,
   needsForTags,
   primaryRoleForAudiences,
@@ -47,5 +49,21 @@ describe('signup onboarding options', () => {
     ];
     expect(recommendAmbassador(ambassadors, ['applying'])?.user_id).toBe('u-admissions');
     expect(recommendAmbassador(ambassadors, ['wellbeing'])).toBeNull();
+  });
+
+  test('opens one selected school directly and multiple schools in Followed communities', () => {
+    expect(communityResultsDestination(['c-one'])).toBe('/university/c-one');
+    expect(communityResultsDestination(['c-one', 'c-two'])).toBe('/communities?kind=university&scope=followed');
+    expect(communityResultsDestination([])).toBe('/communities?kind=university&scope=all');
+  });
+
+  test('merges duplicate ambassadors across selected communities', () => {
+    const merged = mergeAmbassadorsByUser([
+      { user_id: 'u-one', community_name: 'North College', ambassador_specialties: ['applications'] },
+      { user_id: 'u-one', community_name: 'South College', ambassador_specialties: ['financial-aid'] },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].community_names).toEqual(['North College', 'South College']);
+    expect(merged[0].ambassador_specialties).toEqual(['applications', 'financial-aid']);
   });
 });
