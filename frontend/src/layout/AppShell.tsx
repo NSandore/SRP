@@ -7,7 +7,7 @@ import { ProfileContactProvider } from '../context/ProfileContactContext';
 import NavBar from '../components/NavBar';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { isSuperAdmin } from '../constants/roles';
+import { isAdmin, isSuperAdmin } from '../constants/roles';
 import OnboardingBanner from '../components/OnboardingBanner';
 
 type NavBarProps = any; // Narrow types later as needed
@@ -34,6 +34,7 @@ export default function AppShell({
   const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
   const [pendingReportCount, setPendingReportCount] = useState(0);
   const [pendingConnectionCount, setPendingConnectionCount] = useState(0);
+  const [pendingKnowledgeGapCount, setPendingKnowledgeGapCount] = useState(0);
   const location = useLocation();
   const pathname = location.pathname;
   const isWideLayout =
@@ -79,6 +80,7 @@ export default function AppShell({
     '/terms',
     '/admin/changelog',
     '/admin/institutions',
+    '/admin/knowledge-gaps',
   ];
   const isNoRightRailRoute =
     isHomeRoute ||
@@ -99,12 +101,14 @@ export default function AppShell({
           setPendingVerificationCount(0);
           setPendingReportCount(0);
           setPendingConnectionCount(0);
+          setPendingKnowledgeGapCount(0);
         }
         return;
       }
 
       const canReviewVerifications = isSuperAdmin(userData?.role_id);
       const canReviewReports = canReviewVerifications || Number(userData?.is_ambassador) === 1;
+      const canReviewKnowledgeGaps = isAdmin(userData?.role_id) || Number(userData?.is_ambassador) === 1;
       const requests = [
         axios.get('/api/fetch_connection_request_count.php', { withCredentials: true }),
         canReviewVerifications
@@ -113,8 +117,11 @@ export default function AppShell({
         canReviewReports
           ? axios.get('/api/fetch_reported_item_count.php', { withCredentials: true })
           : Promise.resolve(null),
+        canReviewKnowledgeGaps
+          ? axios.get('/api/fetch_knowledge_gap_count.php', { withCredentials: true })
+          : Promise.resolve(null),
       ];
-      const [connectionsResult, verificationsResult, reportsResult] = await Promise.allSettled(requests);
+      const [connectionsResult, verificationsResult, reportsResult, knowledgeGapsResult] = await Promise.allSettled(requests);
       if (cancelled) return;
 
       setPendingConnectionCount(
@@ -130,6 +137,11 @@ export default function AppShell({
       setPendingReportCount(
         reportsResult.status === 'fulfilled'
           ? Number(reportsResult.value?.data?.pending_count || 0)
+          : 0
+      );
+      setPendingKnowledgeGapCount(
+        knowledgeGapsResult.status === 'fulfilled'
+          ? Number(knowledgeGapsResult.value?.data?.pending_count || 0)
           : 0
       );
     };
@@ -180,6 +192,7 @@ export default function AppShell({
           pendingVerificationCount={pendingVerificationCount}
           pendingReportCount={pendingReportCount}
           pendingConnectionCount={pendingConnectionCount}
+          pendingKnowledgeGapCount={pendingKnowledgeGapCount}
           onNavigate={() => setDrawerOpen(false)}
         />
       </aside>
@@ -201,6 +214,7 @@ export default function AppShell({
               pendingVerificationCount={pendingVerificationCount}
               pendingReportCount={pendingReportCount}
               pendingConnectionCount={pendingConnectionCount}
+              pendingKnowledgeGapCount={pendingKnowledgeGapCount}
               onToggle={() => setSidebarCollapsed((prev) => !prev)}
             />
           </div>

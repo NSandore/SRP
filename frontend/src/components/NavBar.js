@@ -340,6 +340,8 @@ function NavBar({
         return notif?.reference_id ? `/admin/verifications?request_id=${notif.reference_id}` : '/admin/verifications';
       case 'verification_result':
         return '/profile';
+      case 'knowledge_gap':
+        return '/admin/knowledge-gaps';
       case 'event':
         return notif?.reference_id ? `/events-feed?event=${encodeURIComponent(notif.reference_id)}` : '/events-feed';
       default:

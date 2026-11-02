@@ -16,7 +16,7 @@ following is true:
 
 Positive feedback remains in `content_resolution_feedback` for measurement but
 does not create an administrative work item. Existing unresolved feedback is
-backfilled by `20261102_knowledge_gaps.sql`.
+backfilled by `20261103_knowledge_gaps.sql`.
 
 ## Privacy boundary
 
@@ -33,8 +33,19 @@ private details into public answers.
 ## Access and workflow
 
 Global administrators and super administrators can open
-`/admin/knowledge-gaps` and can be selected as assignees. Global moderators do
-not receive dashboard access in the first release.
+`/admin/knowledge-gaps`, review every community, assign eligible administrators
+or community ambassadors, add private administrator notes, and make the final
+resolved decision.
+
+Ambassadors can open the same route, but the backend restricts their queue to
+communities where they have an active ambassador record. They can claim an
+unassigned gap for themselves, add contributor notes and a proposed resolution
+link, and move it to `Ready for review`. They cannot see global administrator
+notes, assign work to another person, access another community's gaps, or mark
+a gap resolved. A gap already assigned to someone else is read-only to them.
+
+Global moderators do not receive dashboard access unless they are also an
+ambassador for the relevant community.
 
 The review dashboard is intentionally web-only in this release because it is
 an administrative workspace. No public mobile navigation is added or removed;
@@ -45,11 +56,19 @@ Each gap moves through:
 
 1. `Open`
 2. `In progress`
-3. `Resolved`
+3. `Ready for review`
+4. `Resolved`
 
-Reviewers can assign an authorized team member, record internal resolution
-notes, and link the updated StudentSphere answer or an authoritative external
-resource. Reporter identity is not displayed.
+Ambassadors contribute the proposed improvement, while global administrators
+retain final review authority. Reporter identity is not displayed at either
+level.
+
+The sidebar shows the number of unresolved gaps available within the viewer's
+authorized scope. In-app notifications are sent when work is assigned, when an
+ambassador submits a proposed resolution for review, when it is returned for
+another update, and when it is marked resolved. A weekly digest is deliberately
+not part of this release; scheduling and per-user digest preferences need a
+separate design.
 
 ## Current scope
 

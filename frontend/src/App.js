@@ -642,6 +642,7 @@ function App() {
   const testControlsEnabled = shouldShowOverlays && hasTestControls(userData?.email);
   const isSuperAdminUser = isSuperAdmin(userData?.role_id);
   const isAdminUser = isAdmin(userData?.role_id);
+  const canReviewKnowledgeGaps = isAdminUser || Number(userData?.is_ambassador) === 1;
 
   return (
     <div className={`app-container ${isAuthPage ? 'auth-page' : ''}`}>
@@ -1105,7 +1106,7 @@ function App() {
                 <Route
                   path="/admin/knowledge-gaps"
                   element={
-                    isAdminUser ? (
+                    canReviewKnowledgeGaps ? (
                       <KnowledgeGapsDashboard userData={userData} />
                     ) : (
                       <AuthOverlay

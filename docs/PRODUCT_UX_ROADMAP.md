@@ -282,7 +282,7 @@ platform.
   - Topics with outdated guidance
   - Questions repeatedly redirected elsewhere
   - Users reporting that they still do not know what to do
-- [ ] Build a dashboard for authorized ambassadors, staff, and administrators.
+- [x] Build a dashboard for authorized ambassadors, staff, and administrators.
 - [ ] Rank gaps by frequency, urgency, affected audience, and age.
 - [ ] Allow an authorized person to claim a gap, publish an answer/resource, and
   mark the gap resolved.

@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   CheckCircle2,
   CircleAlert,
+  ClipboardCheck,
   Clock3,
   LockKeyhole,
   Search,
@@ -17,6 +18,7 @@ import './KnowledgeGapsDashboard.css';
 const STATUS_LABELS = {
   open: 'Open',
   in_progress: 'In progress',
+  ready_for_review: 'Ready for review',
   resolved: 'Resolved',
 };
 
@@ -45,13 +47,16 @@ const formatDate = (value) => {
 };
 
 function KnowledgeGapsDashboard({ userData }) {
-  const allowed = isAdmin(userData?.role_id);
+  const isGlobalAdmin = isAdmin(userData?.role_id);
+  const isAmbassadorUser = Number(userData?.is_ambassador) === 1;
+  const allowed = isGlobalAdmin || isAmbassadorUser;
   const [statusFilter, setStatusFilter] = useState('open');
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
   const [gaps, setGaps] = useState([]);
-  const [counts, setCounts] = useState({ open: 0, in_progress: 0, resolved: 0 });
+  const [counts, setCounts] = useState({ open: 0, in_progress: 0, ready_for_review: 0, resolved: 0 });
   const [assignees, setAssignees] = useState([]);
+  const [viewerScope, setViewerScope] = useState(isGlobalAdmin ? 'global_admin' : 'ambassador');
   const [selectedId, setSelectedId] = useState('');
   const [draft, setDraft] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -70,8 +75,9 @@ function KnowledgeGapsDashboard({ userData }) {
       });
       const nextGaps = Array.isArray(data.gaps) ? data.gaps : [];
       setGaps(nextGaps);
-      setCounts(data.counts || { open: 0, in_progress: 0, resolved: 0 });
+      setCounts(data.counts || { open: 0, in_progress: 0, ready_for_review: 0, resolved: 0 });
       setAssignees(Array.isArray(data.assignees) ? data.assignees : []);
+      setViewerScope(data.viewer_scope || (isGlobalAdmin ? 'global_admin' : 'ambassador'));
       const nextId = preferredId && nextGaps.some((gap) => gap.gap_id === preferredId)
         ? preferredId
         : nextGaps[0]?.gap_id || '';
@@ -83,7 +89,7 @@ function KnowledgeGapsDashboard({ userData }) {
     } finally {
       setLoading(false);
     }
-  }, [allowed, appliedQuery, statusFilter]);
+  }, [allowed, appliedQuery, isGlobalAdmin, statusFilter]);
 
   useEffect(() => { loadGaps(); }, [loadGaps]);
 
@@ -100,24 +106,26 @@ function KnowledgeGapsDashboard({ userData }) {
     setDraft({
       status: selected.status,
       assigned_to: selected.assigned_to || '',
+      contributor_notes: selected.contributor_notes || '',
       admin_notes: selected.admin_notes || '',
       resolution_url: selected.resolution_url || '',
     });
     setMessage('');
   }, [selected]);
 
-  const saveGap = async () => {
-    if (!selected || !draft) return;
+  const submitUpdate = async (nextDraft, successMessage = '') => {
+    if (!selected || !nextDraft) return;
     setSaving(true);
     setError('');
     setMessage('');
     try {
       const { data } = await axios.post(
         buildApiUrl('/api/update_knowledge_gap.php'),
-        { gap_id: selected.gap_id, ...draft },
+        { gap_id: selected.gap_id, ...nextDraft },
         { withCredentials: true }
       );
-      setMessage(data.message || 'Knowledge gap updated.');
+      setMessage(successMessage || data.message || 'Knowledge gap updated.');
+      window.dispatchEvent(new Event('sidebarCountsUpdated'));
       await loadGaps(selected.gap_id);
     } catch (requestError) {
       setError(requestError.response?.data?.error || 'Unable to update this knowledge gap.');
@@ -126,18 +134,43 @@ function KnowledgeGapsDashboard({ userData }) {
     }
   };
 
-  if (!userData) return <div className="knowledge-gaps__gate">Log in to review knowledge gaps.</div>;
-  if (!allowed) return <div className="knowledge-gaps__gate">Only authorized administrators can review knowledge gaps.</div>;
+  const saveGap = () => submitUpdate(draft);
 
-  const total = Number(counts.open || 0) + Number(counts.in_progress || 0) + Number(counts.resolved || 0);
+  const claimGap = () => {
+    if (!draft) return;
+    const claimedDraft = { ...draft, assigned_to: userData.user_id, status: 'in_progress' };
+    setDraft(claimedDraft);
+    submitUpdate(claimedDraft, 'This knowledge gap is now assigned to you.');
+  };
+
+  const submitForReview = () => {
+    if (!draft) return;
+    const reviewDraft = { ...draft, assigned_to: userData.user_id, status: 'ready_for_review' };
+    setDraft(reviewDraft);
+    submitUpdate(reviewDraft, 'Your proposed resolution is ready for administrator review.');
+  };
+
+  if (!userData) return <div className="knowledge-gaps__gate">Log in to review knowledge gaps.</div>;
+  if (!allowed) return <div className="knowledge-gaps__gate">Only authorized administrators and community ambassadors can review knowledge gaps.</div>;
+
+  const total = Number(counts.open || 0) + Number(counts.in_progress || 0) + Number(counts.ready_for_review || 0) + Number(counts.resolved || 0);
+  const ambassadorView = viewerScope === 'ambassador';
+  const assignedToViewer = selected && String(selected.assigned_to || '') === String(userData?.user_id || '');
+  const assignedToAnother = selected && selected.assigned_to && !assignedToViewer;
+  const canContribute = isGlobalAdmin || assignedToViewer;
+  const availableAssignees = selected
+    ? assignees.filter((person) => Number(person.role_id) >= 4 || (person.community_ids || []).includes(selected.community_id))
+    : assignees;
 
   return (
     <main className="knowledge-gaps">
       <header className="knowledge-gaps__header">
         <div>
           <p className="knowledge-gaps__eyebrow">Gap-closing operations</p>
-          <h1>Knowledge gaps</h1>
-          <p>Turn unresolved feedback into clearer answers and practical next steps.</p>
+          <h1>{ambassadorView ? 'Community knowledge gaps' : 'Knowledge gaps'}</h1>
+          <p>{ambassadorView
+            ? 'Improve guidance for the communities you represent and send proposed resolutions for review.'
+            : 'Turn unresolved feedback into clearer answers and practical next steps.'}</p>
         </div>
         <div className="knowledge-gaps__privacy">
           <LockKeyhole size={18} aria-hidden="true" />
@@ -150,6 +183,7 @@ function KnowledgeGapsDashboard({ userData }) {
           ['all', 'All gaps', total, CircleAlert],
           ['open', 'Open', counts.open, CircleAlert],
           ['in_progress', 'In progress', counts.in_progress, Clock3],
+          ['ready_for_review', 'Ready for review', counts.ready_for_review, ClipboardCheck],
           ['resolved', 'Resolved', counts.resolved, CheckCircle2],
         ].map(([key, label, value, Icon]) => (
           <button
@@ -261,42 +295,68 @@ function KnowledgeGapsDashboard({ userData }) {
               <div className="knowledge-gaps__form-grid">
                 <label>
                   <span>Status</span>
-                  <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>
+                  <select disabled={!canContribute} value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>
                     <option value="open">Open</option>
                     <option value="in_progress">In progress</option>
-                    <option value="resolved">Resolved</option>
+                    <option value="ready_for_review">Ready for review</option>
+                    {isGlobalAdmin ? <option value="resolved">Resolved</option> : null}
                   </select>
                 </label>
-                <label>
-                  <span><UserRoundCheck size={16} aria-hidden="true" /> Assigned to</span>
-                  <select value={draft.assigned_to} onChange={(event) => setDraft({ ...draft, assigned_to: event.target.value })}>
-                    <option value="">Unassigned</option>
-                    {assignees.map((person) => (
-                      <option key={person.user_id} value={person.user_id}>
-                        {person.first_name} {person.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {isGlobalAdmin ? (
+                  <label>
+                    <span><UserRoundCheck size={16} aria-hidden="true" /> Assigned to</span>
+                    <select value={draft.assigned_to} onChange={(event) => setDraft({ ...draft, assigned_to: event.target.value })}>
+                      <option value="">Unassigned</option>
+                      {availableAssignees.map((person) => (
+                        <option key={person.user_id} value={person.user_id}>
+                          {person.first_name} {person.last_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <div className="knowledge-gaps__assignment">
+                    <span><UserRoundCheck size={16} aria-hidden="true" /> Assignment</span>
+                    {!selected.assigned_to ? <button type="button" onClick={claimGap} disabled={saving}>Claim this gap</button> : null}
+                    {assignedToViewer ? <strong>Assigned to you</strong> : null}
+                    {assignedToAnother ? <strong>Assigned to {selected.assignee_first_name} {selected.assignee_last_name}</strong> : null}
+                  </div>
+                )}
               </div>
 
               <label className="knowledge-gaps__field">
-                <span>Resolution notes</span>
+                <span>Contributor notes</span>
                 <textarea
                   rows={4}
                   maxLength={1000}
-                  value={draft.admin_notes}
-                  onChange={(event) => setDraft({ ...draft, admin_notes: event.target.value })}
-                  placeholder="Describe what needs to change, who owns it, or why the existing guidance is sufficient."
+                  disabled={!canContribute}
+                  value={draft.contributor_notes}
+                  onChange={(event) => setDraft({ ...draft, contributor_notes: event.target.value })}
+                  placeholder="Describe what should change or what you added to make this guidance more useful."
                 />
-                <small>{draft.admin_notes.length}/1000</small>
+                <small>{draft.contributor_notes.length}/1000</small>
               </label>
+
+              {isGlobalAdmin ? (
+                <label className="knowledge-gaps__field">
+                  <span>Administrator review notes</span>
+                  <textarea
+                    rows={3}
+                    maxLength={1000}
+                    value={draft.admin_notes}
+                    onChange={(event) => setDraft({ ...draft, admin_notes: event.target.value })}
+                    placeholder="Add private review context for other global administrators."
+                  />
+                  <small>{draft.admin_notes.length}/1000</small>
+                </label>
+              ) : null}
 
               <label className="knowledge-gaps__field">
                 <span>Resolution link <em>Optional</em></span>
                 <input
                   type="text"
                   maxLength={500}
+                  disabled={!canContribute}
                   value={draft.resolution_url}
                   onChange={(event) => setDraft({ ...draft, resolution_url: event.target.value })}
                   placeholder="Link to the updated answer or resource"
@@ -305,7 +365,14 @@ function KnowledgeGapsDashboard({ userData }) {
 
               <div className="knowledge-gaps__actions">
                 <p>Updated {formatDate(selected.updated_at)}{selected.assignee_first_name ? ` · Assigned to ${selected.assignee_first_name} ${selected.assignee_last_name}` : ''}</p>
-                <button type="button" onClick={saveGap} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
+                <div className="knowledge-gaps__action-buttons">
+                  {ambassadorView && assignedToViewer && draft.status !== 'ready_for_review' ? (
+                    <button type="button" className="knowledge-gaps__review-button" onClick={submitForReview} disabled={saving}>
+                      Submit for review
+                    </button>
+                  ) : null}
+                  {canContribute ? <button type="button" onClick={saveGap} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button> : null}
+                </div>
               </div>
             </>
           )}

@@ -47,6 +47,7 @@ function LeftSidebar({
   pendingVerificationCount = 0,
   pendingReportCount = 0,
   pendingConnectionCount = 0,
+  pendingKnowledgeGapCount = 0,
   onToggle = undefined,
   onNavigate = undefined,
 }) {
@@ -72,7 +73,7 @@ function LeftSidebar({
           { to: '/admin/changelog', labelKey: 'nav.changelog', Icon: Megaphone, color: '#A855F7', key: 'changelog', sectionKey: 'nav.manage' },
         ]
       : []),
-    ...(isAdminRole
+    ...(isAdminRole || isAmbassador
       ? [{ to: '/admin/knowledge-gaps', labelKey: 'nav.knowledgeGaps', Icon: Lightbulb, color: '#F59E0B', key: 'knowledge_gaps', sectionKey: 'nav.manage' }]
       : []),
     ...(isModerator
@@ -98,6 +99,7 @@ function LeftSidebar({
       verifications: Number(pendingVerificationCount) || 0,
       reports: Number(pendingReportCount) || 0,
       connections: Number(pendingConnectionCount) || 0,
+      knowledge_gaps: Number(pendingKnowledgeGapCount) || 0,
     };
     const pendingCount = pendingCounts[key] || 0;
 
