@@ -11,10 +11,13 @@ const choices = {
 export default function ResolutionFeedback({ postId, isLoggedIn, onRequireAuth }) {
   const [form, setForm] = useState({ helpful:'', resolved:'', knows_next_step:'', missing_reason:'', missing_note:'' });
   const [status, setStatus] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(Boolean(isLoggedIn));
   useEffect(() => {
     if (!postId || !isLoggedIn) return;
+    setLoading(true);
     axios.get('/api/fetch_content_feedback.php', { params:{ post_id:postId }, withCredentials:true })
-      .then(({data}) => data.feedback && setForm((prev) => ({...prev, ...data.feedback}))).catch(() => {});
+      .then(({data}) => { if (data.feedback) setSubmitted(true); }).catch(() => {}).finally(() => setLoading(false));
   }, [postId, isLoggedIn]);
   const choose = (field, value) => setForm((prev) => ({...prev, [field]:value}));
   const submit = async () => {
@@ -24,9 +27,12 @@ export default function ResolutionFeedback({ postId, isLoggedIn, onRequireAuth }
     try {
       const {data} = await axios.post('/api/submit_content_feedback.php', { post_id:postId, ...form }, {withCredentials:true});
       setStatus(data.message || 'Thanks for your feedback.');
+      setSubmitted(true);
     } catch (error) { setStatus(error.response?.data?.error || 'Unable to save feedback.'); }
   };
   const unresolved = form.resolved !== 'yes' || form.knows_next_step !== 'yes';
+  if (loading) return null;
+  if (submitted) return <section className="resolution-feedback resolution-feedback--complete" role="status"><div><p className="resolution-feedback__kicker">Feedback received</p><h3>Thank you for helping us improve this guidance.</h3><p>Your private response has been recorded. Each person can respond once per answer.</p></div></section>;
   return <section className="resolution-feedback" aria-labelledby={`feedback-${postId}`}>
     <div><p className="resolution-feedback__kicker">Help us close the gap</p><h3 id={`feedback-${postId}`}>Did this help you move forward?</h3><p>Your response improves this guidance. It is not shown publicly.</p></div>
     {[
