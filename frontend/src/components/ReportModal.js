@@ -10,6 +10,9 @@ const REASONS = [
   { value: 'threats', label: 'Threats or violence', help: 'Credible threats of harm.' },
   { value: 'nsfw', label: 'NSFW / sexual content', help: 'Explicit or adult content.' },
   { value: 'misinformation', label: 'Misinformation', help: 'False or misleading information presented as fact.' },
+  { value: 'outdated', label: 'Outdated information', help: 'The guidance may have been accurate before, but dates, policies, or requirements have changed.' },
+  { value: 'institutionally_inaccurate', label: 'Incorrect for this institution', help: 'The guidance does not apply to the named school, program, or community.' },
+  { value: 'unclear', label: 'Unclear or missing context', help: 'Important limits, sources, or next steps are missing.' },
   { value: 'other', label: 'Something else', help: 'Doesn’t fit the above categories.' },
 ];
 

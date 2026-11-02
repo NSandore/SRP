@@ -15,10 +15,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import AppShell from '@/components/navigation/AppShell';
 import { ThemedText } from '@/components/themed-text';
+import TrustContext from '@/components/TrustContext';
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
 import { useBrandStyles } from '@/hooks/use-brand-styles';
-import { isSuperAdmin } from '@/constants/roles';
+import { isModerator } from '@/constants/roles';
 import { useSession } from '@/hooks/use-session';
 import { useLockedFeature } from '@/providers/LockedFeatureProvider';
 import { createReply, fetchPosts, fetchThread, votePost } from '@/lib/api/thread';
@@ -137,7 +138,7 @@ function getVerificationDisclaimer(communityType?: string | number | null) {
   const type = String(communityType || '').toLowerCase();
   const target = type === 'university' ? 'university' : 'community';
   const ambassadorLabel = type === 'university' ? 'school ambassador' : 'community ambassador';
-  return `This post has been verified correct by a ${ambassadorLabel}. Information may have changed since the time of posting, so it is always best to check with the ${target} directly.`;
+  return `A ${ambassadorLabel} reviewed this answer. Requirements can change, so confirm time-sensitive details with the ${target} directly.`;
 }
 
 function getDisplayName(author: PostData, viewerId?: string | number | null) {
@@ -364,7 +365,7 @@ export default function ThreadDetailScreen() {
           <View style={styles.verifiedBanner}>
             <MaterialCommunityIcons name="check-decagram" size={18} color="#1b5e20" />
             <View style={{ flex: 1 }}>
-              <ThemedText style={styles.verifiedTitle}>Verified Correct</ThemedText>
+              <ThemedText style={styles.verifiedTitle}>Community reviewed</ThemedText>
               {post.verified_at ? (
                 <ThemedText style={styles.verifiedDate}>Verified {timeAgo(post.verified_at)}</ThemedText>
               ) : null}
@@ -374,6 +375,8 @@ export default function ThreadDetailScreen() {
             </View>
           </View>
         ) : null}
+
+        <TrustContext post={post} />
 
         <View style={styles.postHeader}>
           <Image source={{ uri: buildAvatarSrc(post.avatar_path) }} style={styles.avatar} />
@@ -518,7 +521,7 @@ export default function ThreadDetailScreen() {
     if (!user?.user_id) return false;
     const communityId = String(thread?.community_id ?? '');
     if (!communityId) return false;
-    if (isSuperAdmin(user.role_id)) return true;
+    if (isModerator(user.role_id)) return true;
     if (Array.isArray(user.admin_community_ids) && user.admin_community_ids.includes(communityId)) return true;
     return ambassadorCommunities.some((c) => String(c.community_id) === communityId);
   }, [user?.user_id, user?.role_id, user?.admin_community_ids, thread?.community_id, ambassadorCommunities]);
@@ -607,7 +610,7 @@ export default function ThreadDetailScreen() {
               <View style={styles.verifiedBanner}>
                 <MaterialCommunityIcons name="check-decagram" size={18} color="#1b5e20" />
                 <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.verifiedTitle}>Verified Correct</ThemedText>
+                  <ThemedText style={styles.verifiedTitle}>Community reviewed</ThemedText>
                   {originalPost.verified_at ? (
                     <ThemedText style={styles.verifiedDate}>Verified {timeAgo(originalPost.verified_at)}</ThemedText>
                   ) : null}
@@ -617,6 +620,8 @@ export default function ThreadDetailScreen() {
                 </View>
               </View>
             ) : null}
+
+            <TrustContext post={originalPost} institutional={isKnowledgeBaseEntry} />
 
             {!isKnowledgeBaseEntry ? (
             <View style={styles.postHeader}>

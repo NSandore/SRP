@@ -4,6 +4,7 @@ startSession();
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/roles.php';
 require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/content_provenance.php';
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
@@ -15,11 +16,30 @@ if (!isset($_SESSION['user_id'])) {
 // Determine the content type and retrieve parameters accordingly
 $contentType = isset($_SERVER["CONTENT_TYPE"]) ? trim($_SERVER["CONTENT_TYPE"]) : '';
 $post_id = '';
+$data = [];
 if (strpos($contentType, 'application/json') !== false) {
     $data = json_decode(file_get_contents("php://input"), true);
     $post_id = isset($data['post_id']) ? normalizeId($data['post_id']) : '';
 } else {
+    $data = $_POST;
     $post_id = isset($_POST['post_id']) ? normalizeId($_POST['post_id']) : '';
+}
+
+$perspectiveType = srp_normalize_perspective_type($data['perspective_type'] ?? null);
+$sourceName = trim((string)($data['source_name'] ?? ''));
+$sourceUrl = trim((string)($data['source_url'] ?? ''));
+$reviewNote = trim((string)($data['review_note'] ?? ''));
+$reviewIntervalDays = (int)($data['review_interval_days'] ?? 180);
+$reviewIntervalDays = in_array($reviewIntervalDays, [90, 180, 365], true) ? $reviewIntervalDays : 180;
+if ($sourceUrl !== '' && filter_var($sourceUrl, FILTER_VALIDATE_URL) === false) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Source URL must be a valid web address.']);
+    exit;
+}
+if (mb_strlen($sourceName) > 255 || mb_strlen($reviewNote) > 500) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Trust details are too long.']);
+    exit;
 }
 
 $user_id = normalizeId($_SESSION['user_id']);
@@ -59,11 +79,25 @@ try {
     }
 
     $query = "UPDATE posts
-              SET verified = 1, verified_by = :user_id, verified_at = NOW()
+              SET verified = 1,
+                  verified_by = :user_id,
+                  verified_at = NOW(),
+                  perspective_type = COALESCE(:perspective_type, perspective_type),
+                  source_name = NULLIF(:source_name, ''),
+                  source_url = NULLIF(:source_url, ''),
+                  applicable_community_id = :community_id,
+                  reviewed_at = NOW(),
+                  review_due_at = DATE_ADD(NOW(), INTERVAL {$reviewIntervalDays} DAY),
+                  review_note = NULLIF(:review_note, '')
               WHERE post_id = :post_id";
     $stmt = $db->prepare($query);
     $stmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
     $stmt->bindParam(':post_id', $post_id, PDO::PARAM_STR);
+    $stmt->bindValue(':perspective_type', $perspectiveType, $perspectiveType === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->bindValue(':source_name', $sourceName, PDO::PARAM_STR);
+    $stmt->bindValue(':source_url', $sourceUrl, PDO::PARAM_STR);
+    $stmt->bindValue(':community_id', $community_id, PDO::PARAM_STR);
+    $stmt->bindValue(':review_note', $reviewNote, PDO::PARAM_STR);
     $stmt->execute();
 
     // Send notification to post owner

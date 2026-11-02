@@ -133,9 +133,17 @@ SRP_ENV_FILE="$production_env" SRP_BACKUP_DIR="$backup_root" \
 
 if [[ "${SRP_RUN_MIGRATIONS:-false}" == 'true' ]]; then
   SRP_ENV_FILE="$production_env" php "$release_dir/backend/scripts/run_migrations.php"
-elif [[ -f "$release_dir/backend/migrations/20261031_account_deletion.sql" ]]; then
-  SRP_ENV_FILE="$production_env" php "$release_dir/backend/scripts/run_migrations.php" \
+else
+  required_migrations=(
     20261031_account_deletion.sql
+    20261102_content_provenance.sql
+  )
+  for required_migration in "${required_migrations[@]}"; do
+    if [[ -f "$release_dir/backend/migrations/$required_migration" ]]; then
+      SRP_ENV_FILE="$production_env" php "$release_dir/backend/scripts/run_migrations.php" \
+        "$required_migration"
+    fi
+  done
 fi
 
 next_link="$deployment_root/.current-$short_sha"

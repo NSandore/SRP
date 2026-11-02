@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/info_board_translations.php';
+require_once __DIR__ . '/../includes/content_provenance.php';
 header('Content-Type: application/json');
 
 // Validate that thread_id is provided
@@ -33,14 +34,26 @@ try {
             p.verified,
             p.verified_by,
             p.verified_at,
+            p.perspective_type,
+            p.source_name,
+            p.source_url,
+            p.applicable_community_id,
+            p.reviewed_at,
+            p.review_due_at,
+            p.review_note,
             p.updated_by,
             v.vote_type AS user_vote,
             u.first_name,
             u.last_name,
             u.avatar_path,
             u.headline,
+            u.education_status,
             u.verified AS author_verified,
+            CASE WHEN a.user_id IS NOT NULL THEN 1 ELSE 0 END AS author_is_ambassador,
             ac.logo_path AS ambassador_logo_path,
+            applicable.name AS applicable_community_name,
+            reviewer.first_name AS reviewer_first_name,
+            reviewer.last_name AS reviewer_last_name,
             ub.first_name AS updated_by_first_name,
             ub.last_name AS updated_by_last_name,
             ub.avatar_path AS updated_by_avatar_path,
@@ -60,6 +73,10 @@ try {
               AND a.community_id = f.community_id
         LEFT JOIN communities ac
                ON ac.id = a.community_id
+        LEFT JOIN communities applicable
+               ON applicable.id = p.applicable_community_id
+        LEFT JOIN users reviewer
+               ON reviewer.user_id = p.verified_by
         LEFT JOIN users ub ON ub.user_id = p.updated_by
         LEFT JOIN connections c 
                ON c.status = 'accepted'
@@ -93,6 +110,8 @@ try {
             ['content']
         );
     }
+
+    $posts = srp_attach_trust_context($posts);
 
     echo json_encode($posts);
 } catch (PDOException $e) {

@@ -79,7 +79,12 @@ try {
 
     $updateStmt = $db->prepare("
         UPDATE posts
-        SET verified = 0, verified_by = NULL, verified_at = NULL
+        SET verified = 0,
+            verified_by = NULL,
+            verified_at = NULL,
+            reviewed_at = NULL,
+            review_due_at = NULL,
+            review_note = NULL
         WHERE post_id = :post_id
           AND verified = 1
           AND verified_by = :user_id

@@ -202,19 +202,19 @@ The experience should be organized around four questions:
 
 ### Trust and provenance
 
-- [ ] Define and display distinct labels for:
+- [x] Define and display distinct labels for:
   - Student or alumni lived experience
   - Official institutional information
   - Professional guidance
   - Community suggestions
   - Verified answers
-- [ ] Show what each verification badge means at the point of use.
-- [ ] Add “last reviewed,” applicable institution, author perspective, and
+- [x] Show what each verification badge means at the point of use.
+- [x] Add “last reviewed,” applicable institution, author perspective, and
   source links where appropriate.
-- [ ] Establish review and expiration rules for time-sensitive information.
-- [ ] Allow users to report information as outdated, unclear, or institutionally
+- [x] Establish review and expiration rules for time-sensitive information.
+- [x] Allow users to report information as outdated, unclear, or institutionally
   inaccurate.
-- [ ] Avoid presenting lived experience as universal fact or official guidance.
+- [x] Avoid presenting lived experience as universal fact or official guidance.
 
 ## P1 — Turn resources into practical next steps
 

@@ -43,6 +43,8 @@ import TiptapLink from '@tiptap/extension-link';
 // For sanitizing HTML
 import DOMPurify from 'dompurify';
 import ReportModal from './ReportModal';
+import TrustContext from './TrustContext';
+import TrustReviewModal from './TrustReviewModal';
 import { buildAvatarSrc } from '../utils/avatar';
 import { buildUploadSrc } from '../utils/uploads';
 import { getTagStyle } from '../utils/tagStyle';
@@ -103,7 +105,7 @@ const getVerificationDisclaimer = (communityType) => {
   const type = String(communityType || '').toLowerCase();
   const target = type === 'university' ? 'university' : 'community';
   const ambassadorLabel = type === 'university' ? 'school ambassador' : 'community ambassador';
-  return `This post has been verified correct by a ${ambassadorLabel}. Information may have changed since the time of posting, so it is always best to check with the ${target} directly.`;
+  return `A ${ambassadorLabel} reviewed this answer. Requirements can change, so confirm time-sensitive details with the ${target} directly.`;
 };
 
 const stripHtml = (value = '') => value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -664,7 +666,7 @@ function PostItem({
                 <div className="verified-badge">
                   <FaCheckCircle className="verified-icon" />
                   <div>
-                    <div className="verified-title">Verified Correct</div>
+                    <div className="verified-title">Community reviewed</div>
                     {post.verified_at && (
                       <div className="verified-date">
                         Verified on {formatVerifiedDate(post.verified_at)}
@@ -677,6 +679,7 @@ function PostItem({
                 </div>
               </div>
             )}
+            <TrustContext post={post} />
             {/* Reply header: avatar + meta */}
             <div className="post-header-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '2px', marginBottom: '6px' }}>
               {/* 3-dot menu */}
@@ -721,7 +724,7 @@ function PostItem({
                     <button
                       className="dropdown-item"
                       onClick={() => {
-                        handleVerifyPost(post.post_id);
+                        handleVerifyPost(post);
                         setOpenMenu(false);
                       }}
                     >
@@ -958,6 +961,8 @@ function ThreadView({ userData, onRequireAuth }) {
   const [rootReplyContent, setRootReplyContent] = useState('');
   const [reportTarget, setReportTarget] = useState(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [trustReviewPost, setTrustReviewPost] = useState(null);
+  const [isSubmittingTrustReview, setIsSubmittingTrustReview] = useState(false);
 
   // Original post header: 3-dot menu + follow-the-author state
   const [origMenuOpen, setOrigMenuOpen] = useState(false);
@@ -1073,8 +1078,8 @@ function ThreadView({ userData, onRequireAuth }) {
     if (!userData?.user_id) return false;
     const communityId = String(threadData?.community_id ?? '');
     if (!communityId) return false;
-    return ambassadorCommunityIds.includes(communityId);
-  }, [userData?.user_id, threadData?.community_id, ambassadorCommunityIds]);
+    return Number(userData?.role_id) >= ROLE_MODERATOR || ambassadorCommunityIds.includes(communityId);
+  }, [userData?.user_id, userData?.role_id, threadData?.community_id, ambassadorCommunityIds]);
 
 
   const promptAuthOverlay = () => {
@@ -1124,25 +1129,35 @@ function ThreadView({ userData, onRequireAuth }) {
   };
 
   // NEW: Function to verify a post
-  const handleVerifyPost = async (post_id) => {
+  const handleVerifyPost = (post) => {
     const isAllowed = canVerifyPosts;
     if (!isAllowed) {
       setNotification({ type: 'error', message: 'You are not authorized to verify posts.' });
       return;
     }
+    setTrustReviewPost(post);
+  };
+
+  const handleSubmitTrustReview = async (trustDetails) => {
+    if (!trustReviewPost?.post_id) return;
+    setIsSubmittingTrustReview(true);
     try {
       const response = await axios.post('/api/verify_post.php', {
-        post_id,
+        post_id: trustReviewPost.post_id,
+        ...trustDetails,
       }, { withCredentials: true });
       if (response.data.success) {
-        setNotification({ type: 'success', message: 'Post verified successfully!' });
-        fetchPosts();
+        setNotification({ type: 'success', message: 'Answer reviewed and trust details saved.' });
+        setTrustReviewPost(null);
+        await fetchPosts();
       } else {
-        setNotification({ type: 'error', message: response.data.error || 'Error verifying post.' });
+        setNotification({ type: 'error', message: response.data.error || 'Unable to save the review.' });
       }
     } catch (error) {
       console.error('Error verifying post:', error);
-      setNotification({ type: 'error', message: 'An error occurred while verifying the post.' });
+      setNotification({ type: 'error', message: error.response?.data?.error || 'Unable to save the review.' });
+    } finally {
+      setIsSubmittingTrustReview(false);
     }
   };
 
@@ -1735,7 +1750,7 @@ function ThreadView({ userData, onRequireAuth }) {
                 <div className="verified-badge">
                   <FaCheckCircle className="verified-icon" />
                   <div>
-                    <div className="verified-title">Verified Correct</div>
+                    <div className="verified-title">Community reviewed</div>
                     {originalPost.verified_at && (
                       <div className="verified-date">
                         Verified on {formatVerifiedDate(originalPost.verified_at)}
@@ -1837,7 +1852,7 @@ function ThreadView({ userData, onRequireAuth }) {
                         <button
                           className="dropdown-item"
                           onClick={() => {
-                            handleVerifyPost(originalPost.post_id);
+                            handleVerifyPost(originalPost);
                             setOrigMenuOpen(false);
                           }}
                         >
@@ -1862,6 +1877,8 @@ function ThreadView({ userData, onRequireAuth }) {
               </div>
             </div>
             )}
+
+            <TrustContext post={originalPost} institutional={isKnowledgeBaseEntry} />
 
             <div
               className="post-content"
@@ -2035,6 +2052,13 @@ function ThreadView({ userData, onRequireAuth }) {
         onClose={() => setReportTarget(null)}
         onSubmit={handleSubmitReport}
         submitting={isSubmittingReport}
+      />
+      <TrustReviewModal
+        isOpen={Boolean(trustReviewPost)}
+        post={trustReviewPost}
+        onClose={() => !isSubmittingTrustReview && setTrustReviewPost(null)}
+        onSubmit={handleSubmitTrustReview}
+        submitting={isSubmittingTrustReview}
       />
 
       {/* Notification */}
