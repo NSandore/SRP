@@ -67,13 +67,13 @@ function WelcomeOverlay({ firstName = '', onExplore, onDismiss }) {
           </p>
           <h1 id="welcome-title">Let’s get you settled.</h1>
           <p id="welcome-description" className="welcome-description">
-            Start by meeting student ambassadors—real students who can answer campus questions and help you find your way around.
+            Start with a question, explore guidance that already exists, or find a community and people who understand what you’re navigating.
           </p>
 
           <div className="welcome-preview" aria-label="A few things you can do">
             <span>
               <FaUsers aria-hidden="true" />
-              Meet helpful people
+              Find answers and people
             </span>
             <span>
               <FaCompass aria-hidden="true" />
@@ -88,11 +88,11 @@ function WelcomeOverlay({ firstName = '', onExplore, onDismiss }) {
               className="get-started-button"
               onClick={onExplore}
             >
-              Meet the ambassadors
+              Show me where to start
               <FaArrowRight aria-hidden="true" />
             </button>
             <button type="button" className="welcome-secondary" onClick={onDismiss}>
-              I’ll explore on my own
+              I’ll look around on my own
             </button>
           </div>
           <p className="welcome-footnote">No pressure—you can explore at your own pace.</p>

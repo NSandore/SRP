@@ -125,15 +125,15 @@ The experience should be organized around four questions:
 
 ### Make the home page task-oriented
 
-- [ ] Lead with “What are you trying to figure out?” rather than a generic
+- [x] Lead with “What are you trying to figure out?” rather than a generic
   Explore action or engagement feed.
 - [ ] Provide one combined entry field for asking a question or searching for
   guidance.
 - [ ] Add an “I'm not sure where to start” guided pathway.
-- [ ] Show common help areas such as financial aid, scholarships, admissions,
+- [x] Show common help areas such as financial aid, scholarships, admissions,
   housing and food, student rights, accessibility, and careers.
-- [ ] Present personalized next steps before general engagement content.
-- [ ] Provide four clear platform actions:
+- [x] Present personalized next steps before general engagement content.
+- [x] Provide four clear platform actions:
   - Find an answer
   - Ask a question
   - Explore my school or program
@@ -160,7 +160,7 @@ The experience should be organized around four questions:
   “Get clear answers about education from students who have lived it,
   professionals who understand it, and verified representatives who can clarify
   the facts.”
-- [ ] Update the welcome experience so ambassadors are one helpful pathway,
+- [x] Update the welcome experience so ambassadors are one helpful pathway,
   not the platform's only or default destination.
 - [ ] Review all empty states and calls to action for benefit-led, plain-language
   wording.

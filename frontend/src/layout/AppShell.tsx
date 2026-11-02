@@ -81,6 +81,7 @@ export default function AppShell({
     '/admin/institutions',
   ];
   const isNoRightRailRoute =
+    isHomeRoute ||
     isThreadRoute ||
     NO_RIGHT_RAIL_PATHS.some(
       (path) => pathname === path || pathname.startsWith(`${path}/`)
@@ -180,7 +181,6 @@ export default function AppShell({
           pendingReportCount={pendingReportCount}
           pendingConnectionCount={pendingConnectionCount}
           onNavigate={() => setDrawerOpen(false)}
-          isDrawer
         />
       </aside>
 

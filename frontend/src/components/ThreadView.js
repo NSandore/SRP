@@ -1653,7 +1653,7 @@ function ThreadView({ userData, onRequireAuth }) {
       {/* Breadcrumbs */}
       <div className="thread-header-row">
         <nav className="breadcrumbs" aria-label="Breadcrumb">
-          <RouterLink to="/info">Info Board</RouterLink>
+          <RouterLink to="/info">Guides &amp; Answers</RouterLink>
           {isKnowledgeBaseEntry && threadData?.parent_thread_id ? (
             <>
               <span className="breadcrumb-sep">&gt;</span>
@@ -1706,7 +1706,7 @@ function ThreadView({ userData, onRequireAuth }) {
       {isReadOnlyKnowledgeBase && (
         <div className="knowledge-base-readonly-note" role="note">
           <strong>{knowledgeBaseTypeLabel}</strong>
-          <span>This entry is read-only. Use an Information Board question megathread for discussion.</span>
+          <span>This entry is read-only. Use a Guides &amp; Answers question discussion to respond.</span>
         </div>
       )}
 

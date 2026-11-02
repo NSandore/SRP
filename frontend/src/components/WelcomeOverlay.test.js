@@ -15,7 +15,7 @@ test('welcomes the member with a friendly guide and runs the primary action', ()
   expect(screen.getByText(/hi casey/i)).toBeInTheDocument();
   expect(screen.getByText(/your getting-started guide/i)).toBeInTheDocument();
 
-  const primaryAction = screen.getByRole('button', { name: /meet the ambassadors/i });
+  const primaryAction = screen.getByRole('button', { name: /show me where to start/i });
   expect(primaryAction).toHaveFocus();
   fireEvent.click(primaryAction);
   expect(onExplore).toHaveBeenCalledTimes(1);
@@ -28,7 +28,7 @@ test('dismisses from the secondary action, backdrop, and Escape key', () => {
   );
   expect(document.body).toHaveClass('modal-open');
 
-  fireEvent.click(screen.getByRole('button', { name: /explore on my own/i }));
+  fireEvent.click(screen.getByRole('button', { name: /look around on my own/i }));
   expect(onDismiss).toHaveBeenCalledTimes(1);
 
   const dialog = screen.getByRole('dialog');

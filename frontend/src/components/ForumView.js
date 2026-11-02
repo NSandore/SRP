@@ -593,7 +593,7 @@ function ForumView({ userData, onRequireAuth }) {
       {/* Breadcrumbs */}
       <div className="forum-header-row">
         <nav className="breadcrumbs" aria-label="Breadcrumb">
-          <Link to="/info">Info Board</Link>
+          <Link to="/info">Guides &amp; Answers</Link>
           <span className="breadcrumb-sep">&gt;</span>
           {/*<span className="breadcrumb-current" aria-current="page">
             {forumData?.name ? forumData.name : `Forum ${forum_id}`}

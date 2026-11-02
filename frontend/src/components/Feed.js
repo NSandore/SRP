@@ -9,17 +9,21 @@ import {
 } from 'react-icons/fa';
 import {
   ArrowUpRight,
+  ArrowRight,
   BadgeDollarSign,
-  Bookmark,
   BookOpenText,
+  BriefcaseBusiness,
   CalendarClock,
-  CalendarDays,
   ChevronDown,
   Compass,
   GraduationCap,
+  HandHelping,
+  House,
   LibraryBig,
+  MessageCircleQuestion,
   MoreVertical,
   Search,
+  Scale,
   Users,
 } from 'lucide-react';
 
@@ -157,7 +161,16 @@ const normalizeDisplayId = (value) =>
     .replace(/^["']+|["']+$/g, '')
     .replace(/^#/, '');
 
-function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterests = [], onRequireAuth }) {
+function Feed({
+  activeFeed,
+  setActiveFeed,
+  activeSection,
+  userData,
+  userInterests = [],
+  onboarding,
+  onShowAmbassadors,
+  onRequireAuth,
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { language, locale, t } = useLanguage();
@@ -176,6 +189,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   const [showCommunityFilters, setShowCommunityFilters] = useState(false);
   const [feedSort, setFeedSort] = useState('recent'); // 'recent' | 'trending'
   const [showHomeFilters, setShowHomeFilters] = useState(false);
+  const [homeGuidanceQuery, setHomeGuidanceQuery] = useState('');
 
   const [followedCommunities, setFollowedCommunities] = useState([]);
   const [allCommunities, setAllCommunities] = useState([]);
@@ -1635,11 +1649,6 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
   // ------------- RENDER LOGIC -------------
   // HOME SECTION
   if (activeSection === 'home') {
-    const homeDateLabel = new Intl.DateTimeFormat(locale, {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-    }).format(new Date());
     const homeVisibleCount =
       activeFeed === 'yourFeed'
         ? (yourFeedView === 'forums' ? feedForums.length : feedThreads.length)
@@ -1656,49 +1665,72 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
       activeFeed === 'yourFeed'
         ? `feed-${yourFeedView}-${feedSort}`
         : `explore-${exploreView}-${exploreTags.join('-') || 'all'}`;
-    const homePathways = [
+
+    const needLabels = {
+      applications: t('home.needApplications'),
+      financial_aid: t('home.needFinancialAid'),
+      scholarships: t('home.needScholarships'),
+      paying_for_school: t('home.needPayingForSchool'),
+      program_major: t('home.needProgramMajor'),
+      basic_needs: t('home.needBasicNeeds'),
+      academic_support: t('home.needAcademicSupport'),
+      accessibility: t('home.needAccessibility'),
+      wellbeing: t('home.needWellbeing'),
+      student_rights: t('home.needStudentRights'),
+      careers: t('home.needCareers'),
+      lived_experience: t('home.needLivedExperience'),
+      unsure: t('home.notSureWhereToStart'),
+    };
+    const selectedNeeds = Array.isArray(onboarding?.context?.needs)
+      ? onboarding.context.needs
+      : [];
+    const firstInterest = userInterests
+      .map((interest) => interest?.tag_name || interest?.name || interest?.label || interest)
+      .find(Boolean);
+    const primaryNeed = selectedNeeds.map((need) => needLabels[need]).find(Boolean) || firstInterest || t('home.generalGuidance');
+    const commonHelpAreas = [
       {
-        to: '/info',
-        eyebrow: t('home.researchAnswers'),
-        title: t('nav.infoBoard'),
-        description: t('home.infoDescription'),
-        Icon: BookOpenText,
-        tone: 'info',
+        label: t('home.financialAid'),
+        query: t('home.financialAid'),
+        Icon: GraduationCap,
+        tone: 'blue',
       },
       {
-        to: '/communities',
-        eyebrow: t('home.findCircle'),
-        title: t('nav.communities'),
-        description: t('home.communitiesDescription'),
-        Icon: Users,
-        tone: 'communities',
+        label: t('home.scholarships'),
+        query: t('home.scholarships'),
+        Icon: BadgeDollarSign,
+        tone: 'violet',
       },
       {
-        to: '/events-feed',
-        eyebrow: t('home.communityAgenda'),
-        title: t('nav.events'),
-        description: t('home.eventsDescription'),
-        Icon: CalendarDays,
-        tone: 'events',
+        label: t('home.admissions'),
+        query: t('home.admissions'),
+        Icon: GraduationCap,
+        tone: 'gold',
       },
-      userData
-        ? {
-            to: '/saved',
-            eyebrow: t('home.yourCollection'),
-            title: t('home.savedReading'),
-            description: t('home.savedDescription'),
-            Icon: Bookmark,
-            tone: 'saved',
-          }
-        : {
-            to: '/signup',
-            eyebrow: t('home.joinCommons'),
-            title: t('home.createProfile'),
-            description: t('home.profileDescription'),
-            Icon: LibraryBig,
-            tone: 'profile',
-          },
+      {
+        label: t('home.housingFood'),
+        query: t('home.housingFood'),
+        Icon: House,
+        tone: 'green',
+      },
+      {
+        label: t('home.studentRights'),
+        query: t('home.studentRights'),
+        Icon: Scale,
+        tone: 'violet',
+      },
+      {
+        label: t('home.careers'),
+        query: t('home.careers'),
+        Icon: BriefcaseBusiness,
+        tone: 'blue',
+      },
     ];
+    const submitHomeSearch = (event) => {
+      event.preventDefault();
+      const query = homeGuidanceQuery.trim();
+      if (query) navigate(`/search?q=${encodeURIComponent(query)}`);
+    };
     const setHomeTab = (nextTab) => {
       if (nextTab === 'feed' && !userData) {
         onRequireAuth?.();
@@ -1714,67 +1746,120 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
     return withNotification(
       <main className="home-dashboard">
         {reportModal}
-        <section className="home-hero" aria-labelledby="home-dashboard-title">
-          <div className="home-hero-copy">
-            <p className="home-kicker">
-              <span>{t('nav.academicCommons')}</span>
-              <span aria-hidden="true">•</span>
-              {homeDateLabel}
-            </p>
+        <section className="home-guidance-hero" aria-labelledby="home-dashboard-title">
+          <div className="home-guidance-copy">
             <h1 id="home-dashboard-title">
-              {userData?.first_name
-                ? <>{t('home.welcomeBack')} <em>{userData.first_name}</em>.</>
-                : <>{t('home.thoughtfulPlaceStart')} <em>{t('home.thoughtfulPlaceEmphasis')}</em>.</>}
+              {userData?.first_name ? <>{t('home.hiName', { name: userData.first_name })} </> : null}
+              {t('home.whatAreYouTrying')} <em>{t('home.figureOut')}</em>?
             </h1>
-            <p className="home-hero-description">
-              {t('home.heroDescription')}
-            </p>
+            <form className="home-guidance-search" role="search" onSubmit={submitHomeSearch}>
+              <Search size={24} aria-hidden="true" />
+              <label className="sr-only" htmlFor="home-guidance-query">{t('home.searchGuidanceLabel')}</label>
+              <input
+                id="home-guidance-query"
+                type="search"
+                value={homeGuidanceQuery}
+                onChange={(event) => setHomeGuidanceQuery(event.target.value)}
+                placeholder={t('home.searchGuidancePlaceholder')}
+              />
+              <button type="submit" disabled={!homeGuidanceQuery.trim()}>{t('nav.search')}</button>
+            </form>
+            <Link className="home-unsure-link" to="/info">
+              <Compass size={18} aria-hidden="true" />
+              <span>{t('home.notSureWhereToStart')}</span>
+              <ArrowRight size={18} aria-hidden="true" />
+            </Link>
           </div>
-          <button
-            type="button"
-            className="home-button home-button-primary home-hero-cta"
-            onClick={() => {
-              setHomeTab('explore');
-              const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-              homeReadingRoomRef.current?.scrollIntoView({
-                behavior: prefersReducedMotion ? 'auto' : 'smooth',
-                block: 'start',
-              });
-            }}
-          >
-            <Compass size={17} aria-hidden="true" />
-            {t('home.explore')}
-            <ArrowUpRight className="home-hero-cta-arrow" size={16} aria-hidden="true" />
-          </button>
+          <div className="home-guidance-art" aria-hidden="true">
+            <span className="home-art-orbit home-art-orbit--one" />
+            <span className="home-art-orbit home-art-orbit--two" />
+            <span className="home-art-icon home-art-icon--question"><MessageCircleQuestion size={30} /></span>
+            <span className="home-art-icon home-art-icon--people"><Users size={31} /></span>
+            <span className="home-art-icon home-art-icon--book"><BookOpenText size={32} /></span>
+          </div>
         </section>
 
-        <nav className="home-pathways" aria-label={t('home.dashboardShortcuts')}>
-          {homePathways.map(({ to, eyebrow, title, description, Icon, tone }) => (
-            <Link
-              key={to}
-              to={to}
-              className={`home-pathway-card home-pathway-card--${tone}`}
-              data-tour={tone === 'communities' ? 'communities' : undefined}
-            >
-              <span className="home-pathway-icon" aria-hidden="true">
-                <Icon size={19} />
-              </span>
-              <span className="home-pathway-copy">
-                <small>{eyebrow}</small>
-                <strong>{title}</strong>
-                <span>{description}</span>
-              </span>
-              <ArrowUpRight className="home-pathway-arrow" size={17} aria-hidden="true" />
-            </Link>
-          ))}
-        </nav>
+        <section className="home-help-areas" aria-labelledby="home-help-areas-title">
+          <h2 id="home-help-areas-title">{t('home.popularWaysHelp')}</h2>
+          <div className="home-help-grid">
+            {commonHelpAreas.map(({ label, query, Icon, tone }) => (
+              <Link
+                key={label}
+                to={`/search?q=${encodeURIComponent(query)}`}
+                className={`home-help-card home-help-card--${tone}`}
+              >
+                <span className="home-help-icon" aria-hidden="true"><Icon size={24} /></span>
+                <strong>{label}</strong>
+                <ArrowRight size={18} aria-hidden="true" />
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="home-next-steps" aria-labelledby="home-next-steps-title">
+          <h2 id="home-next-steps-title">{t('home.yourNextSteps')}</h2>
+          <div className="home-next-grid">
+            <article className="home-next-card home-next-card--guidance">
+              <span className="home-next-icon" aria-hidden="true"><BookOpenText size={25} /></span>
+              <div>
+                <small>{t('home.basedOnSetup')}</small>
+                <h3>{t('home.exploreGuidanceFor', { topic: primaryNeed })}</h3>
+                <p>{t('home.guidanceCardDescription')}</p>
+                <Link to={`/search?q=${encodeURIComponent(primaryNeed)}`} className="home-next-action">
+                  {t('home.findAnswers')} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
+            </article>
+            <article className="home-next-card home-next-card--community" data-tour="communities">
+              <span className="home-next-icon" aria-hidden="true"><Users size={25} /></span>
+              <div>
+                <small>{t('home.peopleAndCommunities')}</small>
+                <h3>{t('home.exploreYourCommunities')}</h3>
+                <p>{t('home.communityCardDescription')}</p>
+                <Link to={userData ? '/communities?scope=followed' : '/communities'} className="home-next-action">
+                  {t('home.viewCommunities')} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
+            </article>
+            <article className="home-next-card home-next-card--question">
+              <span className="home-next-icon" aria-hidden="true"><MessageCircleQuestion size={25} /></span>
+              <div>
+                <small>{t('home.needSpecificHelp')}</small>
+                <h3>{t('home.askYourQuestion')}</h3>
+                <p>{t('home.questionCardDescription')}</p>
+                <Link to="/communities" className="home-next-action">
+                  {t('home.chooseWhereToAsk')} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
+            </article>
+            <article className="home-next-card home-next-card--people">
+              <span className="home-next-icon" aria-hidden="true"><HandHelping size={25} /></span>
+              <div>
+                <small>{t('home.guidanceFromPeople')}</small>
+                <h3>{t('home.talkToSomeone')}</h3>
+                <p>{t('home.peopleCardDescription')}</p>
+                <button
+                  type="button"
+                  className="home-next-action"
+                  onClick={() => {
+                    if (!userData) onRequireAuth?.();
+                    else if (onShowAmbassadors) onShowAmbassadors();
+                    else navigate('/communities');
+                  }}
+                >
+                  {t('home.findHelpfulPeople')} <ArrowRight size={17} aria-hidden="true" />
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
 
         <section className="home-reading-room" aria-labelledby="home-reading-room-title" ref={homeReadingRoomRef}>
           <header className="home-reading-room-header">
             <div>
-              <p className="home-section-kicker">{t('home.discussionIndex')}</p>
+              <p className="home-section-kicker">{t('home.keepExploring')}</p>
               <h2 id="home-reading-room-title">
-                {activeFeed === 'yourFeed' ? t('home.yourReadingRoom') : t('home.exploreCommons')}
+                {activeFeed === 'yourFeed' ? t('home.latestFromCommunities') : t('home.exploreQuestionsDiscussions')}
               </h2>
               <p>{homeViewDescription}</p>
             </div>
@@ -2485,7 +2570,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             <header className="scholarly-page-header">
               <div>
                 <p className="scholarly-page-kicker">Student knowledge base</p>
-                <h1>Info Board</h1>
+                <h1>Guides &amp; Answers</h1>
                 <p>Choose a starting point, then follow its sections to focused student guides.</p>
               </div>
               <div className="scholarly-page-count" aria-live="polite">
@@ -2529,8 +2614,8 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         <div className="feed-container scholarly-page-panel">
           <header className="scholarly-page-header">
             <div>
-              <p className="scholarly-page-kicker">Research & answers</p>
-              <h1>Info Board</h1>
+              <p className="scholarly-page-kicker">Practical guidance</p>
+              <h1>Guides &amp; Answers</h1>
               <p>Questions, guides, and community knowledge organized for careful reading.</p>
             </div>
             <div className="scholarly-page-count" aria-live="polite">
@@ -2626,7 +2711,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             >
               <div className="creation-modal">
                 <header className="creation-modal__header">
-                  <p className="creation-modal__meta">Info Board</p>
+                  <p className="creation-modal__meta">Guides &amp; Answers</p>
                   <h3 className="creation-modal__title">New forum</h3>
                   <p className="creation-modal__sub">
                     A clear name and description help members instantly know if they&apos;re in the right place.
@@ -2746,7 +2831,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             >
               <div className="creation-modal">
                 <header className="creation-modal__header">
-                  <p className="creation-modal__meta">Info Board</p>
+                  <p className="creation-modal__meta">Guides &amp; Answers</p>
                   <h3 className="creation-modal__title">Edit forum</h3>
                   <p className="creation-modal__sub">
                     Update the name, description, tags, or image for this forum.
@@ -2946,7 +3031,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
             <p className="scholarly-page-kicker">Funding archive</p>
             <h1 id="funding-title">A clearer path through education funding.</h1>
             <p>
-              Read practical funding guides from the Information Board here. Scholarship
+              Read practical funding guides from Guides &amp; Answers here. Scholarship
               opportunity records and deadline tools are still being developed.
             </p>
             <div className="scholarly-page-actions">
@@ -2955,7 +3040,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                 <ArrowUpRight size={16} aria-hidden="true" />
               </a>
               <Link className="home-button scholarly-quiet-button" to="/info">
-                Open the Info Board
+                Open Guides &amp; Answers
               </Link>
             </div>
           </div>
@@ -2971,7 +3056,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
         >
           <header>
             <div>
-              <p className="scholarly-page-kicker">Information Board collection</p>
+              <p className="scholarly-page-kicker">Guides &amp; Answers collection</p>
               <h2 id="funding-guides-title">Funding guides</h2>
               <p>These links open the original articles, so guidance stays synchronized across the site.</p>
             </div>
@@ -2998,7 +3083,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
           ) : fundingArticlesError ? (
             <div className="scholarly-funding-library__state">
               <p>{fundingArticlesError}</p>
-              <Link to="/info">Browse the Information Board</Link>
+              <Link to="/info">Browse Guides &amp; Answers</Link>
             </div>
           ) : visibleFundingGroups.length === 0 ? (
             <div className="scholarly-funding-library__state">
@@ -3287,7 +3372,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       {t.saved_at && <span className="saved-card__time">Saved {formatSavedAt(t.saved_at)}</span>}
                     </div>
                     <div className="saved-card__crumbs">
-                      <span>Info Board</span>
+                      <span>Guides &amp; Answers</span>
                       <span className="saved-card__crumb-sep">/</span>
                       <span>{t.forum_name || 'Forum'}</span>
                       <span className="saved-card__crumb-sep">/</span>
@@ -3352,7 +3437,7 @@ function Feed({ activeFeed, setActiveFeed, activeSection, userData, userInterest
                       <span className="saved-card__verified">Verified Answer</span>
                     )}
                     <div className="saved-card__crumbs">
-                      <span>Info Board</span>
+                      <span>Guides &amp; Answers</span>
                       <span className="saved-card__crumb-sep">/</span>
                       <span>{p.forum_name || 'Forum'}</span>
                       {p.thread_title && (

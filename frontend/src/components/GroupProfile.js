@@ -994,7 +994,7 @@ function GroupProfile({ userData, onRequireAuth }) {
               <div className="content-card community-knowledge-base-card">
                 <div className="qa-header knowledge-base-header">
                   <div>
-                    <p className="knowledge-base-kicker">Information Board knowledge base</p>
+                    <p className="knowledge-base-kicker">Guides &amp; Answers knowledge base</p>
                     <h3>International students &amp; study abroad</h3>
                     <p className="muted">
                       Read the guides first, then use a megathread for questions and shared experience.

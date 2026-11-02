@@ -161,7 +161,11 @@ function App() {
     try {
       const response = await axios.get('/api/onboarding_wizard.php', { withCredentials: true });
       const wizard = response.data?.logged_in
-        ? { ...(response.data?.wizard || {}), verification: response.data?.verification || {} }
+        ? {
+            ...(response.data?.wizard || {}),
+            verification: response.data?.verification || {},
+            context: response.data?.context || {},
+          }
         : null;
       setOnboardingState(wizard);
       return wizard;
@@ -673,8 +677,7 @@ function App() {
           firstName={userData?.first_name}
           onExplore={() => {
             setShowWelcome(false);
-            setShowAmbassadorOverlay(true);
-            fetchAmbassadors();
+            navigate('/home');
           }}
           onDismiss={() => setShowWelcome(false)}
         />
@@ -893,6 +896,11 @@ function App() {
                       activeSection="home"
                       userData={userData}
                       userInterests={userInterests}
+                      onboarding={onboardingState}
+                      onShowAmbassadors={() => {
+                        setShowAmbassadorOverlay(true);
+                        fetchAmbassadors();
+                      }}
                       onRequireAuth={() => setRequireAuthOverlay(true)}
                     />
                   }

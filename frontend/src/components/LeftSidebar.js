@@ -3,7 +3,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Home,
-  Info,
+  BookOpenText,
   Medal,
   Users,
   Bookmark,
@@ -27,14 +27,16 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { REELS_ENABLED } from '../constants/features';
 
 const baseItems = [
-  { to: '/home', labelKey: 'nav.home', Icon: Home, color: '#2F80ED', key: 'home', sectionKey: 'nav.explore' },
-  { to: '/reels', labelKey: 'nav.reels', Icon: Clapperboard, color: '#7656D9', key: 'reels', sectionKey: 'nav.explore', comingSoon: !REELS_ENABLED },
-  { to: '/info', labelKey: 'nav.infoBoard', Icon: Info, color: '#69A8F7', key: 'info', sectionKey: 'nav.explore' },
-  { to: '/funding', labelKey: 'nav.funding', Icon: Medal, color: '#F59E0B', key: 'funding', sectionKey: 'nav.explore' },
-  { to: '/communities', labelKey: 'nav.communities', Icon: Users, color: '#10B981', key: 'communities', sectionKey: 'nav.explore' },
-  { to: '/saved', labelKey: 'nav.saved', Icon: Bookmark, color: '#6366F1', key: 'saved', sectionKey: 'nav.yourCommons' },
-  { to: '/connections', labelKey: 'nav.connections', Icon: UserCheck, color: '#EC4899', key: 'connections', sectionKey: 'nav.yourCommons' },
-  { to: '/profile', labelKey: 'nav.myProfile', Icon: UserCircle, color: '#64748B', key: 'profile', sectionKey: 'nav.yourCommons' },
+  { to: '/home', labelKey: 'nav.home', Icon: Home, color: '#2F80ED', key: 'home', sectionKey: 'nav.getHelp' },
+  { to: '/info', labelKey: 'nav.guidesAnswers', Icon: BookOpenText, color: '#7656D9', key: 'info', sectionKey: 'nav.getHelp' },
+  { to: '/communities', labelKey: 'nav.communities', Icon: Users, color: '#10B981', key: 'communities', sectionKey: 'nav.getHelp' },
+  { to: '/events-feed', labelKey: 'nav.events', Icon: Calendar, color: '#14B8A6', key: 'events_feed', sectionKey: 'nav.getHelp' },
+  { to: '/saved', labelKey: 'nav.saved', Icon: Bookmark, color: '#6366F1', key: 'saved', sectionKey: 'nav.getHelp' },
+  { to: '/funding', labelKey: 'nav.funding', Icon: Medal, color: '#F59E0B', key: 'funding', sectionKey: 'nav.more' },
+  { to: '/polls', labelKey: 'nav.polls', Icon: BarChart3, color: '#F97316', key: 'polls_feed', sectionKey: 'nav.more' },
+  { to: '/reels', labelKey: 'nav.reels', Icon: Clapperboard, color: '#7656D9', key: 'reels', sectionKey: 'nav.more', comingSoon: !REELS_ENABLED },
+  { to: '/connections', labelKey: 'nav.connections', Icon: UserCheck, color: '#EC4899', key: 'connections', sectionKey: 'nav.more' },
+  { to: '/profile', labelKey: 'nav.myProfile', Icon: UserCircle, color: '#64748B', key: 'profile', sectionKey: 'nav.more' },
 ];
 
 function LeftSidebar({
@@ -46,7 +48,6 @@ function LeftSidebar({
   pendingConnectionCount = 0,
   onToggle = undefined,
   onNavigate = undefined,
-  isDrawer = false,
 }) {
   const { t } = useLanguage();
   const roleId = userData?.role_id;
@@ -57,19 +58,8 @@ function LeftSidebar({
   const isAmbassador = userData && Number(userData.is_ambassador) === 1;
   const isModerator = userData && (isSuperAdminUser || isAmbassador);
 
-  const mobileExtras = isDrawer ? [
-    { to: '/events-feed', labelKey: 'nav.events', Icon: Calendar, color: '#14B8A6', key: 'events_feed', sectionKey: 'nav.explore' },
-    { to: '/polls', labelKey: 'nav.polls', Icon: BarChart3, color: '#F97316', key: 'polls_feed', sectionKey: 'nav.explore' },
-  ] : [];
-  const baseWithMobile = [...baseItems];
-  if (mobileExtras.length) {
-    const insertAt = baseWithMobile.findIndex((item) => item.key === 'communities');
-    const idx = insertAt === -1 ? baseWithMobile.length : insertAt + 1;
-    baseWithMobile.splice(idx, 0, ...mobileExtras);
-  }
-
   const items = [
-    ...baseWithMobile,
+    ...baseItems,
     ...(isSuperAdminUser || isAdminRole || isCommunityAdmin || isAmbassador
       ? [{ to: '/events', labelKey: 'nav.eventManagement', Icon: CalendarRange, color: '#22C55E', key: 'events', sectionKey: 'nav.manage' }]
       : []),
@@ -156,8 +146,8 @@ function LeftSidebar({
     <nav className={`left-sidebar${collapsed ? ' collapsed' : ''}`} aria-label={t('nav.primary')}>
       <div className="sidebar-heading">
         <div className="sidebar-heading-copy" aria-hidden={collapsed}>
-          <span className="sidebar-heading-kicker">{t('nav.academicCommons')}</span>
-          <span className="sidebar-heading-title">{t('nav.campusIndex')}</span>
+          <span className="sidebar-heading-kicker">{t('nav.studentSphere')}</span>
+          <span className="sidebar-heading-title">{t('nav.helpCenter')}</span>
         </div>
         {onToggle && (
           <div className="sidebar-toggle-container">

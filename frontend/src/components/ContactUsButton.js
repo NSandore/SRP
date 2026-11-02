@@ -49,7 +49,7 @@ function ContactUsButton() {
       <div className="feedback-content">
         <button className="close-button" onClick={() => setOpen(false)} aria-label="Close feedback form">×</button>
         <header className="feedback-header">
-          <p className="feedback-kicker">Contact the commons</p>
+          <p className="feedback-kicker">Contact StudentSphere</p>
           <h3>Send feedback</h3>
           <p className="feedback-description">
             Share a question, report an issue, or tell us what would make StudentSphere more useful.
