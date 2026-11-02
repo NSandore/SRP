@@ -30,6 +30,10 @@ $search = trim((string)($_GET['q'] ?? ''));
 if (mb_strlen($search) > 120) {
     srp_json(['success' => false, 'error' => 'Search is too long.'], 400);
 }
+$communityId = normalizeId($_GET['community_id'] ?? '');
+if (mb_strlen($communityId) > 32) {
+    srp_json(['success' => false, 'error' => 'Invalid community filter.'], 400);
+}
 
 try {
     $where = [];
@@ -45,6 +49,10 @@ try {
     if ($status !== 'all') {
         $where[] = 'g.status = :status';
         $params[':status'] = $status;
+    }
+    if ($communityId !== '') {
+        $where[] = 'c.id = :community_id';
+        $params[':community_id'] = $communityId;
     }
     if ($search !== '') {
         $noteSearch = $isGlobalAdmin
@@ -105,14 +113,22 @@ try {
         JOIN threads t ON t.thread_id = p.thread_id
         JOIN forums f ON f.forum_id = t.forum_id
         JOIN communities c ON c.id = f.community_id';
+    $countWhere = [];
     $countParams = [];
     if (!$isGlobalAdmin) {
-        $countSql .= ' WHERE EXISTS (
+        $countWhere[] = 'EXISTS (
             SELECT 1 FROM ambassadors viewer_scope
             WHERE viewer_scope.user_id = :count_viewer_id
               AND viewer_scope.community_id = c.id
         )';
         $countParams[':count_viewer_id'] = $userId;
+    }
+    if ($communityId !== '') {
+        $countWhere[] = 'c.id = :count_community_id';
+        $countParams[':count_community_id'] = $communityId;
+    }
+    if ($countWhere) {
+        $countSql .= ' WHERE ' . implode(' AND ', $countWhere);
     }
     $countSql .= ' GROUP BY g.status';
     $countStmt = $db->prepare($countSql);
@@ -120,6 +136,100 @@ try {
     foreach ($countStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $counts[$row['status']] = (int)$row['total'];
     }
+
+    $overviewWhere = ["g.status <> 'resolved'"];
+    $overviewParams = [];
+    if (!$isGlobalAdmin) {
+        $overviewWhere[] = 'EXISTS (
+            SELECT 1 FROM ambassadors overview_scope
+            WHERE overview_scope.user_id = :overview_viewer_id
+              AND overview_scope.community_id = c.id
+        )';
+        $overviewParams[':overview_viewer_id'] = $userId;
+    }
+    if ($communityId !== '') {
+        $overviewWhere[] = 'c.id = :overview_community_id';
+        $overviewParams[':overview_community_id'] = $communityId;
+    }
+    $overviewWhereSql = 'WHERE ' . implode(' AND ', $overviewWhere);
+    $overviewFrom = 'FROM knowledge_gaps g
+        JOIN posts p ON p.post_id = g.source_post_id
+        JOIN threads t ON t.thread_id = p.thread_id
+        JOIN forums f ON f.forum_id = t.forum_id
+        JOIN communities c ON c.id = f.community_id';
+    $statusTotalsSql = "COUNT(*) AS total,
+        SUM(g.status = 'open') AS open_count,
+        SUM(g.status = 'in_progress') AS in_progress_count,
+        SUM(g.status = 'ready_for_review') AS ready_for_review_count";
+
+    $topicStmt = $db->prepare(
+        "SELECT f.forum_id AS id, COALESCE(NULLIF(f.name, ''), 'General guidance') AS label, {$statusTotalsSql}
+         {$overviewFrom}
+         {$overviewWhereSql}
+         GROUP BY f.forum_id, f.name
+         ORDER BY total DESC, label ASC
+         LIMIT 7"
+    );
+    $topicStmt->execute($overviewParams);
+
+    $communityStmt = $db->prepare(
+        "SELECT c.id, c.name AS label, {$statusTotalsSql}
+         {$overviewFrom}
+         {$overviewWhereSql}
+         GROUP BY c.id, c.name
+         ORDER BY total DESC, label ASC
+         LIMIT 7"
+    );
+    $communityStmt->execute($overviewParams);
+
+    $reasonStmt = $db->prepare(
+        "SELECT g.missing_reason, COUNT(*) AS total
+         {$overviewFrom}
+         {$overviewWhereSql}
+           AND g.missing_reason IS NOT NULL
+         GROUP BY g.missing_reason
+         ORDER BY total DESC, g.missing_reason ASC
+         LIMIT 1"
+    );
+    $reasonStmt->execute($overviewParams);
+    $commonReason = $reasonStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    $presentOverviewRows = static function (array $rows): array {
+        return array_map(static function (array $row): array {
+            return [
+                'id' => (string)$row['id'],
+                'label' => (string)$row['label'],
+                'total' => (int)$row['total'],
+                'open' => (int)$row['open_count'],
+                'in_progress' => (int)$row['in_progress_count'],
+                'ready_for_review' => (int)$row['ready_for_review_count'],
+            ];
+        }, $rows);
+    };
+
+    $communityFilterWhere = [];
+    $communityFilterParams = [];
+    if (!$isGlobalAdmin) {
+        $communityFilterWhere[] = 'EXISTS (
+            SELECT 1 FROM ambassadors filter_scope
+            WHERE filter_scope.user_id = :filter_viewer_id
+              AND filter_scope.community_id = c.id
+        )';
+        $communityFilterParams[':filter_viewer_id'] = $userId;
+    }
+    $communityFilterSql = 'SELECT DISTINCT c.id, c.name
+        FROM knowledge_gaps g
+        JOIN posts p ON p.post_id = g.source_post_id
+        JOIN threads t ON t.thread_id = p.thread_id
+        JOIN forums f ON f.forum_id = t.forum_id
+        JOIN communities c ON c.id = f.community_id';
+    if ($communityFilterWhere) {
+        $communityFilterSql .= ' WHERE ' . implode(' AND ', $communityFilterWhere);
+    }
+    $communityFilterSql .= ' ORDER BY c.name ASC';
+    $communityFilterStmt = $db->prepare($communityFilterSql);
+    $communityFilterStmt->execute($communityFilterParams);
+    $communityFilters = $communityFilterStmt->fetchAll(PDO::FETCH_ASSOC);
 
     if ($isGlobalAdmin) {
         $peopleStmt = $db->query(
@@ -162,6 +272,15 @@ try {
         'success' => true,
         'gaps' => $gaps,
         'counts' => $counts,
+        'overview' => [
+            'by_topic' => $presentOverviewRows($topicStmt->fetchAll(PDO::FETCH_ASSOC)),
+            'by_community' => $presentOverviewRows($communityStmt->fetchAll(PDO::FETCH_ASSOC)),
+            'common_reason' => $commonReason ? [
+                'reason' => (string)$commonReason['missing_reason'],
+                'total' => (int)$commonReason['total'],
+            ] : null,
+        ],
+        'communities' => $communityFilters,
         'assignees' => $people,
         'viewer_scope' => $isGlobalAdmin ? 'global_admin' : 'ambassador',
         'privacy' => 'Reporter identity is intentionally omitted.',

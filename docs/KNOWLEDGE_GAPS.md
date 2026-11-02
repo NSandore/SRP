@@ -52,6 +52,19 @@ an administrative workspace. No public mobile navigation is added or removed;
 mobile parity should be reconsidered if moderation workflows are later brought
 into the mobile application.
 
+## Visual gap overview
+
+The top of the dashboard includes a privacy-safe `Gaps that need closing`
+overview. It aggregates unresolved work by public topic/forum or by community
+and splits each bar into `Open`, `In progress`, and `Ready for review` segments.
+It also highlights the most frequently selected missing-information reason.
+
+The overview and review queue share the same community filter. Global
+administrators can select any community represented in the gap data;
+ambassadors receive only communities within their authorized scope. The chart
+contains aggregate counts only and never exposes reporter identity or private
+feedback text.
+
 Each gap moves through:
 
 1. `Open`
