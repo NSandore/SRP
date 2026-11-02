@@ -2615,10 +2615,11 @@ button:focus-visible,
 
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
   .nav-bar.search-open {
     padding-bottom: 0.8rem;
+    flex-wrap: wrap;
     transition: padding 200ms ease, min-height 200ms ease;
   }
   .nav-left {
@@ -2695,7 +2696,7 @@ button:focus-visible,
   .mobile-only { display: inline-flex; }
   .desktop-only { display: none; }
   .nav-center {
-    display: flex;
+    display: none;
     order: 3;
     flex: 1 1 100%;
     width: 100%;
@@ -2707,6 +2708,7 @@ button:focus-visible,
     transition: max-height 200ms ease, opacity 180ms ease, transform 180ms ease;
   }
   .nav-bar.search-open .nav-center {
+    display: flex;
     max-height: 220px;
     opacity: 1;
     transform: translateY(0);
@@ -2733,7 +2735,11 @@ button:focus-visible,
   }
 
   .nav-left .brand-title {
-    font-size: 1rem;
+    display: none;
+  }
+
+  .nav-left .brand-button {
+    padding-inline: 0;
   }
 }
 
