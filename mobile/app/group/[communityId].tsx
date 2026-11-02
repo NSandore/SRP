@@ -623,7 +623,7 @@ export default function GroupProfileScreen() {
             </View>
             {loadingPinned ? <ActivityIndicator /> : null}
             {!loadingPinned && pinnedItems.length === 0 ? (
-              <ThemedText style={styles.mutedText}>No pinned threads or forums yet.</ThemedText>
+              <ThemedText style={styles.mutedText}>No featured guidance yet. Community leaders can pin useful guides and discussions here.</ThemedText>
             ) : (
               pinnedItems.map((item) => {
                 const isThread = item.item_type === 'thread';
@@ -668,7 +668,7 @@ export default function GroupProfileScreen() {
             </View>
             {loadingKnowledgeBase ? <ActivityIndicator /> : null}
             {!loadingKnowledgeBase && knowledgeBaseEntries.length === 0 ? (
-              <ThemedText style={styles.mutedText}>No knowledge base entries yet.</ThemedText>
+              <ThemedText style={styles.mutedText}>No guides have been added yet. Check back as this community publishes practical guidance.</ThemedText>
             ) : (
               knowledgeBaseEntries.map((entry) => {
                 const isMegathread = entry.content_kind === 'megathread';
@@ -761,7 +761,7 @@ export default function GroupProfileScreen() {
             </View>
             {loadingPinned ? <ActivityIndicator /> : null}
             {!loadingPinned && pinnedItems.length === 0 ? (
-              <ThemedText style={styles.mutedText}>No pinned topics yet.</ThemedText>
+              <ThemedText style={styles.mutedText}>No featured topics yet. Check the Questions area for current discussions.</ThemedText>
             ) : (
               pinnedItems.map((item) => {
                 const isThread = item.item_type === 'thread';
@@ -803,7 +803,7 @@ export default function GroupProfileScreen() {
             </View>
             {loadingQuestions ? <ActivityIndicator /> : null}
             {!loadingQuestions && questions.length === 0 ? (
-              <ThemedText style={styles.mutedText}>No questions yet.</ThemedText>
+              <ThemedText style={styles.mutedText}>No questions yet. Ask the first question when you need guidance from this community.</ThemedText>
             ) : (
               questions.map((q) => (
                 <View key={q.question_id} style={styles.qaCard}>
@@ -825,7 +825,7 @@ export default function GroupProfileScreen() {
                       </View>
                     ))
                   ) : (
-                    <ThemedText style={styles.mutedText}>No answers yet.</ThemedText>
+                    <ThemedText style={styles.mutedText}>No answers yet. Share what you know, or check back when community members respond.</ThemedText>
                   )}
                 </View>
               ))

@@ -70,7 +70,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="feed"
         options={{
-          title: 'Feed',
+          title: 'Home',
           tabBarIcon: ({ color, focused }) => <AnimatedTabIcon name="house.fill" color={color} focused={focused} />,
         }}
       />

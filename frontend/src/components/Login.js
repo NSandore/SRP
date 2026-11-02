@@ -206,17 +206,17 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
       {!isModal && <div className="auth-gradient" aria-hidden />}
       <div className="auth-content">
         <section className="auth-hero">
-          <span className="auth-pill">StudentSphere community</span>
-          <h1>Learn with people who share your questions.</h1>
+          <span className="auth-pill">Clear guidance for education</span>
+          <h1>Get answers that help you move forward.</h1>
           <p>
-            Explore community discussions, university spaces, events, and verified perspectives
-            from students and representatives.
+            Find clear answers from students who have lived it, professionals who understand it,
+            and verified representatives who can clarify the facts.
           </p>
           <ul className="auth-benefits">
             {[
-              'Save useful discussions and return to them later',
-              'Follow university and interest-based communities',
-              'Build a profile and connect through shared interests',
+              'Understand what to do next—not just what something means',
+              'See whether guidance comes from experience or an official source',
+              'Find the right community or person when you need more help',
             ].map((copy) => (
               <li key={copy}>
                 <FaCheckCircle />
@@ -231,7 +231,7 @@ function Login({ onLogin, onGoToSignUp, onContinueAsGuest, variant = 'page' }) {
 
         <section className="auth-panel" aria-live="polite">
           <h2>{showReset ? 'Reset your password' : 'Welcome back'}</h2>
-          <p>{showReset ? 'Choose a new password to regain access.' : 'Log in to continue your journey.'}</p>
+          <p>{showReset ? 'Choose a new password to regain access.' : 'Return to your questions, saved guidance, and communities.'}</p>
 
           {showReset ? (
             <form className="auth-form" onSubmit={resetCodeSent ? handleResetPassword : handleRequestResetCode} noValidate>

@@ -730,24 +730,24 @@ function ForumView({ userData, onRequireAuth }) {
       {sortedThreads.length === 0 ? (
         activeTags.length ? (
           <div className="community-launch-empty community-launch-empty--compact">
-            <h3>No threads match these tags</h3>
-            <p>Clear the filters to see every conversation in this forum.</p>
+            <h3>No discussions match these topics</h3>
+            <p>Clear the filters to see every conversation in this guide.</p>
             <button type="button" className="pill-button secondary" onClick={() => handleTagSelect({ target: { value: '' } })}>
               Clear filters
             </button>
           </div>
         ) : (
           <div className="community-launch-empty">
-            <p className="community-launch-empty__eyebrow">This forum is ready</p>
-            <h3>Be the first to start a thread</h3>
+            <p className="community-launch-empty__eyebrow">This guide is ready</p>
+            <h3>Be the first to start a discussion</h3>
             <p>
               {canCreateThread
                 ? 'Share a question, resource, or idea that gives this community its first conversation.'
-                : 'Community ambassadors open new threads. Follow the community and ask a question while its first discussions are being prepared.'}
+                : 'Community ambassadors open new discussions. Follow the community and ask a question while its first guidance is being prepared.'}
             </p>
             {canCreateThread ? (
               <button type="button" className="pill-button" onClick={() => setShowCreateThreadModal(true)}>
-                Start the first thread
+                Start the first discussion
               </button>
             ) : !userData ? (
               <button type="button" className="pill-button" onClick={promptAuthOverlay}>

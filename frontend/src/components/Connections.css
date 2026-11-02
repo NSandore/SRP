@@ -30,6 +30,31 @@
   gap: 12px;
 }
 
+.connections-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 28px;
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  background: var(--card-background);
+}
+
+.connections-empty h2,
+.connections-empty p {
+  margin: 0;
+}
+
+.connections-empty h2 {
+  color: var(--text-color);
+  font-size: 1.1rem;
+}
+
+.connections-empty p {
+  color: var(--subtext-color);
+  line-height: 1.55;
+}
+
 .connection-card {
   width: 100%;
   display: flex;

@@ -940,7 +940,7 @@ function Feed({
     } catch (error) {
       console.error('Error fetching Info Board knowledge base:', error);
       setInfoKnowledgeBaseNodes([]);
-      setInfoKnowledgeBaseError('Unable to load the Information Board knowledge base.');
+      setInfoKnowledgeBaseError('Unable to load Guides & Answers. Please try again.');
     } finally {
       setIsLoadingInfoKnowledgeBase(false);
       setHasLoadedInfoKnowledgeBase(true);
@@ -2498,8 +2498,9 @@ function Feed({
               </div>
             ) : (
               <div className="empty-state-card">
+                <h3>No communities match this view</h3>
                 <p className="empty-state-text">
-                  No communities match your filters.
+                  Your search or filters excluded every available community. Clear them to see all communities again.
                 </p>
                 <button type="button" className="secondary-button" onClick={clearCommunityFilters}>
                   Clear Filters
@@ -2933,10 +2934,12 @@ function Feed({
           )}
 
           {isLoadingForums ? (
-            <div className="info-board-state" role="status">Loading forums…</div>
+            <div className="info-board-state" role="status">Loading guides…</div>
           ) : filteredForums.length === 0 ? (
             <div className="info-board-state">
-              {isAllTopicsSelected ? 'No forums available.' : 'No forums match these tags.'}
+              {isAllTopicsSelected
+                ? 'No guides have been added yet. Check back as communities publish new guidance.'
+                : 'No guides match these topics. Clear a filter to see more guidance.'}
             </div>
           ) : (
             <div className="forum-list">
@@ -3201,8 +3204,8 @@ function Feed({
   // SAVED SECTION
   if (activeSection === 'saved' && userData) {
     const savedMetrics = [
-      { key: 'forums', label: 'Forums', count: savedForums.length },
-      { key: 'threads', label: 'Threads', count: savedThreads.length },
+      { key: 'forums', label: 'Guides', count: savedForums.length },
+      { key: 'threads', label: 'Discussions', count: savedThreads.length },
       { key: 'posts', label: 'Comments', count: savedPosts.length },
     ];
     const activeCount =
@@ -3300,14 +3303,15 @@ function Feed({
             {activeCount === 0 && (
               <div className="saved-empty">
                 <h3>No saved {savedTab === 'posts' ? 'comments' : savedTab} yet</h3>
-                <p>Save content from menus to build your quick-access library.</p>
+                <p>Nothing has been saved in this category. Use the save action on helpful guidance so you can return to it quickly.</p>
+                <Link to="/info" className="secondary-button">Browse Guides &amp; Answers</Link>
               </div>
             )}
 
             {activeCount > 0 && activeResults.length === 0 && (
               <div className="saved-empty saved-search-empty">
                 <h3>No matching saved items</h3>
-                <p>Try a title, community, forum, or phrase from the content.</p>
+                <p>Your saved items do not contain that wording. Try a title, community, guide, or shorter phrase.</p>
               </div>
             )}
 
@@ -3318,7 +3322,7 @@ function Feed({
                   return (
                   <article key={f.forum_id} className="saved-card">
                     <div className="saved-card__meta">
-                      <span className="saved-card__type">Forum</span>
+                      <span className="saved-card__type">Guide</span>
                       {f.saved_at && <span className="saved-card__time">Saved {formatSavedAt(f.saved_at)}</span>}
                     </div>
                     <div className="saved-card__crumbs">
@@ -3368,7 +3372,7 @@ function Feed({
                   return (
                   <article key={t.thread_id} className="saved-card">
                     <div className="saved-card__meta">
-                      <span className="saved-card__type">Thread</span>
+                      <span className="saved-card__type">Discussion</span>
                       {t.saved_at && <span className="saved-card__time">Saved {formatSavedAt(t.saved_at)}</span>}
                     </div>
                     <div className="saved-card__crumbs">

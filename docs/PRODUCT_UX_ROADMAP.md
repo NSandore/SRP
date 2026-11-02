@@ -141,28 +141,28 @@ The experience should be organized around four questions:
 
 ### Simplify navigation language
 
-- [ ] Test replacing scholarly or internally meaningful navigation terms with
+- [x] Test replacing scholarly or internally meaningful navigation terms with
   plain-language labels:
   - Home
   - Guides & Answers
   - Communities
   - Events
   - Saved
-- [ ] Preserve brand character through visual design and editorial voice rather
+- [x] Preserve brand character through visual design and editorial voice rather
   than requiring users to decode labels such as “Academic Commons,” “Reading
   Room,” or “Discussion Index.”
-- [ ] Ensure web and mobile use the same public terminology.
+- [x] Ensure web and mobile use the same public terminology.
 
 ### Rewrite login and welcome messaging
 
-- [ ] Shift login copy away from following, saving, profile building, and feed
+- [x] Shift login copy away from following, saving, profile building, and feed
   behavior toward the outcome:
   “Get clear answers about education from students who have lived it,
   professionals who understand it, and verified representatives who can clarify
   the facts.”
 - [x] Update the welcome experience so ambassadors are one helpful pathway,
   not the platform's only or default destination.
-- [ ] Review all empty states and calls to action for benefit-led, plain-language
+- [x] Review all empty states and calls to action for benefit-led, plain-language
   wording.
 
 ## P1 — Build the answer and guidance layer

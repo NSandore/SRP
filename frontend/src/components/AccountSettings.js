@@ -118,7 +118,7 @@ function AccountSettings({ userData, onInterestsUpdated }) {
       { id: 'profile', label: 'Profile', icon: <FaUserCog size={16} /> },
       { id: 'notifications', label: 'Notifications', icon: <FaBell size={16} /> },
       { id: 'security', label: 'Security', icon: <FaShieldAlt size={16} /> },
-      { id: 'feed', label: 'Feed', icon: <FaUsers size={16} /> },
+      { id: 'feed', label: 'Home', icon: <FaUsers size={16} /> },
       { id: 'community', label: 'Community', icon: <FaUniversity size={16} /> },
       canConnectZoom ? { id: 'integrations', label: 'Integrations', icon: <FaPlug size={16} /> } : null,
       isSuperAdminUser ? { id: 'moderation', label: 'Moderation preview', icon: <FaBullhorn size={16} /> } : null,

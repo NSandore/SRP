@@ -39,8 +39,8 @@ const FEED_TABS = [
 ] as const;
 
 const CONTENT_TABS = [
-  { key: 'forums', label: 'Forums' },
-  { key: 'threads', label: 'Threads' },
+  { key: 'forums', label: 'Guides' },
+  { key: 'threads', label: 'Discussions' },
 ] as const;
 
 type FeedTab = (typeof FEED_TABS)[number]['key'];
@@ -712,9 +712,19 @@ export default function FeedScreen() {
         {error && isEmpty ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
 
         {isEmpty ? (
-          <ThemedText style={styles.helper}>
-            No {activeContentTab === 'threads' ? 'threads' : 'forums'} to show yet.
-          </ThemedText>
+          <View style={styles.emptyState}>
+            <ThemedText style={styles.emptyTitle}>
+              {activeContentTab === 'threads' ? 'No discussions to show yet' : 'No guides to show yet'}
+            </ThemedText>
+            <ThemedText style={styles.helper}>
+              {activeFeed === 'yourFeed'
+                ? 'The communities you follow have not added anything here yet. Explore more communities to broaden your Home.'
+                : 'Nothing matches the current filters. Clear a filter or explore communities for more guidance.'}
+            </ThemedText>
+            <Pressable style={styles.emptyAction} onPress={() => router.push('/communities')}>
+              <ThemedText style={styles.emptyActionText}>Explore communities</ThemedText>
+            </Pressable>
+          </View>
         ) : null}
 
         {activeContentTab === 'threads'
@@ -1357,6 +1367,34 @@ const createStyles = (colors: BrandColors) =>
   },
   helper: {
     color: colors.subtext,
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  emptyState: {
+    alignItems: 'center',
+    gap: 8,
+    padding: 22,
+    borderRadius: Brand.radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  emptyTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  emptyAction: {
+    marginTop: 4,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: colors.primaryFrom,
+  },
+  emptyActionText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   metaText: {
     fontSize: 12,

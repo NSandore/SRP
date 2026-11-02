@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { BarChart3, Clock3, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 function PollsPage({ userData }) {
   const [polls, setPolls] = useState([]);
@@ -104,7 +105,9 @@ function PollsPage({ userData }) {
 
         {!loading && !polls.length && (
           <div className="sample-data-note">
-            No polls yet. When your communities publish a poll, it will appear here.
+            <strong>No community questions yet.</strong>{' '}
+            Polls will appear when the communities you follow publish one.{' '}
+            <Link to="/communities">Explore communities</Link>
           </div>
         )}
 

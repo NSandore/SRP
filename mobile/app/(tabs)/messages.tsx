@@ -394,7 +394,7 @@ export default function MessagesScreen() {
                   <View style={styles.emptyCopy}>
                     <ThemedText style={styles.emptyTitle}>No conversations yet</ThemedText>
                     <ThemedText style={styles.emptyText}>
-                      Start connecting from a profile or use the search bar above.
+                      Search for a person above, or open a helpful person&apos;s profile from a community to ask a question.
                     </ThemedText>
                   </View>
                 ) : (
@@ -555,9 +555,7 @@ export default function MessagesScreen() {
                           <View style={styles.emptyCopy}>
                             <ThemedText style={styles.emptyTitle}>No messages yet</ThemedText>
                             <ThemedText style={styles.emptyText}>
-                              {activeConv.conversation_id
-                                ? 'This conversation is all caught up.'
-                                : `Say hello to ${activeName} to get things started.`}
+                              Ask {activeName} a question to start the conversation.
                             </ThemedText>
                           </View>
                         ) : null}

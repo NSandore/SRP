@@ -280,7 +280,7 @@ export default function ForumScreen() {
 
         <View style={styles.breadcrumbs}>
           <Pressable onPress={() => router.push('/info')}>
-            <ThemedText style={styles.breadcrumbText}>Info Board</ThemedText>
+            <ThemedText style={styles.breadcrumbText}>Guides &amp; Answers</ThemedText>
           </Pressable>
           <ThemedText style={styles.breadcrumbSep}>/</ThemedText>
           <ThemedText style={styles.breadcrumbText}>
@@ -382,7 +382,12 @@ export default function ForumScreen() {
         ) : sortedThreads.length === 0 ? (
           <View style={styles.emptyCard}>
             <ThemedText style={styles.emptyTitle}>
-              {activeTags.length ? 'No threads match these tags.' : 'No threads available.'}
+              {activeTags.length ? 'No discussions match these topics' : 'No discussions here yet'}
+            </ThemedText>
+            <ThemedText style={styles.emptyText}>
+              {activeTags.length
+                ? 'Clear one or more topic filters to see other guidance.'
+                : 'This guide has not received a question or discussion yet. Check another guide or return later.'}
             </ThemedText>
           </View>
         ) : (

@@ -266,7 +266,7 @@ function Messages({ userData }) {
         <header className="messages-page-header">
           <div className="panel-header">
             <h2>Messages</h2>
-            <p>Stay connected with your communities and contacts.</p>
+            <p>Ask follow-up questions and get guidance from people who can help.</p>
           </div>
           <label className="conversation-search">
             <FiSearch />
@@ -294,7 +294,7 @@ function Messages({ userData }) {
             {conversations.length === 0 ? (
               <div className="empty-copy">
                 <h4>No conversations yet</h4>
-                <p>Start connecting from a profile or use the search bar above.</p>
+                <p>Search for a person above, or open a helpful person’s profile from a community to ask a question.</p>
               </div>
             ) : (
               <ul className="conversation-list">
@@ -391,9 +391,7 @@ function Messages({ userData }) {
                   <div className="empty-copy">
                     <h4>No messages yet</h4>
                     <p>
-                      {activeConv.conversation_id
-                        ? 'This conversation is all caught up.'
-                        : `Say hello to ${activeConv.first_name || 'this member'} to get things started.`}
+                      Ask {activeConv.first_name || 'this person'} a question to start the conversation.
                     </p>
                   </div>
                 )}

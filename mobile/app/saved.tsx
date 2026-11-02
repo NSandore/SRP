@@ -72,8 +72,8 @@ const formatSavedAt = (value?: string) => {
 };
 
 const SAVED_TABS = [
-  { key: 'forums', label: 'Forums' },
-  { key: 'threads', label: 'Threads' },
+  { key: 'forums', label: 'Guides' },
+  { key: 'threads', label: 'Discussions' },
   { key: 'posts', label: 'Comments' },
 ] as const;
 
@@ -105,8 +105,8 @@ export default function SavedScreen() {
 
   const metrics = useMemo(
     () => [
-      { key: 'forums' as const, label: 'Forums', count: savedForums.length },
-      { key: 'threads' as const, label: 'Threads', count: savedThreads.length },
+      { key: 'forums' as const, label: 'Guides', count: savedForums.length },
+      { key: 'threads' as const, label: 'Discussions', count: savedThreads.length },
       { key: 'posts' as const, label: 'Comments', count: savedPosts.length },
     ],
     [savedForums.length, savedThreads.length, savedPosts.length]
@@ -349,8 +349,11 @@ export default function SavedScreen() {
                   No saved {savedTab === 'posts' ? 'comments' : savedTab} yet
                 </ThemedText>
                 <ThemedText style={styles.emptyText}>
-                  Save content from menus to build your quick-access library.
+                  Nothing has been saved in this category. Use the save action on helpful guidance so you can return to it quickly.
                 </ThemedText>
+                <Pressable style={styles.emptyAction} onPress={() => router.push('/info')}>
+                  <ThemedText style={styles.emptyActionText}>Browse Guides &amp; Answers</ThemedText>
+                </Pressable>
               </View>
             ) : null}
 
@@ -365,7 +368,7 @@ export default function SavedScreen() {
                   >
                     <View style={styles.cardMetaRow}>
                       <View style={styles.typeBadge}>
-                        <ThemedText style={styles.typeBadgeText}>Forum</ThemedText>
+                        <ThemedText style={styles.typeBadgeText}>Guide</ThemedText>
                       </View>
                       {forum.saved_at ? (
                         <ThemedText style={styles.savedTime}>
@@ -412,7 +415,7 @@ export default function SavedScreen() {
                   >
                     <View style={styles.cardMetaRow}>
                       <View style={styles.typeBadge}>
-                        <ThemedText style={styles.typeBadgeText}>Thread</ThemedText>
+                        <ThemedText style={styles.typeBadgeText}>Discussion</ThemedText>
                       </View>
                       {thread.saved_at ? (
                         <ThemedText style={styles.savedTime}>
@@ -421,7 +424,7 @@ export default function SavedScreen() {
                       ) : null}
                     </View>
                     <View style={styles.crumbRow}>
-                      <ThemedText style={styles.crumbText}>Info Board</ThemedText>
+                      <ThemedText style={styles.crumbText}>Guides &amp; Answers</ThemedText>
                       <ThemedText style={styles.crumbSep}>/</ThemedText>
                       <ThemedText style={styles.crumbText}>
                         {thread.forum_name || 'Forum'}
@@ -483,7 +486,7 @@ export default function SavedScreen() {
                         </View>
                       ) : null}
                       <View style={styles.crumbRow}>
-                        <ThemedText style={styles.crumbText}>Info Board</ThemedText>
+                        <ThemedText style={styles.crumbText}>Guides &amp; Answers</ThemedText>
                         <ThemedText style={styles.crumbSep}>/</ThemedText>
                         <ThemedText style={styles.crumbText}>
                           {post.forum_name || 'Forum'}
@@ -669,6 +672,19 @@ const createStyles = (colors: BrandColors) =>
   emptyText: {
     fontSize: 12,
     color: colors.subtext,
+  },
+  emptyAction: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: colors.primaryFrom,
+  },
+  emptyActionText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   cardsGrid: {
     gap: 14,

@@ -541,7 +541,7 @@ export default function ThreadDetailScreen() {
 
         <View style={styles.breadcrumbs}>
           <Pressable onPress={() => router.push('/info')}>
-            <ThemedText style={styles.breadcrumbText}>Info Board</ThemedText>
+            <ThemedText style={styles.breadcrumbText}>Guides &amp; Answers</ThemedText>
           </Pressable>
           {isKnowledgeBaseEntry && thread?.parent_thread_id ? (
             <>
@@ -596,7 +596,7 @@ export default function ThreadDetailScreen() {
           <View style={styles.readOnlyNote}>
             <ThemedText style={styles.readOnlyTitle}>{knowledgeBaseTypeLabel}</ThemedText>
             <ThemedText style={styles.helper}>
-              This entry is read-only. Use an Information Board question megathread for discussion.
+              This guide is read-only. Open its related question discussion to respond.
             </ThemedText>
           </View>
         ) : null}

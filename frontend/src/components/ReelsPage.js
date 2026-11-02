@@ -286,7 +286,7 @@ function ReelsPage({ userData, onRequireAuth }) {
         <div className="reels-page__heading">
           <p className="reels-page__eyebrow">
             <Sparkles size={15} aria-hidden="true" />
-            Short-form stories from the commons
+            Short-form stories from communities
           </p>
           <h1>{contextualTitle}</h1>
           <p>Meet creators, discover communities, and share what you’re about in sixty seconds or less.</p>

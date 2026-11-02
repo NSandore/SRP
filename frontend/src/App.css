@@ -5323,6 +5323,19 @@ select:focus {
   border-radius: 12px;
   background: var(--background-color);
 }
+
+.search-empty h2 {
+  margin: 0 0 8px;
+  color: var(--text-color);
+  font-size: 1.15rem;
+}
+
+.search-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
 .error-text {
   color: #dc2626;
 }

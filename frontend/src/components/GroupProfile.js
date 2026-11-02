@@ -1020,7 +1020,7 @@ function GroupProfile({ userData, onRequireAuth }) {
                 ) : knowledgeBaseError ? (
                   <p>{knowledgeBaseError}</p>
                 ) : visibleKnowledgeBaseArticles.length === 0 ? (
-                  <p className="muted">No knowledge base entries match your search.</p>
+                  <p className="muted">No guides match that search. Try fewer words or a broader phrase.</p>
                 ) : (
                   <div className="knowledge-base-list">
                     {visibleKnowledgeBaseArticles.map((article) => {

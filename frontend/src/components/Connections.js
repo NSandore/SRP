@@ -155,7 +155,11 @@ function Connections({ userData }) {
                 })}
               </ul>
             ) : (
-              <p>You are not following anyone yet.</p>
+              <div className="connections-empty">
+                <h2>You are not following anyone yet</h2>
+                <p>Follow people whose experience or guidance you want to return to.</p>
+                <Link to="/communities" className="message-button">Explore communities</Link>
+              </div>
             )
           ) : (
             followers.length > 0 ? (
@@ -189,7 +193,11 @@ function Connections({ userData }) {
                 })}
               </ul>
             ) : (
-              <p>You have no followers yet.</p>
+              <div className="connections-empty">
+                <h2>No followers yet</h2>
+                <p>Participating in communities and sharing useful guidance helps people find you.</p>
+                <Link to="/communities" className="message-button">Join a community</Link>
+              </div>
             )
           )}
         </div>

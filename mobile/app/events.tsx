@@ -634,7 +634,7 @@ export default function EventsScreen() {
                   <ThemedText style={styles.emptySubtext}>
                     {loadingFollowed || loadingItems
                       ? 'Loading your upcoming events…'
-                      : 'Events and announcements from your communities will show up here.'}
+                      : 'The communities you follow have not published an upcoming event. Follow another community or check back later.'}
                   </ThemedText>
                   <View style={styles.skeletonList}>
                     {[0.85, 0.65, 0.75].map((w, i) => (
@@ -661,7 +661,7 @@ export default function EventsScreen() {
                   <ThemedText style={styles.emptySubtext}>
                     {loadingFollowed || loadingItems
                       ? 'Loading your upcoming events…'
-                      : 'Events and announcements from your communities will show up here.'}
+                      : 'The communities you follow have not published an upcoming event. Follow another community or check back later.'}
                   </ThemedText>
                   <View style={styles.gridSections}>
                     {(['Virtual', 'In-Person'] as const).map((label) => (

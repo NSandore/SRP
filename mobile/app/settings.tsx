@@ -116,9 +116,9 @@ const sessionTimeoutOptions = [
 ] as const;
 
 const defaultFeedOptions = [
-  { value: 'yourFeed', label: 'Your Feed' },
-  { value: 'explore', label: 'Explore' },
-  { value: 'info', label: 'Info Board' },
+  { value: 'yourFeed', label: 'Home — your communities' },
+  { value: 'explore', label: 'Home — explore' },
+  { value: 'info', label: 'Guides & Answers' },
 ] as const;
 
 const roleLabel = (roleId?: number | string) => {
@@ -197,7 +197,7 @@ export default function AccountSettingsScreen() {
       { id: 'profile', label: 'Profile', icon: 'account-cog' },
       { id: 'notifications', label: 'Notifications', icon: 'bell' },
       { id: 'security', label: 'Security', icon: 'shield-check' },
-      { id: 'feed', label: 'Feed', icon: 'rss' },
+      { id: 'feed', label: 'Home', icon: 'rss' },
       { id: 'community', label: 'Community', icon: 'school' },
       canConnectZoom ? { id: 'integrations', label: 'Integrations', icon: 'plug' } : null,
       isModeratorUser ? { id: 'moderation', label: 'Moderation', icon: 'bullhorn' } : null,

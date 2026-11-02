@@ -17,7 +17,12 @@ function useQuery() {
 function EmptyState({ query }) {
   return (
     <div className="search-empty">
-      <p>No results for “{query}”. Try different keywords or a tag like <code>#events</code> or a user handle like <code>@alex</code>.</p>
+      <h2>We could not find anything for “{query}”</h2>
+      <p>That may mean the wording is different or the guidance has not been added yet. Try fewer keywords, a topic like <code>#events</code>, or a person such as <code>@alex</code>.</p>
+      <div className="search-empty__actions">
+        <Link to="/info" className="primary-button">Browse Guides &amp; Answers</Link>
+        <Link to="/communities" className="secondary-button">Explore communities</Link>
+      </div>
     </div>
   );
 }
@@ -92,12 +97,12 @@ function SearchResults() {
   const [error, setError] = useState('');
   const tabs = React.useMemo(
     () => [
-      { id: 'users', label: 'Users' },
+      { id: 'users', label: 'People' },
       { id: 'communities', label: 'Communities' },
-      { id: 'forums', label: 'Forums' },
-      { id: 'threads', label: 'Threads' },
-      { id: 'posts', label: 'Posts' },
-      { id: 'tags', label: 'Tags' },
+      { id: 'forums', label: 'Guides' },
+      { id: 'threads', label: 'Discussions' },
+      { id: 'posts', label: 'Answers' },
+      { id: 'tags', label: 'Topics' },
     ],
     []
   );
@@ -245,12 +250,12 @@ function SearchResults() {
       <div className="feed-container scholarly-page-panel search-page-panel">
         <header className="scholarly-page-header">
           <div>
-            <p className="scholarly-page-kicker">Campus-wide search</p>
+            <p className="scholarly-page-kicker">Find guidance</p>
             <h1>Search</h1>
             <p>
               {query
-                ? <>Results for “{query}” across people, communities, forums, and discussions.</>
-                : 'Find people, communities, forums, threads, posts, and tags.'}
+                ? <>Answers, guides, communities, and people related to “{query}”.</>
+                : 'Search for an answer, topic, community, or person who can help.'}
             </p>
           </div>
           <div className="scholarly-page-count" aria-live="polite">
@@ -263,7 +268,7 @@ function SearchResults() {
     </main>
   );
 
-  if (!query) return renderShell(<p className="search-status muted">Please enter a search term.</p>);
+  if (!query) return renderShell(<p className="search-status muted">Describe what you are trying to figure out.</p>);
   if (loading) return renderShell(<p className="search-status muted">Searching…</p>);
   if (error) return renderShell(<p className="search-status error-text">{error}</p>);
   if (!results) return null;
@@ -322,7 +327,7 @@ function SearchResults() {
                     />
                     <div>
                       <div className="search-card-title">{u.first_name} {u.last_name}</div>
-                      <div className="search-card-meta">Profile</div>
+                    <div className="search-card-meta">Person</div>
                     </div>
                   </Link>
                 ))}
@@ -400,7 +405,7 @@ function SearchResults() {
                   <Link key={f.forum_id} to={`/info/forum/${f.forum_id}`} className="search-card search-result-item search-result-item--forum">
                     <SearchBreadcrumb parts={[f.community_name]} />
                     <div className="search-card-title">{f.name}</div>
-                    <div className="search-card-meta">{f.description || 'Forum'}</div>
+                    <div className="search-card-meta">{f.description || 'Guide'}</div>
                     <div className="search-card-meta search-card-metrics">
                       <span><span className="vote-icon"><FaRegArrowAltCircleUp /></span> {(Number(f.upvotes) || 0)}</span>
                       <span><span className="vote-icon"><FaRegArrowAltCircleDown /></span> {(Number(f.downvotes) || 0)}</span>

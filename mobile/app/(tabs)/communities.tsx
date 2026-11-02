@@ -326,7 +326,21 @@ export default function CommunitiesScreen() {
 
           {communities.length === 0 && !isLoading ? (
             <View style={styles.emptyState}>
-              <ThemedText style={styles.emptyText}>No communities match your filters.</ThemedText>
+              <ThemedText style={styles.emptyTitle}>No communities match this view</ThemedText>
+              <ThemedText style={styles.emptyText}>
+                Your search or filters excluded every available community. Reset them to see all communities again.
+              </ThemedText>
+              <Pressable
+                style={styles.emptyAction}
+                onPress={() => {
+                  setSearchValue('');
+                  setSearchTerm('');
+                  setCommunityFilter('All');
+                  setCommunitySort('popularity');
+                }}
+              >
+                <ThemedText style={styles.emptyActionText}>Reset filters</ThemedText>
+              </Pressable>
             </View>
           ) : (
             communities.map((community) => {
@@ -672,10 +686,30 @@ const createStyles = (colors: BrandColors) =>
   emptyState: {
     paddingVertical: 24,
     alignItems: 'center',
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
   },
   emptyText: {
     fontSize: 12,
     color: colors.subtext,
+    textAlign: 'center',
+    maxWidth: 360,
+  },
+  emptyAction: {
+    marginTop: 4,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: colors.primaryFrom,
+  },
+  emptyActionText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   pagination: {
     marginTop: 8,

@@ -51,7 +51,7 @@ export default function LoginScreen() {
   const subheading = useMemo(() => {
     if (showReset) return 'Choose a new password to regain access.';
     if (requiresTwoFactor) return 'Enter the verification code we sent to your email.';
-    return 'Log in to continue your journey.';
+    return 'Return to your questions, saved guidance, and communities.';
   }, [showReset, requiresTwoFactor]);
 
   const handleLogin = async () => {

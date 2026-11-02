@@ -144,7 +144,7 @@ export default function InfoScreen() {
       .catch(() => {
         if (!mounted) return;
         setInfoKnowledgeBaseNodes([]);
-        setInfoKnowledgeBaseError('Unable to load the Information Board knowledge base.');
+        setInfoKnowledgeBaseError('Unable to load Guides & Answers. Please try again.');
       })
       .finally(() => {
         if (!mounted) return;
@@ -302,7 +302,7 @@ export default function InfoScreen() {
         <View style={styles.screen}>
           <ScrollView contentContainerStyle={styles.container}>
             <View style={styles.header}>
-              <ThemedText type="title" style={styles.pageTitle}>Information Board</ThemedText>
+              <ThemedText type="title" style={styles.pageTitle}>Guides &amp; Answers</ThemedText>
             </View>
             <ThemedText style={styles.metaText}>
               Student answers organized as guides, sections, and knowledge base articles.
@@ -361,7 +361,7 @@ export default function InfoScreen() {
       <View style={styles.screen}>
         <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
-          <ThemedText type="title" style={styles.pageTitle}>Info Board</ThemedText>
+          <ThemedText type="title" style={styles.pageTitle}>Guides &amp; Answers</ThemedText>
         </View>
         <ThemedText style={styles.metaText}>
           Welcome back, {user?.first_name ? user.first_name : 'there'}!
@@ -451,7 +451,9 @@ export default function InfoScreen() {
         {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
 
         {filteredForums.length === 0 ? (
-          <ThemedText style={styles.helper}>No forums match your filters.</ThemedText>
+          <ThemedText style={styles.helper}>
+            No guides match these filters. Clear a topic or try a broader search to see more guidance.
+          </ThemedText>
         ) : (
           filteredForums.map((forum) => (
             <Pressable

@@ -12,7 +12,7 @@ const SUPPORT_AREAS = [
   },
   {
     id: 'moderation',
-    name: 'A thoughtful commons',
+    name: 'A thoughtful community',
     purpose: 'Safety and moderation tooling',
     commitment: 'No paid visibility or posting privileges',
   },

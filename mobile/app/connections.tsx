@@ -246,12 +246,19 @@ export default function ConnectionsScreen() {
               <View style={styles.emptyState}>
                 <ThemedText style={styles.emptyTitle}>
                   {activeTab === 'following'
-                    ? 'You are not following anyone yet.'
-                    : 'You have no followers yet.'}
+                    ? 'You are not following anyone yet'
+                    : 'No followers yet'}
                 </ThemedText>
                 <ThemedText style={styles.emptyText}>
-                  Start engaging with members to build your network.
+                  {activeTab === 'following'
+                    ? 'Follow people whose experience or guidance you want to return to.'
+                    : 'Participating in communities and sharing useful guidance helps people find you.'}
                 </ThemedText>
+                <Pressable style={styles.emptyAction} onPress={() => router.push('/communities')}>
+                  <ThemedText style={styles.emptyActionText}>
+                    {activeTab === 'following' ? 'Explore communities' : 'Join a community'}
+                  </ThemedText>
+                </Pressable>
               </View>
             ) : null}
 
@@ -487,5 +494,18 @@ const createStyles = (colors: BrandColors) =>
   emptyText: {
     fontSize: 12,
     color: colors.subtext,
+  },
+  emptyAction: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: colors.primaryFrom,
+  },
+  emptyActionText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

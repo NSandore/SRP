@@ -318,7 +318,9 @@ export default function PollsScreen() {
           <View style={styles.cardBody}>
             {!polls.length ? (
               <ThemedText style={styles.emptyText}>
-                {loadingFollowed || loadingItems ? 'Loading polls...' : 'No polls from your communities yet.'}
+                {loadingFollowed || loadingItems
+                  ? 'Loading polls...'
+                  : 'The communities you follow have not published a poll. Explore more communities or check back later.'}
               </ThemedText>
             ) : (
               polls.map((poll) => {

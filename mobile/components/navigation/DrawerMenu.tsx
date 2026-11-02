@@ -29,18 +29,15 @@ const DRAWER_WIDTH = 300;
 
 const baseItems = [
   { key: 'home', label: 'Home', route: '/feed', icon: 'home', color: '#2F80ED' },
-  { key: 'reels', label: 'Reels', route: '/reels', icon: 'play-box-multiple', color: '#8B5CF6', comingSoon: !REELS_ENABLED },
-  { key: 'info', label: 'Info Board', route: '/info', icon: 'information-variant', color: '#69A8F7' },
-  { key: 'funding', label: 'Funding', route: '/funding', icon: 'medal-outline', color: '#F59E0B', comingSoon: true },
+  { key: 'info', label: 'Guides & Answers', route: '/info', icon: 'book-open-page-variant-outline', color: '#7656D9' },
   { key: 'communities', label: 'Communities', route: '/communities', icon: 'account-group', color: '#10B981' },
+  { key: 'events_feed', label: 'Events', route: '/events', icon: 'calendar', color: '#14B8A6' },
   { key: 'saved', label: 'Saved', route: '/saved', icon: 'bookmark-outline', color: '#6366F1' },
+  { key: 'funding', label: 'Funding', route: '/funding', icon: 'medal-outline', color: '#F59E0B', comingSoon: true },
+  { key: 'polls_feed', label: 'Polls', route: '/polls', icon: 'poll', color: '#F97316' },
+  { key: 'reels', label: 'Reels', route: '/reels', icon: 'play-box-multiple', color: '#8B5CF6', comingSoon: !REELS_ENABLED },
   { key: 'connections', label: 'Connections', route: '/connections', icon: 'account-check', color: '#EC4899' },
   { key: 'profile', label: 'My Profile', route: '/profile', icon: 'account-circle', color: '#64748B' },
-];
-
-const mobileExtras = [
-  { key: 'events_feed', label: 'Events', route: '/events', icon: 'calendar', color: '#14B8A6' },
-  { key: 'polls_feed', label: 'Polls', route: '/polls', icon: 'poll', color: '#F97316' },
 ];
 
 const adminItems = [
@@ -89,10 +86,6 @@ export default function DrawerMenu({ visible, onClose }: DrawerMenuProps) {
 
   const items = useMemo(() => {
     const list = [...baseItems];
-    const insertAt = list.findIndex((item) => item.key === 'communities');
-    const idx = insertAt === -1 ? list.length : insertAt + 1;
-    list.splice(idx, 0, ...mobileExtras);
-
     const roleId = user?.role_id;
     const adminCommunityIds = Array.isArray(user?.admin_community_ids) ? user?.admin_community_ids : [];
     const isCommunityAdmin = adminCommunityIds.length > 0;
