@@ -952,6 +952,77 @@
   color: #aebdd3;
 }
 
+[data-theme='dark'] .signup-verification-heading p,
+[data-theme='dark'] .signup-verification-complete p {
+  color: #b8c8dd;
+}
+
+[data-theme='dark'] .signup-upload-grid label,
+[data-theme='dark'] .signup-file-field {
+  border-color: #416486;
+  background: #142c4b;
+}
+
+[data-theme='dark'] .signup-upload-grid small,
+[data-theme='dark'] .signup-file-field small,
+[data-theme='dark'] .signup-school-result small,
+[data-theme='dark'] .signup-inline-status,
+[data-theme='dark'] .signup-selection-count {
+  color: #b4c5db !important;
+}
+
+[data-theme='dark'] .signup-onboarding .auth-form input::placeholder {
+  color: #91a5c0;
+  opacity: 1;
+}
+
+[data-theme='dark'] .signup-onboarding input[type='file'] {
+  border-color: #416486;
+  background: #0d2038;
+  color: #dce8f8;
+}
+
+[data-theme='dark'] .signup-onboarding input[type='file']::file-selector-button {
+  margin-right: 0.7rem;
+  border: 1px solid #4c7095;
+  border-radius: 7px;
+  padding: 0.45rem 0.65rem;
+  background: #1b385a;
+  color: #f3f7ff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+[data-theme='dark'] .signup-verification-feedback {
+  border-color: rgba(255, 143, 128, 0.38);
+  color: #ffd6d0;
+  background: #351c22;
+}
+
+[data-theme='dark'] .signup-verification-feedback span {
+  color: #f2b4aa;
+}
+
+[data-theme='dark'] .signup-verification .auth-primary {
+  border-color: #246ac7;
+  background: #246ac7;
+  color: #ffffff;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-theme='dark'] .signup-verification .auth-primary:hover {
+    border-color: #1d5baa;
+    background: #1d5baa;
+    color: #ffffff;
+  }
+
+  [data-theme='dark'] .signup-onboarding input[type='file']::file-selector-button:hover {
+    border-color: #69a8f7;
+    background: #24496f;
+  }
+}
+
 @media (max-width: 1100px) {
   .signup-shell {
     grid-template-columns: minmax(260px, 0.7fr) minmax(520px, 1.3fr);

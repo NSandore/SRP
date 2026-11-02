@@ -210,6 +210,30 @@
   color: #b7c6da;
 }
 
+[data-theme='dark'] .verification-prompt-heading > span {
+  color: #69a8f7;
+}
+
+[data-theme='dark'] .verification-prompt-feedback {
+  border-color: rgba(255, 143, 128, 0.38);
+  color: #ffd6d0;
+  background: #351c22;
+}
+
+[data-theme='dark'] .verification-prompt-actions .onboarding-banner__action--secondary {
+  border-color: #3a5878;
+  color: #e7effb;
+  background: #142943;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-theme='dark'] .verification-prompt-actions .onboarding-banner__action--secondary:hover {
+    border-color: #69a8f7;
+    color: #ffffff;
+    background: #1a3555;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .onboarding-banner__action:hover {
     border-color: var(--home-forest-light);

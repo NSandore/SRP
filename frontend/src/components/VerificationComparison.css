@@ -96,6 +96,21 @@
   border-color: #31506f;
 }
 
+[data-theme='dark'] .verification-comparison table,
+[data-theme='dark'] .verification-comparison tbody th {
+  color: #e7effb;
+}
+
+[data-theme='dark'] .verification-comparison th,
+[data-theme='dark'] .verification-comparison td {
+  border-color: #31506f;
+}
+
+[data-theme='dark'] .verification-comparison tbody th,
+[data-theme='dark'] .verification-comparison tbody td {
+  background: #10243c;
+}
+
 [data-theme='dark'] .verification-comparison tbody td {
   color: #b8c8dd;
 }
