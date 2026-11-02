@@ -30,12 +30,35 @@ try {
     $alreadySubmitted = $db->prepare('SELECT 1 FROM content_resolution_feedback WHERE post_id = :post_id AND user_id = :user_id');
     $alreadySubmitted->execute([':post_id' => $postId, ':user_id' => $userId]);
     if ($alreadySubmitted->fetchColumn()) { http_response_code(409); echo json_encode(['error' => 'You already shared feedback for this answer.']); exit; }
+    $db->beginTransaction();
     $stmt = $db->prepare("INSERT INTO content_resolution_feedback
         (post_id,user_id,helpful,resolved,knows_next_step,missing_reason,missing_note)
         VALUES (:post_id,:user_id,:helpful,:resolved,:next_step,:missing_reason,NULLIF(:missing_note,''))");
     $stmt->execute([':post_id'=>$postId, ':user_id'=>$userId, ':helpful'=>$values['helpful'], ':resolved'=>$values['resolved'], ':next_step'=>$values['knows_next_step'], ':missing_reason'=>$values['missing_reason'], ':missing_note'=>$note]);
+
+    $needsReview = $values['helpful'] === 'no'
+        || in_array($values['resolved'], ['partly', 'no'], true)
+        || in_array($values['knows_next_step'], ['unsure', 'no'], true);
+    if ($needsReview) {
+        $gapId = generateUniqueId($db, 'knowledge_gaps');
+        $gap = $db->prepare("INSERT INTO knowledge_gaps
+            (gap_id,source_post_id,source_user_id,helpful,resolved_signal,next_step_signal,missing_reason,missing_note)
+            VALUES (:gap_id,:post_id,:user_id,:helpful,:resolved,:next_step,:missing_reason,NULLIF(:missing_note,''))");
+        $gap->execute([
+            ':gap_id' => $gapId,
+            ':post_id' => $postId,
+            ':user_id' => $userId,
+            ':helpful' => $values['helpful'],
+            ':resolved' => $values['resolved'],
+            ':next_step' => $values['knows_next_step'],
+            ':missing_reason' => $values['missing_reason'],
+            ':missing_note' => $note,
+        ]);
+    }
+    $db->commit();
     echo json_encode(['success' => true, 'message' => 'Thanks—your feedback will help improve this guidance.']);
 } catch (PDOException $e) {
+    if (isset($db) && $db->inTransaction()) { $db->rollBack(); }
     if ((string)($e->errorInfo[1] ?? '') === '1062') { http_response_code(409); echo json_encode(['error' => 'You already shared feedback for this answer.']); exit; }
     error_log('Feedback submit error: '.$e->getMessage()); http_response_code(500); echo json_encode(['error' => 'Unable to save feedback.']);
-} catch (Throwable $e) { error_log('Feedback submit error: '.$e->getMessage()); http_response_code(500); echo json_encode(['error' => 'Unable to save feedback.']); }
+} catch (Throwable $e) { if (isset($db) && $db->inTransaction()) { $db->rollBack(); } error_log('Feedback submit error: '.$e->getMessage()); http_response_code(500); echo json_encode(['error' => 'Unable to save feedback.']); }

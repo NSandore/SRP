@@ -32,6 +32,25 @@ The experience should be organized around four questions:
 - [ ] Treat accessibility, translation, family support, and plain language as
   core functionality rather than optional polish.
 
+### Deferred / backburner scope
+
+The following work remains part of the longer-term product vision but is not a
+current development priority:
+
+- Funding and scholarship discovery, matching, application tracking, deadline
+  reminders, saved funding plans, and related funding workflows.
+- Student Aid Index (SAI) calculators, estimates, projections, explanations
+  that depend on individualized financial data, and SAI-based eligibility or
+  award recommendations.
+- Any feature that could imply a user qualifies for aid or predict an award
+  without confirmation from the responsible institution or official source.
+
+Existing funding-related navigation and discussion content may remain
+available, but no new funding or SAI product functionality should be scheduled
+until this section is intentionally reprioritized. Deferring this work does not
+remove general, source-backed educational content about financial aid from the
+platform.
+
 ## P0 — Reframe onboarding around user needs
 
 ### Replace software-oriented signup language
@@ -267,7 +286,7 @@ The experience should be organized around four questions:
 - [ ] Rank gaps by frequency, urgency, affected audience, and age.
 - [ ] Allow an authorized person to claim a gap, publish an answer/resource, and
   mark the gap resolved.
-- [ ] Prevent the dashboard from exposing sensitive user questions or identity
+- [x] Prevent the dashboard from exposing sensitive user questions or identity
   beyond what is necessary to resolve the gap.
 
 ### Resolution-oriented feedback
@@ -278,7 +297,7 @@ The experience should be organized around four questions:
   - Were you connected to the right person?
   - Is anything still unclear?
 - [x] Distinguish “helpful content” from “issue resolved.”
-- [ ] Use unresolved feedback to improve answers, routing, and gap reports.
+- [x] Use unresolved feedback to improve answers, routing, and gap reports.
 - [ ] Define mission-aligned product metrics before optimizing the experience.
 
 ### Privacy-sensitive participation
@@ -317,6 +336,10 @@ The experience should be organized around four questions:
   institutional authority before the corresponding feature is operational.
 
 ## Delivery sequence
+
+Funding, scholarship, and SAI-specific functionality is excluded from the
+active delivery sequence until it is intentionally moved out of the deferred
+scope above.
 
 - [ ] **Milestone 1 — Language and onboarding:** Complete the P0 signup copy,
   field, progress, audience, needs, and verification-timing changes.

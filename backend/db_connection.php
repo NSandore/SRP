@@ -154,6 +154,7 @@ function getIdConfig(): array {
         'announcements' => ['prefix' => 'an', 'column' => 'announcement_id'],
         'newsroom_items' => ['prefix' => 'nw', 'column' => 'newsroom_item_id'],
         'changelog_entries' => ['prefix' => 'cl', 'column' => 'changelog_entry_id'],
+        'knowledge_gaps' => ['prefix' => 'kg', 'column' => 'gap_id'],
         'user_verification_requests' => ['prefix' => 'vr', 'column' => 'request_id'],
         'ambassador_applications' => ['prefix' => 'aa', 'column' => 'application_id'],
         'polls' => ['prefix' => 'pl', 'column' => 'poll_id'],

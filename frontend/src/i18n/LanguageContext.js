@@ -76,6 +76,7 @@ const translations = {
       eventManagement: 'Event Management',
       verifications: 'Verifications',
       institutionData: 'Institution Data',
+      knowledgeGaps: 'Knowledge Gaps',
       newsroom: 'Newsroom',
       changelog: 'Changelog',
       reportedItems: 'Reported Items',

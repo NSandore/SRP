@@ -74,12 +74,13 @@ import ReelsPage from './components/ReelsPage';
 import ReelsComingSoon from './components/ReelsComingSoon';
 import { REELS_ENABLED } from './constants/features';
 import InstitutionDataReview from './components/InstitutionDataReview';
+import KnowledgeGapsDashboard from './components/KnowledgeGapsDashboard';
 import { hasTestControls } from './utils/testAccounts';
-import { isSuperAdmin } from './constants/roles';
+import { isAdmin, isSuperAdmin } from './constants/roles';
 import './layout/PlatformPolish.css';
 import AmbassadorSpecialtyBadges from './components/AmbassadorSpecialtyBadges';
 
-const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/polls', '/admin/verifications', '/admin/institutions', '/admin/newsroom', '/admin/changelog'];
+const PROTECTED_ROUTES = ['/profile', '/saved', '/connections', '/settings', '/reports', '/events', '/polls', '/admin/verifications', '/admin/institutions', '/admin/newsroom', '/admin/changelog', '/admin/knowledge-gaps'];
 const AUTH_ROUTES = ['/login', '/signup'];
 
 // "Continue as guest" must land somewhere a signed-out visitor can actually
@@ -640,6 +641,7 @@ function App() {
   const shouldOfferProductTour = isProductTourCompatiblePath(location.pathname);
   const testControlsEnabled = shouldShowOverlays && hasTestControls(userData?.email);
   const isSuperAdminUser = isSuperAdmin(userData?.role_id);
+  const isAdminUser = isAdmin(userData?.role_id);
 
   return (
     <div className={`app-container ${isAuthPage ? 'auth-page' : ''}`}>
@@ -1089,6 +1091,22 @@ function App() {
                   element={
                     userData ? (
                       <PollsPage userData={userData} />
+                    ) : (
+                      <AuthOverlay
+                        isOpen
+                        onClose={closeProtectedOverlay}
+                        onLogin={handleLogin}
+                        onGoToSignUp={openSignUpPage}
+                        onContinueAsGuest={continueAsGuest}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/knowledge-gaps"
+                  element={
+                    isAdminUser ? (
+                      <KnowledgeGapsDashboard userData={userData} />
                     ) : (
                       <AuthOverlay
                         isOpen

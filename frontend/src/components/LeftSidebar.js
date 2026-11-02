@@ -20,7 +20,8 @@ import {
   Megaphone,
   Newspaper,
   Clapperboard,
-  Database
+  Database,
+  Lightbulb
 } from 'lucide-react';
 import { isAdmin, isSuperAdmin } from '../constants/roles';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -70,6 +71,9 @@ function LeftSidebar({
           { to: '/admin/newsroom', labelKey: 'nav.newsroom', Icon: Newspaper, color: '#2F80ED', key: 'newsroom', sectionKey: 'nav.manage' },
           { to: '/admin/changelog', labelKey: 'nav.changelog', Icon: Megaphone, color: '#A855F7', key: 'changelog', sectionKey: 'nav.manage' },
         ]
+      : []),
+    ...(isAdminRole
+      ? [{ to: '/admin/knowledge-gaps', labelKey: 'nav.knowledgeGaps', Icon: Lightbulb, color: '#F59E0B', key: 'knowledge_gaps', sectionKey: 'nav.manage' }]
       : []),
     ...(isModerator
       ? [{ to: '/reports', labelKey: 'nav.reportedItems', Icon: Flag, color: '#F43F5E', key: 'reports', sectionKey: 'nav.manage' }]
