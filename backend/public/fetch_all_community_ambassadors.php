@@ -1,26 +1,23 @@
 <?php
 // fetch_all_community_ambassadors.php
 
-// Enable error reporting for debugging (disable in production)
-ini_set('display_errors', 0);
-error_reporting(E_ALL);
+require_once __DIR__ . '/../session_bootstrap.php';
+startSession();
+require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
 
-// Include the database connection file
-require_once __DIR__ . '/../db_connection.php';
-
-// Check that user_id is provided
-if (!isset($_GET['user_id'])) {
-    http_response_code(400);
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(403);
     echo json_encode([
         'success' => false,
-        'error' => 'user_id is required'
+        'error' => 'Unauthorized'
     ]);
     exit;
 }
 
-$user_id = (int) $_GET['user_id'];
+$user_id = normalizeId($_SESSION['user_id']);
 
 try {
     $db = getDB();
@@ -50,15 +47,25 @@ try {
                 u.avatar_path,
                 u.first_name,
                 u.last_name,
-                u.headline
+                u.headline,
+                JSON_EXTRACT(s.extras, '$.ambassador_specialties') AS ambassador_specialties,
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(s.extras, '$.ambassador_accepting_questions')), '1') AS ambassador_accepting_questions
               FROM ambassadors a
               JOIN users u ON a.user_id = u.user_id
+              LEFT JOIN account_settings s ON s.user_id = u.user_id
               WHERE a.community_id IN ($placeholders)
+                AND u.deletion_status = 'active'
               ORDER BY a.added_at ASC";
     
     $stmt = $db->prepare($query);
     $stmt->execute($followedCommunities);
     $ambassadors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($ambassadors as &$ambassador) {
+        $specialties = json_decode($ambassador['ambassador_specialties'] ?? '[]', true);
+        $ambassador['ambassador_specialties'] = is_array($specialties) ? array_values($specialties) : [];
+        $ambassador['ambassador_accepting_questions'] = filter_var($ambassador['ambassador_accepting_questions'], FILTER_VALIDATE_BOOLEAN);
+    }
+    unset($ambassador);
 
     echo json_encode([
         'success' => true,

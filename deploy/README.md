@@ -78,6 +78,12 @@ the `current` symlink atomically, restarts only the production API, and rolls
 back the symlink if the API health check fails. Database migrations are opt-in
 with `SRP_RUN_MIGRATIONS=true` because schema rollback is not generally safe.
 
+The account-deletion release explicitly applies only its required migration,
+even when the general migration flag is off. After a successful public health
+check, the deployment script idempotently installs the nightly account-purge
+cron entry. The job permanently anonymizes accounts whose 30-day recovery
+window has ended.
+
 ## Initial cutover
 
 Do not activate until all of the following are true:

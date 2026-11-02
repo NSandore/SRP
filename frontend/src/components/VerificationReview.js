@@ -23,6 +23,9 @@ export default function VerificationReview({ userData }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [decisionMessages, setDecisionMessages] = useState({});
+  const [decisionErrors, setDecisionErrors] = useState({});
+  const [decisionBusy, setDecisionBusy] = useState({});
   const isAllowed = isSuperAdmin(userData?.role_id);
   const [searchParams] = useSearchParams();
   const highlightRequestId = searchParams.get('request_id');
@@ -77,12 +80,28 @@ export default function VerificationReview({ userData }) {
 
   const handleDecision = async (requestId, decision) => {
     setError('');
+    const reviewMessage = String(decisionMessages[requestId] || '').trim();
+    if (decision === 'reject' && reviewMessage.length < 10) {
+      setDecisionErrors((current) => ({ ...current, [requestId]: 'Explain why the request was denied using at least 10 characters.' }));
+      return;
+    }
+    setDecisionErrors((current) => ({ ...current, [requestId]: '' }));
+    setDecisionBusy((current) => ({ ...current, [requestId]: true }));
     try {
-      await axios.post('/api/update_verification_request.php', { request_id: requestId, decision }, { withCredentials: true });
+      await axios.post('/api/update_verification_request.php', {
+        request_id: requestId,
+        decision,
+        review_message: reviewMessage,
+      }, { withCredentials: true });
       setRequests((prev) => prev.filter((item) => item.request_id !== requestId));
       window.dispatchEvent(new CustomEvent('sidebarCountsUpdated'));
     } catch (err) {
-      setError('Unable to update verification request.');
+      setDecisionErrors((current) => ({
+        ...current,
+        [requestId]: err?.response?.data?.error || 'Unable to update verification request.',
+      }));
+    } finally {
+      setDecisionBusy((current) => ({ ...current, [requestId]: false }));
     }
   };
 
@@ -227,6 +246,7 @@ export default function VerificationReview({ userData }) {
                 <div><strong>Method:</strong> {labelForMethod(req.verification_method)}</div>
                 {req.staff_position && <div><strong>Position:</strong> {req.staff_position}</div>}
                 <div><strong>Submitted:</strong> {req.created_at}</div>
+                {req.review_message && <div><strong>Reviewer message:</strong> {req.review_message}</div>}
               </div>
 
               <div className="admin-review__uploads">
@@ -252,10 +272,24 @@ export default function VerificationReview({ userData }) {
 
               <div className="admin-review__actions">
                 {req.status === 'pending' ? (
-                  <>
-                    <button className="admin-review__approve" onClick={() => handleDecision(req.request_id, 'approve')}>Approve</button>
-                    <button className="admin-review__reject" onClick={() => handleDecision(req.request_id, 'reject')}>Reject</button>
-                  </>
+                  <div className="admin-review__decision">
+                    <label htmlFor={`verification-message-${req.request_id}`}>Message to user <span>Required when denying</span></label>
+                    <textarea
+                      id={`verification-message-${req.request_id}`}
+                      value={decisionMessages[req.request_id] || ''}
+                      onChange={(event) => setDecisionMessages((current) => ({ ...current, [req.request_id]: event.target.value.slice(0, 1000) }))}
+                      placeholder="Explain the decision or what the user should submit next."
+                      rows={3}
+                      maxLength={1000}
+                      disabled={Boolean(decisionBusy[req.request_id])}
+                    />
+                    <div className="admin-review__decision-meta"><span>{(decisionMessages[req.request_id] || '').length}/1000</span></div>
+                    {decisionErrors[req.request_id] && <p className="admin-review__decision-error" role="alert">{decisionErrors[req.request_id]}</p>}
+                    <div className="admin-review__decision-buttons">
+                      <button className="admin-review__approve" disabled={Boolean(decisionBusy[req.request_id])} onClick={() => handleDecision(req.request_id, 'approve')}>Approve</button>
+                      <button className="admin-review__reject" disabled={Boolean(decisionBusy[req.request_id])} onClick={() => handleDecision(req.request_id, 'reject')}>Deny with reason</button>
+                    </div>
+                  </div>
                 ) : null}
               </div>
             </div>

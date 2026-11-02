@@ -44,6 +44,7 @@ try {
             r.status,
             r.created_at,
             r.reviewed_at,
+            r.notes AS review_message,
             u.first_name,
             u.last_name,
             u.email,

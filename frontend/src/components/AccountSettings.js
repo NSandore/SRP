@@ -6,6 +6,7 @@ import useTagOptions from '../hooks/useTagOptions';
 import TagPicker from './TagPicker';
 import { getRoleLabel, isSuperAdmin, isAdmin } from '../constants/roles';
 import { hasTestControls } from '../utils/testAccounts';
+import { AMBASSADOR_SPECIALTY_OPTIONS } from './signupOptions';
 import {
   FaBell,
   FaBullhorn,
@@ -66,9 +67,8 @@ const createDefaultSettings = () => ({
     enableAnalytics: true,
   },
   ambassador: {
-    spotlightInFeed: true,
-    dmOfficeHours: true,
-    autoReplyTemplates: false,
+    specialties: [],
+    acceptingQuestions: true,
   },
 });
 
@@ -76,6 +76,9 @@ function AccountSettings({ userData, onInterestsUpdated }) {
   const roleId = Number(userData?.role_id || 0);
   const isAdminUser = isAdmin(roleId);
   const isSuperAdminUser = isSuperAdmin(roleId);
+  const educationStatus = String(userData?.education_status || '').toLowerCase();
+  const canRequestIdentityVerification = educationStatus.includes('student') || educationStatus.includes('staff');
+  const hasIdentityVerification = Number(userData?.verified) === 1;
   const canSendTestEmail = isSuperAdminUser || hasTestControls(userData?.email);
   const [fetchedIsAmbassador, setFetchedIsAmbassador] = useState(Number(userData?.is_ambassador) === 1 ? 1 : 0);
   const isAmbassador = Number(fetchedIsAmbassador) === 1;
@@ -104,6 +107,11 @@ function AccountSettings({ userData, onInterestsUpdated }) {
   const [developmentRefreshConfirmation, setDevelopmentRefreshConfirmation] = useState('');
   const [isRefreshingDevelopment, setIsRefreshingDevelopment] = useState(false);
   const [developmentRefreshError, setDevelopmentRefreshError] = useState('');
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState('');
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const isDevelopmentRuntime = process.env.NODE_ENV === 'development';
   const tabs = useMemo(() => {
     const base = [
@@ -114,19 +122,45 @@ function AccountSettings({ userData, onInterestsUpdated }) {
       { id: 'community', label: 'Community', icon: <FaUniversity size={16} /> },
       canConnectZoom ? { id: 'integrations', label: 'Integrations', icon: <FaPlug size={16} /> } : null,
       isSuperAdminUser ? { id: 'moderation', label: 'Moderation preview', icon: <FaBullhorn size={16} /> } : null,
-      isSuperAdminUser ? { id: 'ambassador', label: 'Ambassador preview', icon: <FaUsers size={16} /> } : null,
+      isAmbassador ? { id: 'ambassador', label: 'Ambassador profile', icon: <FaUsers size={16} /> } : null,
       isSuperAdminUser ? { id: 'admin', label: 'Admin preview', icon: <FaLock size={16} /> } : null,
       { id: 'sessions', label: 'Sessions', icon: <FaShieldAlt size={16} /> },
-      isSuperAdminUser ? { id: 'data', label: 'Data preview', icon: <FaLock size={16} /> } : null,
+      { id: 'data', label: 'Data & account', icon: <FaLock size={16} /> },
     ];
     return base.filter(Boolean);
-  }, [isSuperAdminUser, canConnectZoom]);
+  }, [isSuperAdminUser, isAmbassador, canConnectZoom]);
   const [activeTab, setActiveTab] = useState('profile');
 
   const flashStatus = (message) => {
     setStatus(message);
     window.clearTimeout(statusTimerRef.current);
     statusTimerRef.current = window.setTimeout(() => setStatus(''), 1800);
+  };
+
+  const closeDeleteAccountModal = () => {
+    if (isDeletingAccount) return;
+    setShowDeleteAccountModal(false);
+    setDeleteAccountPassword('');
+    setDeleteAccountConfirmation('');
+    setDeleteAccountError('');
+  };
+
+  const requestAccountDeletion = async () => {
+    if (isDeletingAccount || deleteAccountConfirmation !== 'DELETE MY ACCOUNT' || !deleteAccountPassword) return;
+    setIsDeletingAccount(true);
+    setDeleteAccountError('');
+    try {
+      const response = await axios.post('/api/account_lifecycle.php', {
+        action: 'request_deletion',
+        password: deleteAccountPassword,
+        confirmation: deleteAccountConfirmation,
+      }, { withCredentials: true });
+      if (!response.data?.success) throw new Error(response.data?.error || 'Unable to schedule account deletion.');
+      window.location.assign('/');
+    } catch (requestError) {
+      setDeleteAccountError(requestError?.response?.data?.error || requestError.message || 'Unable to schedule account deletion.');
+      setIsDeletingAccount(false);
+    }
   };
 
   const sendTestEmail = async () => {
@@ -277,6 +311,24 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           }
           if (typeof res.data.user.is_ambassador !== 'undefined') {
             setFetchedIsAmbassador(res.data.user.is_ambassador);
+          }
+          if (Array.isArray(res.data.user.ambassador_specialties)) {
+            setSettings((prev) => ({
+              ...prev,
+              ambassador: {
+                ...prev.ambassador,
+                specialties: res.data.user.ambassador_specialties,
+              },
+            }));
+          }
+          if (typeof res.data.user.ambassador_accepting_questions !== 'undefined') {
+            setSettings((prev) => ({
+              ...prev,
+              ambassador: {
+                ...prev.ambassador,
+                acceptingQuestions: Boolean(Number(res.data.user.ambassador_accepting_questions)),
+              },
+            }));
           }
           if (typeof res.data.user.show_online !== 'undefined') {
             setSettings((prev) => ({
@@ -706,6 +758,40 @@ function AccountSettings({ userData, onInterestsUpdated }) {
     flashStatus('Saved');
   };
 
+  const persistAmbassadorPreferences = async (specialties, acceptingQuestions) => {
+    if (!userData?.user_id || !isAmbassador) return;
+    try {
+      const response = await axios.post('/api/update_account_settings.php', {
+        user_id: userData.user_id,
+        ambassador_specialties: specialties,
+        ambassador_accepting_questions: acceptingQuestions,
+      }, { withCredentials: true });
+      if (!response.data?.success) throw new Error(response.data?.error || 'Unable to save ambassador preferences.');
+      flashStatus('Ambassador profile updated');
+    } catch (error) {
+      console.error('Error saving ambassador preferences', error);
+      flashStatus(error.response?.data?.error || error.message || 'Unable to save ambassador preferences.');
+    }
+  };
+
+  const toggleAmbassadorSpecialty = (specialty) => {
+    const current = settings.ambassador.specialties;
+    const next = current.includes(specialty)
+      ? current.filter((value) => value !== specialty)
+      : [...current, specialty];
+    if (next.length > 4) {
+      flashStatus('Choose up to four specialties');
+      return;
+    }
+    setSettings((prev) => ({ ...prev, ambassador: { ...prev.ambassador, specialties: next } }));
+    persistAmbassadorPreferences(next, settings.ambassador.acceptingQuestions);
+  };
+
+  const toggleAcceptingQuestions = (acceptingQuestions) => {
+    setSettings((prev) => ({ ...prev, ambassador: { ...prev.ambassador, acceptingQuestions } }));
+    persistAmbassadorPreferences(settings.ambassador.specialties, acceptingQuestions);
+  };
+
   const resetSettings = () => {
     setSettings(createDefaultSettings());
     flashStatus('Reset to defaults');
@@ -1018,21 +1104,46 @@ function AccountSettings({ userData, onInterestsUpdated }) {
                 <option value="everyone">Everyone</option>
               </select>
             </div>
+
+            {canRequestIdentityVerification && (
+              <div className="setting-row">
+                <div className="setting-text">
+                  <div className="setting-label">
+                    Student or staff verification
+                    <span className={`settings-badge ${hasIdentityVerification ? 'positive' : 'hold-badge'}`}>
+                      {hasIdentityVerification ? 'Verified' : 'Optional'}
+                    </span>
+                  </div>
+                  <p className="setting-help">
+                    Add a reviewed badge that helps others understand your connection to a school.
+                  </p>
+                </div>
+                {!hasIdentityVerification && (
+                  <button
+                    type="button"
+                    className="pill-button secondary small"
+                    onClick={() => navigate('/signup?verify=1&return_to=settings')}
+                  >
+                    Review verification
+                  </button>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
-                <FaUsers size={16} /> Tag interests
+                <FaUsers size={16} /> What you'd like help with
               </div>
-              <p>Update the topics that shape your feed recommendations.</p>
+              <p>Update the topics used to find relevant guidance and communities.</p>
             </div>
             <div className="setting-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
               {isLoadingTags ? (
                 <span className="muted">Loading interests...</span>
               ) : (
                 <TagPicker
-                  label="Interests"
+                  label="Topics"
                   options={tagOptions}
                   value={tagInterests}
                   onChange={setTagInterests}
@@ -1346,58 +1457,51 @@ function AccountSettings({ userData, onInterestsUpdated }) {
           </section>
         )}
 
-        {isSuperAdminUser && activeTab === 'ambassador' && (
+        {isAmbassador && activeTab === 'ambassador' && (
           <section className="settings-card">
             <div className="settings-card-heading">
               <div className="settings-card-eyebrow">
                 <FaUsers size={16} /> Ambassador tools
               </div>
-              <p>Control how you appear to prospective students and partners.</p>
+              <p>Help students find the right person without sending every question to every ambassador.</p>
             </div>
             <div className="setting-row">
               <div className="setting-text">
-                <div className="setting-label">Spotlight in feed</div>
-                <p className="setting-help">Feature ambassador posts in campus-wide feeds.</p>
+                <div className="setting-label">Accepting questions <span className="settings-badge live-badge">Live</span></div>
+                <p className="setting-help">When off, you remain listed as an ambassador but are not recommended to new members.</p>
               </div>
               <label className="setting-toggle">
                 <input
                   type="checkbox"
-                  checked={settings.ambassador.spotlightInFeed}
-                  onChange={(e) => updateSetting('ambassador', 'spotlightInFeed', e.target.checked)}
+                  checked={settings.ambassador.acceptingQuestions}
+                  onChange={(e) => toggleAcceptingQuestions(e.target.checked)}
                 />
                 <span className="toggle-slider" />
               </label>
             </div>
 
-            <div className="setting-row">
+            <div className="setting-row ambassador-specialty-setting">
               <div className="setting-text">
-                <div className="setting-label">DM office hours</div>
-                <p className="setting-help">Allow students to book office-hour style chats.</p>
+                <div className="setting-label">Specialties</div>
+                <p className="setting-help">Choose up to four topics you are comfortable helping with. These appear as badges in ambassador lists.</p>
               </div>
-              <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={settings.ambassador.dmOfficeHours}
-                  onChange={(e) => updateSetting('ambassador', 'dmOfficeHours', e.target.checked)}
-                />
-                <span className="toggle-slider" />
-              </label>
+              <div className="ambassador-specialty-picker" role="group" aria-label="Ambassador specialties">
+                {AMBASSADOR_SPECIALTY_OPTIONS.map((option) => {
+                  const selected = settings.ambassador.specialties.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`ambassador-specialty-choice${selected ? ' selected' : ''}`}
+                      aria-pressed={selected}
+                      onClick={() => toggleAmbassadorSpecialty(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-
-            <div className="setting-row">
-              <div className="setting-text">
-                <div className="setting-label">Enable reply templates</div>
-                <p className="setting-help">Use saved replies for common admissions questions.</p>
-              </div>
-              <label className="setting-toggle">
-                <input
-                  type="checkbox"
-                  checked={settings.ambassador.autoReplyTemplates}
-                  onChange={(e) => updateSetting('ambassador', 'autoReplyTemplates', e.target.checked)}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
           </section>
         )}
 
@@ -1534,30 +1638,30 @@ function AccountSettings({ userData, onInterestsUpdated }) {
         </section>
         )}
 
-        {isSuperAdminUser && activeTab === 'data' && (
+        {activeTab === 'data' && (
         <section className="settings-card full-span">
           <div className="settings-card-heading">
             <div className="settings-card-eyebrow">
               <FaLock size={16} /> Data and controls
             </div>
-            <p>Export or pause your account.</p>
+            <p>Manage your information and account lifecycle.</p>
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Download data <span className="settings-badge hold-badge">On hold</span></div>
+              <div className="setting-label">Download data <span className="settings-badge hold-badge">Coming later</span></div>
               <p className="setting-help">Export posts, messages, and connections as a zip.</p>
             </div>
-            <button type="button" className="pill-button secondary small">
+            <button type="button" className="pill-button secondary small" disabled>
               Generate export
             </button>
           </div>
           <div className="setting-row">
             <div className="setting-text">
-              <div className="setting-label">Deactivate account</div>
-              <p className="setting-help">Temporarily hide your profile and content.</p>
+              <div className="setting-label">Delete account</div>
+              <p className="setting-help">Hide your profile now and permanently remove your account after a 30-day recovery period. Your posts remain under “Deleted User.”</p>
             </div>
-            <button type="button" className="pill-button danger small">
-              Deactivate
+            <button type="button" className="pill-button danger small" onClick={() => setShowDeleteAccountModal(true)}>
+              Delete account
             </button>
           </div>
         </section>
@@ -1629,6 +1733,32 @@ function AccountSettings({ userData, onInterestsUpdated }) {
               >
                 {isRefreshingDevelopment ? 'Refreshing…' : 'Replace development data'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteAccountModal && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-account-modal-title">
+          <div className="modal-content account-delete-modal">
+            <div>
+              <span className="settings-badge danger">Destructive action</span>
+              <h3 id="delete-account-modal-title">Schedule account deletion?</h3>
+            </div>
+            <div className="account-delete-summary">
+              <p><strong>Immediately:</strong> You will be signed out, your profile will be hidden, and your posts will show “Deleted User.”</p>
+              <p><strong>For 30 days:</strong> Your email and account data are retained so you can recover the account by signing in.</p>
+              <p><strong>After 30 days:</strong> Personal account data is purged and the email becomes available for a new account. Posts remain anonymized.</p>
+            </div>
+            <label htmlFor="delete-account-password">Current password</label>
+            <input id="delete-account-password" type="password" autoComplete="current-password" value={deleteAccountPassword} onChange={(event) => setDeleteAccountPassword(event.target.value)} disabled={isDeletingAccount} autoFocus />
+            <label htmlFor="delete-account-confirmation">Type <strong>DELETE MY ACCOUNT</strong> to continue</label>
+            <input id="delete-account-confirmation" type="text" autoComplete="off" value={deleteAccountConfirmation} onChange={(event) => setDeleteAccountConfirmation(event.target.value)} disabled={isDeletingAccount} />
+            {deleteAccountError && <p className="error-text" role="alert">{deleteAccountError}</p>}
+            <p className="setting-help">A minimal audit tombstone is retained after purge: the user ID, deletion dates, and a keyed email fingerprint. It does not contain the plaintext email or profile.</p>
+            <div className="form-actions account-delete-actions">
+              <button type="button" className="pill-button secondary" onClick={closeDeleteAccountModal} disabled={isDeletingAccount}>Cancel</button>
+              <button type="button" className="pill-button danger" onClick={requestAccountDeletion} disabled={isDeletingAccount || deleteAccountConfirmation !== 'DELETE MY ACCOUNT' || !deleteAccountPassword}>{isDeletingAccount ? 'Scheduling deletion…' : 'Delete my account'}</button>
             </div>
           </div>
         </div>

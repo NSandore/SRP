@@ -46,7 +46,8 @@ try {
             SELECT u.user_id, u.first_name, u.last_name, u.avatar_path, u.is_public, COALESCE(s.discoverable, 2) AS discoverable
             FROM users u
             LEFT JOIN account_settings s ON s.user_id = u.user_id
-            WHERE (CONCAT(u.first_name, ' ', u.last_name) LIKE :uq OR u.email LIKE :uq)
+            WHERE u.deletion_status = 'active'
+              AND (CONCAT(u.first_name, ' ', u.last_name) LIKE :uq OR u.email LIKE :uq)
             ORDER BY u.login_count DESC, u.user_id DESC
             LIMIT :lim
         ");

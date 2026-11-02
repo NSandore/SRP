@@ -1,0 +1,3 @@
+# Purge accounts whose 30-day recovery window has ended. The production env
+# file is selected explicitly so the task never falls back to development.
+17 3 * * * SRP_ENV_FILE=/home/nick/.config/srp/production.env /usr/bin/php /home/nick/.local/share/srp-deployment/current/backend/scripts/purge_deleted_accounts.php >> /home/nick/.local/state/srp/account-deletion.log 2>&1

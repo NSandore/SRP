@@ -9,6 +9,9 @@ source, mobile source, PHP API, and the active local deployment.
 > This document describes what the current implementation does. It does not
 > present roadmap items or database-only scaffolding as completed features.
 
+The prioritized product and interface backlog is maintained separately in
+[`PRODUCT_UX_ROADMAP.md`](PRODUCT_UX_ROADMAP.md).
+
 ## Status Legend
 
 - **Implemented:** The feature has a working client and backend/data path.

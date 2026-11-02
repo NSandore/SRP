@@ -14,6 +14,7 @@ import buildUploadSrc from "../utils/uploads";
 import { usePublishProfileContact } from "../context/ProfileContactContext";
 import ReelGrid, { IntroReelCard } from "./ReelGrid";
 import { REELS_ENABLED } from "../constants/features";
+import AmbassadorSpecialtyBadges from "./AmbassadorSpecialtyBadges";
 
 const getAmbassadorCommunityId = (community) =>
   String(community?.community_id ?? community?.id ?? community ?? "").trim();
@@ -524,13 +525,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const isPrivateProfile = Number(profile.is_public) === 0;
   const profileVisibility = profile.profile_visibility || "network";
   const isAmbassadorProfile = Number(profile.is_ambassador) === 1;
-  const viewerCommunityId = userData?.recent_university_id;
-  const ambassadorCommunityIds = Array.isArray(ambassadorCommunities)
-    ? ambassadorCommunities.map((c) => Number(getAmbassadorCommunityId(c)))
-    : [];
-  const sharesAmbassadorCommunity =
-    Boolean(viewerCommunityId) &&
-    ambassadorCommunityIds.some((cid) => Number(cid) === Number(viewerCommunityId));
+  const sharesAmbassadorCommunity = Number(profile.viewer_shares_ambassador_community) === 1;
   const isNetworkRestricted =
     profileVisibility === "network" &&
     isAmbassadorProfile &&
@@ -555,9 +550,11 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
   const onlineLabel = "";
   const allowMessagesFrom = String(profile?.allow_messages_from || profile?.allowMessagesFrom || "everyone").toLowerCase();
   const sharesCommunity =
-    profile?.recent_university_id &&
-    userData?.recent_university_id &&
-    String(profile.recent_university_id) === String(userData.recent_university_id);
+    sharesAmbassadorCommunity || (
+      profile?.recent_university_id &&
+      userData?.recent_university_id &&
+      String(profile.recent_university_id) === String(userData.recent_university_id)
+    );
   const canMessageUser = () => {
     if (!userData?.user_id) return false;
     if (allowMessagesFrom === "everyone") return true;
@@ -629,6 +626,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
               <p className="hero-sub">
                 {displayHeadline}
               </p>
+              <AmbassadorSpecialtyBadges specialties={profile.ambassador_specialties} limit={4} />
               <p className="hero-sub hero-sub-row">
                 <span>{followerCount} Followers</span>
                 <span>{followingCount} Following</span>
@@ -655,7 +653,7 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
             </div>
           )}
           <div className="hero-right hero-actions">
-            {userData && userData.user_id !== parseInt(user_id, 10) && (
+            {userData && String(userData.user_id) !== String(user_id) && (
               <div className="profile-actions">
                 {connectionStatus === "accepted" ? (
                   <RouterLink
@@ -740,7 +738,9 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
             <p>
               {isRestrictedForPrivacy
                 ? "This user's account is private. Send a connection request to view their info."
-                : "Want more details? Log in or create an account to unlock experience, education, and skills."}
+                : userData
+                  ? "This ambassador shares profile details with members of their communities and connections."
+                  : "Want more details? Log in or create an account to unlock experience, education, and skills."}
             </p>
             <div className="profile-detail-cta-actions">
               {isRestrictedForPrivacy ? (
@@ -758,6 +758,12 @@ function UserProfileView({ userData, onFollowNotification, onNotificationsRefres
                   <button className="overlay-button primary" onClick={handleConnect}>
                     Send connection request
                   </button>
+                )
+              ) : userData ? (
+                connectionStatus === "pending" ? (
+                  <button className="overlay-button ghost" disabled>Request pending</button>
+                ) : (
+                  <button className="overlay-button primary" onClick={handleConnect}>Connect to view details</button>
                 )
               ) : (
                 <>

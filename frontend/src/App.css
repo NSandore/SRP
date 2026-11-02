@@ -546,6 +546,69 @@ input::placeholder, textarea::placeholder {
   padding: 1rem 0;
 }
 
+.ambassador-overlay__empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 30px 22px;
+  text-align: center;
+}
+
+.ambassador-overlay__empty > span {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(47, 128, 237, 0.1);
+  color: #2f80ed;
+  font-size: 1.15rem;
+}
+
+.ambassador-overlay__empty h3,
+.ambassador-overlay__empty p {
+  margin: 0;
+}
+
+.ambassador-overlay__empty h3 {
+  color: var(--text-color);
+  font-size: 1.05rem;
+}
+
+.ambassador-overlay__empty p {
+  max-width: 420px;
+  color: var(--subtext-color);
+  line-height: 1.5;
+}
+
+.ambassador-overlay__empty button {
+  margin-top: 8px;
+  border: 1px solid #2f80ed;
+  border-radius: 9px;
+  padding: 0.62rem 0.9rem;
+  background: #2f80ed;
+  color: #fff;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.ambassador-overlay__empty button:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ambassador-overlay__empty button:hover {
+    border-color: #69a8f7;
+    background: #69a8f7;
+  }
+}
+
 .ambassador-list {
   list-style: none;
   padding: 0;
@@ -2552,10 +2615,11 @@ button:focus-visible,
 
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
   .nav-bar.search-open {
     padding-bottom: 0.8rem;
+    flex-wrap: wrap;
     transition: padding 200ms ease, min-height 200ms ease;
   }
   .nav-left {
@@ -2632,7 +2696,7 @@ button:focus-visible,
   .mobile-only { display: inline-flex; }
   .desktop-only { display: none; }
   .nav-center {
-    display: flex;
+    display: none;
     order: 3;
     flex: 1 1 100%;
     width: 100%;
@@ -2644,6 +2708,7 @@ button:focus-visible,
     transition: max-height 200ms ease, opacity 180ms ease, transform 180ms ease;
   }
   .nav-bar.search-open .nav-center {
+    display: flex;
     max-height: 220px;
     opacity: 1;
     transform: translateY(0);
@@ -2670,7 +2735,11 @@ button:focus-visible,
   }
 
   .nav-left .brand-title {
-    font-size: 1rem;
+    display: none;
+  }
+
+  .nav-left .brand-button {
+    padding-inline: 0;
   }
 }
 
@@ -5396,6 +5465,48 @@ select:focus {
   font: inherit;
   box-sizing: border-box;
 }
+
+.account-delete-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 600px;
+}
+.account-delete-modal h3,
+.account-delete-modal p {
+  margin: 0;
+}
+.account-delete-modal h3 {
+  margin-top: 8px;
+}
+.account-delete-modal label {
+  color: var(--text-color);
+  font-size: 0.92rem;
+}
+.account-delete-modal input {
+  width: 100%;
+}
+.account-delete-summary {
+  display: grid;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.06);
+  color: var(--text-color);
+  line-height: 1.45;
+}
+.account-delete-actions {
+  justify-content: flex-end;
+}
+@media (max-width: 640px) {
+  .account-delete-actions {
+    flex-direction: column-reverse;
+  }
+  .account-delete-actions .pill-button {
+    width: 100%;
+  }
+}
 .development-refresh-modal input:focus {
   border-color: var(--primary-color);
   outline: 2px solid rgba(47, 128, 237, 0.18);
@@ -6625,6 +6736,66 @@ select:focus {
   display: flex;
   gap: 10px;
   margin-top: auto;
+}
+
+.admin-review__decision {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.admin-review__decision label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.admin-review__decision label span,
+.admin-review__decision-meta {
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.admin-review__decision textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--text-color);
+  background: var(--card-background);
+  font: inherit;
+  line-height: 1.45;
+}
+
+.admin-review__decision textarea:focus-visible {
+  outline: 3px solid rgba(47, 128, 237, 0.2);
+  border-color: #2f80ed;
+}
+
+.admin-review__decision-meta {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.admin-review__decision-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.admin-review__decision-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.admin-review__decision-buttons > button {
+  flex: 1;
 }
 
 .admin-review__approve,

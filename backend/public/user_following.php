@@ -22,7 +22,7 @@ $db = getDB();
 $query = "SELECT u.user_id, u.first_name, u.last_name, u.avatar_path, u.is_public
           FROM user_follows uf
           JOIN users u ON uf.followed_user_id = u.user_id
-          WHERE uf.follower_id = :uid";
+          WHERE uf.follower_id = :uid AND u.deletion_status = 'active'";
 $stmt = $db->prepare($query);
 $stmt->execute([':uid' => $user_id]);
 $result = $stmt->fetchAll(PDO::FETCH_ASSOC);

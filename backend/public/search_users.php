@@ -21,7 +21,8 @@ try {
                   FROM users u
                   LEFT JOIN account_settings s ON s.user_id = u.user_id
                   LEFT JOIN communities c ON c.id = u.verified_community_id
-                  WHERE (u.first_name LIKE :term OR u.last_name LIKE :term OR u.email LIKE :term)
+                  WHERE u.deletion_status = 'active'
+                    AND (u.first_name LIKE :term OR u.last_name LIKE :term OR u.email LIKE :term)
                     AND u.user_id NOT IN (
                         SELECT a.user_id
                         FROM ambassadors a
@@ -38,7 +39,8 @@ try {
              FROM users u
              LEFT JOIN account_settings s ON s.user_id = u.user_id
              LEFT JOIN communities c ON c.id = u.verified_community_id
-             WHERE (u.first_name LIKE :term OR u.last_name LIKE :term OR u.email LIKE :term)
+             WHERE u.deletion_status = 'active'
+               AND (u.first_name LIKE :term OR u.last_name LIKE :term OR u.email LIKE :term)
              ORDER BY u.first_name LIMIT 10"
         );
         $stmt->bindValue(':term', $like, PDO::PARAM_STR);

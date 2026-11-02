@@ -4,6 +4,7 @@ startSession();
 header('Content-Type: application/json');
 require_once '../db_connection.php';
 require_once __DIR__ . '/../includes/rate_limit.php';
+require_once __DIR__ . '/../includes/account_deletion.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use MailerSend\MailerSend;
@@ -27,7 +28,7 @@ try {
     srp_rate_limit_enforce($db, 'login:' . strtolower($email) . ':' . srp_client_ip(), 10, 300,
         'Too many login attempts. Please wait a moment and try again.');
 
-    $query = "SELECT user_id, first_name, last_name, email, password_hash, role_id, avatar_path, banner_path, is_ambassador, login_count, is_public, is_verified, verified, verified_community_id, education_status, recent_university_id FROM users WHERE email = :email LIMIT 1";
+    $query = "SELECT user_id, first_name, last_name, email, password_hash, role_id, avatar_path, banner_path, is_ambassador, login_count, is_public, is_verified, verified, verified_community_id, education_status, recent_university_id, deletion_status, deletion_requested_at, scheduled_purge_at FROM users WHERE email = :email LIMIT 1";
     $stmt = $db->prepare($query);
     $stmt->bindParam(':email', $email, PDO::PARAM_STR);
     $stmt->execute();
@@ -35,6 +36,27 @@ try {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user && password_verify($password, $user['password_hash'])) {
+        if (($user['deletion_status'] ?? 'active') === 'pending') {
+            $summary = srp_account_deletion_summary($user);
+            if (($summary['days_remaining'] ?? 0) <= 0) {
+                $db->beginTransaction();
+                srp_purge_account($db, $user, false);
+                $db->commit();
+                http_response_code(410);
+                echo json_encode([
+                    'error' => 'This account has been permanently deleted. The email can be used to create a new account.',
+                    'code' => 'account_purged',
+                ]);
+                exit;
+            }
+            http_response_code(423);
+            echo json_encode([
+                'error' => 'This account is scheduled for deletion.',
+                'code' => 'account_pending_deletion',
+                'deletion' => $summary,
+            ]);
+            exit;
+        }
         $devMode = srp_is_dev_mode();
 
         $sessionId = session_id();

@@ -38,12 +38,19 @@ try {
                 u.headline,
                 u.email,
                 COALESCE(s.show_online, 1) AS show_online,
-                JSON_UNQUOTE(JSON_EXTRACT(s.extras, '$.last_seen_at')) AS last_seen_at
+                JSON_UNQUOTE(JSON_EXTRACT(s.extras, '$.last_seen_at')) AS last_seen_at,
+                JSON_EXTRACT(s.extras, '$.ambassador_specialties') AS ambassador_specialties,
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(s.extras, '$.ambassador_accepting_questions')), '1') AS ambassador_accepting_questions,
+                (SELECT COUNT(DISTINCT m.sender_id)
+                   FROM messages m
+                  WHERE m.recipient_id = a.user_id
+                    AND m.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS recent_questioners
               FROM ambassadors a
               JOIN users u ON a.user_id = u.user_id
               LEFT JOIN account_settings s ON s.user_id = u.user_id
               WHERE a.community_id = :community_id
-              ORDER BY a.added_at ASC";
+                AND u.deletion_status = 'active'
+              ORDER BY recent_questioners ASC, a.added_at ASC";
     $aStmt = $db->prepare($aQuery);
     $aStmt->execute([':community_id' => $community_id]);
     $ambassadors = $aStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -54,7 +61,13 @@ try {
         }
         $lastSeenTs = isset($amb['last_seen_at']) ? strtotime($amb['last_seen_at']) : false;
         $amb['is_online'] = ((int)$amb['show_online'] === 1) && $lastSeenTs !== false && (time() - $lastSeenTs) <= 300;
+        $specialties = json_decode($amb['ambassador_specialties'] ?? '[]', true);
+        $amb['ambassador_specialties'] = is_array($specialties) ? array_values($specialties) : [];
+        $amb['ambassador_accepting_questions'] = filter_var($amb['ambassador_accepting_questions'], FILTER_VALIDATE_BOOLEAN);
+        $recentQuestioners = (int)($amb['recent_questioners'] ?? 0);
+        $amb['availability'] = $recentQuestioners >= 8 ? 'limited' : 'available';
         unset($amb['last_seen_at']);
+        unset($amb['recent_questioners']);
     }
     unset($amb);
 

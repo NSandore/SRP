@@ -8,6 +8,7 @@ import NavBar from '../components/NavBar';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { isSuperAdmin } from '../constants/roles';
+import OnboardingBanner from '../components/OnboardingBanner';
 
 type NavBarProps = any; // Narrow types later as needed
 
@@ -16,6 +17,8 @@ type AppShellProps = {
   navBarProps: NavBarProps;
   userData?: any;
   lockedNavKeys?: string[];
+  onboarding?: any;
+  onResumeOnboarding?: () => void;
 };
 
 export default function AppShell({
@@ -23,6 +26,8 @@ export default function AppShell({
   navBarProps,
   userData,
   lockedNavKeys,
+  onboarding,
+  onResumeOnboarding,
 }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -201,6 +206,9 @@ export default function AppShell({
           </div>
           <ProfileContactProvider>
             <div className="center-rail" data-tour="feed">
+              {userData && (
+                <OnboardingBanner onboarding={onboarding} userData={userData} onResume={onResumeOnboarding} />
+              )}
               {/* Wrapper grows to fill any spare height so the footer links sit
                   on the bottom edge of a short page instead of floating
                   mid-screen, and are pushed below the content on a long one. */}

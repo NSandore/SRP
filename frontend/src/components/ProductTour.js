@@ -70,7 +70,9 @@ export const findVisibleTourTarget = (selector) => {
   }) || null;
 };
 
-function ProductTour({ userData, replayToken = 0 }) {
+export const isProductTourCompatiblePath = (pathname) => pathname === '/home';
+
+function ProductTour({ userData, replayToken = 0, enabled = true }) {
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState(null);
@@ -88,7 +90,7 @@ function ProductTour({ userData, replayToken = 0 }) {
 
   // Ask the server whether this user is due a tour.
   useEffect(() => {
-    if (!userData?.user_id) {
+    if (!enabled || !userData?.user_id) {
       setActive(false);
       return undefined;
     }
@@ -113,7 +115,7 @@ function ProductTour({ userData, replayToken = 0 }) {
     return () => {
       cancelled = true;
     };
-  }, [userData?.user_id, replayToken, post]);
+  }, [enabled, userData?.user_id, replayToken, post]);
 
   const currentStep = active ? steps[stepIndex] : null;
 

@@ -19,7 +19,7 @@ function respond_json(array $payload, int $status = 200): void {
 function onboarding_next_step(array $state, bool $isVerified): int {
     $hasRole = !empty($state['role_selected']) && !empty($state['role_intent']);
     $hasInterests = !empty($state['interests_selected']);
-    $hasProfileBasics = !empty($state['profile_basics_completed']);
+    $hasProfileBasics = !empty($state['profile_basics_completed']) || !empty($state['profile_basics_deferred']);
     $wantsVerification = !empty($state['wants_verification_now']);
     $hasVerificationDecision = !empty($state['verification_requested']) || !empty($state['verification_skipped']);
 
@@ -46,7 +46,7 @@ function onboarding_next_step(array $state, bool $isVerified): int {
 
 function fetch_verification_summary(PDO $db, string $userId): array {
     $stmt = $db->prepare("
-        SELECT verification_type, status, verification_method, created_at
+        SELECT verification_type, status, verification_method, notes AS review_message, created_at
         FROM user_verification_requests
         WHERE user_id = :uid
         ORDER BY created_at DESC
@@ -66,6 +66,7 @@ function fetch_verification_summary(PDO $db, string $userId): array {
         $summary[$type] = [
             'status' => $row['status'] ?? 'pending',
             'method' => $row['verification_method'] ?? '',
+            'review_message' => $row['review_message'] ?? '',
             'created_at' => $row['created_at'] ?? null,
         ];
     }
@@ -236,73 +237,83 @@ try {
             ':uid' => $userId,
         ]);
 
+        $allowedAudienceIntents = [
+            'exploring',
+            'currently_enrolled',
+            'previously_attended',
+            'supporting_student',
+            'school_professional',
+            'mentor_resource',
+        ];
+        $audienceIntents = $payload['audience_intents'] ?? [];
+        if (!is_array($audienceIntents)) {
+            $audienceIntents = [];
+        }
+        $audienceIntents = array_values(array_unique(array_filter(
+            array_map(static fn($value): string => trim((string)$value), $audienceIntents),
+            static fn(string $value): bool => in_array($value, $allowedAudienceIntents, true)
+        )));
+        if ($audienceIntents === []) {
+            $audienceIntents = [
+                'student' => 'currently_enrolled',
+                'alumni' => 'previously_attended',
+                'staff_representative' => 'school_professional',
+                'prospect' => 'exploring',
+            ][$roleIntent] ?? 'exploring';
+            $audienceIntents = [$audienceIntents];
+        }
+        $context = is_array($extras['onboarding_context'] ?? null) ? $extras['onboarding_context'] : [];
+        $context['role_intent'] = $roleIntent;
+        $context['audience_intents'] = $audienceIntents;
+        $context['updated_at'] = gmdate('c');
+        $extras['onboarding_context'] = $context;
+        srp_save_account_settings_extras($db, $userId, $extras);
+
         if ($roleIntent === 'student') {
             $communityId = normalizeId($payload['community_id'] ?? '');
-            if ($communityId === '') {
-                respond_json(['success' => false, 'error' => 'Select a university'], 400);
-            }
             $startDate = trim((string)($payload['start_date'] ?? ''));
-            if ($startDate === '') {
-                respond_json(['success' => false, 'error' => 'Start date is required'], 400);
-            }
-            $checkCommunity = $db->prepare("
-                SELECT 1 FROM communities
-                WHERE id = :cid AND community_type = 'university'
-                LIMIT 1
-            ");
-            $checkCommunity->execute([':cid' => $communityId]);
-            if (!$checkCommunity->fetchColumn()) {
-                respond_json(['success' => false, 'error' => 'Invalid university selection'], 400);
-            }
-            $upUser = $db->prepare("UPDATE users SET recent_university_id = :cid WHERE user_id = :uid");
-            $upUser->execute([':cid' => $communityId, ':uid' => $userId]);
-
-            $existsStmt = $db->prepare("
-                SELECT 1
-                FROM educational_experience
-                WHERE user_id = :uid AND community_id = :cid
-                LIMIT 1
-            ");
-            $existsStmt->execute([':uid' => $userId, ':cid' => $communityId]);
-            if (!$existsStmt->fetchColumn()) {
-                $insertEdu = $db->prepare("
-                    INSERT INTO educational_experience (id, user_id, community_id, start_date, end_date, degree, major, still_attending)
-                    VALUES (:id, :uid, :cid, :start_date, :end_date, :degree, :major, :still_attending)
+            if ($communityId !== '') {
+                $checkCommunity = $db->prepare("
+                    SELECT 1 FROM communities
+                    WHERE id = :cid AND community_type = 'university'
+                    LIMIT 1
                 ");
-                $insertEdu->execute([
-                    ':id' => generateUniqueId($db, 'educational_experience'),
-                    ':uid' => $userId,
-                    ':cid' => $communityId,
-                    ':start_date' => $startDate,
-                    ':end_date' => '9999-12-31',
-                    ':degree' => '',
-                    ':major' => '',
-                    ':still_attending' => 1,
-                ]);
-            }
+                $checkCommunity->execute([':cid' => $communityId]);
+                if (!$checkCommunity->fetchColumn()) {
+                    respond_json(['success' => false, 'error' => 'Invalid university selection'], 400);
+                }
+                $upUser = $db->prepare("UPDATE users SET recent_university_id = :cid WHERE user_id = :uid");
+                $upUser->execute([':cid' => $communityId, ':uid' => $userId]);
 
-            $checkFollow = $db->prepare("
-                SELECT 1 FROM followed_communities
-                WHERE user_id = :uid AND community_id = :cid
-                LIMIT 1
-            ");
-            $checkFollow->execute([':uid' => $userId, ':cid' => $communityId]);
-            if (!$checkFollow->fetchColumn()) {
-                $insertFollow = $db->prepare("
-                    INSERT INTO followed_communities (id, user_id, community_id)
-                    VALUES (:id, :uid, :cid)
-                ");
-                $insertFollow->execute([
-                    ':id' => generateUniqueId($db, 'followed_communities'),
-                    ':uid' => $userId,
-                    ':cid' => $communityId,
-                ]);
+                if ($startDate !== '') {
+                    $existsStmt = $db->prepare("
+                        SELECT 1
+                        FROM educational_experience
+                        WHERE user_id = :uid AND community_id = :cid
+                        LIMIT 1
+                    ");
+                    $existsStmt->execute([':uid' => $userId, ':cid' => $communityId]);
+                    if (!$existsStmt->fetchColumn()) {
+                        $insertEdu = $db->prepare("
+                            INSERT INTO educational_experience (id, user_id, community_id, start_date, end_date, degree, major, still_attending)
+                            VALUES (:id, :uid, :cid, :start_date, :end_date, :degree, :major, :still_attending)
+                        ");
+                        $insertEdu->execute([
+                            ':id' => generateUniqueId($db, 'educational_experience'),
+                            ':uid' => $userId,
+                            ':cid' => $communityId,
+                            ':start_date' => $startDate,
+                            ':end_date' => '9999-12-31',
+                            ':degree' => '',
+                            ':major' => '',
+                            ':still_attending' => 1,
+                        ]);
+                    }
+                }
             }
-
-            $state['wants_verification_now'] = true;
-            $state['verification_skipped'] = false;
         }
 
+        $state['wants_verification_now'] = false;
         $state['role_intent'] = $roleIntent;
         $state['role_selected'] = true;
         srp_mark_step_complete($state, 2);
@@ -315,6 +326,26 @@ try {
 
         $tagIds = srp_resolve_tag_ids($db, $tags);
         srp_sync_tag_mappings($db, 'user_interests', 'user_id', $userId, $tagIds);
+
+        $allowedNeeds = [
+            'applying', 'financial_aid', 'scholarships', 'paying',
+            'program_major', 'basic_needs', 'academic_support', 'accessibility',
+            'wellbeing', 'student_rights', 'careers', 'shared_experience', 'not_sure',
+        ];
+        $needs = $payload['needs'] ?? [];
+        if (!is_array($needs)) {
+            $needs = [];
+        }
+        $needs = array_slice(array_values(array_unique(array_filter(
+            array_map(static fn($value): string => trim((string)$value), $needs),
+            static fn(string $value): bool => in_array($value, $allowedNeeds, true)
+        ))), 0, SRP_TAG_SELECTION_LIMIT);
+        $context = is_array($extras['onboarding_context'] ?? null) ? $extras['onboarding_context'] : [];
+        $context['needs'] = $needs;
+        $context['updated_at'] = gmdate('c');
+        $extras['onboarding_context'] = $context;
+        srp_save_account_settings_extras($db, $userId, $extras);
+
         $state['interests_selected'] = true;
         srp_mark_step_complete($state, 3);
         $state['current_step'] = 5;
@@ -574,6 +605,18 @@ try {
         $state['current_step'] = 9;
         $state['status'] = 'completed';
         $state['completed_at'] = gmdate('c');
+    } elseif ($action === 'complete_primary_onboarding') {
+        if (empty($state['role_selected']) || empty($state['interests_selected'])) {
+            respond_json(['success' => false, 'error' => 'Complete the audience and needs steps first'], 409);
+        }
+        $state['profile_basics_deferred'] = true;
+        $state['verification_skipped'] = true;
+        $state['wants_verification_now'] = false;
+        $state['status'] = 'completed';
+        $state['completed_at'] = gmdate('c');
+        $state['current_step'] = 9;
+        srp_mark_step_complete($state, 5);
+        srp_mark_step_complete($state, 7);
     } elseif ($action === 'skip_verification') {
         $state['verification_skipped'] = true;
         $state['wants_verification_now'] = false;

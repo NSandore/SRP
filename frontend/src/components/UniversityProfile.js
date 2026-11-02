@@ -15,6 +15,7 @@ import useCommunityAccent from "../hooks/useCommunityAccent";
 import { THREAD_TITLE_MAX_LENGTH } from "../utils/contentLimits";
 import ReelGrid from "./ReelGrid";
 import { REELS_ENABLED } from "../constants/features";
+import AmbassadorSpecialtyBadges from "./AmbassadorSpecialtyBadges";
 
 function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNotificationsRefresh }) {
   const { id } = useParams(); // community id
@@ -2047,6 +2048,7 @@ function UniversityProfile({ userData, onRequireAuth, onFollowNotification, onNo
                           })()}
                         </p>
                         <p className="ambassador-headline">{amb.headline}</p>
+                        <AmbassadorSpecialtyBadges specialties={amb.ambassador_specialties} />
                       </div>
                       {!isSelf && (
                         <div className="ambassador-actions">

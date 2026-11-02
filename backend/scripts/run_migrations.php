@@ -8,7 +8,11 @@
  * migrations that were run by hand before this runner existed are absorbed
  * cleanly on first run.
  *
- * Usage:  php backend/scripts/run_migrations.php
+ * Usage:  php backend/scripts/run_migrations.php [migration-file.sql]
+ *
+ * When a filename is supplied, only that migration is considered. This lets a
+ * release apply one explicitly required migration without implicitly opting in
+ * to every other pending schema change.
  */
 
 require_once __DIR__ . '/../db_connection.php';
@@ -36,8 +40,22 @@ try {
     $applied = $db->query("SELECT filename FROM schema_migrations")->fetchAll(PDO::FETCH_COLUMN);
     $applied = array_flip($applied);
 
-    $files = glob($migrationsDir . '/*.sql') ?: [];
-    sort($files);
+    $requestedMigration = trim((string)($argv[1] ?? ''));
+    if ($requestedMigration !== '') {
+        if (basename($requestedMigration) !== $requestedMigration || !str_ends_with($requestedMigration, '.sql')) {
+            fwrite(STDERR, "Invalid migration filename.\n");
+            exit(64);
+        }
+        $requestedPath = $migrationsDir . '/' . $requestedMigration;
+        if (!is_file($requestedPath)) {
+            fwrite(STDERR, "Migration not found: {$requestedMigration}\n");
+            exit(66);
+        }
+        $files = [$requestedPath];
+    } else {
+        $files = glob($migrationsDir . '/*.sql') ?: [];
+        sort($files);
+    }
 
     $record = $db->prepare("INSERT IGNORE INTO schema_migrations (filename) VALUES (:f)");
     $ran = 0;

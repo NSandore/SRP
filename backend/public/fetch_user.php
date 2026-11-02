@@ -53,7 +53,7 @@ try {
             login_count,
             NULL AS community_ambassador_of
         FROM users
-        WHERE user_id = :user_id
+        WHERE user_id = :user_id AND deletion_status = 'active'
         LIMIT 1
     ";
     $stmt = $db->prepare($query);
@@ -87,6 +87,8 @@ try {
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.notify_events')) AS notify_events,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.two_factor_enabled')) AS two_factor_enabled,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.auto_join_campus')) AS auto_join_campus,
+            JSON_EXTRACT(extras, '$.ambassador_specialties') AS ambassador_specialties,
+            JSON_UNQUOTE(JSON_EXTRACT(extras, '$.ambassador_accepting_questions')) AS ambassador_accepting_questions,
             JSON_UNQUOTE(JSON_EXTRACT(extras, '$.default_feed')) AS default_feed_json,
             default_feed,
             show_email,
@@ -107,6 +109,11 @@ try {
     $notify_events = isset($settings['notify_events']) ? (int)$settings['notify_events'] : 1;
     $two_factor_enabled = isset($settings['two_factor_enabled']) ? (int)filter_var($settings['two_factor_enabled'], FILTER_VALIDATE_BOOLEAN) : 0;
     $auto_join_campus = isset($settings['auto_join_campus']) ? (int)filter_var($settings['auto_join_campus'], FILTER_VALIDATE_BOOLEAN) : 1;
+    $ambassador_specialties = json_decode($settings['ambassador_specialties'] ?? '[]', true);
+    $ambassador_specialties = is_array($ambassador_specialties) ? array_values($ambassador_specialties) : [];
+    $ambassador_accepting_questions = !isset($settings['ambassador_accepting_questions'])
+        ? 1
+        : (int)filter_var($settings['ambassador_accepting_questions'], FILTER_VALIDATE_BOOLEAN);
     $default_feed = $settings['default_feed'] ?? ($settings['default_feed_json'] ?? null);
     $show_email = isset($settings['show_email']) ? (int)$settings['show_email'] : 0; // 0=hidden,1=connections,2=everyone
     $discoverable = isset($settings['discoverable']) ? (int)$settings['discoverable'] : 2;
@@ -129,6 +136,8 @@ try {
     $user['notify_events'] = $notify_events;
     $user['two_factor_enabled'] = $two_factor_enabled;
     $user['auto_join_campus'] = $auto_join_campus;
+    $user['ambassador_specialties'] = $ambassador_specialties;
+    $user['ambassador_accepting_questions'] = $ambassador_accepting_questions;
     $user['default_feed'] = $default_feed;
     $user['show_email'] = $show_email;
     $user['discoverable'] = $discoverable;
@@ -140,6 +149,22 @@ try {
 
     $viewer_id = isset($_SESSION['user_id']) ? normalizeId($_SESSION['user_id']) : '';
     $isOwnProfile = $viewer_id === $user_id;
+
+    // Community IDs are prefixed strings, so profile access must be decided
+    // server-side without numeric coercion. A followed community or the
+    // viewer's primary school grants access to an ambassador's network profile.
+    $viewerSharesAmbassadorCommunity = false;
+    if ($viewer_id && !$isOwnProfile && !empty($user['community_ambassador_of'])) {
+        $sharedStmt = $db->prepare("\n            SELECT EXISTS(\n                SELECT 1\n                FROM ambassadors a\n                LEFT JOIN followed_communities fc\n                    ON fc.community_id = a.community_id AND fc.user_id = :viewer_follow\n                LEFT JOIN users viewer ON viewer.user_id = :viewer_user\n                WHERE a.user_id = :profile_user\n                  AND (fc.community_id IS NOT NULL OR viewer.recent_university_id = a.community_id)\n            )\n        ");
+        $sharedStmt->execute([
+            ':viewer_follow' => $viewer_id,
+            ':viewer_user' => $viewer_id,
+            ':profile_user' => $user_id,
+        ]);
+        $viewerSharesAmbassadorCommunity = (bool)$sharedStmt->fetchColumn();
+    }
+    $user['viewer_authenticated'] = $viewer_id !== '' ? 1 : 0;
+    $user['viewer_shares_ambassador_community'] = $viewerSharesAmbassadorCommunity ? 1 : 0;
 
     // Determine if the viewer is connected to this user
     $isConnected = false;

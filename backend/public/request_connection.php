@@ -45,6 +45,14 @@ if ($user_id1 === $user_id2) {
 try {
     $db = getDB();
 
+    $targetStmt = $db->prepare("SELECT deletion_status FROM users WHERE user_id = :uid LIMIT 1");
+    $targetStmt->execute([':uid' => $user_id2]);
+    if ($targetStmt->fetchColumn() !== 'active') {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'error' => 'This account is unavailable.']);
+        exit;
+    }
+
     // Check for existing connection
     $check = $db->prepare("SELECT status FROM connections WHERE (user_id1 = :u1 AND user_id2 = :u2) OR (user_id1 = :u2 AND user_id2 = :u1)");
     $check->execute([':u1' => $user_id1, ':u2' => $user_id2]);
