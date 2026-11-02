@@ -2735,7 +2735,7 @@ button:focus-visible,
   }
 
   .nav-left .brand-title {
-    display: none;
+      display: inline;
   }
 
   .nav-left .brand-button {
