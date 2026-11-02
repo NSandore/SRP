@@ -16,6 +16,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppShell from '@/components/navigation/AppShell';
 import { ThemedText } from '@/components/themed-text';
 import TrustContext from '@/components/TrustContext';
+import ResolutionFeedback from '@/components/ResolutionFeedback';
 import { Brand, hexToRgba, useBrandColors } from '@/constants/brand';
 import type { BrandColors } from '@/constants/brand';
 import { useBrandStyles } from '@/hooks/use-brand-styles';
@@ -646,6 +647,7 @@ export default function ThreadDetailScreen() {
               source={{ html: normalizeHtml(originalPost.content || '') }}
               baseStyle={styles.postContent}
             />
+            <ResolutionFeedback postId={originalPost.post_id} loggedIn={Boolean(user?.user_id)} requireAuth={() => openLockedFeature('Sharing feedback')} />
 
             {!isKnowledgeBaseEntry ? (
               <View style={styles.voteRow}>

@@ -272,12 +272,12 @@ The experience should be organized around four questions:
 
 ### Resolution-oriented feedback
 
-- [ ] Add lightweight prompts:
+- [x] Add lightweight prompts:
   - Did this answer your question?
   - Do you know what to do next?
   - Were you connected to the right person?
   - Is anything still unclear?
-- [ ] Distinguish “helpful content” from “issue resolved.”
+- [x] Distinguish “helpful content” from “issue resolved.”
 - [ ] Use unresolved feedback to improve answers, routing, and gap reports.
 - [ ] Define mission-aligned product metrics before optimizing the experience.
 

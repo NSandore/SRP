@@ -45,6 +45,7 @@ import DOMPurify from 'dompurify';
 import ReportModal from './ReportModal';
 import TrustContext from './TrustContext';
 import TrustReviewModal from './TrustReviewModal';
+import ResolutionFeedback from './ResolutionFeedback';
 import { buildAvatarSrc } from '../utils/avatar';
 import { buildUploadSrc } from '../utils/uploads';
 import { getTagStyle } from '../utils/tagStyle';
@@ -1885,6 +1886,7 @@ function ThreadView({ userData, onRequireAuth }) {
               style={{ marginTop: isKnowledgeBaseEntry ? 0 : '8px' }}
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
             />
+            <ResolutionFeedback postId={originalPost.post_id} isLoggedIn={Boolean(userData?.user_id)} onRequireAuth={promptAuthOverlay} />
             {!isKnowledgeBaseEntry && (
               <div className="vote-row">
               <button
