@@ -44,11 +44,11 @@ if ($resolutionUrl !== '') {
 
 try {
     $exists = $db->prepare(
-        'SELECT g.gap_id, g.assigned_to, g.status, f.community_id
+        'SELECT g.gap_id, g.source_type, g.assigned_to, g.status, f.community_id
          FROM knowledge_gaps g
-         JOIN posts p ON p.post_id = g.source_post_id
-         JOIN threads t ON t.thread_id = p.thread_id
-         JOIN forums f ON f.forum_id = t.forum_id
+         LEFT JOIN posts p ON p.post_id = g.source_post_id
+         LEFT JOIN threads t ON t.thread_id = p.thread_id
+         LEFT JOIN forums f ON f.forum_id = t.forum_id
          WHERE g.gap_id = :gap_id'
     );
     $exists->execute([':gap_id' => $gapId]);
@@ -58,6 +58,9 @@ try {
     }
 
     if (!$isGlobalAdmin) {
+        if (($gap['source_type'] ?? 'feedback') === 'search' || empty($gap['community_id'])) {
+            srp_json(['success' => false, 'error' => 'Only global administrators can update unsuccessful-search gaps.'], 403);
+        }
         $scope = $db->prepare('SELECT 1 FROM ambassadors WHERE user_id = :user_id AND community_id = :community_id LIMIT 1');
         $scope->execute([':user_id' => $userId, ':community_id' => $gap['community_id']]);
         if (!$scope->fetchColumn()) {

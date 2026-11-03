@@ -138,6 +138,7 @@ else
     20261031_account_deletion.sql
     20261102_content_provenance.sql
     20261102_resolution_feedback.sql
+    20261105_search_gap_signals.sql
   )
   for required_migration in "${required_migrations[@]}"; do
     if [[ -f "$release_dir/backend/migrations/$required_migration" ]]; then

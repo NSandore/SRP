@@ -18,6 +18,12 @@ Positive feedback remains in `content_resolution_feedback` for measurement but
 does not create an administrative work item. Existing unresolved feedback is
 backfilled by `20261103_knowledge_gaps.sql`.
 
+The search endpoint also aggregates searches that return no results. It stores
+no user, session, or IP reference; obvious email addresses, links, phone
+numbers, and long identifiers are replaced before the normalized phrase is
+stored. A phrase enters the global administrator queue after three occurrences.
+One-off aggregates that remain below that threshold expire after 30 days.
+
 ## Privacy boundary
 
 The database keeps the source user reference so one feedback response cannot
@@ -85,7 +91,9 @@ separate design.
 
 ## Current scope
 
-This first release covers unresolved answer feedback. Future roadmap work may
-add privacy-conscious signals for unsuccessful searches, unanswered questions,
-thin institution coverage, outdated guidance, and repeated redirections. Those
-signals should enter the same queue without weakening the privacy boundary.
+This release covers unresolved answer feedback and repeated searches that
+returned no useful result. Search gaps are global because no institution is
+inferred from the query; only global administrators can review them. Future
+roadmap work may add unanswered questions, thin institution coverage, outdated
+guidance, and repeated redirections. Those signals should enter the same queue
+without weakening the privacy boundary.

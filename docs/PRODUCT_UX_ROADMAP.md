@@ -221,6 +221,8 @@ platform.
 
 ### Trust and provenance
 
+**Test status: Not tested**
+
 - [x] Define and display distinct labels for:
   - Student or alumni lived experience
   - Official institutional information
@@ -275,8 +277,10 @@ platform.
 
 ### Knowledge-gaps dashboard
 
+**Test status: Not tested**
+
 - [ ] Record privacy-conscious signals for:
-  - Searches with no useful results
+  - [x] Searches with no useful results — **Not tested**
   - Repeated unanswered questions
   - Institutions with little coverage
   - Topics with outdated guidance
@@ -290,6 +294,8 @@ platform.
   beyond what is necessary to resolve the gap.
 
 ### Resolution-oriented feedback
+
+**Test status: Not tested**
 
 - [x] Add lightweight prompts:
   - Did this answer your question?

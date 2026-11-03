@@ -24,6 +24,8 @@ jobs:
           echo "All PHP files pass php -l"
       - name: Run permission tests
         run: php backend/tests/permissions_test.php
+      - name: Run search-gap signal tests
+        run: php backend/tests/search_gap_signals_test.php
       - name: Run test-account allowlist tests
         run: php backend/tests/test_accounts_test.php
       - name: Run institution pipeline tests

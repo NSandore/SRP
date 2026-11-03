@@ -164,6 +164,7 @@ function KnowledgeGapsDashboard({ userData }) {
   const ambassadorView = viewerScope === 'ambassador';
   const assignedToViewer = selected && String(selected.assigned_to || '') === String(userData?.user_id || '');
   const assignedToAnother = selected && selected.assigned_to && !assignedToViewer;
+  const selectedIsSearchGap = selected?.source_type === 'search';
   const canContribute = isGlobalAdmin || assignedToViewer;
   const availableAssignees = selected
     ? assignees.filter((person) => Number(person.role_id) >= 4 || (person.community_ids || []).includes(selected.community_id))
@@ -331,10 +332,20 @@ function KnowledgeGapsDashboard({ userData }) {
               <span className={`knowledge-gap-card__status knowledge-gap-card__status--${gap.status}`}>
                 {STATUS_LABELS[gap.status]}
               </span>
-              <strong>{gap.thread_title || 'Untitled answer'}</strong>
-              <span className="knowledge-gap-card__context">{gap.community_name} · {gap.forum_name}</span>
-              <span className="knowledge-gap-card__reason">{REASON_LABELS[gap.missing_reason] || 'The guidance did not fully resolve the need'}</span>
-              <span className="knowledge-gap-card__date">Reported {formatDate(gap.created_at)}</span>
+              <strong>{gap.source_type === 'search' ? `Search: “${gap.search_query}”` : (gap.thread_title || 'Untitled answer')}</strong>
+              <span className="knowledge-gap-card__context">
+                {gap.source_type === 'search'
+                  ? `Unsuccessful search · ${Number(gap.signal_count || 0)} occurrences`
+                  : `${gap.community_name} · ${gap.forum_name}`}
+              </span>
+              <span className="knowledge-gap-card__reason">
+                {gap.source_type === 'search'
+                  ? 'People repeatedly searched without finding guidance'
+                  : (REASON_LABELS[gap.missing_reason] || 'The guidance did not fully resolve the need')}
+              </span>
+              <span className="knowledge-gap-card__date">
+                {gap.source_type === 'search' ? 'Last searched' : 'Reported'} {formatDate(gap.last_seen_at || gap.created_at)}
+              </span>
             </button>
           ))}
         </section>
@@ -350,30 +361,49 @@ function KnowledgeGapsDashboard({ userData }) {
             <>
               <div className="knowledge-gaps__detail-head">
                 <div>
-                  <p>{selected.community_name} · {selected.forum_name}</p>
-                  <h2>{selected.thread_title}</h2>
+                  <p>{selectedIsSearchGap ? 'Anonymous, aggregated search signal' : `${selected.community_name} · ${selected.forum_name}`}</p>
+                  <h2>{selectedIsSearchGap ? `“${selected.search_query}”` : selected.thread_title}</h2>
                 </div>
-                <a href={`/info/forum/${selected.forum_id}/thread/${selected.thread_id}`} target="_blank" rel="noreferrer">
-                  View answer <ArrowUpRight size={16} aria-hidden="true" />
-                </a>
+                {!selectedIsSearchGap ? (
+                  <a href={`/info/forum/${selected.forum_id}/thread/${selected.thread_id}`} target="_blank" rel="noreferrer">
+                    View answer <ArrowUpRight size={16} aria-hidden="true" />
+                  </a>
+                ) : null}
               </div>
 
-              <div className="knowledge-gaps__signals" aria-label="User feedback signals">
-                <span className={selected.helpful === 'no' ? 'negative' : ''}>Helpful: {selected.helpful || 'Not answered'}</span>
-                <span className={selected.resolved_signal !== 'yes' ? 'negative' : ''}>Resolved: {selected.resolved_signal || 'Not answered'}</span>
-                <span className={selected.next_step_signal !== 'yes' ? 'negative' : ''}>Next step: {selected.next_step_signal || 'Not answered'}</span>
-              </div>
+              {selectedIsSearchGap ? (
+                <>
+                  <div className="knowledge-gaps__signals" aria-label="Search-gap signals">
+                    <span className="negative">No useful results</span>
+                    <span>{Number(selected.signal_count || 0)} searches</span>
+                    <span>First seen: {formatDate(selected.first_seen_at)}</span>
+                  </div>
+                  <div className="knowledge-gaps__panel knowledge-gaps__panel--attention">
+                    <p className="knowledge-gaps__label">Guidance people could not find</p>
+                    <h3>{selected.search_query}</h3>
+                    <p>This phrase was normalized and stripped of obvious contact details before anonymous aggregation. No user, session, or IP address is attached.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="knowledge-gaps__signals" aria-label="User feedback signals">
+                    <span className={selected.helpful === 'no' ? 'negative' : ''}>Helpful: {selected.helpful || 'Not answered'}</span>
+                    <span className={selected.resolved_signal !== 'yes' ? 'negative' : ''}>Resolved: {selected.resolved_signal || 'Not answered'}</span>
+                    <span className={selected.next_step_signal !== 'yes' ? 'negative' : ''}>Next step: {selected.next_step_signal || 'Not answered'}</span>
+                  </div>
 
-              <div className="knowledge-gaps__panel">
-                <p className="knowledge-gaps__label">What the answer currently says</p>
-                <p className="knowledge-gaps__answer">{stripMarkup(selected.answer_content) || 'No answer preview is available.'}</p>
-              </div>
+                  <div className="knowledge-gaps__panel">
+                    <p className="knowledge-gaps__label">What the answer currently says</p>
+                    <p className="knowledge-gaps__answer">{stripMarkup(selected.answer_content) || 'No answer preview is available.'}</p>
+                  </div>
 
-              <div className="knowledge-gaps__panel knowledge-gaps__panel--attention">
-                <p className="knowledge-gaps__label">What is still missing</p>
-                <h3>{REASON_LABELS[selected.missing_reason] || 'The user did not identify a specific reason.'}</h3>
-                {selected.missing_note ? <p>{selected.missing_note}</p> : <p>No additional note was provided.</p>}
-              </div>
+                  <div className="knowledge-gaps__panel knowledge-gaps__panel--attention">
+                    <p className="knowledge-gaps__label">What is still missing</p>
+                    <h3>{REASON_LABELS[selected.missing_reason] || 'The user did not identify a specific reason.'}</h3>
+                    {selected.missing_note ? <p>{selected.missing_note}</p> : <p>No additional note was provided.</p>}
+                  </div>
+                </>
+              )}
 
               <div className="knowledge-gaps__form-grid">
                 <label>

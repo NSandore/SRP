@@ -58,7 +58,7 @@ try {
         $noteSearch = $isGlobalAdmin
             ? 'g.admin_notes LIKE :search OR g.contributor_notes LIKE :search'
             : 'g.contributor_notes LIKE :search';
-        $where[] = "(t.title LIKE :search OR f.name LIKE :search OR c.name LIKE :search OR g.missing_note LIKE :search OR {$noteSearch})";
+        $where[] = "(g.search_query LIKE :search OR t.title LIKE :search OR f.name LIKE :search OR c.name LIKE :search OR g.missing_note LIKE :search OR {$noteSearch})";
         $params[':search'] = '%' . $search . '%';
     }
     $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -66,7 +66,12 @@ try {
     $stmt = $db->prepare(
         "SELECT
             g.gap_id,
+            g.source_type,
             g.source_post_id,
+            g.search_query,
+            g.signal_count,
+            g.first_seen_at,
+            g.last_seen_at,
             g.helpful,
             g.resolved_signal,
             g.next_step_signal,
@@ -92,10 +97,10 @@ try {
             updater.first_name AS updater_first_name,
             updater.last_name AS updater_last_name
          FROM knowledge_gaps g
-         JOIN posts p ON p.post_id = g.source_post_id
-         JOIN threads t ON t.thread_id = p.thread_id
-         JOIN forums f ON f.forum_id = t.forum_id
-         JOIN communities c ON c.id = f.community_id
+         LEFT JOIN posts p ON p.post_id = g.source_post_id
+         LEFT JOIN threads t ON t.thread_id = p.thread_id
+         LEFT JOIN forums f ON f.forum_id = t.forum_id
+         LEFT JOIN communities c ON c.id = f.community_id
          LEFT JOIN users assignee ON assignee.user_id = g.assigned_to
          LEFT JOIN users updater ON updater.user_id = g.updated_by
          {$whereSql}
@@ -109,10 +114,10 @@ try {
     $counts = ['open' => 0, 'in_progress' => 0, 'ready_for_review' => 0, 'resolved' => 0];
     $countSql = 'SELECT g.status, COUNT(*) AS total
         FROM knowledge_gaps g
-        JOIN posts p ON p.post_id = g.source_post_id
-        JOIN threads t ON t.thread_id = p.thread_id
-        JOIN forums f ON f.forum_id = t.forum_id
-        JOIN communities c ON c.id = f.community_id';
+        LEFT JOIN posts p ON p.post_id = g.source_post_id
+        LEFT JOIN threads t ON t.thread_id = p.thread_id
+        LEFT JOIN forums f ON f.forum_id = t.forum_id
+        LEFT JOIN communities c ON c.id = f.community_id';
     $countWhere = [];
     $countParams = [];
     if (!$isGlobalAdmin) {
@@ -153,30 +158,34 @@ try {
     }
     $overviewWhereSql = 'WHERE ' . implode(' AND ', $overviewWhere);
     $overviewFrom = 'FROM knowledge_gaps g
-        JOIN posts p ON p.post_id = g.source_post_id
-        JOIN threads t ON t.thread_id = p.thread_id
-        JOIN forums f ON f.forum_id = t.forum_id
-        JOIN communities c ON c.id = f.community_id';
+        LEFT JOIN posts p ON p.post_id = g.source_post_id
+        LEFT JOIN threads t ON t.thread_id = p.thread_id
+        LEFT JOIN forums f ON f.forum_id = t.forum_id
+        LEFT JOIN communities c ON c.id = f.community_id';
     $statusTotalsSql = "COUNT(*) AS total,
         SUM(g.status = 'open') AS open_count,
         SUM(g.status = 'in_progress') AS in_progress_count,
         SUM(g.status = 'ready_for_review') AS ready_for_review_count";
 
     $topicStmt = $db->prepare(
-        "SELECT f.forum_id AS id, COALESCE(NULLIF(f.name, ''), 'General guidance') AS label, {$statusTotalsSql}
+        "SELECT COALESCE(f.forum_id, 'unsuccessful-searches') AS id,
+                COALESCE(NULLIF(f.name, ''), 'Unsuccessful searches') AS label,
+                {$statusTotalsSql}
          {$overviewFrom}
          {$overviewWhereSql}
-         GROUP BY f.forum_id, f.name
+         GROUP BY COALESCE(f.forum_id, 'unsuccessful-searches'), COALESCE(NULLIF(f.name, ''), 'Unsuccessful searches')
          ORDER BY total DESC, label ASC
          LIMIT 7"
     );
     $topicStmt->execute($overviewParams);
 
     $communityStmt = $db->prepare(
-        "SELECT c.id, c.name AS label, {$statusTotalsSql}
+        "SELECT COALESCE(c.id, 'no-institution') AS id,
+                COALESCE(NULLIF(c.name, ''), 'No institution identified') AS label,
+                {$statusTotalsSql}
          {$overviewFrom}
          {$overviewWhereSql}
-         GROUP BY c.id, c.name
+         GROUP BY COALESCE(c.id, 'no-institution'), COALESCE(NULLIF(c.name, ''), 'No institution identified')
          ORDER BY total DESC, label ASC
          LIMIT 7"
     );

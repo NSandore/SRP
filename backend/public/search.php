@@ -4,6 +4,7 @@ require_once __DIR__ . '/../session_bootstrap.php';
 startSession();
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/institution_data/PublicProjection.php';
+require_once __DIR__ . '/../includes/search_gap_signals.php';
 header('Content-Type: application/json');
 
 $q = isset($_GET['q']) ? trim($_GET['q']) : '';
@@ -176,6 +177,14 @@ try {
     $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
     $stmt->execute();
     $results['posts'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $resultCount = array_sum(array_map(
+        static fn ($items): int => is_array($items) ? count($items) : 0,
+        $results
+    ));
+    if ($resultCount === 0) {
+        srp_record_empty_search_gap($db, $q);
+    }
 
     echo json_encode($results);
 } catch (PDOException $e) {
