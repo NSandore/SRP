@@ -647,7 +647,9 @@ export default function ThreadDetailScreen() {
               source={{ html: normalizeHtml(originalPost.content || '') }}
               baseStyle={styles.postContent}
             />
-            <ResolutionFeedback postId={originalPost.post_id} loggedIn={Boolean(user?.user_id)} requireAuth={() => openLockedFeature('Sharing feedback')} />
+            {isKnowledgeBaseEntry && thread?.content_kind === 'article' ? (
+              <ResolutionFeedback postId={originalPost.post_id} loggedIn={Boolean(user?.user_id)} requireAuth={() => openLockedFeature('Sharing feedback')} />
+            ) : null}
 
             {!isKnowledgeBaseEntry ? (
               <View style={styles.voteRow}>

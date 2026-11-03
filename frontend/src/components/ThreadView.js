@@ -1886,7 +1886,9 @@ function ThreadView({ userData, onRequireAuth }) {
               style={{ marginTop: isKnowledgeBaseEntry ? 0 : '8px' }}
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(originalPost.content) }}
             />
-            <ResolutionFeedback postId={originalPost.post_id} isLoggedIn={Boolean(userData?.user_id)} onRequireAuth={promptAuthOverlay} />
+            {isKnowledgeBaseEntry && threadData?.content_kind === 'article' ? (
+              <ResolutionFeedback postId={originalPost.post_id} isLoggedIn={Boolean(userData?.user_id)} onRequireAuth={promptAuthOverlay} />
+            ) : null}
             {!isKnowledgeBaseEntry && (
               <div className="vote-row">
               <button

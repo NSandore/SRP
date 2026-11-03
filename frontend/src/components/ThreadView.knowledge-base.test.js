@@ -83,6 +83,22 @@ test('renders Information Board root copy as a document without an individual au
   expect(screen.queryByRole('button', { name: /follow/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /upvote/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /post actions/i })).not.toBeInTheDocument();
+  expect(screen.queryByText('Did this article help?')).not.toBeInTheDocument();
+  expect(screen.queryByText('Before you act')).not.toBeInTheDocument();
+});
+
+test('shows compact resolution feedback only on direct articles', async () => {
+  threadResponse = {
+    ...thread,
+    title: 'A focused article',
+    content_kind: 'article',
+  };
+
+  renderThreadRoute();
+
+  expect(await screen.findByText('Did this article help?')).toBeInTheDocument();
+  expect(screen.getByText('Private')).toBeInTheDocument();
+  expect(screen.queryByText('Before you act')).not.toBeInTheDocument();
 });
 
 test('keeps author attribution and post controls on ordinary discussions', async () => {
@@ -100,4 +116,5 @@ test('keeps author attribution and post controls on ordinary discussions', async
   expect(screen.getByRole('button', { name: /upvote/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /post actions/i })).toBeInTheDocument();
   expect(screen.queryByLabelText(/knowledge base/i)).not.toBeInTheDocument();
+  expect(screen.queryByText('Did this article help?')).not.toBeInTheDocument();
 });

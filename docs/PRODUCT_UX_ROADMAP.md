@@ -287,7 +287,7 @@ platform.
   - Questions repeatedly redirected elsewhere
   - Users reporting that they still do not know what to do
 - [x] Build a dashboard for authorized ambassadors, staff, and administrators.
-- [ ] Rank gaps by frequency, urgency, affected audience, and age.
+- [x] Rank gaps by frequency, urgency, affected audience, and age — **Not tested**.
 - [ ] Allow an authorized person to claim a gap, publish an answer/resource, and
   mark the gap resolved.
 - [x] Prevent the dashboard from exposing sensitive user questions or identity

@@ -23,6 +23,10 @@ $assignedTo = normalizeId($data['assigned_to'] ?? '');
 $adminNotes = srp_sanitize_plain((string)($data['admin_notes'] ?? ''));
 $contributorNotes = srp_sanitize_plain((string)($data['contributor_notes'] ?? ''));
 $resolutionUrl = trim((string)($data['resolution_url'] ?? ''));
+$priorityLevel = strtolower(trim((string)($data['priority_level'] ?? 'needs_triage')));
+$affectedAudience = srp_sanitize_plain((string)($data['affected_audience'] ?? ''));
+$audienceScope = strtolower(trim((string)($data['audience_scope'] ?? 'unknown')));
+$urgencyReason = srp_sanitize_plain((string)($data['urgency_reason'] ?? ''));
 
 $allowedStatuses = $isGlobalAdmin
     ? ['open', 'in_progress', 'ready_for_review', 'resolved']
@@ -30,7 +34,14 @@ $allowedStatuses = $isGlobalAdmin
 if ($gapId === '' || !in_array($status, $allowedStatuses, true)) {
     srp_json(['success' => false, 'error' => 'A valid gap and status are required.'], 400);
 }
-if (mb_strlen($adminNotes) > 1000 || mb_strlen($contributorNotes) > 1000 || mb_strlen($resolutionUrl) > 500) {
+if (!in_array($priorityLevel, ['needs_triage', 'critical', 'high', 'normal', 'low'], true)) {
+    srp_json(['success' => false, 'error' => 'Choose a valid priority.'], 400);
+}
+if (!in_array($audienceScope, ['unknown', 'individual', 'group', 'broad'], true)) {
+    srp_json(['success' => false, 'error' => 'Choose a valid audience scope.'], 400);
+}
+if (mb_strlen($adminNotes) > 1000 || mb_strlen($contributorNotes) > 1000 || mb_strlen($resolutionUrl) > 500
+    || mb_strlen($affectedAudience) > 255 || mb_strlen($urgencyReason) > 500) {
     srp_json(['success' => false, 'error' => 'Notes or resolution link are too long.'], 400);
 }
 if ($resolutionUrl !== '') {
@@ -106,6 +117,18 @@ try {
              contributor_notes = NULLIF(:contributor_notes, ''),
              admin_notes = CASE WHEN :can_update_admin_notes = 1 THEN NULLIF(:admin_notes, '') ELSE admin_notes END,
              resolution_url = NULLIF(:resolution_url, ''),
+             priority_level = CASE WHEN :can_triage = 1 THEN :priority_level ELSE priority_level END,
+             affected_audience = CASE WHEN :can_triage_audience = 1 THEN NULLIF(:affected_audience, '') ELSE affected_audience END,
+             audience_scope = CASE WHEN :can_triage_scope = 1 THEN :audience_scope ELSE audience_scope END,
+             urgency_reason = CASE WHEN :can_triage_reason = 1 THEN NULLIF(:urgency_reason, '') ELSE urgency_reason END,
+             triaged_by = CASE
+                WHEN :can_triage_by = 0 THEN triaged_by
+                WHEN :priority_for_triage = 'needs_triage' THEN NULL
+                ELSE :triaged_by END,
+             triaged_at = CASE
+                WHEN :can_triage_at = 0 THEN triaged_at
+                WHEN :priority_for_time = 'needs_triage' THEN NULL
+                ELSE NOW() END,
              updated_by = :updated_by,
              resolved_by = CASE WHEN :resolved_status = 'resolved' THEN :resolver_id ELSE NULL END,
              resolved_at = CASE WHEN :resolved_at_status = 'resolved' THEN COALESCE(resolved_at, NOW()) ELSE NULL END
@@ -118,6 +141,19 @@ try {
         ':admin_notes' => $adminNotes,
         ':can_update_admin_notes' => $isGlobalAdmin ? 1 : 0,
         ':resolution_url' => $resolutionUrl,
+        ':can_triage' => $isGlobalAdmin ? 1 : 0,
+        ':can_triage_audience' => $isGlobalAdmin ? 1 : 0,
+        ':can_triage_reason' => $isGlobalAdmin ? 1 : 0,
+        ':can_triage_scope' => $isGlobalAdmin ? 1 : 0,
+        ':can_triage_by' => $isGlobalAdmin ? 1 : 0,
+        ':can_triage_at' => $isGlobalAdmin ? 1 : 0,
+        ':priority_level' => $priorityLevel,
+        ':priority_for_triage' => $priorityLevel,
+        ':priority_for_time' => $priorityLevel,
+        ':affected_audience' => $affectedAudience,
+        ':audience_scope' => $audienceScope,
+        ':urgency_reason' => $urgencyReason,
+        ':triaged_by' => $userId,
         ':updated_by' => $userId,
         ':resolved_status' => $status,
         ':resolved_at_status' => $status,

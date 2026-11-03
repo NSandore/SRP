@@ -32,6 +32,14 @@ const REASON_LABELS = {
   other: 'Something else',
 };
 
+const PRIORITY_LABELS = {
+  needs_triage: 'Needs triage',
+  critical: 'Critical',
+  high: 'High',
+  normal: 'Normal',
+  low: 'Low',
+};
+
 const stripMarkup = (value = '') => {
   const clean = DOMPurify.sanitize(String(value), { ALLOWED_TAGS: [] });
   if (typeof document === 'undefined') return clean;
@@ -60,6 +68,10 @@ function KnowledgeGapsDashboard({ userData }) {
   const [overview, setOverview] = useState({ by_topic: [], by_community: [], common_reason: null });
   const [overviewMode, setOverviewMode] = useState('by_topic');
   const [communityFilter, setCommunityFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [sort, setSort] = useState('priority');
   const [communityOptions, setCommunityOptions] = useState([]);
   const [viewerScope, setViewerScope] = useState(isGlobalAdmin ? 'global_admin' : 'ambassador');
   const [selectedId, setSelectedId] = useState('');
@@ -75,7 +87,15 @@ function KnowledgeGapsDashboard({ userData }) {
     setError('');
     try {
       const { data } = await axios.get(buildApiUrl('/api/fetch_knowledge_gaps.php'), {
-        params: { status: statusFilter, q: appliedQuery, community_id: communityFilter },
+        params: {
+          status: statusFilter,
+          q: appliedQuery,
+          community_id: communityFilter,
+          priority: priorityFilter,
+          source: sourceFilter,
+          assignee: assigneeFilter,
+          sort,
+        },
         withCredentials: true,
       });
       const nextGaps = Array.isArray(data.gaps) ? data.gaps : [];
@@ -96,7 +116,7 @@ function KnowledgeGapsDashboard({ userData }) {
     } finally {
       setLoading(false);
     }
-  }, [allowed, appliedQuery, communityFilter, isGlobalAdmin, statusFilter]);
+  }, [allowed, appliedQuery, assigneeFilter, communityFilter, isGlobalAdmin, priorityFilter, sort, sourceFilter, statusFilter]);
 
   useEffect(() => { loadGaps(); }, [loadGaps]);
 
@@ -116,6 +136,10 @@ function KnowledgeGapsDashboard({ userData }) {
       contributor_notes: selected.contributor_notes || '',
       admin_notes: selected.admin_notes || '',
       resolution_url: selected.resolution_url || '',
+      priority_level: selected.priority_level || 'needs_triage',
+      affected_audience: selected.affected_audience || '',
+      audience_scope: selected.audience_scope || 'unknown',
+      urgency_reason: selected.urgency_reason || '',
     });
     setMessage('');
   }, [selected]);
@@ -300,6 +324,41 @@ function KnowledgeGapsDashboard({ userData }) {
         <button type="submit">Search</button>
       </form>
 
+      <div className="knowledge-gaps__triage-filters" aria-label="Triage filters">
+        <label>
+          <span>Priority</span>
+          <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
+            <option value="all">All priorities</option>
+            {Object.entries(PRIORITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Source</span>
+          <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+            <option value="all">All sources</option>
+            <option value="feedback">Unresolved feedback</option>
+            {isGlobalAdmin ? <option value="search">Unsuccessful searches</option> : null}
+          </select>
+        </label>
+        <label>
+          <span>Assignment</span>
+          <select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}>
+            <option value="all">All assignments</option>
+            <option value="unassigned">Unassigned</option>
+            <option value="mine">Assigned to me</option>
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select value={sort} onChange={(event) => setSort(event.target.value)}>
+            <option value="priority">Priority score</option>
+            <option value="frequency">Frequency</option>
+            <option value="newest">Recently updated</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </label>
+      </div>
+
       {error && <p className="knowledge-gaps__notice knowledge-gaps__notice--error" role="alert">{error}</p>}
       {message && <p className="knowledge-gaps__notice" role="status">{message}</p>}
 
@@ -331,6 +390,9 @@ function KnowledgeGapsDashboard({ userData }) {
             >
               <span className={`knowledge-gap-card__status knowledge-gap-card__status--${gap.status}`}>
                 {STATUS_LABELS[gap.status]}
+              </span>
+              <span className={`knowledge-gap-card__priority knowledge-gap-card__priority--${gap.priority_level}`}>
+                {PRIORITY_LABELS[gap.priority_level] || 'Needs triage'} · {Number(gap.priority_score || 0)}
               </span>
               <strong>{gap.source_type === 'search' ? `Search: “${gap.search_query}”` : (gap.thread_title || 'Untitled answer')}</strong>
               <span className="knowledge-gap-card__context">
@@ -405,6 +467,20 @@ function KnowledgeGapsDashboard({ userData }) {
                 </>
               )}
 
+              <div className="knowledge-gaps__priority-panel">
+                <div>
+                  <p className="knowledge-gaps__label">Transparent priority score</p>
+                  <strong>{Number(selected.priority_score || 0)}</strong>
+                </div>
+                <dl>
+                  <div><dt>Manual priority</dt><dd>+{Number(selected.priority_breakdown?.manual || 0)}</dd></div>
+                  <div><dt>Frequency</dt><dd>+{Number(selected.priority_breakdown?.frequency || 0)}</dd></div>
+                  <div><dt>Age</dt><dd>+{Number(selected.priority_breakdown?.age || 0)}</dd></div>
+                  <div><dt>Audience reach</dt><dd>+{Number(selected.priority_breakdown?.audience || 0)}</dd></div>
+                  <div><dt>Feedback severity</dt><dd>+{Number(selected.priority_breakdown?.severity || 0)}</dd></div>
+                </dl>
+              </div>
+
               <div className="knowledge-gaps__form-grid">
                 <label>
                   <span>Status</span>
@@ -436,6 +512,34 @@ function KnowledgeGapsDashboard({ userData }) {
                   </div>
                 )}
               </div>
+
+              {isGlobalAdmin ? (
+                <div className="knowledge-gaps__triage-fields">
+                  <label>
+                    <span>Priority</span>
+                    <select value={draft.priority_level} onChange={(event) => setDraft({ ...draft, priority_level: event.target.value })}>
+                      {Object.entries(PRIORITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Affected audience</span>
+                    <input maxLength={255} value={draft.affected_audience} onChange={(event) => setDraft({ ...draft, affected_audience: event.target.value })} placeholder="Example: first-generation applicants" />
+                  </label>
+                  <label>
+                    <span>Audience reach</span>
+                    <select value={draft.audience_scope} onChange={(event) => setDraft({ ...draft, audience_scope: event.target.value })}>
+                      <option value="unknown">Not assessed</option>
+                      <option value="individual">Individual</option>
+                      <option value="group">Defined group</option>
+                      <option value="broad">Broad audience</option>
+                    </select>
+                  </label>
+                  <label className="knowledge-gaps__triage-reason">
+                    <span>Urgency rationale</span>
+                    <textarea rows={2} maxLength={500} value={draft.urgency_reason} onChange={(event) => setDraft({ ...draft, urgency_reason: event.target.value })} placeholder="Explain any deadline, safety, access, or policy urgency." />
+                  </label>
+                </div>
+              ) : null}
 
               <label className="knowledge-gaps__field">
                 <span>Contributor notes</span>

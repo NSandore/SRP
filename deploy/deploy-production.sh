@@ -139,6 +139,8 @@ else
     20261102_content_provenance.sql
     20261102_resolution_feedback.sql
     20261105_search_gap_signals.sql
+    20261106_gap_priorities.sql
+    20261107_gap_audience_scope.sql
   )
   for required_migration in "${required_migrations[@]}"; do
     if [[ -f "$release_dir/backend/migrations/$required_migration" ]]; then

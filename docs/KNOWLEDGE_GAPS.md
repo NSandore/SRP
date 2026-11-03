@@ -14,6 +14,10 @@ following is true:
 - The user's issue was only partly resolved or not resolved.
 - The user is unsure of the next step or does not know the next step.
 
+The compact feedback prompt is shown only on knowledge-base entries whose
+content kind is `article`. It is intentionally omitted from ordinary
+discussions, guide landing pages, and section pages on both web and mobile.
+
 Positive feedback remains in `content_resolution_feedback` for measurement but
 does not create an administrative work item. Existing unresolved feedback is
 backfilled by `20261103_knowledge_gaps.sql`.
@@ -70,6 +74,14 @@ administrators can select any community represented in the gap data;
 ambassadors receive only communities within their authorized scope. The chart
 contains aggregate counts only and never exposes reporter identity or private
 feedback text.
+
+The queue uses a transparent, deterministic priority score rather than AI.
+Frequency contributes up to 40 points, age up to 30, affected-audience reach
+up to 25, and unresolved-feedback severity up to 45. A global administrator can add an explicit priority
+(`Critical`, `High`, `Normal`, or `Low`), an affected audience, and an urgency
+rationale. The dashboard displays the point breakdown and supports filtering by
+priority, source, assignment, and several deterministic sort orders. New gaps
+remain `Needs triage` until an administrator classifies them.
 
 Each gap moves through:
 

@@ -34,6 +34,19 @@ $communityId = normalizeId($_GET['community_id'] ?? '');
 if (mb_strlen($communityId) > 32) {
     srp_json(['success' => false, 'error' => 'Invalid community filter.'], 400);
 }
+$allowedPriorities = ['all', 'needs_triage', 'critical', 'high', 'normal', 'low'];
+$priority = strtolower(trim((string)($_GET['priority'] ?? 'all')));
+$allowedSources = ['all', 'feedback', 'search'];
+$source = strtolower(trim((string)($_GET['source'] ?? 'all')));
+$allowedSorts = ['priority', 'newest', 'oldest', 'frequency'];
+$sort = strtolower(trim((string)($_GET['sort'] ?? 'priority')));
+$assignee = strtolower(trim((string)($_GET['assignee'] ?? 'all')));
+if (!in_array($priority, $allowedPriorities, true)
+    || !in_array($source, $allowedSources, true)
+    || !in_array($sort, $allowedSorts, true)
+    || !in_array($assignee, ['all', 'unassigned', 'mine'], true)) {
+    srp_json(['success' => false, 'error' => 'Invalid triage filter.'], 400);
+}
 
 try {
     $where = [];
@@ -54,14 +67,45 @@ try {
         $where[] = 'c.id = :community_id';
         $params[':community_id'] = $communityId;
     }
+    if ($priority !== 'all') {
+        $where[] = 'g.priority_level = :priority';
+        $params[':priority'] = $priority;
+    }
+    if ($source !== 'all') {
+        $where[] = 'g.source_type = :source_type';
+        $params[':source_type'] = $source;
+    }
+    if ($assignee === 'unassigned') {
+        $where[] = 'g.assigned_to IS NULL';
+    } elseif ($assignee === 'mine') {
+        $where[] = 'g.assigned_to = :assignee_id';
+        $params[':assignee_id'] = $userId;
+    }
     if ($search !== '') {
         $noteSearch = $isGlobalAdmin
             ? 'g.admin_notes LIKE :search OR g.contributor_notes LIKE :search'
             : 'g.contributor_notes LIKE :search';
-        $where[] = "(g.search_query LIKE :search OR t.title LIKE :search OR f.name LIKE :search OR c.name LIKE :search OR g.missing_note LIKE :search OR {$noteSearch})";
+        $where[] = "(g.search_query LIKE :search OR t.title LIKE :search OR f.name LIKE :search OR c.name LIKE :search OR g.missing_note LIKE :search OR g.affected_audience LIKE :search OR g.urgency_reason LIKE :search OR {$noteSearch})";
         $params[':search'] = '%' . $search . '%';
     }
     $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $priorityScoreSql = "(
+        CASE g.priority_level
+            WHEN 'critical' THEN 100 WHEN 'high' THEN 75
+            WHEN 'normal' THEN 50 WHEN 'low' THEN 25 ELSE 0 END
+        + LEAST(COALESCE(g.signal_count, 1), 10) * 4
+        + LEAST(GREATEST(DATEDIFF(CURDATE(), COALESCE(g.first_seen_at, g.created_at)), 0), 30)
+        + CASE g.audience_scope WHEN 'broad' THEN 25 WHEN 'group' THEN 15 WHEN 'individual' THEN 5 ELSE 0 END
+        + CASE WHEN g.resolved_signal = 'no' THEN 20 WHEN g.resolved_signal = 'partly' THEN 10 ELSE 0 END
+        + CASE WHEN g.next_step_signal = 'no' THEN 15 WHEN g.next_step_signal = 'unsure' THEN 8 ELSE 0 END
+        + CASE WHEN g.helpful = 'no' THEN 10 ELSE 0 END
+    )";
+    $orderSql = match ($sort) {
+        'newest' => 'g.updated_at DESC',
+        'oldest' => 'g.created_at ASC',
+        'frequency' => 'g.signal_count DESC, g.updated_at DESC',
+        default => 'priority_score DESC, g.updated_at DESC',
+    };
 
     $stmt = $db->prepare(
         "SELECT
@@ -72,6 +116,12 @@ try {
             g.signal_count,
             g.first_seen_at,
             g.last_seen_at,
+            g.priority_level,
+            g.affected_audience,
+            g.audience_scope,
+            g.urgency_reason,
+            g.triaged_at,
+            {$priorityScoreSql} AS priority_score,
             g.helpful,
             g.resolved_signal,
             g.next_step_signal,
@@ -104,9 +154,7 @@ try {
          LEFT JOIN users assignee ON assignee.user_id = g.assigned_to
          LEFT JOIN users updater ON updater.user_id = g.updated_by
          {$whereSql}
-         ORDER BY
-            CASE g.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'ready_for_review' THEN 2 ELSE 3 END,
-            g.updated_at DESC
+         ORDER BY {$orderSql}
          LIMIT 250"
     );
     $stmt->execute($params);
@@ -270,6 +318,30 @@ try {
     unset($person);
 
     $gaps = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($gaps as &$gap) {
+        $frequencyPoints = min((int)($gap['signal_count'] ?? 1), 10) * 4;
+        $ageStart = $gap['first_seen_at'] ?: $gap['created_at'];
+        $ageDays = max(0, min(30, (int)floor((time() - strtotime((string)$ageStart)) / 86400)));
+        $severityPoints = 0;
+        $severityPoints += $gap['resolved_signal'] === 'no' ? 20 : ($gap['resolved_signal'] === 'partly' ? 10 : 0);
+        $severityPoints += $gap['next_step_signal'] === 'no' ? 15 : ($gap['next_step_signal'] === 'unsure' ? 8 : 0);
+        $severityPoints += $gap['helpful'] === 'no' ? 10 : 0;
+        $audiencePoints = match ($gap['audience_scope']) {
+            'broad' => 25, 'group' => 15, 'individual' => 5, default => 0,
+        };
+        $manualPoints = match ($gap['priority_level']) {
+            'critical' => 100, 'high' => 75, 'normal' => 50, 'low' => 25, default => 0,
+        };
+        $gap['priority_score'] = (int)$gap['priority_score'];
+        $gap['priority_breakdown'] = [
+            'manual' => $manualPoints,
+            'frequency' => $frequencyPoints,
+            'age' => $ageDays,
+            'audience' => $audiencePoints,
+            'severity' => $severityPoints,
+        ];
+    }
+    unset($gap);
     if (!$isGlobalAdmin) {
         foreach ($gaps as &$gap) {
             unset($gap['admin_notes']);
